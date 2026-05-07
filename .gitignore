@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.bak
+tweaks_decoded.txt
+app_extracted.js
+.claude/
