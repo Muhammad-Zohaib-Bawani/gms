@@ -137,12 +137,10 @@ function StadiumTable({ table, assignments, onSeatClick }) {
   const rowNamesArr = table.rowNames || [];
   const seatNums = table.seatNumbers || {};
   const cc = table.categoryColor;
-  const blockColor   = cc || null;
-  const assignedFill = blockColor || 'var(--accent)';
-  const blockBg      = blockColor ? hexToRgba(blockColor, 0.07) : 'rgba(26,174,196,0.05)';
-  const blockStroke  = blockColor ? hexToRgba(blockColor, 0.35) : 'rgba(26,174,196,0.3)';
-  const rowLabelFill = blockColor || 'var(--accent)';
-  const labelFill    = blockColor || 'var(--accent)';
+  const blockBg     = cc ? hexToRgba(cc, 0.07) : 'rgba(26,174,196,0.05)';
+  const blockStroke = cc ? hexToRgba(cc, 0.35) : 'rgba(26,174,196,0.3)';
+  const labelFill   = cc || 'var(--accent)';
+  const rowLabelFill = cc || 'var(--accent)';
   return (
     <svg width={w} height={h} style={{ display:'block' }}>
       <rect x={1} y={1} width={w-2} height={h-2} rx={6} fill={blockBg} stroke={blockStroke} strokeWidth="1" strokeDasharray="4 3"/>
@@ -166,20 +164,15 @@ function StadiumTable({ table, assignments, onSeatClick }) {
               const bx = 8 + ROW_LABEL_W + col * step;
               const by = by0;
               const cx = bx + seatW / 2, cy = by + seatH / 2;
-              const unassignedFill   = blockColor ? hexToRgba(blockColor, 0.13) : 'var(--surface-soft-3)';
-              const unassignedStroke = blockColor ? hexToRgba(blockColor, 0.4)  : 'var(--glass-border)';
               return (
                 <g key={skey} style={{ cursor:'pointer' }} onClick={() => onSeatClick(table, idx, gId)}>
                   <rect x={bx} y={by} width={seatW} height={seatH} rx={3}
-                    fill={gId ? assignedFill : unassignedFill}
-                    stroke={gId ? assignedFill : unassignedStroke}
+                    fill={gId ? 'var(--accent)' : 'var(--surface-soft-3)'}
+                    stroke={gId ? 'var(--accent)' : 'var(--glass-border)'}
                     strokeWidth="0.8"/>
                   {g
                     ? <text x={cx} y={cy + 3} textAnchor="middle" fontSize="5" fill="#fff" fontWeight="bold">{g.initials}</text>
-                    : <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="6"
-                        fill={blockColor ? (hexToRgba(blockColor, 0.75) || 'var(--ink-faint)') : 'var(--ink-faint)'}>
-                        {displayNum}
-                      </text>
+                    : <text x={cx} y={cy + 3.5} textAnchor="middle" fontSize="6" fill="var(--ink-faint)">{displayNum}</text>
                   }
                 </g>
               );
@@ -247,6 +240,8 @@ export default function SeatingView({ lang }) {
   };
 
   const [venueData, setVenueData] = useState(null);
+  const [stadiumVenue, setStadiumVenue] = useState(null);
+  const [activeSeatingBlockId, setActiveSeatingBlockId] = useState(null);
   const [assignments, setAssignments] = useState({});
   const [tab, setTab] = useState('floor');
   const [assignModal, setAssignModal] = useState(null);
@@ -254,22 +249,47 @@ export default function SeatingView({ lang }) {
   const [zoom, setZoom] = useState(1.0);
   const scrollRef = useRef(null);
 
+  const activeSeatingBlock = stadiumVenue
+    ? ((stadiumVenue.blocks || []).find(b => b.id === activeSeatingBlockId) || (stadiumVenue.blocks || [])[0])
+    : null;
+  const displayTables = activeSeatingBlock
+    ? (activeSeatingBlock.tables || [])
+    : (venueData?.tables || []);
+
   const MIN_ZOOM = 0.3, MAX_ZOOM = 2.5, CANVAS_W = 1400, CANVAS_H = 900;
   function zoomIn()    { setZoom(z => Math.min(MAX_ZOOM, +((z + 0.1).toFixed(1)))); }
   function zoomOut()   { setZoom(z => Math.max(MIN_ZOOM, +((z - 0.1).toFixed(1)))); }
   function zoomReset() { setZoom(1.0); }
 
   useEffect(() => {
-    let venue = null, asgn = null;
+    let asgn = null;
+    try { const sa = localStorage.getItem('gms-assignments'); if (sa) asgn = JSON.parse(sa); } catch(e) {}
+
+    // Try to load full venue structure for stadium support
+    let stadVenue = null;
     try {
-      const sv = localStorage.getItem('gms-venue');
-      if (sv) venue = JSON.parse(sv);
-      const sa = localStorage.getItem('gms-assignments');
-      if (sa) asgn = JSON.parse(sa);
+      const allVenues = JSON.parse(localStorage.getItem('gms-venues') || 'null');
+      const activeVenueId = localStorage.getItem('gms-venues-active');
+      if (allVenues && activeVenueId) {
+        const av = allVenues.find(v => v.id === activeVenueId) || allVenues[0];
+        if (av?.venueType === 'stadium' && (av.blocks || []).length > 0) stadVenue = av;
+      }
     } catch(e) {}
-    const tables = venue?.tables || DEFAULT_TABLES;
-    setVenueData({ tables });
-    setAssignments(asgn || buildDefaultAssignments(tables));
+
+    if (stadVenue) {
+      const allTables = (stadVenue.blocks || []).flatMap(b => b.tables || []);
+      setStadiumVenue(stadVenue);
+      setActiveSeatingBlockId((stadVenue.blocks || [])[0]?.id || null);
+      setVenueData({ tables: allTables });
+      setAssignments(asgn || buildDefaultAssignments(allTables));
+    } else {
+      let venue = null;
+      try { const sv = localStorage.getItem('gms-venue'); if (sv) venue = JSON.parse(sv); } catch(e) {}
+      const tables = venue?.tables || DEFAULT_TABLES;
+      setStadiumVenue(null);
+      setVenueData({ tables });
+      setAssignments(asgn || buildDefaultAssignments(tables));
+    }
   }, []);
 
   function handleSeatClick(table, seatIdx, guestId) {
@@ -342,6 +362,33 @@ export default function SeatingView({ lang }) {
 
       {tab === 'floor' && venueData && (
         <div className="card" style={{ padding:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+          {/* Block selector — stadium only */}
+          {stadiumVenue && (stadiumVenue.blocks || []).length > 0 && (
+            <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--glass-border)', display:'flex', alignItems:'center', gap:8, flexShrink:0, flexWrap:'wrap' }}>
+              <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginRight:4 }}>
+                {isAr ? 'القطاع' : 'Block'}
+              </span>
+              {(stadiumVenue.blocks || []).map(blk => {
+                const isActive = blk.id === (activeSeatingBlock?.id);
+                const cc = blk.categoryColor;
+                return (
+                  <button key={blk.id} onClick={() => setActiveSeatingBlockId(blk.id)}
+                    style={{
+                      fontSize:12, fontWeight:600, fontFamily:'var(--mono)',
+                      padding:'4px 14px', borderRadius:20, cursor:'pointer',
+                      background: isActive ? (cc || 'var(--accent)') : 'transparent',
+                      color: isActive ? '#fff' : (cc || 'var(--accent)'),
+                      border:`1.5px solid ${cc || 'var(--accent)'}`,
+                      opacity: isActive ? 1 : 0.7,
+                      transition:'all 0.15s',
+                    }}>
+                    {blk.label || blk.id}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Zoom toolbar */}
           <div style={{ padding:'6px 12px', borderBottom:'1px solid var(--glass-border)', display:'flex', alignItems:'center', gap:6, background:'var(--surface-soft-3)', flexShrink:0 }}>
             <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginRight:2 }}>
@@ -389,7 +436,7 @@ export default function SeatingView({ lang }) {
                   <rect width="100%" height="100%" fill="url(#sgrid)"/>
                 </svg>
 
-                {venueData.tables.map(t => (
+                {displayTables.map(t => (
                   <div key={t.id} style={{ position:'absolute', left:t.x, top:t.y }}>
                     {t.type === 'round'   && <RoundTable   table={t} assignments={assignments} onSeatClick={handleSeatClick}/>}
                     {t.type === 'rect'    && <RectTable    table={t} assignments={assignments} onSeatClick={handleSeatClick}/>}

@@ -38,14 +38,16 @@ const PREDEFINED_VENUES = [
 const VK = 'gms-venues', VAK = 'gms-venues-active';
 
 const CATEGORY_COLORS = [
-  '#e05252', // red
-  '#2563eb', // blue
-  '#16a34a', // green
-  '#f5a623', // amber
-  '#7c3aed', // purple
-  '#db2777', // pink
-  '#0891b2', // cyan
-  '#ea7c1e', // orange
+  '#e05252','#2563eb','#16a34a','#f5a623','#7c3aed','#db2777','#0891b2','#ea7c1e',
+];
+
+const SWATCH_COLORS = [
+  '#e05252','#ef4444','#f97316','#ea7c1e',
+  '#f5a623','#eab308','#f0c040','#84cc16',
+  '#16a34a','#22c55e','#14b8a6','#0891b2',
+  '#06b6d4','#3b82f6','#2563eb','#6366f1',
+  '#7c3aed','#a855f7','#d946ef','#db2777',
+  '#ec4899','#64748b','#94a3b8','#475569',
 ];
 
 function hexToRgba(hex, alpha) {
@@ -353,6 +355,7 @@ export default function VenueConfigView({ lang }) {
   const [newBlockRows, setNewBlockRows] = useState(10);
   const [newBlockSeatsPerRow, setNewBlockSeatsPerRow] = useState(20);
   const [newBlockCategoryId, setNewBlockCategoryId] = useState('');
+  const [openSwatchForCatId, setOpenSwatchForCatId] = useState(null);
   const [pendingDeleteBlockId, setPendingDeleteBlockId] = useState(null);
   const [pendingDeleteVenueId, setPendingDeleteVenueId] = useState(null);
   const [deleteSeatMode, setDeleteSeatMode] = useState(false);
@@ -501,6 +504,9 @@ export default function VenueConfigView({ lang }) {
   }
   function updateCategory(id, name) {
     setNewVenueCategories(prev => prev.map(c => c.id === id ? { ...c, name } : c));
+  }
+  function updateCategoryColor(id, color) {
+    setNewVenueCategories(prev => prev.map(c => c.id === id ? { ...c, color } : c));
   }
   function addBlock() {
     const id = `blk${Date.now()}`;
@@ -1201,13 +1207,36 @@ export default function VenueConfigView({ lang }) {
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                       {newVenueCategories.map(cat => (
-                        <div key={cat.id} style={{ display:'flex', gap:6, alignItems:'center' }}>
-                          <span style={{ width:12, height:12, borderRadius:'50%', background: cat.color || '#ccc', flexShrink:0 }}/>
-                          <input style={{ ...inputStyle, flex:1 }} value={cat.name}
-                            onChange={e => updateCategory(cat.id, e.target.value)}
-                            placeholder={isAr ? 'اسم الفئة، مثال: VIP' : 'e.g. VIP, General Stand'}/>
-                          <button className="btn" style={{ padding:'6px 10px', flexShrink:0, color:'var(--ink-faint)' }}
-                            onClick={() => removeCategory(cat.id)}>×</button>
+                        <div key={cat.id}>
+                          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                            <button
+                              title={isAr ? 'اختر لوناً' : 'Pick color'}
+                              onClick={() => setOpenSwatchForCatId(p => p === cat.id ? null : cat.id)}
+                              style={{ width:22, height:22, borderRadius:'50%', background: cat.color || '#ccc', flexShrink:0,
+                                border: openSwatchForCatId === cat.id ? '2.5px solid rgba(255,255,255,0.8)' : '2px solid transparent',
+                                cursor:'pointer', padding:0, outline:'none',
+                                boxShadow: openSwatchForCatId === cat.id ? '0 0 0 2px var(--accent)' : 'none',
+                              }}/>
+                            <input style={{ ...inputStyle, flex:1 }} value={cat.name}
+                              onChange={e => updateCategory(cat.id, e.target.value)}
+                              placeholder={isAr ? 'اسم الفئة، مثال: VIP' : 'e.g. VIP, General Stand'}/>
+                            <button className="btn" style={{ padding:'6px 10px', flexShrink:0, color:'var(--ink-faint)' }}
+                              onClick={() => removeCategory(cat.id)}>×</button>
+                          </div>
+                          {openSwatchForCatId === cat.id && (
+                            <div style={{ marginTop:6, padding:'10px 10px 8px', background:'var(--surface-soft-3)', borderRadius:10, border:'1px solid var(--glass-border)', display:'flex', flexWrap:'wrap', gap:7 }}>
+                              {SWATCH_COLORS.map(sw => (
+                                <button key={sw} onClick={() => { updateCategoryColor(cat.id, sw); setOpenSwatchForCatId(null); }}
+                                  style={{ width:22, height:22, borderRadius:'50%', background:sw, padding:0, cursor:'pointer',
+                                    border: cat.color === sw ? '2.5px solid rgba(255,255,255,0.85)' : '2px solid transparent',
+                                    boxShadow: cat.color === sw ? '0 0 0 2px var(--accent)' : 'none',
+                                    outline:'none', transition:'transform 0.1s',
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.2)'}
+                                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}/>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                       {newVenueCategories.length === 0 && (
