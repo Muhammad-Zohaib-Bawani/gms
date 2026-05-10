@@ -9,6 +9,7 @@ import {
   TweakSlider,
   TweakRadio,
 } from './components/TweaksPanel';
+import { INVITATION_TEMPLATES, SESSIONS } from './data/mockData';
 import DashboardView from './views/DashboardView';
 import InvitationsView from './views/InvitationsView';
 import GuestsView from './views/GuestsView';
@@ -16,9 +17,15 @@ import TravelView from './views/TravelView';
 import MeetingsView from './views/MeetingsView';
 import SeatingView from './views/SeatingView';
 import VenueConfigView from './views/VenueConfigView';
+import ProtocolView from './views/ProtocolView';
+import FinancialsView from './views/FinancialsView';
+import ReportsView from './views/ReportsView';
+import EventsView from './views/EventsView';
+import AccreditationView from './views/AccreditationView';
 
 const NAV = [
   { key: "dashboard", icon: "dashboard", label: { en: "Overview", ar: "نظرة عامة" }, section: "EVENT" },
+  { key: "events", icon: "meetings", label: { en: "Events", ar: "الفعاليات" }, section: "EVENT" },
   { key: "invitations", icon: "invitation", label: { en: "Invitations", ar: "الدعوات" }, section: "EVENT", badge: "4" },
   { key: "guests", icon: "guests", label: { en: "Guests", ar: "الضيوف" }, section: "EVENT" },
   { key: "travel", icon: "travel", label: { en: "Travel & logistics", ar: "السفر واللوجستيات" }, section: "EVENT" },
@@ -95,7 +102,7 @@ const EVENTS = [
   { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#9aa0a4", invertInLight: true },
 ];
 
-function EventSwitcher({ value, onChange, navLabel, lang }) {
+function EventSwitcher({ value, onChange, lang }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
   const ev = EVENTS.find(e => e.key === value) || EVENTS[0];
@@ -120,10 +127,6 @@ function EventSwitcher({ value, onChange, navLabel, lang }) {
         </span>
         <svg className="event-caret" viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 4.5L6 8 9 4.5"/></svg>
       </button>
-      <span className="sep">/</span>
-      <span>{shell.gms}</span>
-      <span className="sep">/</span>
-      <strong>{navLabel}</strong>
       {open && (
         <div className="event-menu glass">
           <div className="event-menu-head">{shell.switchEvent}</div>
@@ -143,35 +146,125 @@ function EventSwitcher({ value, onChange, navLabel, lang }) {
   );
 }
 
+const HOTELS = ["Sheraton Grand","Mondrian Doha","Mandarin Oriental","St. Regis","Four Seasons","InterContinental","W Doha"];
+const TIER_COLOR = { VVIP:'#e0b864', VIP:'#a78bda', Speaker:'var(--accent)', Delegate:'#5abf6e', Press:'#e08a7e', Observer:'var(--ink-mute)' };
+
 function GuestDrawer({ guest, onClose, lang }) {
   const isAr = lang === "ar";
+  const [editTravel, setEditTravel] = React.useState(false);
+  const [flight, setFlight] = React.useState(guest.flight || "");
+  const [arrival, setArrival] = React.useState(guest.arrival || "");
+  const [hotel, setHotel] = React.useState(guest.hotel || "");
+  const [saved, setSaved] = React.useState(false);
+
+  const [showMessage, setShowMessage] = React.useState(false);
+  const [msgSubject, setMsgSubject] = React.useState(`23rd Doha Forum — ${guest.name}`);
+  const [msgBody, setMsgBody] = React.useState("");
+  const [msgSent, setMsgSent] = React.useState(false);
+  const [inviteTemplateId, setInviteTemplateId] = React.useState(null);
+  const [guestSessions, setGuestSessions] = React.useState(new Set(guest.sessions || []));
+  const [editSessions, setEditSessions] = React.useState(false);
+  const [sessionsSaved, setSessionsSaved] = React.useState(false);
+
+  const [showBadge, setShowBadge] = React.useState(false);
+  const [showMore, setShowMore] = React.useState(false);
+  const [drawerNotice, setDrawerNotice] = React.useState("");
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const moreRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!showMore) return;
+    const h = (e) => { if (moreRef.current && !moreRef.current.contains(e.target)) setShowMore(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showMore]);
+
+  function sendMessage() {
+    setMsgSent(true);
+    setTimeout(() => {
+      setShowMessage(false); setMsgSent(false); setMsgBody("");
+      setDrawerNotice(isAr ? "تم إرسال الرسالة ✓" : "Message sent ✓");
+      setTimeout(() => setDrawerNotice(""), 2500);
+    }, 900);
+  }
+
+  function saveTravel() {
+    setSaved(true); setEditTravel(false);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  function drawerMsg(msg) { setDrawerNotice(msg); setTimeout(() => setDrawerNotice(""), 2500); }
+
+  function toggleSession(id) {
+    setGuestSessions(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+
+  function saveSessions() {
+    setSessionsSaved(true);
+    setEditSessions(false);
+    setTimeout(() => setSessionsSaved(false), 2500);
+  }
+
   const D = isAr ? {
     profile: "ملف الضيف",
     message: "رسالة", badge: "شارة",
     guestId: "معرّف الضيف", invited: "تاريخ الدعوة",
     arrival: "الوصول", hotel: "الفندق", table: "الطاولة",
+    flight: "رقم الرحلة", email: "البريد الإلكتروني",
     accreditation: "الاعتماد",
+    travelTitle: "السفر والإقامة", editTravel: "تعديل", saveTravel: "حفظ",
+    cancel: "إلغاء", savedMsg: "تم الحفظ ✓",
     issued: "صادر · المناطق A·B·VIP", pending: "قيد الانتظار",
-    secondRing: "الحلقة الثانية",
-    activity: "النشاط",
+    secondRing: "الحلقة الثانية", activity: "النشاط",
     today: "اليوم ٠٩:١٤", yest: "أمس ١٦:٠٢",
     line1: "تحقق هيّا · مزامنة الداخلية ✓",
     line2: "تأكيد حجز الفندق ·",
     line3: "قبول الدعوة عبر البريد الإلكتروني",
+    arrivalDate: "تاريخ الوصول",
+    compose: "كتابة رسالة", send: "إرسال", msgPh: "اكتب رسالتك…",
+    subj: "الموضوع", to: "إلى", sentMsg: "تم الإرسال ✓",
+    templateLabel: "قالب الدعوة (اختياري)", noTemplate: "رسالة مخصصة",
+    badgeTitle: "شارة الاعتماد", printBadge: "طباعة",
+    editPro: "تعديل الملف الشخصي", addMeet: "إضافة إلى اجتماع",
+    expPdf: "تصدير PDF", removeG: "إزالة الضيف",
+    confirmRemoveMsg: "هل تريد إزالة هذا الضيف من النظام؟",
+    removeConfirmBtn: "إزالة", badgeNo: "رقم الشارة",
+    meetingAdded: "تمت الإضافة إلى قائمة الاجتماعات ✓",
+    sessionsTitle: "الجلسات", noSessions: "لا جلسات مخصصة", sessionsSaved: "تم حفظ الجلسات ✓",
+    selectAll: "تحديد الكل", deselectAll: "إلغاء الكل",
   } : {
     profile: "Guest profile",
     message: "Message", badge: "Badge",
     guestId: "Guest ID", invited: "Invited",
-    arrival: "Arrival", hotel: "Hotel", table: "Table",
+    arrival: "Arrival date", hotel: "Hotel", table: "Table",
+    flight: "Flight", email: "Email",
     accreditation: "Accreditation",
+    travelTitle: "Travel & accommodation", editTravel: "Edit", saveTravel: "Save",
+    cancel: "Cancel", savedMsg: "Saved ✓",
     issued: "Issued · Zone A·B·VIP", pending: "Pending",
-    secondRing: "2nd ring",
-    activity: "Activity",
+    secondRing: "2nd ring", activity: "Activity",
     today: "Today 09:14", yest: "Yesterday 16:02",
     line1: "Hayya verified · MOI sync ✓",
     line2: "Hotel block confirmed ·",
     line3: "Invitation accepted via email",
+    arrivalDate: "Arrival date",
+    compose: "Compose message", send: "Send", msgPh: "Write your message…",
+    subj: "Subject", to: "To", sentMsg: "Sent ✓",
+    templateLabel: "Invitation template (optional)", noTemplate: "Custom message",
+    badgeTitle: "Accreditation Badge", printBadge: "Print Badge",
+    editPro: "Edit profile", addMeet: "Add to meeting",
+    expPdf: "Export PDF", removeG: "Remove guest",
+    confirmRemoveMsg: "Remove this guest from the system?",
+    removeConfirmBtn: "Remove", badgeNo: "Badge No.",
+    meetingAdded: "Added to meeting list ✓",
+    sessionsTitle: "Sessions", noSessions: "No sessions assigned", sessionsSaved: "Sessions saved ✓",
+    selectAll: "Select all", deselectAll: "Deselect all",
   };
+
+  const iStyle = { width: "100%", background: "var(--surface-soft-3)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: "8px 11px", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" };
+  const tierColor = TIER_COLOR[guest.tier] || "var(--accent)";
+  const menuBtnStyle = { display:"flex", alignItems:"center", gap:10, width:"100%", padding:"8px 10px", borderRadius:8, background:"none", border:"none", color:"var(--ink)", fontSize:13, cursor:"pointer", textAlign:"start" };
+
   return (
     <>
       <div style={{ padding: "20px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--glass-border)" }}>
@@ -193,29 +286,299 @@ function GuestDrawer({ guest, onClose, lang }) {
         </div>
 
         <div style={{ display: "flex", gap: 6, marginTop: 18 }}>
-          <button className="btn primary" style={{ flex: 1 }}><Icon name="message" size={14}/> {D.message}</button>
-          <button className="btn" style={{ flex: 1 }}><Icon name="badge" size={14}/> {D.badge}</button>
-          <button className="btn"><Icon name="more" size={14}/></button>
+          <button className="btn primary" style={{ flex: 1 }} onClick={() => { setShowMessage(true); setInviteTemplateId(null); setMsgSubject(`23rd Doha Forum — ${guest.name}`); }}>
+            <Icon name="message" size={14}/> {D.message}
+          </button>
+          <button className="btn" style={{ flex: 1 }} onClick={() => setShowBadge(true)}>
+            <Icon name="badge" size={14}/> {D.badge}
+          </button>
+          <div style={{ position: "relative" }} ref={moreRef}>
+            <button className="btn" onClick={() => setShowMore(m => !m)}><Icon name="more" size={14}/></button>
+            {showMore && (
+              <div className="card glass" style={{ position:"absolute", right:0, top:"calc(100% + 4px)", width:195, padding:6, zIndex:50, boxShadow:"0 8px 32px rgba(0,0,0,0.35)" }}>
+                {[
+                  { icon:"edit",     label:D.editPro,  action:() => { setShowMore(false); setEditTravel(true); } },
+                  { icon:"meetings", label:D.addMeet,  action:() => { setShowMore(false); setEditSessions(true); } },
+                  { icon:"download", label:D.expPdf,   action:() => { setShowMore(false); window.print(); } },
+                ].map(item => (
+                  <button key={item.label} onClick={item.action} style={menuBtnStyle}
+                    onMouseEnter={e => e.currentTarget.style.background="var(--surface-soft-3)"}
+                    onMouseLeave={e => e.currentTarget.style.background="none"}>
+                    <Icon name={item.icon} size={13}/> {item.label}
+                  </button>
+                ))}
+                <div style={{ height:1, background:"var(--glass-border)", margin:"4px 0" }}/>
+                <button onClick={() => { setShowMore(false); setConfirmRemove(true); }}
+                  style={{ ...menuBtnStyle, color:"#e08a7e" }}
+                  onMouseEnter={e => e.currentTarget.style.background="rgba(224,138,126,0.08)"}
+                  onMouseLeave={e => e.currentTarget.style.background="none"}>
+                  <Icon name="trash" size={13}/> {D.removeG}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {drawerNotice && (
+          <div style={{ marginTop:10, padding:"8px 12px", borderRadius:8, background:"rgba(26,174,196,0.1)", border:"1px solid rgba(26,174,196,0.25)", fontSize:12.5, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
+            <Icon name="check" size={13}/> {drawerNotice}
+          </div>
+        )}
 
         <div className="divider"/>
 
         <DetailRow label={D.guestId} value={guest.id} mono/>
+        <DetailRow label={D.email} value={guest.email} mono/>
         <DetailRow label={D.invited} value={guest.invited}/>
-        <DetailRow label={D.arrival} value={`${guest.arrival} · ${guest.flight}`} mono/>
-        <DetailRow label={D.hotel} value={guest.hotel}/>
         <DetailRow label={D.table} value={`T${guest.table} · ${D.secondRing}`} mono/>
         <DetailRow label={D.accreditation} value={guest.accreditation === "issued" ? D.issued : D.pending}/>
+
+        <div className="divider"/>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)" }}>
+            {D.travelTitle}
+          </div>
+          {saved ? (
+            <span style={{ fontSize: 11.5, color: "var(--accent)", display: "flex", alignItems: "center", gap: 4 }}>
+              <Icon name="check" size={11}/> {D.savedMsg}
+            </span>
+          ) : (
+            <button className="btn ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => setEditTravel(e => !e)}>
+              <Icon name={editTravel ? "close" : "edit"} size={11}/> {editTravel ? D.cancel : D.editTravel}
+            </button>
+          )}
+        </div>
+
+        {editTravel ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px", borderRadius: 10, background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)", marginBottom: 14 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.arrivalDate}</label>
+              <input style={iStyle} value={arrival} onChange={e => setArrival(e.target.value)} placeholder="Dec 7"/>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.flight}</label>
+              <input style={iStyle} value={flight} onChange={e => setFlight(e.target.value)} placeholder="QR 512"/>
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.hotel}</label>
+              <select style={{ ...iStyle, appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23718fa3' stroke-width='1.6'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28 }}
+                value={hotel} onChange={e => setHotel(e.target.value)}>
+                {HOTELS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <button className="btn primary" style={{ alignSelf: "flex-end" }} onClick={saveTravel}>
+              <Icon name="check" size={13}/> {D.saveTravel}
+            </button>
+          </div>
+        ) : (
+          <>
+            <DetailRow label={D.arrival} value={`${arrival} · ${flight}`} mono/>
+            <DetailRow label={D.hotel} value={hotel}/>
+          </>
+        )}
+
+        <div className="divider"/>
+
+        {/* Sessions section */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)", display: "flex", alignItems: "center", gap: 8 }}>
+            {D.sessionsTitle}
+            {guestSessions.size > 0 && <span style={{ fontSize: 10, background: "var(--accent)", color: "#fff", borderRadius: 10, padding: "1px 7px", letterSpacing: 0, textTransform: "none" }}>{guestSessions.size}</span>}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {sessionsSaved && <span style={{ fontSize: 11, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}><Icon name="check" size={11}/> {D.sessionsSaved}</span>}
+            <button className="btn ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => setEditSessions(e => !e)}>
+              <Icon name={editSessions ? "close" : "edit"} size={11}/> {editSessions ? D.cancel : D.editTravel}
+            </button>
+          </div>
+        </div>
+        {editSessions ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => setGuestSessions(prev => prev.size === SESSIONS.length ? new Set() : new Set(SESSIONS.map(s => s.id)))}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--accent)", padding: 0 }}>
+                {guestSessions.size === SESSIONS.length ? D.deselectAll : D.selectAll}
+              </button>
+            </div>
+            {SESSIONS.map(s => {
+              const checked = guestSessions.has(s.id);
+              return (
+                <div key={s.id} onClick={() => toggleSession(s.id)}
+                  style={{ padding: "9px 12px", borderRadius: 9, cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 10,
+                    border: `1px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`,
+                    background: checked ? "rgba(26,174,196,0.08)" : "var(--surface-soft-2)" }}>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`, background: checked ? "var(--accent)" : "transparent", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 2 }}>
+                    {checked && <Icon name="check" size={9} style={{ color: "#fff" }}/>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: checked ? 500 : 400, lineHeight: 1.3 }}>{s.title}</div>
+                    <div style={{ fontSize: 10.5, color: "var(--ink-mute)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ fontFamily: "var(--mono)" }}>{s.date} · {s.time}</span>
+                      {" · "}{s.venue}{s.room ? ` · ${s.room}` : ""}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <button className="btn primary" style={{ alignSelf: "flex-end", marginTop: 2 }} onClick={saveSessions}>
+              <Icon name="check" size={13}/> {D.saveTravel}
+            </button>
+          </div>
+        ) : (
+          guestSessions.size === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--ink-mute)", fontStyle: "italic", marginBottom: 14 }}>{D.noSessions}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+              {SESSIONS.filter(s => guestSessions.has(s.id)).map(s => (
+                <div key={s.id} style={{ padding: "9px 12px", borderRadius: 9, background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 500 }}>{s.title}</div>
+                  <div style={{ fontSize: 10.5, color: "var(--ink-mute)", marginTop: 2 }}>
+                    <span style={{ fontFamily: "var(--mono)" }}>{s.date} · {s.time}</span>
+                    {" · "}{s.venue}{s.room ? ` · ${s.room}` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
 
         <div className="divider"/>
 
         <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)", marginBottom: 10 }}>{D.activity}</div>
         <div className="timeline">
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{D.today}</div><div style={{ fontSize: 12.5 }}>{D.line1}</div></div>
-          <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{D.yest}</div><div style={{ fontSize: 12.5 }}>{D.line2} {guest.hotel}</div></div>
+          <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{D.yest}</div><div style={{ fontSize: 12.5 }}>{D.line2} {hotel}</div></div>
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{guest.invited}</div><div style={{ fontSize: 12.5 }}>{D.line3}</div></div>
         </div>
       </div>
+
+      {/* ── Message modal ── */}
+      {showMessage && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+          <div className="card glass" style={{ width:480, maxWidth:"92vw", padding:0, maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
+            <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:15 }}>{D.compose}</h3>
+                <div style={{ fontSize:11.5, color:"var(--ink-mute)", marginTop:3 }}>{D.to}: <span style={{ fontFamily:"var(--mono)", fontSize:11 }}>{guest.name} &lt;{guest.email}&gt;</span></div>
+              </div>
+              <button className="icon-btn" onClick={() => { setShowMessage(false); setMsgSent(false); }}><Icon name="close" size={14}/></button>
+            </div>
+            <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:12, overflowY:"auto", flex:1 }}>
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>{D.templateLabel}</label>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  <div onClick={() => setInviteTemplateId(null)}
+                    style={{ padding:"5px 11px", borderRadius:8, cursor:"pointer", fontSize:11.5, whiteSpace:"nowrap",
+                      border:`1px solid ${!inviteTemplateId ? "var(--accent)" : "var(--glass-border)"}`,
+                      background:!inviteTemplateId ? "rgba(26,174,196,0.1)" : "var(--surface-soft-3)" }}>
+                    {D.noTemplate}
+                  </div>
+                  {INVITATION_TEMPLATES.map(t => (
+                    <div key={t.id}
+                      onClick={() => { setInviteTemplateId(t.id); setMsgSubject(isAr ? t.subjectAr : t.subject); setMsgBody(isAr ? t.bodyAr : t.body); }}
+                      style={{ padding:"5px 11px", borderRadius:8, cursor:"pointer", fontSize:11.5, display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap",
+                        border:`1px solid ${inviteTemplateId === t.id ? t.color : "var(--glass-border)"}`,
+                        background:inviteTemplateId === t.id ? t.color+"18" : "var(--surface-soft-3)" }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:t.color, flexShrink:0 }}/>
+                      {isAr ? t.nameAr : t.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>{D.subj}</label>
+                <input style={iStyle} value={msgSubject} onChange={e => setMsgSubject(e.target.value)}/>
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>{isAr ? "الرسالة" : "Message"}</label>
+                <textarea style={{ ...iStyle, resize:"vertical", minHeight:130, lineHeight:1.6 }}
+                  value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder={D.msgPh}/>
+              </div>
+              {msgSent ? (
+                <div style={{ padding:"10px 14px", borderRadius:8, background:"rgba(26,174,196,0.1)", border:"1px solid rgba(26,174,196,0.25)", fontSize:13, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
+                  <Icon name="check" size={14}/> {D.sentMsg}
+                </div>
+              ) : (
+                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                  <button className="btn" onClick={() => setShowMessage(false)}>{D.cancel}</button>
+                  <button className="btn primary" onClick={sendMessage} disabled={!msgBody.trim()}>
+                    <Icon name="message" size={13}/> {D.send}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Badge modal ── */}
+      {showBadge && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+          <div className="card glass" style={{ width:340, maxWidth:"92vw", padding:0 }}>
+            <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontWeight:600, fontSize:14 }}>{D.badgeTitle}</span>
+              <button className="icon-btn" onClick={() => setShowBadge(false)}><Icon name="close" size={14}/></button>
+            </div>
+            <div style={{ padding:"20px" }}>
+              <div style={{ border:"1px solid var(--glass-border)", borderRadius:12, overflow:"hidden", background:"var(--surface-soft-2)" }}>
+                <div style={{ height:8, background:tierColor }}/>
+                <div style={{ padding:"18px 20px", textAlign:"center" }}>
+                  <Avatar initials={guest.initials} size={56} tier={guest.tier}/>
+                  <h2 style={{ fontFamily:"var(--serif)", fontSize:20, margin:"10px 0 4px", fontWeight:400 }}>{guest.name}</h2>
+                  <div style={{ fontSize:12, color:"var(--ink-dim)" }}>{guest.role}</div>
+                  <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:12 }}>{guest.org}</div>
+                  <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:14 }}>
+                    <span className="chip" style={{ fontSize:11, background:tierColor+"20", borderColor:tierColor+"50", color:tierColor }}>{guest.tier}</span>
+                    <span className="chip" style={{ fontSize:11 }}><span className="dot"/> {guest.country}</span>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, textAlign:"start" }}>
+                    {[
+                      { label:D.badgeNo, value:guest.id, mono:true },
+                      { label:D.flight,  value:flight || guest.flight || "—", mono:true },
+                      { label:D.arrival, value:arrival || guest.arrival || "—" },
+                      { label:D.hotel,   value:hotel || guest.hotel || "—" },
+                    ].map(row => (
+                      <div key={row.label} style={{ padding:"7px 10px", background:"var(--surface-soft-3)", borderRadius:8, border:"1px solid var(--glass-border)" }}>
+                        <div style={{ fontSize:9, color:"var(--ink-faint)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:2 }}>{row.label}</div>
+                        <div style={{ fontSize:11.5, fontFamily:row.mono ? "var(--mono)" : "inherit", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding:"9px 18px", borderTop:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", fontSize:10.5, color:"var(--ink-mute)" }}>
+                  <span>23rd Doha Forum</span>
+                  <span style={{ fontFamily:"var(--mono)" }}>7–9 Dec 2025</span>
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:14 }}>
+                <button className="btn" style={{ flex:1, justifyContent:"center" }} onClick={() => setShowBadge(false)}>{D.cancel}</button>
+                <button className="btn primary" style={{ flex:1, justifyContent:"center" }} onClick={() => window.print()}>
+                  <Icon name="doc" size={13}/> {D.printBadge}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Remove confirm ── */}
+      {confirmRemove && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+          <div className="card glass" style={{ width:340, padding:"22px 24px" }}>
+            <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>{D.removeG}</div>
+            <div style={{ fontSize:13, color:"var(--ink-dim)", marginBottom:4 }}>{guest.name}</div>
+            <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:20 }}>{D.confirmRemoveMsg}</div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button className="btn" onClick={() => setConfirmRemove(false)}>{D.cancel}</button>
+              <button className="btn" style={{ color:"#e08a7e", borderColor:"rgba(224,138,126,0.3)", background:"rgba(224,138,126,0.1)" }}
+                onClick={() => { setConfirmRemove(false); onClose(); }}>
+                <Icon name="trash" size={13}/> {D.removeConfirmBtn}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -249,12 +612,17 @@ function Tweaks({ tweaks, setTweak }) {
 
 const VIEWS = {
   dashboard: DashboardView,
+  events: EventsView,
   invitations: InvitationsView,
   guests: GuestsView,
   travel: TravelView,
   meetings: MeetingsView,
   seating: SeatingView,
   venueConfig: VenueConfigView,
+  protocol: ProtocolView,
+  financials: FinancialsView,
+  reports: ReportsView,
+  accreditation: AccreditationView,
 };
 
 const ComingSoon = () => (
@@ -294,8 +662,10 @@ export default function App() {
     <div className="app">
       <aside className="sidebar glass">
         <div className="brand-logo">
-          <img className="logo-color" src="assets/doha-forum-logo.png" alt="Doha Forum"/>
-          <img className="logo-white" src="assets/doha-forum-logo-white.png" alt="Doha Forum"/>
+          <img className="logo-color" src="assets/doha-forum-logo.png" alt="Doha Forum"
+            onError={e => { e.target.style.display = "none"; e.target.nextSibling && (e.target.nextSibling.style.display = "none"); }}/>
+          <img className="logo-white" src="assets/doha-forum-logo-white.png" alt="Doha Forum"
+            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: '<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">Doha</span><span style="font-size:11px;letter-spacing:0.18em;color:var(--ink-mute);margin-top:2px">FORUM</span>', style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div>
         <div style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontStyle: "italic", letterSpacing: "0.01em" }}>GMS</div>
@@ -330,7 +700,7 @@ export default function App() {
       </aside>
 
       <header className="topbar glass">
-        <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} navLabel={navItem ? navLabelOf(navItem) : view} lang={lang} />
+        <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} lang={lang} />
         <div className="right">
           <div className="search">
             <Icon name="search" size={14}/>
