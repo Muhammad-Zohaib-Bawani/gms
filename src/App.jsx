@@ -634,6 +634,7 @@ const ComingSoon = () => (
 export default function App() {
   const [view, setView] = useState("dashboard");
   const [openGuest, setOpenGuest] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   useEffect(() => {
@@ -660,14 +661,15 @@ export default function App() {
 
   return (
     <div className="app">
-      <aside className="sidebar glass">
+      <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
+      <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
         <div className="brand-logo">
           <img className="logo-color" src="assets/doha-forum-logo.png" alt="Doha Forum"
             onError={e => { e.target.style.display = "none"; e.target.nextSibling && (e.target.nextSibling.style.display = "none"); }}/>
           <img className="logo-white" src="assets/doha-forum-logo-white.png" alt="Doha Forum"
             onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: '<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">Doha</span><span style="font-size:11px;letter-spacing:0.18em;color:var(--ink-mute);margin-top:2px">FORUM</span>', style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div>
-        <div style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
+        <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontStyle: "italic", letterSpacing: "0.01em" }}>GMS</div>
           <div style={{ fontSize: 10.5, color: "var(--ink-mute)", letterSpacing: lang === "ar" ? "0.04em" : "0.18em", textTransform: "uppercase" }}>{shell.guestMgmt}</div>
         </div>
@@ -678,7 +680,7 @@ export default function App() {
             {NAV.filter(n => n.section === section).map(n => (
               <div key={n.key}
                 className={`nav-item ${view === n.key ? "active" : ""}`}
-                onClick={() => setView(n.key)}>
+                onClick={() => { setView(n.key); setSidebarOpen(false); }}>
                 <Icon name={n.icon} size={16}/>
                 <span>{navLabelOf(n)}</span>
                 {n.badge && <span className="badge">{n.badge}</span>}
@@ -700,6 +702,9 @@ export default function App() {
       </aside>
 
       <header className="topbar glass">
+        <button className="mobile-menu-btn icon-btn" onClick={() => setSidebarOpen(o => !o)}>
+          <Icon name="menu" size={20}/>
+        </button>
         <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} lang={lang} />
         <div className="right">
           <div className="search">
@@ -729,6 +734,23 @@ export default function App() {
       <main className="main">
         <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} />
       </main>
+
+      <nav className="mobile-bottom-nav">
+        {[
+          { key:'dashboard', icon:'dashboard', label:{en:'Home',     ar:'الرئيسية'} },
+          { key:'guests',    icon:'guests',    label:{en:'Guests',   ar:'الضيوف'} },
+          { key:'seating',   icon:'seating',   label:{en:'Seating',  ar:'الجلوس'} },
+          { key:'meetings',  icon:'meetings',  label:{en:'Meetings', ar:'اجتماعات'} },
+          { key:'__menu',    icon:'menu',      label:{en:'More',     ar:'المزيد'} },
+        ].map(n => (
+          <button key={n.key}
+            className={`mob-nav-item${view === n.key ? ' active' : ''}`}
+            onClick={() => n.key === '__menu' ? setSidebarOpen(o => !o) : (setView(n.key), setSidebarOpen(false))}>
+            <Icon name={n.icon} size={22}/>
+            <span>{n.label[lang] || n.label.en}</span>
+          </button>
+        ))}
+      </nav>
 
       <Drawer open={!!openGuest} onClose={() => setOpenGuest(null)}>
         {openGuest && <GuestDrawer guest={openGuest} onClose={() => setOpenGuest(null)} lang={lang}/>}
