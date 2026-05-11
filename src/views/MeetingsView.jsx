@@ -140,9 +140,9 @@ export default function MeetingsView({ lang }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div className="meetings-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         {/* Calendar card */}
-        <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden', minWidth: 0 }}>
+        <div className="card meetings-calendar" style={{ flex: 1, padding: 0, overflow: 'hidden', minWidth: 0 }}>
           {/* Calendar toolbar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--glass-border)' }}>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontStyle: 'italic' }}>{monthLabel}</div>

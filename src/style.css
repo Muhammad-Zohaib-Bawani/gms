@@ -1885,8 +1885,9 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .page-actions { flex-wrap: wrap; width: 100%; gap: 6px; }
   .page-actions .btn { font-size: 12px; padding: 6px 12px; }
 
-  /* Tabs wrap */
-  .tabs { flex-wrap: wrap; gap: 4px; }
+  /* Tabs: scroll horizontally, never wrap (prevents collision with content below) */
+  .tabs { flex-wrap: nowrap !important; overflow-x: auto; max-width: 100%; width: 100%; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
 
   /* Cards — allow horizontal scroll for tables */
   .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1904,11 +1905,16 @@ html[dir="rtl"] .avatar { direction: ltr; }
   body { word-break: break-word; overflow-wrap: break-word; }
   .card-head h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-head .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .page-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav-item span, .chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Page sub: allow 2-line wrap so greeting subtitle isn't hidden */
+  .page-sub { white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Chip text doesn't overflow */
-  .chip { max-width: 120px; }
+  /* Events & Meetings: stack panels on mobile */
+  .events-layout, .meetings-layout { flex-direction: column !important; }
+  .events-sidebar { width: 100% !important; }
+  .meetings-layout > div:last-child { width: 100% !important; }
+  /* Meeting calendar: allow horizontal scroll on mobile */
+  .meetings-calendar { overflow-x: auto !important; }
 
   /* Bottom navigation */
   .mobile-bottom-nav {

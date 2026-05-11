@@ -335,9 +335,9 @@ export default function EventsView({ lang }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      <div className="events-layout" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Events list */}
-        <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="events-sidebar" style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
           {/* Search */}
           <div className="search" style={{ width: "100%" }}>
             <Icon name="search" size={13}/>

@@ -302,7 +302,7 @@ export default function TravelView({ lang }) {
       )}
 
       {/* KPI row */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
         {[
           { icon:'flight', val:fmtN(948),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:1 },
           { icon:'hotel',  val:fmtN(1192), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:2 },
@@ -343,7 +343,7 @@ export default function TravelView({ lang }) {
                 </button>
               </div>
             </div>
-            <div style={{ display:'flex', gap:8, padding:'0 20px 14px', flexWrap:'wrap' }}>
+            <div style={{ display:'flex', gap:8, padding:'12px 20px 14px', flexWrap:'wrap' }}>
               {Object.entries(hayyaCounts).map(([k, count]) => (
                 <span key={k} className="chip" style={{ borderColor:STATUS_COLOR[k], color:STATUS_COLOR[k], cursor:'pointer' }}
                   onClick={() => { setFHayya(k); setActiveTab(1); }}>
@@ -441,7 +441,7 @@ export default function TravelView({ lang }) {
                 {STR.statuses[k]} <strong style={{ marginLeft:3 }}>{fmtN(count)}</strong>
               </span>
             ))}
-            <button className="btn ghost" style={{ padding:'4px 10px', fontSize:11, marginLeft:'auto' }} onClick={handleSync}>
+            <button className="btn ghost" style={{ padding:'4px 10px', fontSize:11, marginLeft:'auto', flexShrink:0 }} onClick={handleSync}>
               <Icon name={synced?'check':'refresh'} size={12}/> {synced?STR.hayya.synced:STR.hayya.syncNow}
             </button>
           </div>
