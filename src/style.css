@@ -1154,6 +1154,12 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
 .event-logo-mark[data-event="doha-forum"] img { max-width: 26px; max-height: 26px; }
 .event-logo-mark[data-event="qabf"] img { max-width: 26px; max-height: 18px; }
 html[data-theme="light"] .event-logo-mark { background: #04141a; border-color: #04141a; }
+/* Doha Forum: transparent container + blend-mode to strip baked-in PNG background */
+.event-logo-mark[data-event="doha-forum"] { background: transparent; border-color: transparent; }
+html[data-theme="light"] .event-logo-mark[data-event="doha-forum"] { background: transparent; border-color: transparent; }
+html[data-theme="dark"] .event-logo-mark[data-event="doha-forum"] img,
+:root .event-logo-mark[data-event="doha-forum"] img { mix-blend-mode: screen; }
+html[data-theme="light"] .event-logo-mark[data-event="doha-forum"] img { mix-blend-mode: multiply; }
 .event-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
 .event-name { font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .event-sub { font-size: 10.5px; color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1269,11 +1275,11 @@ html[data-theme="dark"] .brand-logo,
 html[data-theme="dark"] .brand-logo .logo-color,
 :root .brand-logo .logo-color { display: none; }
 html[data-theme="dark"] .brand-logo .logo-white,
-:root .brand-logo .logo-white { display: block; }
+:root .brand-logo .logo-white { display: block; mix-blend-mode: screen; }
 /* Light theme: show original color logo, no chip needed */
 html[data-theme="light"] .brand-logo { background: transparent; border: 0; box-shadow: none; }
 html[data-theme="light"] .brand-logo .logo-white { display: none; }
-html[data-theme="light"] .brand-logo .logo-color { display: block; }
+html[data-theme="light"] .brand-logo .logo-color { display: block; mix-blend-mode: multiply; }
 /* Topbar inline crumb logo */
 .crumb-logo .logo-color, .crumb-logo .logo-white { height: 22px; width: auto; display: block; }
 :root .crumb-logo .logo-color, html[data-theme="dark"] .crumb-logo .logo-color { display: none; }
@@ -1869,18 +1875,40 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .avatar .name, .avatar .role { display: none; }
   .topbar .right { gap: 6px; }
 
-  /* Main area — room for fixed bottom nav */
-  .main { padding-bottom: 68px; overflow-y: auto; }
-
-  /* Page content inner padding */
-  .main > * { padding-left: 12px; padding-right: 12px; }
+  /* Main area — padding replaces per-child padding, bottom clears fixed nav */
+  .main { padding: 14px 14px 76px; overflow-y: auto; box-sizing: border-box; }
 
   /* Page header stacks on mobile */
-  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .page-actions { flex-wrap: wrap; width: 100%; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 14px; }
+  .page-title { font-size: 26px; }
+  .page-sub { font-size: 12px; }
+  .page-actions { flex-wrap: wrap; width: 100%; gap: 6px; }
+  .page-actions .btn { font-size: 12px; padding: 6px 12px; }
 
   /* Tabs wrap */
   .tabs { flex-wrap: wrap; gap: 4px; }
+
+  /* Cards — allow horizontal scroll for tables */
+  .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Tables — keep minimum readable width, scroll inside card */
+  .table { min-width: 580px; }
+  .table th, .table td { padding: 10px 12px; white-space: nowrap; }
+
+  /* Grids collapse on mobile */
+  .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .cols-2, .cols-2-narrow, .cols-3 { grid-template-columns: 1fr !important; }
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+
+  /* Global text overflow prevention */
+  body { word-break: break-word; overflow-wrap: break-word; }
+  .card-head h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-head .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item span, .chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Chip text doesn't overflow */
+  .chip { max-width: 120px; }
 
   /* Bottom navigation */
   .mobile-bottom-nav {
@@ -1908,5 +1936,35 @@ html[dir="rtl"] .avatar { direction: ltr; }
   }
   .mob-nav-item.active { color: var(--accent); }
   .mob-nav-item.active svg { stroke: var(--accent); }
+
+  /* ── Venue Config editor ── */
+  .venue-layout {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .venue-palette-panel,
+  .venue-config-panel {
+    width: 100% !important;
+  }
+  /* Palette items → horizontal scroll row */
+  .venue-palette-panel .card > div:nth-child(2) {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-wrap: nowrap !important;
+    padding: 8px !important;
+    gap: 8px !important;
+  }
+  .venue-palette-panel .card > div:nth-child(2) > div {
+    flex-shrink: 0 !important;
+    width: 110px !important;
+    padding: 8px 10px !important;
+  }
+  /* Hide drag hint on mobile */
+  .venue-palette-panel .card > div:last-child { display: none !important; }
+  /* Canvas: smaller min-height on mobile */
+  .venue-canvas-scroll { min-height: 320px !important; }
+  /* Config panel: constrain max-height so it doesn't dominate */
+  .venue-config-panel .card > div[style] { max-height: 50vh !important; }
 }
 *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
