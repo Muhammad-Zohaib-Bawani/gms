@@ -1875,6 +1875,11 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .avatar .name, .avatar .role { display: none; }
   .topbar .right { gap: 6px; }
 
+  /* Event switcher: cap width, truncate long name, hide date-range subtitle */
+  .event-trigger { max-width: 160px; min-width: 0; }
+  .event-name { max-width: 100px; }
+  .event-sub { display: none; }
+
   /* Main area — padding replaces per-child padding, bottom clears fixed nav */
   .main { padding: 14px 14px 76px; overflow-y: auto; box-sizing: border-box; }
 
