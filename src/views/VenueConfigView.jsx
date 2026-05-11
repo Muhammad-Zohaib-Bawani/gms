@@ -822,9 +822,9 @@ export default function VenueConfigView({ lang }) {
         <span style={{ fontSize:12, color:'var(--ink-mute)' }}><strong style={{ color:'var(--ink)' }}>{ad(totalSeats)}</strong> {STR.totalSeats}</span>
       </div>
 
-      <div style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
+      <div className="venue-layout" style={{ display:'flex', gap:14, alignItems:'flex-start' }}>
         {/* Palette */}
-        <div style={{ width:200, flexShrink:0 }}>
+        <div className="venue-palette-panel" style={{ width:200, flexShrink:0 }}>
           <div className="card" style={{ padding:0 }}>
             <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--glass-border)', fontSize:11, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--ink-mute)', fontWeight:600 }}>
               {STR.palette}
@@ -850,7 +850,7 @@ export default function VenueConfigView({ lang }) {
         </div>
 
         {/* Canvas */}
-        <div className="card" style={{ flex:1, padding:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+        <div className="card venue-canvas-panel" style={{ flex:1, padding:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
           {/* Zoom toolbar */}
           <div style={{ padding:'6px 12px', borderBottom:'1px solid var(--glass-border)', display:'flex', alignItems:'center', gap:6, background:'var(--surface-soft-3)', flexShrink:0 }}>
             <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginRight:2 }}>{STR.zoomLabel}</span>
@@ -868,7 +868,7 @@ export default function VenueConfigView({ lang }) {
           </div>
 
           {/* Scrollable canvas area */}
-          <div style={{ overflow:'auto', minHeight:480 }}
+          <div className="venue-canvas-scroll" style={{ overflow:'auto', minHeight:480 }}
             onWheel={e => {
               if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
@@ -938,7 +938,7 @@ export default function VenueConfigView({ lang }) {
         </div>
 
         {/* Config panel */}
-        <div style={{ width:224, flexShrink:0 }}>
+        <div className="venue-config-panel" style={{ width:224, flexShrink:0 }}>
           <div className="card" style={{ padding:0 }}>
             <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--glass-border)', fontSize:11, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--ink-mute)', fontWeight:600 }}>
               {STR.configure}
@@ -1152,7 +1152,7 @@ export default function VenueConfigView({ lang }) {
       {/* New venue modal */}
       {showNewVenue && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-          <div className="card glass" style={{ width: newVenueType === 'stadium' ? 540 : 380, maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
+          <div className="card glass" style={{ width: newVenueType === 'stadium' ? 540 : 380, maxWidth:'92vw', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
 
             {/* Header */}
             <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--glass-border)', fontWeight:600, fontSize:15, flexShrink:0 }}>
@@ -1325,7 +1325,7 @@ export default function VenueConfigView({ lang }) {
       {/* Add block modal */}
       {showAddBlock && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
-          <div className="card glass" style={{ width:400 }}>
+          <div className="card glass" style={{ width:400, maxWidth:'92vw' }}>
             <div style={{ padding:'16px 22px', borderBottom:'1px solid var(--glass-border)', fontWeight:600, fontSize:15 }}>
               {isAr ? 'إضافة كتلة' : 'Add block'}
             </div>
@@ -1378,7 +1378,7 @@ export default function VenueConfigView({ lang }) {
       {/* Delete block confirm */}
       {pendingDeleteBlockId && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass" style={{ width:340, padding:'22px 24px' }}>
+          <div className="card glass" style={{ width:340, maxWidth:'92vw', padding:'22px 24px' }}>
             <div style={{ fontWeight:600, marginBottom:8 }}>{isAr ? 'حذف الكتلة' : 'Delete block'}</div>
             <div style={{ fontSize:12, color:'var(--ink-mute)', marginBottom:6 }}>
               <strong>{venueBlocks.find(b => b.id === pendingDeleteBlockId)?.label}</strong>
@@ -1398,7 +1398,7 @@ export default function VenueConfigView({ lang }) {
       {/* Delete venue confirm */}
       {pendingDeleteVenueId && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass" style={{ width:340, padding:'22px 24px' }}>
+          <div className="card glass" style={{ width:340, maxWidth:'92vw', padding:'22px 24px' }}>
             <div style={{ fontWeight:600, marginBottom:8 }}>{STR.deleteVenue}</div>
             <div style={{ fontSize:12, color:'var(--ink-mute)', marginBottom:6 }}>
               <strong>{venues.find(v => v.id === pendingDeleteVenueId)?.name}</strong>
@@ -1416,7 +1416,7 @@ export default function VenueConfigView({ lang }) {
       {/* Clear confirm */}
       {showClearConfirm && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass" style={{ width:340, padding:'22px 24px' }}>
+          <div className="card glass" style={{ width:340, maxWidth:'92vw', padding:'22px 24px' }}>
             <div style={{ fontWeight:600, marginBottom:8 }}>{STR.clearMsg}</div>
             <div style={{ fontSize:12, color:'var(--ink-mute)', marginBottom:20 }}>
               {isAr ? `سيتم حذف ${ad(tables.length)} عنصر.` : `This will remove all ${tables.length} elements from this venue.`}

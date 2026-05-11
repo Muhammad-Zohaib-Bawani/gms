@@ -28,7 +28,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang }) {
       ],
     },
   ]);
-  const [expandedEvent, setExpandedEvent] = useState(0);
+  const [expandedEvent, setExpandedEvent] = useState(-1);
 
   const STR = isAr ? {
     greeting: "صباح الخير،",
@@ -171,9 +171,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang }) {
           <button className="btn" onClick={() => gotoView && gotoView("invitations")}>
             <Icon name="invitation" size={14}/> {STR.newInvite}
           </button>
-          <button className="btn primary" onClick={() => { setShowNewEvent(true); setEventStep(1); }}>
-            <Icon name="plus" size={14}/> {STR.newEvent}
-          </button>
         </div>
       </div>
 
@@ -225,7 +222,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang }) {
       </div>
 
       {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
         {[
           { label: STR.confirmed, val: fmtN(1284), delta: STR.weekDelta, color: "var(--accent)" },
           { label: STR.awaiting, val: fmtN(221), delta: STR.awaitingDelta, color: "#e0c47e" },
@@ -344,8 +341,8 @@ export default function DashboardView({ onOpenGuest, gotoView, lang }) {
                 border: `1px solid ${i === 0 ? "rgba(26,174,196,0.3)" : "var(--glass-border)"}` }}>
                 <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: i === 0 ? "var(--accent)" : "var(--accent-2)", flexShrink: 0, direction: "ltr", paddingTop: 1 }}>{s.time}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: i === 0 ? 600 : 400 }}>{s.title}</div>
-                  <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2 }}>{s.room}</div>
+                  <div style={{ fontSize: 13, fontWeight: i === 0 ? 600 : 400, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{s.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.room}</div>
                 </div>
               </div>
             ))}

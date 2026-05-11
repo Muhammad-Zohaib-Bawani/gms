@@ -362,6 +362,32 @@ export default function SeatingView({ lang }) {
 
       {tab === 'floor' && venueData && (
         <div className="card" style={{ padding:0, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+          {/* Category tags — stadium only */}
+          {stadiumVenue && (stadiumVenue.categories || []).filter(c => c.name?.trim()).length > 0 && (
+            <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--glass-border)', display:'flex', alignItems:'center', gap:8, flexShrink:0, flexWrap:'wrap' }}>
+              <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', flexShrink:0 }}>
+                {isAr ? 'الفئات' : 'Categories'}
+              </span>
+              {(stadiumVenue.categories || []).filter(c => c.name?.trim()).map(cat => {
+                const cc = cat.color;
+                return (
+                  <span key={cat.id} style={{
+                    display:'inline-flex', alignItems:'center', gap:6,
+                    fontSize:11.5, fontWeight:600,
+                    padding:'3px 12px 3px 8px', borderRadius:20,
+                    color: cc || 'var(--accent)',
+                    background: cc ? hexToRgba(cc, 0.1) : 'rgba(26,174,196,0.1)',
+                    border:`1px solid ${cc ? hexToRgba(cc, 0.28) : 'rgba(26,174,196,0.2)'}`,
+                    flexShrink:0,
+                  }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background: cc || 'var(--accent)', flexShrink:0 }}/>
+                    {cat.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
           {/* Block selector — stadium only */}
           {stadiumVenue && (stadiumVenue.blocks || []).length > 0 && (
             <div style={{ padding:'8px 14px', borderBottom:'1px solid var(--glass-border)', display:'flex', alignItems:'center', gap:8, flexShrink:0, flexWrap:'wrap' }}>
