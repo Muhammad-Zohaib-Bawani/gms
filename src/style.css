@@ -1914,12 +1914,19 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .page-sub { white-space: normal !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .nav-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Events & Meetings: stack panels on mobile */
-  .events-layout, .meetings-layout { flex-direction: column !important; }
+  /* Events: stack sidebar + detail panel */
+  .events-layout { flex-direction: column !important; }
   .events-sidebar { width: 100% !important; }
-  .meetings-layout > div:last-child { width: 100% !important; }
-  /* Meeting calendar: allow horizontal scroll on mobile */
-  .meetings-calendar { overflow-x: auto !important; }
+
+  /* Meetings: hide 7-column grid, promote agenda list as primary view */
+  .meetings-layout { flex-direction: column !important; }
+  .meetings-calendar { display: none !important; }
+  .meetings-sidebar { width: 100% !important; order: -1; }
+  .meetings-list-scroll { max-height: none !important; overflow-y: visible !important; }
+
+  /* Meeting detail drawer: full-width on mobile */
+  .drawer { left: 0 !important; right: 0 !important; width: auto !important; top: auto !important; bottom: 0 !important; border-radius: 16px 16px 0 0 !important; max-height: 85svh !important; }
+  [dir="rtl"] .drawer { left: 0 !important; right: 0 !important; }
 
   /* Bottom navigation */
   .mobile-bottom-nav {

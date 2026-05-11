@@ -232,12 +232,12 @@ export default function MeetingsView({ lang }) {
         </div>
 
         {/* Upcoming sidebar */}
-        <div style={{ width: 250, flexShrink: 0 }}>
+        <div className="meetings-sidebar" style={{ width: 250, flexShrink: 0 }}>
           <div className="card" style={{ padding: 0 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--glass-border)', fontWeight: 600, fontSize: 13 }}>
               {STR.upcomingTitle}
             </div>
-            <div style={{ maxHeight: 580, overflowY: 'auto' }}>
+            <div className="meetings-list-scroll" style={{ maxHeight: 580, overflowY: 'auto' }}>
               {[...meetings]
                 .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
                 .map(m => {
@@ -246,12 +246,12 @@ export default function MeetingsView({ lang }) {
                   const firstAttendees = m.attendees.slice(0, 3).map(id => GUESTS.find(g => g.id === id)).filter(Boolean);
                   return (
                     <div key={m.id} onClick={() => setSelectedMeeting(m)}
-                      style={{ padding: '10px 14px', borderBottom: '1px solid var(--glass-border)', cursor: 'pointer', display: 'flex', gap: 8 }}
+                      style={{ padding: '12px 16px', borderBottom: '1px solid var(--glass-border)', cursor: 'pointer', display: 'flex', gap: 10 }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <div style={{ width: 3, borderRadius: 4, background: m.color, flexShrink: 0, alignSelf: 'stretch', marginTop: 2 }}/>
+                      <div style={{ width: 4, borderRadius: 4, background: m.color, flexShrink: 0, alignSelf: 'stretch' }}/>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginBottom: 3 }}>
                           {m.title}
                         </div>
                         <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', fontFamily: 'var(--mono)', marginBottom: 2 }}>
