@@ -1267,8 +1267,8 @@ html[data-theme="light"] .lang-opt.active { color: #ffffff; }
   padding: 10px 12px;
   border-radius: 12px;
 }
-.brand-logo img { width: 100%; height: auto; display: block; max-width: 170px; }
-.brand-logo img.logo-white { max-width: 200px; }
+.brand-logo img { width: 100%; height: auto; display: block; max-width: 130px; }
+.brand-logo img.logo-white { max-width: 130px; }
 /* Dark theme: show white logo on transparent backdrop */
 html[data-theme="dark"] .brand-logo,
 :root .brand-logo { background: transparent; border: 0; box-shadow: none; }
@@ -1865,7 +1865,7 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .sidebar .nav-item { justify-content: flex-start !important; padding: 9px 12px !important; gap: 12px !important; }
   .sidebar .nav-item span:not(.badge) { display: inline !important; }
   .sidebar .event-card { display: block !important; }
-  .sidebar .brand-logo img { max-width: 170px !important; }
+  .sidebar .brand-logo img { max-width: 130px !important; }
 
   /* Topbar */
   .topbar { border-radius: 0; padding: 0 12px; height: 56px; position: sticky; top: 0; z-index: 100; }
