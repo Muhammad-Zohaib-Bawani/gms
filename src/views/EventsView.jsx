@@ -292,12 +292,10 @@ export default function EventsView({ lang }) {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {[[STR.fTitle, "title", "text"], [STR.fTheme, "theme", "text"]].map(([label, key, type]) => (
-          <div key={key}>
-            <label style={lStyle}>{label}</label>
-            <input type={type} style={iStyle} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}/>
-          </div>
-        ))}
+        <div>
+          <label style={lStyle}>{STR.fTitle}</label>
+          <input type="text" style={iStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}/>
+        </div>
         <div>
           <label style={lStyle}>{STR.fVenue}</label>
           <select style={selStyle} value={showCustom ? "__custom__" : (form.venue || "")}
