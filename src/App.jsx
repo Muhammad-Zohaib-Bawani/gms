@@ -25,7 +25,6 @@ import AccreditationView from './views/AccreditationView';
 
 const NAV = [
   { key: "dashboard", icon: "dashboard", label: { en: "Overview", ar: "نظرة عامة" }, section: "EVENT" },
-  { key: "events", icon: "meetings", label: { en: "Events", ar: "الفعاليات" }, section: "EVENT" },
   { key: "invitations", icon: "invitation", label: { en: "Invitations", ar: "الدعوات" }, section: "EVENT", badge: "4" },
   { key: "guests", icon: "guests", label: { en: "Guests", ar: "الضيوف" }, section: "EVENT" },
   { key: "travel", icon: "travel", label: { en: "Travel & logistics", ar: "السفر واللوجستيات" }, section: "EVENT" },
@@ -36,12 +35,14 @@ const NAV = [
   { key: "protocol", icon: "protocol", label: { en: "Protocol", ar: "البروتوكول" }, section: "ONSITE" },
   { key: "financials", icon: "finance", label: { en: "Financials", ar: "الماليات" }, section: "INSIGHTS" },
   { key: "reports", icon: "reports", label: { en: "Reports", ar: "التقارير" }, section: "INSIGHTS" },
+  { key: "events", icon: "meetings", label: { en: "Events", ar: "الفعاليات" }, section: "ADMIN" },
 ];
 
 const SECTION_LABELS = {
   EVENT:    { en: "EVENT",    ar: "الحدث" },
   ONSITE:   { en: "ONSITE",   ar: "في الموقع" },
   INSIGHTS: { en: "INSIGHTS", ar: "تحليلات" },
+  ADMIN:    { en: "ADMIN",    ar: "الإدارة" },
 };
 
 const SHELL_I18N = {
@@ -653,7 +654,7 @@ export default function App() {
     root.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
   }, [lang]);
 
-  const sections = ["EVENT", "ONSITE", "INSIGHTS"];
+  const sections = ["EVENT", "ONSITE", "INSIGHTS", "ADMIN"];
   const Current = VIEWS[view] || ComingSoon;
   const navItem = NAV.find(n => n.key === view);
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
