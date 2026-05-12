@@ -87,6 +87,21 @@ const EVENT_I18N = {
   },
 };
 
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function lightenHex(hex, amt) {
+  const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+  const l = x => Math.min(255, Math.round(x + (255-x)*amt));
+  return `#${l(r).toString(16).padStart(2,'0')}${l(g).toString(16).padStart(2,'0')}${l(b).toString(16).padStart(2,'0')}`;
+}
+function darkenHex(hex, amt) {
+  const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
+  const d = x => Math.round(x*(1-amt));
+  return `#${d(r).toString(16).padStart(2,'0')}${d(g).toString(16).padStart(2,'0')}${d(b).toString(16).padStart(2,'0')}`;
+}
+
 const TWEAK_DEFAULTS = {
   theme: "dark",
   accent: "#1aaec4",
@@ -99,9 +114,9 @@ const TWEAK_DEFAULTS = {
 };
 
 const EVENTS = [
-  { key: "doha-forum", name: "Doha Forum", subtitle: "22nd Edition · 7–9 Dec", logoColor: "assets/doha-forum-logo.png", logoWhite: "assets/doha-forum-logo-white.png", accent: "#1aaec4" },
-  { key: "qef", name: "Qatar Economic Forum", subtitle: "Powered by Bloomberg · May", logoColor: "assets/qef-logo-white.png", logoWhite: "assets/qef-logo-white.png", accent: "#8b6f3a", invertInLight: true },
-  { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#9aa0a4", invertInLight: true },
+  { key: "doha-forum", name: "Doha Forum", subtitle: "22nd Edition · 7–9 Dec", logoColor: "assets/doha-forum-logo.png", logoWhite: "assets/doha-forum-logo-white.png", accent: "#1aaec4", secondary: "#5fd1e0" },
+  { key: "qef", name: "Qatar Economic Forum", subtitle: "Powered by Bloomberg · May", logoColor: "assets/qef-logo-white.png", logoWhite: "assets/qef-logo-white.png", accent: "#c9943a", secondary: "#e8c068", invertInLight: true },
+  { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#3d7ab5", secondary: "#6aabdf", invertInLight: true },
 ];
 
 function EventSwitcher({ value, onChange, lang, triggerLogo }) {
@@ -641,19 +656,35 @@ export default function App() {
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
 
   function applyEventTheme(key) {
+    const root = document.documentElement;
     const evConfig = EVENTS.find(e => e.key === key);
     let stored = {};
     try { stored = JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) {}
     const theme = stored[key];
-    if (theme?.preset === 'custom') {
-      setTweak('accent', theme.accent || evConfig?.accent || '#1aaec4');
-      setTweak('secondary', theme.secondary || '#e0c47e');
-      setActiveLogo({ dark: theme.logoDark || '', light: theme.logoLight || '' });
-    } else {
-      setTweak('accent', evConfig?.accent || '#1aaec4');
-      setTweak('secondary', '#e0c47e');
-      setActiveLogo({ dark: '', light: '' });
-    }
+    const isCustom = theme?.preset === 'custom';
+
+    const accent    = (isCustom ? theme.accent    : null) || evConfig?.accent    || '#1aaec4';
+    const secondary = (isCustom ? theme.secondary : null) || evConfig?.secondary || '#e0c47e';
+
+    setTweak('accent', accent);
+    setTweak('secondary', secondary);
+    setActiveLogo({
+      dark:  isCustom ? (theme.logoDark  || '') : '',
+      light: isCustom ? (theme.logoLight || '') : '',
+    });
+
+    const orb1 = accent;
+    const orb2 = darkenHex(accent, 0.62);
+    const orb3 = lightenHex(accent, 0.42);
+    root.style.setProperty('--orb-1', orb1);
+    root.style.setProperty('--orb-2', orb2);
+    root.style.setProperty('--orb-3', orb3);
+    root.style.setProperty('--bg-glow-a',    hexToRgba(orb1, 0.30));
+    root.style.setProperty('--bg-glow-b',    hexToRgba(orb3, 0.16));
+    root.style.setProperty('--bg-glow-c',    hexToRgba(orb2, 0.35));
+    root.style.setProperty('--bg-glow-a-lt', hexToRgba(orb1, 0.22));
+    root.style.setProperty('--bg-glow-b-lt', hexToRgba(orb3, 0.20));
+    root.style.setProperty('--bg-glow-c-lt', hexToRgba(orb2, 0.18));
   }
 
   useEffect(() => {
