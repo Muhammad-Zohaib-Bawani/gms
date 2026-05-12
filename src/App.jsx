@@ -101,6 +101,20 @@ function darkenHex(hex, amt) {
   const d = x => Math.round(x*(1-amt));
   return `#${d(r).toString(16).padStart(2,'0')}${d(g).toString(16).padStart(2,'0')}${d(b).toString(16).padStart(2,'0')}`;
 }
+function blendHex(base, accent, amt) {
+  const br = parseInt(base.slice(1,3), 16),   bg_ = parseInt(base.slice(3,5), 16),   bb = parseInt(base.slice(5,7), 16);
+  const ar = parseInt(accent.slice(1,3), 16), ag  = parseInt(accent.slice(3,5), 16), ab = parseInt(accent.slice(5,7), 16);
+  const r = Math.round(br*(1-amt) + ar*amt), g = Math.round(bg_*(1-amt) + ag*amt), b_ = Math.round(bb*(1-amt) + ab*amt);
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b_.toString(16).padStart(2,'0')}`;
+}
+function applyBgVars(root, accent, isDark) {
+  const base = isDark ? '#000000' : '#f8f8f8';
+  const amounts = isDark ? [0.10, 0.18, 0.28] : [0.05, 0.10, 0.16];
+  root.style.setProperty('--bg-0', blendHex(base, accent, amounts[0]));
+  root.style.setProperty('--bg-1', blendHex(base, accent, amounts[1]));
+  root.style.setProperty('--bg-2', blendHex(base, accent, amounts[2]));
+  root.style.setProperty('--bg',   blendHex(base, accent, amounts[1]));
+}
 
 const TWEAK_DEFAULTS = {
   theme: "dark",
@@ -685,6 +699,7 @@ export default function App() {
     root.style.setProperty('--bg-glow-a-lt', hexToRgba(orb1, 0.22));
     root.style.setProperty('--bg-glow-b-lt', hexToRgba(orb3, 0.20));
     root.style.setProperty('--bg-glow-c-lt', hexToRgba(orb2, 0.18));
+    applyBgVars(root, accent, (root.getAttribute('data-theme') || 'dark') === 'dark');
   }
 
   useEffect(() => {
@@ -695,6 +710,7 @@ export default function App() {
     root.style.setProperty("--accent-2", tweaks.secondary || "#e0c47e");
     root.style.setProperty("--glass-blur", `${tweaks.blur}px`);
     root.style.setProperty("--orb-opacity", String(tweaks.orbIntensity));
+    applyBgVars(root, tweaks.accent || '#1aaec4', (tweaks.theme || 'dark') === 'dark');
   }, [tweaks]);
 
   const lang = tweaks.lang || "en";

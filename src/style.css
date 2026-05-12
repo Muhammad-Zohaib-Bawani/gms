@@ -1017,14 +1017,14 @@ select option {
     radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a, rgba(26,174,196,0.30)), transparent 60%),
     radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b, rgba(95,209,224,0.16)), transparent 55%),
     radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c, rgba(14,106,122,0.35)), transparent 60%),
-    linear-gradient(180deg, #03101a 0%, #051f2a 50%, #062834 100%);
+    linear-gradient(180deg, var(--bg-0, #03101a) 0%, var(--bg-1, #051f2a) 50%, var(--bg-2, #062834) 100%);
 }
 html[data-theme="light"] .bg-scene {
   background:
     radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a-lt, rgba(26,174,196,0.22)), transparent 60%),
     radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b-lt, rgba(95,209,224,0.20)), transparent 55%),
     radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c-lt, rgba(14,106,122,0.18)), transparent 60%),
-    linear-gradient(180deg, #f4f8fa 0%, #e6eff2 50%, #dbe8ec 100%);
+    linear-gradient(180deg, var(--bg-0, #f4f8fa) 0%, var(--bg-1, #e6eff2) 50%, var(--bg-2, #dbe8ec) 100%);
 }
 html[data-theme="light"] .bg-orb { mix-blend-mode: multiply; opacity: calc(var(--orb-opacity) * 0.4); filter: blur(90px); }
 html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
