@@ -338,11 +338,6 @@ export default function EventsView({ lang }) {
             <input type="date" style={iStyle} value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}/>
           </div>
         </div>
-        <div>
-          <label style={lStyle}>{STR.fImage}</label>
-          <input type="url" style={iStyle} value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} placeholder="https://…"/>
-        </div>
-
         {/* Visual Theme */}
         <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
