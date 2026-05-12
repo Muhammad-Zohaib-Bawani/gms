@@ -801,20 +801,22 @@ export default function App() {
           <div style={{ fontSize: 10.5, color: "var(--ink-mute)", letterSpacing: lang === "ar" ? "0.04em" : "0.18em", textTransform: "uppercase" }}>{shell.guestMgmt}</div>
         </div>
 
-        {sections.map(section => (
-          <React.Fragment key={section}>
-            <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
-            {NAV.filter(n => n.section === section).map(n => (
-              <div key={n.key}
-                className={`nav-item ${view === n.key ? "active" : ""}`}
-                onClick={() => { setView(n.key); setSidebarOpen(false); }}>
-                <Icon name={n.icon} size={16}/>
-                <span>{navLabelOf(n)}</span>
-                {n.badge && <span className="badge">{n.badge}</span>}
-              </div>
-            ))}
-          </React.Fragment>
-        ))}
+        <div className="sidebar-nav-scroll">
+          {sections.map(section => (
+            <React.Fragment key={section}>
+              <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
+              {NAV.filter(n => n.section === section).map(n => (
+                <div key={n.key}
+                  className={`nav-item ${view === n.key ? "active" : ""}`}
+                  onClick={() => { setView(n.key); setSidebarOpen(false); }}>
+                  <Icon name={n.icon} size={16}/>
+                  <span>{navLabelOf(n)}</span>
+                  {n.badge && <span className="badge">{n.badge}</span>}
+                </div>
+              ))}
+            </React.Fragment>
+          ))}
+        </div>
 
         <div className="event-card">
           <div className="kicker">{shell.inSession}</div>

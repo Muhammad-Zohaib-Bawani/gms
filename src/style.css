@@ -1257,7 +1257,9 @@ html[data-theme="light"] .lang-opt.active { color: #ffffff; }
 .avatar .role { font-size: 11px; color: var(--ink-mute); }
 
 /* ===== Sidebar ===== */
-.sidebar { padding: 20px 14px; display: flex; flex-direction: column; }
+.sidebar { padding: 20px 14px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.sidebar-nav-scroll { flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: none; }
+.sidebar-nav-scroll::-webkit-scrollbar { display: none; }
 .brand {
   display: flex; align-items: center; gap: 12px; padding: 6px 10px 22px;
 }
