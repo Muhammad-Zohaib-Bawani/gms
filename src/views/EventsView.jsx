@@ -164,6 +164,11 @@ export default function EventsView({ lang }) {
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
 
+  React.useEffect(() => {
+    const registry = events.map(({ id, appKey, title, type, image }) => ({ id, appKey: appKey || '', title, type, image: image || '' }));
+    localStorage.setItem('gms-events-registry', JSON.stringify(registry));
+  }, [events]);
+
   function showMsg(msg) { setNotice(msg); setTimeout(() => setNotice(""), 3000); }
 
   function saveNewEvent(ev) {

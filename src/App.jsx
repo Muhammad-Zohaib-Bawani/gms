@@ -135,17 +135,42 @@ const EVENTS = [
 
 function EventSwitcher({ value, onChange, lang, triggerLogo }) {
   const [open, setOpen] = useState(false);
+  const [storedThemes, setStoredThemes] = useState({});
+  const [eventRegistry, setEventRegistry] = useState([]);
   const ref = React.useRef(null);
   const ev = EVENTS.find(e => e.key === value) || EVENTS[0];
   const evI18n = EVENT_I18N[lang] || EVENT_I18N.en;
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const evCopy = (k) => evI18n[k] || EVENT_I18N.en[k];
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    try { setStoredThemes(JSON.parse(localStorage.getItem('gms-event-themes') || '{}')); } catch(e) {}
+    try { setEventRegistry(JSON.parse(localStorage.getItem('gms-events-registry') || '[]')); } catch(e) {}
+  }, [open]);
+
+  function evAccent(key) {
+    const base = EVENTS.find(e => e.key === key);
+    const theme = storedThemes[key];
+    return (theme?.preset === 'custom' ? theme.accent : null) || base?.accent || '#1aaec4';
+  }
+  function evThemeLogo(key) {
+    const base = EVENTS.find(e => e.key === key);
+    const theme = storedThemes[key];
+    if (theme?.preset === 'custom' && theme.logoDark) return theme.logoDark;
+    return base?.logoWhite;
+  }
+  function evCoverImage(key) {
+    return eventRegistry.find(e => e.appKey === key)?.image || '';
+  }
+
   return (
     <div className="event-switcher" ref={ref}>
       <button className={"event-trigger" + (open ? " open" : "")} onClick={() => setOpen(o => !o)}>
@@ -161,16 +186,33 @@ function EventSwitcher({ value, onChange, lang, triggerLogo }) {
       {open && (
         <div className="event-menu glass">
           <div className="event-menu-head">{shell.switchEvent}</div>
-          {EVENTS.map(e => (
-            <button key={e.key} className={"event-row" + (e.key === value ? " active" : "")} onClick={() => { onChange(e.key); setOpen(false); }}>
-              <span className="event-logo-mark" data-event={e.key}><img src={e.logoWhite} alt="" /></span>
-              <span className="event-text">
-                <span className="event-name">{evCopy(e.key).name}</span>
-                <span className="event-sub">{evCopy(e.key).subtitle}</span>
-              </span>
-              {e.key === value && <span className="event-check"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7.5l3 3 5-6.5"/></svg></span>}
-            </button>
-          ))}
+          {EVENTS.map(e => {
+            const accent = evAccent(e.key);
+            const coverImg = evCoverImage(e.key);
+            const logo = evThemeLogo(e.key);
+            const isActive = e.key === value;
+            return (
+              <button key={e.key}
+                className={"event-row" + (isActive ? " active" : "")}
+                style={{ borderLeft: `3px solid ${accent}`, background: isActive ? `${accent}18` : undefined }}
+                onClick={() => { onChange(e.key); setOpen(false); }}>
+                <span className="event-logo-mark" data-event={e.key}
+                  style={{ background: `${accent}22`, borderColor: `${accent}50`, overflow: 'hidden' }}>
+                  {coverImg ? (
+                    <img src={coverImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={err => { err.target.style.display = 'none'; }}/>
+                  ) : (
+                    <img src={logo} alt="" />
+                  )}
+                </span>
+                <span className="event-text">
+                  <span className="event-name" style={{ color: isActive ? accent : undefined }}>{evCopy(e.key).name}</span>
+                  <span className="event-sub">{evCopy(e.key).subtitle}</span>
+                </span>
+                {isActive && <span className="event-check" style={{ color: accent }}><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7.5l3 3 5-6.5"/></svg></span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
