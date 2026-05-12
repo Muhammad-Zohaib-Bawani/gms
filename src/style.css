@@ -1257,9 +1257,9 @@ html[data-theme="light"] .lang-opt.active { color: #ffffff; }
 .avatar .role { font-size: 11px; color: var(--ink-mute); }
 
 /* ===== Sidebar ===== */
-.sidebar { padding: 20px 14px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.sidebar-nav-scroll { flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: none; }
-.sidebar-nav-scroll::-webkit-scrollbar { display: none; }
+.sidebar { padding: 20px 14px; display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
+.sidebar::-webkit-scrollbar { display: none; }
+.sidebar-nav-scroll { overflow-y: visible; }
 .brand {
   display: flex; align-items: center; gap: 12px; padding: 6px 10px 22px;
 }
@@ -1329,7 +1329,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
 }
 
 .event-card {
-  margin-top: auto;
+  margin-top: 12px;
   padding: 14px;
   border-radius: var(--radius);
   background:
