@@ -14,7 +14,7 @@ const EVENT_TYPE_COLORS = {
 
 const INITIAL_EVENTS = [
   {
-    id: "EV-001", title: "23rd Doha Forum", type: "Forum",
+    id: "EV-001", appKey: "doha-forum", title: "23rd Doha Forum", type: "Forum",
     theme: "Governance & Sustainability", venue: "Sheraton Grand, Doha",
     startDate: "2025-12-07", endDate: "2025-12-09", image: "",
     status: "active",
@@ -27,7 +27,7 @@ const INITIAL_EVENTS = [
     ],
   },
   {
-    id: "EV-002", title: "Qatar Economic Forum", type: "Forum",
+    id: "EV-002", appKey: "qef", title: "Qatar Economic Forum", type: "Forum",
     theme: "Powered by Bloomberg", venue: "Marsa Arabella, Lusail", startDate: "2025-05-20", endDate: "2025-05-22", image: "",
     status: "planning",
     sessions: [
@@ -36,12 +36,22 @@ const INITIAL_EVENTS = [
     ],
   },
   {
-    id: "EV-003", title: "Qatar–Africa Business Forum", type: "Conference",
+    id: "EV-003", appKey: "qabf", title: "Qatar–Africa Business Forum", type: "Conference",
     theme: "Trade Corridors of the Future", venue: "QICCA, Doha", startDate: "2025-10-14", endDate: "2025-10-15", image: "",
     status: "planning",
     sessions: [],
   },
 ];
+
+const DEFAULT_UI_THEME = { preset: 'default', accent: '#1aaec4', secondary: '#e0c47e', logoDark: '', logoLight: '' };
+function getStoredThemes() {
+  try { return JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) { return {}; }
+}
+function saveStoredTheme(appKey, theme) {
+  const all = getStoredThemes();
+  all[appKey] = theme;
+  localStorage.setItem('gms-event-themes', JSON.stringify(all));
+}
 
 const STATUS_COLORS = { active: "var(--accent)", planning: "#e0c47e", completed: "var(--ink-mute)", cancelled: "#e07e7e" };
 
@@ -61,6 +71,60 @@ function EventCover({ type, image, width = 56, height = 56, radius = 10 }) {
           onError={e => { e.target.style.display = "none"; }}/>
       ) : (
         <Icon name={icon} size={iconSize} style={{ color, opacity: 0.85 }}/>
+      )}
+    </div>
+  );
+}
+
+function LogoInput({ label, value, onChange, isAr }) {
+  const iStyle = { width: "100%", background: "var(--surface-soft-3)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: "8px 11px", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" };
+  const [mode, setMode] = useState(value && value.startsWith('data:') ? 'upload' : 'url');
+
+  function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { onChange(ev.target.result); setMode('upload'); };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</label>
+      <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+        {['upload', 'url'].map(m => (
+          <button key={m} type="button" onClick={() => setMode(m)}
+            style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--glass-border)'}`, background: mode === m ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-3)', color: mode === m ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer' }}>
+            {m === 'upload' ? (isAr ? 'رفع ملف' : 'Upload') : 'URL'}
+          </button>
+        ))}
+        {value && (
+          <button type="button" onClick={() => onChange('')}
+            style={{ marginInlineStart: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--ink-mute)', padding: '3px 6px' }}>
+            {isAr ? 'إزالة' : 'Remove'}
+          </button>
+        )}
+      </div>
+      {mode === 'upload' ? (
+        <div style={{ position: 'relative' }}>
+          <input type="file" accept="image/*" onChange={handleFile}
+            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }}/>
+          <div style={{ ...iStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', height: 38 }}>
+            <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }}/>
+            <span style={{ fontSize: 12, color: value && value.startsWith('data:') ? 'var(--accent)' : 'var(--ink-mute)' }}>
+              {value && value.startsWith('data:') ? (isAr ? 'تم الرفع ✓' : 'File uploaded ✓') : (isAr ? 'اختر ملفاً…' : 'Choose image file…')}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <input type="url" style={iStyle} value={value && !value.startsWith('data:') ? value : ''}
+          onChange={e => onChange(e.target.value)} placeholder="https://…"/>
+      )}
+      {value && (
+        <div style={{ marginTop: 6, height: 36, width: 80, borderRadius: 6, border: '1px solid var(--glass-border)', background: 'var(--surface-soft-3)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+          <img src={value} alt="" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+            onError={e => { e.target.style.display = 'none'; }}/>
+        </div>
       )}
     </div>
   );
@@ -102,18 +166,25 @@ export default function EventsView({ lang }) {
 
   function showMsg(msg) { setNotice(msg); setTimeout(() => setNotice(""), 3000); }
 
-  function saveNewEvent() {
-    if (!newEvent.title) return;
+  function saveNewEvent(ev) {
+    if (!ev.title) return;
     const id = `EV-${String(events.length + 100).padStart(3, "0")}`;
-    setEvents(prev => [...prev, { ...newEvent, id, sessions: [] }]);
+    const appKey = ev.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const fullEv = { ...ev, id, appKey, sessions: [] };
+    setEvents(prev => [...prev, fullEv]);
     setShowNewEvent(false);
     setNewEvent({ title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" });
+    if (ev.uiTheme) saveStoredTheme(appKey, ev.uiTheme);
     showMsg(isAr ? "تم إنشاء الفعالية" : "Event created");
   }
 
   function saveEditEvent(ev) {
     setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
     setEditEventId(null);
+    if (ev.appKey && ev.uiTheme) {
+      saveStoredTheme(ev.appKey, ev.uiTheme);
+      window.dispatchEvent(new CustomEvent('gms-theme-updated', { detail: { eventKey: ev.appKey } }));
+    }
     showMsg(isAr ? "تم حفظ التغييرات" : "Changes saved");
   }
 
@@ -201,6 +272,13 @@ export default function EventsView({ lang }) {
     const venueIsCustom = form.venue && !venueOptions.includes(form.venue);
     const [customVenue, setCustomVenue] = useState(venueIsCustom ? form.venue : "");
     const [showCustom, setShowCustom] = useState(venueIsCustom);
+    const [uiTheme, setUiTheme] = useState(() => {
+      if (ev.appKey) {
+        const stored = getStoredThemes()[ev.appKey];
+        return stored ? { ...DEFAULT_UI_THEME, ...stored } : { ...DEFAULT_UI_THEME };
+      }
+      return ev.uiTheme ? { ...DEFAULT_UI_THEME, ...ev.uiTheme } : { ...DEFAULT_UI_THEME };
+    });
 
     function handleVenueChange(val) {
       if (val === "__custom__") {
@@ -261,9 +339,56 @@ export default function EventsView({ lang }) {
           <label style={lStyle}>{STR.fImage}</label>
           <input type="url" style={iStyle} value={form.image} onChange={e => setForm(f => ({ ...f, image: e.target.value }))} placeholder="https://…"/>
         </div>
+
+        {/* Visual Theme */}
+        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
+            {isAr ? 'السمة المرئية' : 'Visual Theme'}
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+            {['default', 'custom'].map(p => (
+              <button key={p} type="button" onClick={() => setUiTheme(t => ({ ...t, preset: p }))}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: uiTheme.preset === p ? 600 : 400,
+                  border: `1px solid ${uiTheme.preset === p ? 'var(--accent)' : 'var(--glass-border)'}`,
+                  background: uiTheme.preset === p ? 'rgba(26,174,196,0.1)' : 'var(--surface-soft-3)',
+                  color: uiTheme.preset === p ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                {p === 'default' ? (isAr ? 'الافتراضي' : 'Default') : (isAr ? 'مخصص' : 'Custom')}
+              </button>
+            ))}
+          </div>
+          {uiTheme.preset === 'custom' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={lStyle}>{isAr ? 'اللون الأساسي' : 'Primary Color'}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="color" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
+                      style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
+                    <input type="text" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
+                      style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
+                  </div>
+                </div>
+                <div>
+                  <label style={lStyle}>{isAr ? 'اللون الثانوي' : 'Secondary Color'}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="color" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
+                      style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
+                    <input type="text" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
+                      style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
+                  </div>
+                </div>
+              </div>
+              <LogoInput label={isAr ? 'شعار (خلفية داكنة)' : 'Logo — Dark background'}
+                value={uiTheme.logoDark} onChange={v => setUiTheme(t => ({ ...t, logoDark: v }))} isAr={isAr}/>
+              <LogoInput label={isAr ? 'شعار (خلفية فاتحة)' : 'Logo — Light background'}
+                value={uiTheme.logoLight} onChange={v => setUiTheme(t => ({ ...t, logoLight: v }))} isAr={isAr}/>
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
           <button className="btn" onClick={onCancel}>{STR.cancel}</button>
-          <button className="btn primary" onClick={() => onSave(form)} disabled={!form.title}>
+          <button className="btn primary" onClick={() => onSave({ ...form, uiTheme })} disabled={!form.title}>
             <Icon name="check" size={13}/> {STR.save}
           </button>
         </div>

@@ -90,6 +90,7 @@ const EVENT_I18N = {
 const TWEAK_DEFAULTS = {
   theme: "dark",
   accent: "#1aaec4",
+  secondary: "#e0c47e",
   blur: 22,
   density: "comfortable",
   orbIntensity: 0.1,
@@ -103,7 +104,7 @@ const EVENTS = [
   { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#9aa0a4", invertInLight: true },
 ];
 
-function EventSwitcher({ value, onChange, lang }) {
+function EventSwitcher({ value, onChange, lang, triggerLogo }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
   const ev = EVENTS.find(e => e.key === value) || EVENTS[0];
@@ -120,7 +121,7 @@ function EventSwitcher({ value, onChange, lang }) {
     <div className="event-switcher" ref={ref}>
       <button className={"event-trigger" + (open ? " open" : "")} onClick={() => setOpen(o => !o)}>
         <span className="event-logo-mark" data-event={ev.key}>
-          <img src={ev.logoWhite} alt="" />
+          <img src={triggerLogo || ev.logoWhite} alt="" />
         </span>
         <span className="event-text">
           <span className="event-name">{evCopy(ev.key).name}</span>
@@ -637,12 +638,30 @@ export default function App() {
   const [openGuest, setOpenGuest] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
+
+  function applyEventTheme(key) {
+    const evConfig = EVENTS.find(e => e.key === key);
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) {}
+    const theme = stored[key];
+    if (theme?.preset === 'custom') {
+      setTweak('accent', theme.accent || evConfig?.accent || '#1aaec4');
+      setTweak('secondary', theme.secondary || '#e0c47e');
+      setActiveLogo({ dark: theme.logoDark || '', light: theme.logoLight || '' });
+    } else {
+      setTweak('accent', evConfig?.accent || '#1aaec4');
+      setTweak('secondary', '#e0c47e');
+      setActiveLogo({ dark: '', light: '' });
+    }
+  }
 
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute("data-theme", tweaks.theme || "dark");
     root.setAttribute("data-density", tweaks.density || "comfortable");
     root.style.setProperty("--accent", tweaks.accent);
+    root.style.setProperty("--accent-2", tweaks.secondary || "#e0c47e");
     root.style.setProperty("--glass-blur", `${tweaks.blur}px`);
     root.style.setProperty("--orb-opacity", String(tweaks.orbIntensity));
   }, [tweaks]);
@@ -653,6 +672,24 @@ export default function App() {
     root.setAttribute("lang", lang);
     root.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
   }, [lang]);
+
+  useEffect(() => {
+    applyEventTheme(tweaks.event || 'doha-forum');
+    const handler = (e) => {
+      if (e.detail?.eventKey === (tweaks.event || 'doha-forum')) {
+        applyEventTheme(e.detail.eventKey);
+      }
+    };
+    window.addEventListener('gms-theme-updated', handler);
+    return () => window.removeEventListener('gms-theme-updated', handler);
+  }, [tweaks.event]);
+
+  const activeEv = EVENTS.find(e => e.key === (tweaks.event || 'doha-forum')) || EVENTS[0];
+  const logoColorSrc = activeLogo.light || activeEv.logoColor;
+  const logoWhiteSrc = activeLogo.dark || activeEv.logoWhite;
+  const triggerLogo = (tweaks.theme || 'dark') === 'dark'
+    ? (activeLogo.dark || activeEv.logoWhite)
+    : (activeLogo.light || activeEv.logoColor || activeEv.logoWhite);
 
   const sections = ["EVENT", "ONSITE", "INSIGHTS", "ADMIN"];
   const Current = VIEWS[view] || ComingSoon;
@@ -665,10 +702,10 @@ export default function App() {
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
       <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
         <div className="brand-logo">
-          <img className="logo-color" src="assets/doha-forum-logo.png" alt="Doha Forum"
+          <img className="logo-color" src={logoColorSrc} alt={activeEv.name}
             onError={e => { e.target.style.display = "none"; e.target.nextSibling && (e.target.nextSibling.style.display = "none"); }}/>
-          <img className="logo-white" src="assets/doha-forum-logo-white.png" alt="Doha Forum"
-            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: '<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">Doha</span><span style="font-size:11px;letter-spacing:0.18em;color:var(--ink-mute);margin-top:2px">FORUM</span>', style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
+          <img className="logo-white" src={logoWhiteSrc} alt={activeEv.name}
+            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: '<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">GMS</span>', style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div>
         <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontStyle: "italic", letterSpacing: "0.01em" }}>GMS</div>
@@ -706,7 +743,7 @@ export default function App() {
         <button className="mobile-menu-btn icon-btn" onClick={() => setSidebarOpen(o => !o)}>
           <Icon name="menu" size={20}/>
         </button>
-        <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} lang={lang} />
+        <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} lang={lang} triggerLogo={triggerLogo} />
         <div className="right">
           <div className="search">
             <Icon name="search" size={14}/>
