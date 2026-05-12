@@ -748,11 +748,11 @@ export default function App() {
     <div className="app">
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
       <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
-        <div className="brand-logo">
+        <div className="brand-logo" key={tweaks.event || 'doha-forum'}>
           <img className="logo-color" src={logoColorSrc} alt={activeEv.name}
-            onError={e => { e.target.style.display = "none"; e.target.nextSibling && (e.target.nextSibling.style.display = "none"); }}/>
+            onError={e => { e.target.style.display = "none"; }}/>
           <img className="logo-white" src={logoWhiteSrc} alt={activeEv.name}
-            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: '<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">GMS</span>', style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
+            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${activeEv.name.split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div>
         <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontStyle: "italic", letterSpacing: "0.01em" }}>GMS</div>
