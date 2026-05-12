@@ -43,6 +43,18 @@ const INITIAL_EVENTS = [
   },
 ];
 
+function toHex(color) {
+  if (!color) return '#000000';
+  const s = color.trim();
+  if (s.startsWith('#')) {
+    if (s.length === 4) return '#' + s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
+    return s.toLowerCase().slice(0, 7);
+  }
+  const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (m) return '#' + [m[1],m[2],m[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
+  return s;
+}
+
 const DEFAULT_UI_THEME = { preset: 'default', accent: '#1aaec4', secondary: '#e0c47e', logoDark: '', logoLight: '' };
 function getStoredThemes() {
   try { return JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) { return {}; }
@@ -360,18 +372,22 @@ export default function EventsView({ lang }) {
                 <div>
                   <label style={lStyle}>{isAr ? 'اللون الأساسي' : 'Primary Color'}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="color" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
+                    <input type="color" value={toHex(uiTheme.accent)} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
                       style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
                     <input type="text" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
+                      onBlur={e => setUiTheme(t => ({ ...t, accent: toHex(e.target.value) }))}
+                      placeholder="#000000"
                       style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
                   </div>
                 </div>
                 <div>
                   <label style={lStyle}>{isAr ? 'اللون الثانوي' : 'Secondary Color'}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input type="color" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
+                    <input type="color" value={toHex(uiTheme.secondary)} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
                       style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
                     <input type="text" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
+                      onBlur={e => setUiTheme(t => ({ ...t, secondary: toHex(e.target.value) }))}
+                      placeholder="#000000"
                       style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
                   </div>
                 </div>
