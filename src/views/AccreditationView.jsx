@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
@@ -406,14 +407,25 @@ export default function AccreditationView({ lang }) {
                       ))}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)' }}>
-                      <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
-                        {STR.forum} · Dec 7–9, 2025
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)', gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 6 }}>
+                          {STR.forum} · Dec 7–9, 2025
+                        </div>
+                        <span style={chipStyle(isIssued)}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
+                          {isIssued ? STR.badgeIssued : STR.badgePending}
+                        </span>
                       </div>
-                      <span style={chipStyle(isIssued)}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
-                        {isIssued ? STR.badgeIssued : STR.badgePending}
-                      </span>
+                      <div style={{ background: '#fff', padding: 5, borderRadius: 6, border: '1px solid var(--glass-border)', flexShrink: 0 }}>
+                        <QRCodeSVG
+                          value={`https://doha-forum.qa/verify/${previewGuest.id}`}
+                          size={72}
+                          bgColor="#ffffff"
+                          fgColor="#0a3947"
+                          level="M"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

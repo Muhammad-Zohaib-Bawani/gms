@@ -117,6 +117,8 @@ export default function InvitationsView({ lang }) {
   const [schedTime, setSchedTime] = useState("09:00");
   const [draftNotice, setDraftNotice] = useState("");
 
+  const [viewMode, setViewMode] = useState("list"); // 'list' | 'cards'
+
   const [editSubject, setEditSubject] = useState("");
   const [editOpening, setEditOpening] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -229,103 +231,207 @@ export default function InvitationsView({ lang }) {
 
       {/* Templates tab */}
       {tab === "templates" && (
-        <div className="card">
-          <div className="card-head"><h3>{STR.tabs.templates}</h3><span style={{ fontSize: 11, color: "var(--ink-mute)" }}>{STR.languages}: EN · AR · FR</span></div>
-          <table className="table">
-            <thead><tr>
-              <th>{isAr ? "القالب" : "Template"}</th>
-              <th>{STR.sent}</th>
-              <th>{STR.opened}</th>
-              <th>{STR.accepted}</th>
-              <th style={{ textAlign: "end" }}>{isAr ? "إجراءات" : "Actions"}</th>
-            </tr></thead>
-            <tbody>
+        <>
+          <div className="card" style={{ padding: "14px 20px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>{STR.tabs.templates}</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 11, color: "var(--ink-mute)" }}>{STR.languages}: EN · AR · FR</span>
+              <div style={{ display: "flex", gap: 2 }}>
+                <button className={`btn${viewMode === "list" ? " primary" : " ghost"}`} style={{ padding: "4px 8px" }} onClick={() => setViewMode("list")} title={isAr ? "قائمة" : "List"}><Icon name="menu" size={13}/></button>
+                <button className={`btn${viewMode === "cards" ? " primary" : " ghost"}`} style={{ padding: "4px 8px" }} onClick={() => setViewMode("cards")} title={isAr ? "بطاقات" : "Cards"}><Icon name="dashboard" size={13}/></button>
+              </div>
+            </div>
+          </div>
+          {viewMode === "list" ? (
+            <div className="card" style={{ padding: 0 }}>
+              <table className="table">
+                <thead><tr>
+                  <th>{isAr ? "القالب" : "Template"}</th>
+                  <th>{STR.sent}</th>
+                  <th>{STR.opened}</th>
+                  <th>{STR.accepted}</th>
+                  <th style={{ textAlign: "end" }}>{isAr ? "إجراءات" : "Actions"}</th>
+                </tr></thead>
+                <tbody>
+                  {templates.map((t) => (
+                    <tr key={t.id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: "50%", background: t.color, flexShrink: 0, display: "inline-block" }}/>
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{t.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>{t.lang}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.sent)}</span></td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.opened)}</span>
+                          <span style={{ fontSize: 11, color: "var(--accent-2)" }}>{Math.round(t.opened/t.sent*100)}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.accepted)}</span>
+                          <span style={{ fontSize: 11, color: "var(--accent)" }}>{Math.round(t.accepted/t.sent*100)}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button className="btn ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openEdit(t)}>
+                            <Icon name="edit" size={12}/> {STR.edit}
+                          </button>
+                          <button className="btn primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setSendConfirm(t)}>
+                            <Icon name="arrow" size={12}/> {STR.send}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
               {templates.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: t.color, flexShrink: 0, display: "inline-block" }}/>
+                <div key={t.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div style={{ height: 5, background: t.color }}/>
+                  <div style={{ padding: "16px 18px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                       <div>
-                        <div style={{ fontWeight: 500 }}>{t.name}</div>
-                        <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>{t.lang}</div>
+                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t.name}</div>
+                        <span className="chip" style={{ fontSize: 10.5 }}><span className="dot" style={{ background: t.color }}/>{t.lang}</span>
                       </div>
                     </div>
-                  </td>
-                  <td><span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.sent)}</span></td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.opened)}</span>
-                      <span style={{ fontSize: 11, color: "var(--accent-2)" }}>{Math.round(t.opened/t.sent*100)}%</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{fmtN(t.accepted)}</span>
-                      <span style={{ fontSize: 11, color: "var(--accent)" }}>{Math.round(t.accepted/t.sent*100)}%</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      <button className="btn ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openEdit(t)}>
-                        <Icon name="edit" size={12}/> {STR.edit}
-                      </button>
-                      <button className="btn primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setSendConfirm(t)}>
-                        <Icon name="arrow" size={12}/> {STR.send}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                    {[
+                      { label: STR.sent, val: t.sent, pct: 100, color: "var(--ink-dim)" },
+                      { label: STR.opened, val: t.opened, pct: Math.round(t.opened / t.sent * 100), color: "var(--accent-2)" },
+                      { label: STR.accepted, val: t.accepted, pct: Math.round(t.accepted / t.sent * 100), color: "var(--accent)" },
+                    ].map((m) => (
+                      <div key={m.label} style={{ marginBottom: 9 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+                          <span style={{ color: "var(--ink-mute)" }}>{m.label}</span>
+                          <span style={{ fontFamily: "var(--mono)" }}>{fmtN(m.val)} <span style={{ color: m.color }}>({m.pct}%)</span></span>
+                        </div>
+                        <div style={{ height: 4, borderRadius: 2, background: "var(--surface-soft-4)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${m.pct}%`, background: m.color, borderRadius: 2 }}/>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "10px 18px", borderTop: "1px solid var(--glass-border)", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button className="btn ghost" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => openEdit(t)}>
+                      <Icon name="edit" size={12}/> {STR.edit}
+                    </button>
+                    <button className="btn primary" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => setSendConfirm(t)}>
+                      <Icon name="arrow" size={12}/> {STR.send}
+                    </button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Queue tab */}
       {tab === "queue" && (
-        <div className="card">
-          <div className="card-head"><h3>{STR.tabs.queue}</h3></div>
-          <table className="table">
-            <thead><tr>
-              <th>{STR.cols.recipient}</th>
-              <th>{STR.cols.schedule}</th>
-              <th>{STR.cols.channels}</th>
-              <th>{STR.cols.template}</th>
-              <th style={{ textAlign: "end" }}></th>
-            </tr></thead>
-            <tbody>
+        <>
+          <div className="card" style={{ padding: "14px 20px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>{STR.tabs.queue}</h3>
+            <div style={{ display: "flex", gap: 2 }}>
+              <button className={`btn${viewMode === "list" ? " primary" : " ghost"}`} style={{ padding: "4px 8px" }} onClick={() => setViewMode("list")} title={isAr ? "قائمة" : "List"}><Icon name="menu" size={13}/></button>
+              <button className={`btn${viewMode === "cards" ? " primary" : " ghost"}`} style={{ padding: "4px 8px" }} onClick={() => setViewMode("cards")} title={isAr ? "بطاقات" : "Cards"}><Icon name="dashboard" size={13}/></button>
+            </div>
+          </div>
+          {viewMode === "list" ? (
+            <div className="card" style={{ padding: 0 }}>
+              <table className="table">
+                <thead><tr>
+                  <th>{STR.cols.recipient}</th>
+                  <th>{STR.cols.schedule}</th>
+                  <th>{STR.cols.channels}</th>
+                  <th>{STR.cols.template}</th>
+                  <th style={{ textAlign: "end" }}></th>
+                </tr></thead>
+                <tbody>
+                  {queue.map((q) => (
+                    <tr key={q.id}>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {q.type === "draft" && <span className="chip" style={{ fontSize: 10, padding: "1px 6px" }}>{STR.draft}</span>}
+                          <span style={{ fontWeight: 500 }}>{q.recipient}</span>
+                        </div>
+                      </td>
+                      <td><span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{q.schedule}</span></td>
+                      <td><span className="chip"><span className="dot"/>{q.channels}</span></td>
+                      <td style={{ fontSize: 12, color: "var(--ink-dim)" }}>{q.template}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          {sentDone.has(q.id) ? (
+                            <span className="chip confirmed"><span className="dot"/>{isAr ? "أُرسل" : "Sent"}</span>
+                          ) : (
+                            <>
+                              <button className="btn ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openEdit(q)}>
+                                <Icon name="edit" size={12}/> {STR.edit}
+                              </button>
+                              <button className="btn primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setSendConfirm(q)}>
+                                <Icon name="arrow" size={12}/> {STR.send}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
               {queue.map((q) => (
-                <tr key={q.id}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div key={q.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                       {q.type === "draft" && <span className="chip" style={{ fontSize: 10, padding: "1px 6px" }}>{STR.draft}</span>}
-                      <span style={{ fontWeight: 500 }}>{q.recipient}</span>
+                      {q.type === "scheduled" && <span className="chip confirmed" style={{ fontSize: 10, padding: "1px 6px" }}><span className="dot"/>{STR.scheduled}</span>}
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{q.recipient}</span>
                     </div>
-                  </td>
-                  <td><span style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{q.schedule}</span></td>
-                  <td><span className="chip"><span className="dot"/>{q.channels}</span></td>
-                  <td style={{ fontSize: 12, color: "var(--ink-dim)" }}>{q.template}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      {sentDone.has(q.id) ? (
-                        <span className="chip confirmed"><span className="dot"/>{isAr ? "أُرسل" : "Sent"}</span>
-                      ) : (
-                        <>
-                          <button className="btn ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openEdit(q)}>
-                            <Icon name="edit" size={12}/> {STR.edit}
-                          </button>
-                          <button className="btn primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setSendConfirm(q)}>
-                            <Icon name="arrow" size={12}/> {STR.send}
-                          </button>
-                        </>
-                      )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-mute)" }}>
+                        <Icon name="clock" size={11}/>
+                        <span style={{ fontFamily: "var(--mono)" }}>{q.schedule}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-mute)" }}>
+                        <Icon name="arrow" size={11}/>
+                        <span className="chip" style={{ fontSize: 10.5 }}><span className="dot"/>{q.channels}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "var(--ink-dim)" }}>
+                        <Icon name="doc" size={11}/>
+                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{q.template}</span>
+                      </div>
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                  <div style={{ padding: "8px 16px", borderTop: "1px solid var(--glass-border)", display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    {sentDone.has(q.id) ? (
+                      <span className="chip confirmed"><span className="dot"/>{isAr ? "أُرسل" : "Sent"}</span>
+                    ) : (
+                      <>
+                        <button className="btn ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openEdit(q)}>
+                          <Icon name="edit" size={12}/> {STR.edit}
+                        </button>
+                        <button className="btn primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setSendConfirm(q)}>
+                          <Icon name="arrow" size={12}/> {STR.send}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Builder tab */}

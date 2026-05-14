@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Avatar, StatusChip, TierChip, Drawer } from './components/UI';
 import { Icon } from './components/Icons';
 import {
@@ -596,7 +597,7 @@ function GuestDrawer({ guest, onClose, lang }) {
             <div style={{ padding:"20px" }}>
               <div style={{ border:"1px solid var(--glass-border)", borderRadius:12, overflow:"hidden", background:"var(--surface-soft-2)" }}>
                 <div style={{ height:8, background:tierColor }}/>
-                <div style={{ padding:"18px 20px", textAlign:"center" }}>
+                <div style={{ padding:"18px 20px", display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center" }}>
                   <Avatar initials={guest.initials} size={56} tier={guest.tier}/>
                   <h2 style={{ fontFamily:"var(--serif)", fontSize:20, margin:"10px 0 4px", fontWeight:400 }}>{guest.name}</h2>
                   <div style={{ fontSize:12, color:"var(--ink-dim)" }}>{guest.role}</div>
@@ -619,9 +620,20 @@ function GuestDrawer({ guest, onClose, lang }) {
                     ))}
                   </div>
                 </div>
-                <div style={{ padding:"9px 18px", borderTop:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", fontSize:10.5, color:"var(--ink-mute)" }}>
-                  <span>23rd Doha Forum</span>
-                  <span style={{ fontFamily:"var(--mono)" }}>7–9 Dec 2025</span>
+                <div style={{ padding:"12px 18px", borderTop:"1px solid var(--glass-border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:10.5, color:"var(--ink-mute)", marginBottom:4 }}>23rd Doha Forum</div>
+                    <div style={{ fontSize:10.5, fontFamily:"var(--mono)", color:"var(--ink-mute)" }}>7–9 Dec 2025</div>
+                  </div>
+                  <div style={{ background:"#fff", padding:5, borderRadius:6, border:"1px solid var(--glass-border)", flexShrink:0 }}>
+                    <QRCodeSVG
+                      value={`https://doha-forum.qa/verify/${guest.id}`}
+                      size={64}
+                      bgColor="#ffffff"
+                      fgColor="#0a3947"
+                      level="M"
+                    />
+                  </div>
                 </div>
               </div>
               <div style={{ display:"flex", gap:8, marginTop:14 }}>
