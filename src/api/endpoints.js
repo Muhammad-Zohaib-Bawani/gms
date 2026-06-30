@@ -29,6 +29,11 @@ export const ENDPOINTS = {
     changePassword: (id) => `/v1/users/${id}/change-password`,
   },
 
+  // Per-user cross-module read access (admin only).
+  userAccess: {
+    byUser: (userId) => `/v1/user-access/${userId}`,
+  },
+
   roles: { base: '/v1/roles', byId: (id) => `/v1/roles/${id}` },
   permissions: { base: '/v1/permissions' },
 

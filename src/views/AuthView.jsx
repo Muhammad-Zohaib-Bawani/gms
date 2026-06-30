@@ -34,7 +34,6 @@ export default function AuthView() {
   const [roles, setRoles] = useState([]);
   const [requestedRoleId, setRequestedRoleId] = useState('');
   const [busy, setBusy] = useState(false);
-
   // Load the roles a person may request (public endpoint) when the tab opens.
   useEffect(() => {
     if (mode !== 'register' || roles.length) return;
@@ -111,7 +110,7 @@ export default function AuthView() {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, padding: '14px 28px 0' }}>
           {[['signin', 'Sign In'], ['register', 'Create account']].map(([k, l]) => (
-            <button key={k} onClick={() => { setMode(k); setError(''); setNotice(''); }}
+            <button key={k} onClick={() => { setMode(k);  }}
               style={{
                 flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 13, cursor: 'pointer',
                 fontWeight: mode === k ? 600 : 400,

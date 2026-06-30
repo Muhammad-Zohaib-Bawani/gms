@@ -26,21 +26,23 @@ import ReportsView from './views/ReportsView';
 import EventsView from './views/EventsView';
 import AccreditationView from './views/AccreditationView';
 import AccountRequestsView from './views/AccountRequestsView';
+import UserAccessView from './views/UserAccessView';
 
 const NAV = [
-  { key: "dashboard", icon: "dashboard", label: { en: "Overview", ar: "نظرة عامة" }, section: "EVENT" },
-  { key: "invitations", icon: "invitation", label: { en: "Invitations", ar: "الدعوات" }, section: "EVENT", badge: "4" },
-  { key: "guests", icon: "guests", label: { en: "Guests", ar: "الضيوف" }, section: "EVENT" },
-  { key: "travel", icon: "travel", label: { en: "Travel & logistics", ar: "السفر واللوجستيات" }, section: "EVENT" },
-  { key: "accreditation", icon: "badge", label: { en: "Accreditation", ar: "الاعتماد" }, section: "ONSITE" },
-  { key: "seating", icon: "seating", label: { en: "Seating", ar: "الجلوس" }, section: "ONSITE" },
-  { key: "meetings", icon: "meetings", label: { en: "Meetings", ar: "الاجتماعات" }, section: "ONSITE" },
-  { key: "venueConfig", icon: "venue", label: { en: "Venue Config", ar: "تهيئة المكان" }, section: "ONSITE" },
-  { key: "protocol", icon: "protocol", label: { en: "Protocol", ar: "البروتوكول" }, section: "ONSITE" },
-  { key: "financials", icon: "finance", label: { en: "Financials", ar: "الماليات" }, section: "INSIGHTS" },
-  { key: "reports", icon: "reports", label: { en: "Reports", ar: "التقارير" }, section: "INSIGHTS" },
-  { key: "events", icon: "meetings", label: { en: "Events", ar: "الفعاليات" }, section: "ADMIN" },
-  { key: "accountRequests", icon: "guests", label: { en: "Account Requests", ar: "طلبات الحسابات" }, section: "ADMIN", permission: "AccountRequests.View" },
+  { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
+  { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View", badge: "4" },
+  { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
+  { key: "travel",         icon: "travel",     label: { en: "Travel & logistics",  ar: "السفر واللوجستيات"     }, section: "EVENT",    permission: "Travel.View"            },
+  { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
+  { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
+  { key: "meetings",       icon: "meetings",   label: { en: "Meetings",            ar: "الاجتماعات"            }, section: "ONSITE",   permission: "Meetings.View"          },
+  { key: "venueConfig",    icon: "venue",      label: { en: "Venue Config",        ar: "تهيئة المكان"          }, section: "ONSITE",   permission: "Venue.View"             },
+  { key: "protocol",       icon: "protocol",   label: { en: "Protocol",            ar: "البروتوكول"            }, section: "ONSITE",   permission: "Protocol.View"          },
+  { key: "financials",     icon: "finance",    label: { en: "Financials",          ar: "الماليات"              }, section: "INSIGHTS", permission: "Financials.View"        },
+  { key: "reports",        icon: "reports",    label: { en: "Reports",             ar: "التقارير"              }, section: "INSIGHTS", permission: "Reports.View"           },
+  { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
+  { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
+  { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
 ];
 
 const SECTION_LABELS = {
@@ -703,6 +705,7 @@ const VIEWS = {
   reports: ReportsView,
   accreditation: AccreditationView,
   accountRequests: AccountRequestsView,
+  userAccess: UserAccessView,
 };
 
 const ComingSoon = () => (
@@ -775,10 +778,14 @@ export default function App() {
     : (activeLogo.light || activeEv?.logoLight || activeEv?.logoDark);
 
   const sections = ["EVENT", "ONSITE", "INSIGHTS", "ADMIN"];
-  const Current = VIEWS[view] || ComingSoon;
-  const navItem = NAV.find(n => n.key === view);
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
+
+  // If the current view is no longer accessible (permission revoked), redirect to the first visible item.
+  const visibleNav = NAV.filter(n => !n.permission || can(n.permission));
+  const activeView = visibleNav.find(n => n.key === view) ? view : (visibleNav[0]?.key || 'dashboard');
+  const Current = VIEWS[activeView] || ComingSoon;
+  const navItem = NAV.find(n => n.key === activeView);
 
   return (
     <div className="app">
@@ -796,20 +803,24 @@ export default function App() {
         </div>
 
         <div className="sidebar-nav-scroll">
-          {sections.map(section => (
-            <React.Fragment key={section}>
-              <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
-              {NAV.filter(n => n.section === section && (!n.permission || can(n.permission))).map(n => (
-                <div key={n.key}
-                  className={`nav-item ${view === n.key ? "active" : ""}`}
-                  onClick={() => { setView(n.key); setSidebarOpen(false); }}>
-                  <Icon name={n.icon} size={16}/>
-                  <span>{navLabelOf(n)}</span>
-                  {n.badge && <span className="badge">{n.badge}</span>}
-                </div>
-              ))}
-            </React.Fragment>
-          ))}
+          {sections.map(section => {
+            const visibleItems = NAV.filter(n => n.section === section && (!n.permission || can(n.permission)));
+            if (visibleItems.length === 0) return null;
+            return (
+              <React.Fragment key={section}>
+                <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
+                {visibleItems.map(n => (
+                  <div key={n.key}
+                    className={`nav-item ${view === n.key ? "active" : ""}`}
+                    onClick={() => { setView(n.key); setSidebarOpen(false); }}>
+                    <Icon name={n.icon} size={16}/>
+                    <span>{navLabelOf(n)}</span>
+                    {n.badge && <span className="badge">{n.badge}</span>}
+                  </div>
+                ))}
+              </React.Fragment>
+            );
+          })}
         </div>
 
         <div className="event-card">
