@@ -1,6 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { Icon } from '../components/Icons';
+import { useAuth } from '../auth/AuthContext';
+import * as eventsApi from '../api/services/eventService';
+import { toViewEvent, toEventRequest, toSessionRequest } from '../api/adapters/eventAdapters';
+import { toast } from '../lib/toast';
+import Select from '../components/ui/Select';
+import DateField from '../components/ui/DateField';
+import { startOfToday, isPastDate, toDate } from '../lib/date';
 
 const EVENT_TYPES = ["Conference","Forum","Summit","Gala","Workshop","Exhibition","Bilateral","Ceremony"];
 const EVENT_TYPE_ICONS = {
@@ -66,6 +73,14 @@ function saveStoredTheme(appKey, theme) {
 }
 
 const STATUS_COLORS = { active: "var(--accent)", planning: "#e0c47e", completed: "var(--ink-mute)", cancelled: "#e07e7e" };
+
+// Allowed lifecycle transitions (mirrors the backend; the server still enforces).
+const STATUS_TRANSITIONS = {
+  planning: ["active", "cancelled"],
+  active: ["completed", "cancelled"],
+  completed: [],
+  cancelled: ["planning"],
+};
 
 function EventCover({ type, image, width = 56, height = 56, radius = 10 }) {
   const color = EVENT_TYPE_COLORS[type] || EVENT_TYPE_COLORS.default;
@@ -147,8 +162,30 @@ export default function EventsView({ lang }) {
   const ad = (s) => isAr ? toArDigits(String(s)) : String(s);
   const fmtN = (n) => fmtNum(n, lang);
 
-  const [events, setEvents] = useState(INITIAL_EVENTS);
-  const [selectedId, setSelectedId] = useState("EV-001");
+  const { can, isDemo } = useAuth();
+  const [events, setEvents] = useState(isDemo ? INITIAL_EVENTS : []);
+  const [loading, setLoading] = useState(!isDemo);
+  const [loadError, setLoadError] = useState("");
+  const [selectedId, setSelectedId] = useState(isDemo ? "EV-001" : null);
+
+  // Load events from the API (demo mode keeps the static sample data).
+  const reload = useCallback(async () => {
+    if (isDemo) return;
+    setLoading(true); setLoadError("");
+    try {
+      const page = await eventsApi.listEvents({ pageSize: 100 });
+      const mapped = (page?.items || []).map(toViewEvent);
+      setEvents(mapped);
+      setSelectedId(prev => (mapped.some(e => e.id === prev) ? prev : (mapped[0]?.id || null)));
+    } catch (err) {
+      setLoadError(err.message || "Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  }, [isDemo]);
+
+  useEffect(() => { reload(); }, [reload]);
+
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [showNewSession, setShowNewSession] = useState(false);
   const [editEventId, setEditEventId] = useState(null);
@@ -181,60 +218,118 @@ export default function EventsView({ lang }) {
     localStorage.setItem('gms-events-registry', JSON.stringify(registry));
   }, [events]);
 
-  function showMsg(msg) { setNotice(msg); setTimeout(() => setNotice(""), 3000); }
+  function showMsg(msg) { toast.success(msg); }
 
-  function saveNewEvent(ev) {
+  const blankEvent = { title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" };
+  const blankSession = { title: "", date: "", time: "09:00", venue: "", room: "", speaker: "", capacity: 200 };
+
+  async function saveNewEvent(ev) {
     if (!ev.title) return;
-    const id = `EV-${String(events.length + 100).padStart(3, "0")}`;
-    const appKey = ev.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const fullEv = { ...ev, id, appKey, sessions: [] };
-    setEvents(prev => [...prev, fullEv]);
-    setShowNewEvent(false);
-    setNewEvent({ title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" });
-    if (ev.uiTheme) saveStoredTheme(appKey, ev.uiTheme);
-    showMsg(isAr ? "تم إنشاء الفعالية" : "Event created");
+    if (isDemo) {
+      const id = `EV-${String(events.length + 100).padStart(3, "0")}`;
+      const appKey = ev.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      setEvents(prev => [...prev, { ...ev, id, appKey, sessions: [] }]);
+      if (ev.uiTheme) saveStoredTheme(appKey, ev.uiTheme);
+      setShowNewEvent(false); setNewEvent(blankEvent);
+      showMsg(isAr ? "تم إنشاء الفعالية" : "Event created");
+      return;
+    }
+    try {
+      const created = await eventsApi.createEvent(toEventRequest(ev));
+      if (ev.uiTheme && created?.appKey) saveStoredTheme(created.appKey, ev.uiTheme);
+      setShowNewEvent(false); setNewEvent(blankEvent);
+      await reload();
+      if (created?.id) setSelectedId(created.id);
+      window.dispatchEvent(new Event('gms-events-changed'));
+      showMsg(isAr ? "تم إنشاء الفعالية" : "Event created");
+    } catch (err) { toast.error(err.message || "Create failed"); }
   }
 
-  function saveEditEvent(ev) {
-    setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
-    setEditEventId(null);
+  async function saveEditEvent(ev) {
+    if (isDemo) {
+      setEvents(prev => prev.map(e => e.id === ev.id ? ev : e));
+      setEditEventId(null);
+    } else {
+      try {
+        await eventsApi.updateEvent(ev.id, toEventRequest(ev));
+        setEditEventId(null);
+        await reload();
+      } catch (err) { toast.error(err.message || "Update failed"); return; }
+    }
     if (ev.appKey && ev.uiTheme) {
       saveStoredTheme(ev.appKey, ev.uiTheme);
       window.dispatchEvent(new CustomEvent('gms-theme-updated', { detail: { eventKey: ev.appKey } }));
     }
+    window.dispatchEvent(new Event('gms-events-changed'));
     showMsg(isAr ? "تم حفظ التغييرات" : "Changes saved");
   }
 
-  function deleteEvent(id) {
-    setEvents(prev => prev.filter(e => e.id !== id));
-    if (selectedId === id) setSelectedId(events.find(e => e.id !== id)?.id || null);
+  async function deleteEvent(id) {
+    if (!isDemo) {
+      try { await eventsApi.deleteEvent(id); }
+      catch (err) { toast.error(err.message || "Delete failed"); return; }
+    }
     setConfirmDelete(null);
+    if (isDemo) {
+      setEvents(prev => prev.filter(e => e.id !== id));
+      if (selectedId === id) setSelectedId(events.find(e => e.id !== id)?.id || null);
+    } else {
+      await reload();
+    }
+    window.dispatchEvent(new Event('gms-events-changed'));
     showMsg(isAr ? "تم حذف الفعالية" : "Event deleted");
   }
 
-  function saveNewSession() {
-    if (!newSession.title || !selectedEvent) return;
-    const id = `S-${Date.now()}`;
-    setEvents(prev => prev.map(e => e.id === selectedEvent.id
-      ? { ...e, sessions: [...e.sessions, { ...newSession, id, capacity: +newSession.capacity }] }
-      : e));
-    setNewSession({ title: "", date: "", time: "09:00", venue: "", room: "", speaker: "", capacity: 200 });
+  async function changeStatus(ev, status) {
+    if (isDemo) {
+      setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, status } : e));
+    } else {
+      try { await eventsApi.updateEventStatus(ev.id, status); }
+      catch (err) { toast.error(err.message || "Status change failed"); return; }
+      await reload();
+    }
+    window.dispatchEvent(new Event('gms-events-changed'));
+    showMsg(isAr ? "تم تحديث الحالة" : "Status updated");
+  }
+
+  async function saveNewSession(session) {
+    if (!session?.title || !selectedEvent) return;
+    if (isDemo) {
+      const id = `S-${Date.now()}`;
+      setEvents(prev => prev.map(e => e.id === selectedEvent.id
+        ? { ...e, sessions: [...e.sessions, { ...session, id, capacity: +session.capacity }] } : e));
+    } else {
+      try { await eventsApi.addSession(selectedEvent.id, toSessionRequest(session)); }
+      catch (err) { toast.error(err.message || "Add session failed"); return; }
+      await reload();
+    }
+    setNewSession(blankSession);
     setShowNewSession(false);
     showMsg(isAr ? "تمت إضافة الجلسة" : "Session added");
   }
 
-  function saveEditSession(evId, session) {
-    setEvents(prev => prev.map(e => e.id === evId
-      ? { ...e, sessions: e.sessions.map(s => s.id === session.id ? session : s) }
-      : e));
+  async function saveEditSession(evId, session) {
+    if (isDemo) {
+      setEvents(prev => prev.map(e => e.id === evId
+        ? { ...e, sessions: e.sessions.map(s => s.id === session.id ? session : s) } : e));
+    } else {
+      try { await eventsApi.updateSession(evId, session.id, toSessionRequest(session)); }
+      catch (err) { toast.error(err.message || "Save session failed"); return; }
+      await reload();
+    }
     setEditSessionId(null);
     showMsg(isAr ? "تم حفظ الجلسة" : "Session saved");
   }
 
-  function deleteSession(evId, sId) {
-    setEvents(prev => prev.map(e => e.id === evId
-      ? { ...e, sessions: e.sessions.filter(s => s.id !== sId) }
-      : e));
+  async function deleteSession(evId, sId) {
+    if (isDemo) {
+      setEvents(prev => prev.map(e => e.id === evId
+        ? { ...e, sessions: e.sessions.filter(s => s.id !== sId) } : e));
+    } else {
+      try { await eventsApi.deleteSession(evId, sId); }
+      catch (err) { toast.error(err.message || "Delete session failed"); return; }
+      await reload();
+    }
     showMsg(isAr ? "تم حذف الجلسة" : "Session deleted");
   }
 
@@ -247,7 +342,7 @@ export default function EventsView({ lang }) {
     confirmDeleteEvent: "حذف الفعالية؟", confirmDeleteMsg: "لا يمكن التراجع عن هذا الإجراء.",
     confirm: "تأكيد الحذف",
     fTitle: "اسم الفعالية", fType: "النوع", fTheme: "الموضوع", fVenue: "المكان",
-    fStart: "تاريخ البداية", fEnd: "تاريخ النهاية", fImage: "رابط صورة الغلاف", fStatus: "الحالة",
+    fStart: "تاريخ البداية", fEnd: "تاريخ النهاية", fImage: "صورة الغلاف", fStatus: "الحالة",
     sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة",
     status: { active: "نشط", planning: "تخطيط", completed: "مكتمل", cancelled: "ملغى" },
     tabs: { all: "الكل", ongoing: "جارٍ", upcoming: "قادم", past: "منتهٍ" },
@@ -261,7 +356,7 @@ export default function EventsView({ lang }) {
     confirmDeleteEvent: "Delete event?", confirmDeleteMsg: "This action cannot be undone.",
     confirm: "Confirm delete",
     fTitle: "Event title", fType: "Type", fTheme: "Theme", fVenue: "Venue",
-    fStart: "Start date", fEnd: "End date", fImage: "Cover image URL", fStatus: "Status",
+    fStart: "Start date", fEnd: "End date", fImage: "Cover image", fStatus: "Status",
     sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity",
     status: { active: "Active", planning: "Planning", completed: "Completed", cancelled: "Cancelled" },
     tabs: { all: "All", ongoing: "Ongoing", upcoming: "Upcoming", past: "Past" },
@@ -284,7 +379,7 @@ export default function EventsView({ lang }) {
     return fallback;
   }, []);
 
-  function EventForm({ ev, onSave, onCancel }) {
+  function EventForm({ ev, onSave, onCancel, isNew = false }) {
     const [form, setForm] = useState({ ...ev });
     const venueIsCustom = form.venue && !venueOptions.includes(form.venue);
     const [customVenue, setCustomVenue] = useState(venueIsCustom ? form.venue : "");
@@ -307,6 +402,19 @@ export default function EventsView({ lang }) {
       }
     }
 
+    function trySave() {
+      if (!form.title?.trim()) {
+        toast.warning(isAr ? "اسم الفعالية مطلوب" : "Event title is required"); return;
+      }
+      if (isNew && isPastDate(form.startDate)) {
+        toast.warning(isAr ? "لا يمكن أن يكون تاريخ البداية في الماضي" : "Start date can't be in the past"); return;
+      }
+      if (form.startDate && form.endDate && toDate(form.endDate) < toDate(form.startDate)) {
+        toast.warning(isAr ? "تاريخ النهاية لا يمكن أن يسبق تاريخ البداية" : "End date can't be before the start date"); return;
+      }
+      onSave({ ...form, uiTheme });
+    }
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div>
@@ -315,12 +423,15 @@ export default function EventsView({ lang }) {
         </div>
         <div>
           <label style={lStyle}>{STR.fVenue}</label>
-          <select style={selStyle} value={showCustom ? "__custom__" : (form.venue || "")}
-            onChange={e => handleVenueChange(e.target.value)}>
-            <option value="">{isAr ? "— اختر مكاناً —" : "— Select venue —"}</option>
-            {venueOptions.map(v => <option key={v} value={v}>{v}</option>)}
-            <option value="__custom__">{isAr ? "مكان آخر…" : "Other / custom…"}</option>
-          </select>
+          <Select
+            value={showCustom ? "__custom__" : (form.venue || "")}
+            onChange={handleVenueChange}
+            placeholder={isAr ? "— اختر مكاناً —" : "— Select venue —"}
+            options={[
+              ...venueOptions.map(v => ({ value: v, label: v })),
+              { value: "__custom__", label: isAr ? "مكان آخر…" : "Other / custom…" },
+            ]}
+          />
           {showCustom && (
             <input type="text" style={{ ...iStyle, marginTop: 6 }}
               value={customVenue}
@@ -328,28 +439,25 @@ export default function EventsView({ lang }) {
               onChange={e => { setCustomVenue(e.target.value); setForm(f => ({ ...f, venue: e.target.value })); }}/>
           )}
         </div>
+        <div>
+          <label style={lStyle}>{STR.fType}</label>
+          <Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
+            options={EVENT_TYPES.map(t => ({ value: t, label: t }))} />
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <label style={lStyle}>{STR.fType}</label>
-            <select style={selStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={lStyle}>{STR.fStatus}</label>
-            <select style={selStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              {Object.entries(STR.status).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-          <div>
             <label style={lStyle}>{STR.fStart}</label>
-            <input type="date" style={iStyle} value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}/>
+            <DateField value={form.startDate} onChange={v => setForm(f => ({ ...f, startDate: v }))}
+              minDate={isNew ? startOfToday() : undefined} placeholder={STR.fStart} />
           </div>
           <div>
             <label style={lStyle}>{STR.fEnd}</label>
-            <input type="date" style={iStyle} value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}/>
+            <DateField value={form.endDate} onChange={v => setForm(f => ({ ...f, endDate: v }))}
+              minDate={form.startDate || (isNew ? startOfToday() : undefined)} placeholder={STR.fEnd} />
           </div>
         </div>
+        <LogoInput label={STR.fImage}
+          value={form.image} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
         {/* Visual Theme */}
         <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
@@ -402,7 +510,7 @@ export default function EventsView({ lang }) {
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
           <button className="btn" onClick={onCancel}>{STR.cancel}</button>
-          <button className="btn primary" onClick={() => onSave({ ...form, uiTheme })} disabled={!form.title}>
+          <button className="btn primary" onClick={trySave} disabled={!form.title}>
             <Icon name="check" size={13}/> {STR.save}
           </button>
         </div>
@@ -410,8 +518,23 @@ export default function EventsView({ lang }) {
     );
   }
 
-  function SessionForm({ session, evId, onSave, onCancel }) {
+  function SessionForm({ session, evId, event, onSave, onCancel }) {
     const [form, setForm] = useState({ ...session });
+
+    function trySave() {
+      if (!form.title?.trim()) { toast.warning(isAr ? "عنوان الجلسة مطلوب" : "Session title is required"); return; }
+      if (!form.date) { toast.warning(isAr ? "تاريخ الجلسة مطلوب" : "Session date is required"); return; }
+      if (!form.time) { toast.warning(isAr ? "وقت الجلسة مطلوب" : "Session time is required"); return; }
+      if (event?.startDate && toDate(form.date) < toDate(event.startDate)) {
+        toast.warning(isAr ? "تاريخ الجلسة قبل بداية الفعالية" : "Session date is before the event start date"); return;
+      }
+      if (event?.endDate && toDate(form.date) > toDate(event.endDate)) {
+        toast.warning(isAr ? "تاريخ الجلسة بعد نهاية الفعالية" : "Session date is after the event end date"); return;
+      }
+      if (!(Number(form.capacity) > 0)) { toast.warning(isAr ? "السعة يجب أن تكون أكبر من صفر" : "Capacity must be greater than zero"); return; }
+      onSave(evId, { ...form, capacity: +form.capacity });
+    }
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
@@ -421,7 +544,8 @@ export default function EventsView({ lang }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
             <label style={lStyle}>{STR.sDate}</label>
-            <input type="date" style={iStyle} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}/>
+            <DateField value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))}
+              minDate={event?.startDate || startOfToday()} maxDate={event?.endDate || undefined} placeholder={STR.sDate} />
           </div>
           <div>
             <label style={lStyle}>{STR.sTime}</label>
@@ -446,7 +570,7 @@ export default function EventsView({ lang }) {
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button className="btn" onClick={onCancel}>{STR.cancel}</button>
-          <button className="btn primary" onClick={() => onSave(evId, { ...form, capacity: +form.capacity })} disabled={!form.title}>
+          <button className="btn primary" onClick={trySave} disabled={!form.title}>
             <Icon name="check" size={13}/> {STR.save}
           </button>
         </div>
@@ -462,17 +586,14 @@ export default function EventsView({ lang }) {
           <div className="page-sub">{STR.sub}</div>
         </div>
         <div className="page-actions">
-          <button className="btn primary" onClick={() => setShowNewEvent(true)}>
-            <Icon name="plus" size={14}/> {STR.newEvent}
-          </button>
+          {can('Events.Create') && (
+            <button className="btn primary" onClick={() => setShowNewEvent(true)}>
+              <Icon name="plus" size={14}/> {STR.newEvent}
+            </button>
+          )}
         </div>
       </div>
 
-      {notice && (
-        <div style={{ marginBottom: 14, padding: "10px 16px", borderRadius: 10, background: "rgba(26,174,196,0.1)", border: "1px solid rgba(26,174,196,0.3)", fontSize: 13, display: "flex", gap: 10, alignItems: "center" }}>
-          <Icon name="check" size={14} style={{ color: "var(--accent)" }}/> <span>{notice}</span>
-        </div>
-      )}
 
       <div className="events-layout" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Events list */}
@@ -504,7 +625,18 @@ export default function EventsView({ lang }) {
             ))}
           </div>
           {/* List */}
-          {visibleEvents.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--ink-mute)", fontSize: 12 }}>
+              {isAr ? "جارٍ التحميل…" : "Loading…"}
+            </div>
+          ) : loadError ? (
+            <div style={{ padding: "16px 12px", textAlign: "center", color: "#e08a7e", fontSize: 12, border: "1px solid rgba(224,138,126,0.25)", borderRadius: 10 }}>
+              {loadError}
+              <button className="btn" style={{ display: "block", margin: "10px auto 0", fontSize: 11 }} onClick={reload}>
+                {isAr ? "إعادة المحاولة" : "Retry"}
+              </button>
+            </div>
+          ) : visibleEvents.length === 0 ? (
             <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--ink-mute)", fontSize: 12, border: "1px dashed var(--glass-border)", borderRadius: 10 }}>
               {eventSearch ? (isAr ? "لا نتائج" : "No results") : (isAr ? "لا توجد فعاليات" : "No events")}
             </div>
@@ -514,7 +646,7 @@ export default function EventsView({ lang }) {
               const evClass = classifyEvent(ev);
               return (
               <div key={ev.id} onClick={() => { setSelectedId(ev.id); setEditEventId(null); }}
-                className="card"
+                className="card dsd"
                 style={{ padding: 0, cursor: "pointer", border: `1px solid ${selectedId === ev.id ? "var(--accent)" : "var(--glass-border)"}`, background: selectedId === ev.id ? "rgba(26,174,196,0.06)" : undefined, overflow: "hidden" }}>
                 <div style={{ height: 3, background: evColor, opacity: selectedId === ev.id ? 1 : 0.55 }}/>
                 <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -548,6 +680,7 @@ export default function EventsView({ lang }) {
                 </>
               ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+                  {console.log(selectedEvent)}
                   <EventCover type={selectedEvent.type} image={selectedEvent.image} width={80} height={80} radius={12}/>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -563,15 +696,27 @@ export default function EventsView({ lang }) {
                           <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "3px 10px", borderRadius: 20, border: `1px solid ${STATUS_COLORS[selectedEvent.status]}40`, background: STATUS_COLORS[selectedEvent.status] + "18", color: STATUS_COLORS[selectedEvent.status] }}>
                             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }}/>{STR.status[selectedEvent.status]}
                           </span>
+                          {can('Events.ManageStatus') && (STATUS_TRANSITIONS[selectedEvent.status] || []).map(next => (
+                            <button key={next} onClick={() => changeStatus(selectedEvent, next)}
+                              title={isAr ? "تغيير الحالة" : "Change status"}
+                              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "3px 10px", borderRadius: 20, cursor: "pointer",
+                                border: `1px dashed ${STATUS_COLORS[next]}80`, background: "transparent", color: STATUS_COLORS[next] }}>
+                              <Icon name="arrow" size={10}/> {STR.status[next]}
+                            </button>
+                          ))}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                        <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => setEditEventId(selectedEvent.id)}>
-                          <Icon name="edit" size={12}/> {isAr ? "تعديل" : "Edit"}
-                        </button>
-                        <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
-                          <Icon name="trash" size={12}/>
-                        </button>
+                        {can('Events.Update') && (
+                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => setEditEventId(selectedEvent.id)}>
+                            <Icon name="edit" size={12}/> {isAr ? "تعديل" : "Edit"}
+                          </button>
+                        )}
+                        {can('Events.Delete') && (
+                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
+                            <Icon name="trash" size={12}/>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -586,9 +731,11 @@ export default function EventsView({ lang }) {
                   <span style={{ fontWeight: 500, fontSize: 13 }}>{STR.sessions}</span>
                   <span style={{ fontSize: 11, color: "var(--ink-mute)", marginInlineStart: 8 }}>{ad(selectedEvent.sessions.length)}</span>
                 </div>
-                <button className="btn primary" style={{ padding: "5px 12px", fontSize: 11 }} onClick={() => setShowNewSession(true)}>
-                  <Icon name="plus" size={12}/> {STR.addSession}
-                </button>
+                {can('Events.ManageSessions') && (
+                  <button className="btn primary" style={{ padding: "5px 12px", fontSize: 11 }} onClick={() => setShowNewSession(true)}>
+                    <Icon name="plus" size={12}/> {STR.addSession}
+                  </button>
+                )}
               </div>
 
               {selectedEvent.sessions.length === 0 ? (
@@ -597,11 +744,13 @@ export default function EventsView({ lang }) {
                 </div>
               ) : (
                 <div>
-                  {selectedEvent.sessions.map(s => (
+                  {[...selectedEvent.sessions]
+                    .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.time || "").localeCompare(b.time || ""))
+                    .map(s => (
                     <div key={s.id} style={{ padding: "12px 18px", borderBottom: "1px solid var(--glass-border)" }}>
                       {editSessionId === s.id ? (
                         <div style={{ padding: "4px 0" }}>
-                          <SessionForm session={s} evId={selectedEvent.id} onSave={saveEditSession} onCancel={() => setEditSessionId(null)}/>
+                          <SessionForm session={s} evId={selectedEvent.id} event={selectedEvent} onSave={saveEditSession} onCancel={() => setEditSessionId(null)}/>
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -616,10 +765,12 @@ export default function EventsView({ lang }) {
                             </div>
                           </div>
                           <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{s.date}</span>
-                          <div style={{ display: "flex", gap: 4 }}>
-                            <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setEditSessionId(s.id)}><Icon name="edit" size={11}/></button>
-                            <button className="icon-btn" style={{ width: 26, height: 26, color: "#e08a7e" }} onClick={() => deleteSession(selectedEvent.id, s.id)}><Icon name="trash" size={11}/></button>
-                          </div>
+                          {can('Events.ManageSessions') && (
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setEditSessionId(s.id)}><Icon name="edit" size={11}/></button>
+                              <button className="icon-btn" style={{ width: 26, height: 26, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "session", id: s.id, evId: selectedEvent.id, name: s.title })}><Icon name="trash" size={11}/></button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -640,7 +791,7 @@ export default function EventsView({ lang }) {
               <button className="icon-btn" onClick={() => setShowNewEvent(false)}><Icon name="close" size={14}/></button>
             </div>
             <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
-              <EventForm ev={newEvent} onSave={saveNewEvent} onCancel={() => setShowNewEvent(false)}/>
+              <EventForm ev={newEvent} onSave={saveNewEvent} onCancel={() => setShowNewEvent(false)} isNew/>
             </div>
           </div>
         </div>
@@ -658,7 +809,7 @@ export default function EventsView({ lang }) {
               <button className="icon-btn" onClick={() => setShowNewSession(false)}><Icon name="close" size={14}/></button>
             </div>
             <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
-              <SessionForm session={newSession} evId={selectedEvent.id} onSave={(evId, s) => { saveNewSession(); }} onCancel={() => setShowNewSession(false)}/>
+              <SessionForm session={newSession} evId={selectedEvent.id} event={selectedEvent} onSave={(evId, s) => saveNewSession(s)} onCancel={() => setShowNewSession(false)}/>
             </div>
           </div>
         </div>
@@ -668,13 +819,20 @@ export default function EventsView({ lang }) {
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}>
           <div className="card glass" style={{ width: 360, padding: "22px 24px" }}>
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>{STR.confirmDeleteEvent}</div>
+            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
+              {confirmDelete.type === "session" ? (isAr ? "حذف الجلسة؟" : "Delete session?") : STR.confirmDeleteEvent}
+            </div>
             <div style={{ fontSize: 13, color: "var(--ink-dim)", marginBottom: 6 }}>{confirmDelete.name}</div>
             <div style={{ fontSize: 12, color: "var(--ink-mute)", marginBottom: 20 }}>{STR.confirmDeleteMsg}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setConfirmDelete(null)}>{STR.cancel}</button>
               <button className="btn" style={{ color: "#e08a7e", borderColor: "rgba(224,138,126,0.3)", background: "rgba(224,138,126,0.1)" }}
-                onClick={() => deleteEvent(confirmDelete.id)}>
+                onClick={() => {
+                  const cd = confirmDelete;
+                  setConfirmDelete(null);
+                  if (cd.type === "session") deleteSession(cd.evId, cd.id);
+                  else deleteEvent(cd.id);
+                }}>
                 <Icon name="trash" size={13}/> {STR.confirm}
               </button>
             </div>

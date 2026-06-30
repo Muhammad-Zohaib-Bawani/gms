@@ -11,6 +11,8 @@ import {
   TweakRadio,
 } from './components/TweaksPanel';
 import { INVITATION_TEMPLATES, SESSIONS } from './data/mockData';
+import { useAuth } from './auth/AuthContext';
+import { useEvents } from './events/EventsContext';
 import DashboardView from './views/DashboardView';
 import InvitationsView from './views/InvitationsView';
 import GuestsView from './views/GuestsView';
@@ -23,6 +25,7 @@ import FinancialsView from './views/FinancialsView';
 import ReportsView from './views/ReportsView';
 import EventsView from './views/EventsView';
 import AccreditationView from './views/AccreditationView';
+import AccountRequestsView from './views/AccountRequestsView';
 
 const NAV = [
   { key: "dashboard", icon: "dashboard", label: { en: "Overview", ar: "نظرة عامة" }, section: "EVENT" },
@@ -37,6 +40,7 @@ const NAV = [
   { key: "financials", icon: "finance", label: { en: "Financials", ar: "الماليات" }, section: "INSIGHTS" },
   { key: "reports", icon: "reports", label: { en: "Reports", ar: "التقارير" }, section: "INSIGHTS" },
   { key: "events", icon: "meetings", label: { en: "Events", ar: "الفعاليات" }, section: "ADMIN" },
+  { key: "accountRequests", icon: "guests", label: { en: "Account Requests", ar: "طلبات الحسابات" }, section: "ADMIN", permission: "AccountRequests.View" },
 ];
 
 const SECTION_LABELS = {
@@ -134,15 +138,11 @@ const EVENTS = [
   { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#3d7ab5", secondary: "#6aabdf", invertInLight: true },
 ];
 
-function EventSwitcher({ value, onChange, lang, triggerLogo }) {
+function EventSwitcher({ events = [], value, onChange, lang, theme }) {
   const [open, setOpen] = useState(false);
-  const [storedThemes, setStoredThemes] = useState({});
-  const [eventRegistry, setEventRegistry] = useState([]);
   const ref = React.useRef(null);
-  const ev = EVENTS.find(e => e.key === value) || EVENTS[0];
-  const evI18n = EVENT_I18N[lang] || EVENT_I18N.en;
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
-  const evCopy = (k) => evI18n[k] || EVENT_I18N.en[k];
+  const ev = events.find(e => e.key === value) || events[0] || null;
 
   useEffect(() => {
     if (!open) return;
@@ -151,66 +151,60 @@ function EventSwitcher({ value, onChange, lang, triggerLogo }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    try { setStoredThemes(JSON.parse(localStorage.getItem('gms-event-themes') || '{}')); } catch(e) {}
-    try { setEventRegistry(JSON.parse(localStorage.getItem('gms-events-registry') || '[]')); } catch(e) {}
-  }, [open]);
+  const logoOf = (e) => (theme === 'dark' ? (e.logoDark || e.logoLight) : (e.logoLight || e.logoDark));
+  const LetterMark = ({ e, size }) => (
+    <span style={{ fontFamily: 'var(--serif)', fontSize: size, fontStyle: 'italic', color: e.accent }}>
+      {(e.title || 'E').trim()[0]}
+    </span>
+  );
 
-  function evAccent(key) {
-    const base = EVENTS.find(e => e.key === key);
-    const theme = storedThemes[key];
-    return (theme?.preset === 'custom' ? theme.accent : null) || base?.accent || '#1aaec4';
-  }
-  function evThemeLogo(key) {
-    const base = EVENTS.find(e => e.key === key);
-    const theme = storedThemes[key];
-    if (theme?.preset === 'custom' && theme.logoDark) return theme.logoDark;
-    return base?.logoWhite;
-  }
-  function evCoverImage(key) {
-    return eventRegistry.find(e => e.appKey === key)?.image || '';
+  if (!ev) {
+    return (
+      <div className="event-switcher" ref={ref}>
+        <button className="event-trigger" disabled>
+          <span className="event-text"><span className="event-name">{shell.switchEvent}</span>
+          <span className="event-sub">—</span></span>
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="event-switcher" ref={ref}>
       <button className={"event-trigger" + (open ? " open" : "")} onClick={() => setOpen(o => !o)}>
-        <span className="event-logo-mark" data-event={ev.key}>
-          <img src={triggerLogo || ev.logoWhite} alt="" />
+        <span className="event-logo-mark" data-event={ev.key} style={{ background: `${ev.accent}22`, borderColor: `${ev.accent}50` }}>
+          {logoOf(ev)
+            ? <img src={logoOf(ev)} alt="" onError={e => { e.target.style.display = 'none'; }}/>
+            : <LetterMark e={ev} size={16}/>}
         </span>
         <span className="event-text">
-          <span className="event-name">{evCopy(ev.key).name}</span>
-          <span className="event-sub">{evCopy(ev.key).subtitle}</span>
+          <span className="event-name">{ev.title}</span>
+          <span className="event-sub">{ev.subtitle}</span>
         </span>
         <svg className="event-caret" viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 4.5L6 8 9 4.5"/></svg>
       </button>
       {open && (
         <div className="event-menu glass">
           <div className="event-menu-head">{shell.switchEvent}</div>
-          {EVENTS.map(e => {
-            const accent = evAccent(e.key);
-            const coverImg = evCoverImage(e.key);
-            const logo = evThemeLogo(e.key);
+          {events.map(e => {
             const isActive = e.key === value;
+            const logo = logoOf(e);
             return (
               <button key={e.key}
                 className={"event-row" + (isActive ? " active" : "")}
-                style={{ borderLeft: `3px solid ${accent}`, background: isActive ? `${accent}18` : undefined }}
-                onClick={() => { onChange(e.key); setOpen(false); }}>
+                style={{ borderLeft: `3px solid ${e.accent}`, background: isActive ? `${e.accent}18` : undefined }}
+                onClick={() => { onChange(e); setOpen(false); }}>
                 <span className="event-logo-mark" data-event={e.key}
-                  style={{ background: `${accent}22`, borderColor: `${accent}50`, overflow: 'hidden' }}>
-                  {coverImg ? (
-                    <img src={coverImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={err => { err.target.style.display = 'none'; }}/>
-                  ) : (
-                    <img src={logo} alt="" />
-                  )}
+                  style={{ background: `${e.accent}22`, borderColor: `${e.accent}50`, overflow: 'hidden' }}>
+                  {logo
+                    ? <img src={logo} alt="" onError={err => { err.target.style.display = 'none'; }}/>
+                    : <LetterMark e={e} size={15}/>}
                 </span>
                 <span className="event-text">
-                  <span className="event-name" style={{ color: isActive ? accent : undefined }}>{evCopy(e.key).name}</span>
-                  <span className="event-sub">{evCopy(e.key).subtitle}</span>
+                  <span className="event-name" style={{ color: isActive ? e.accent : undefined }}>{e.title}</span>
+                  <span className="event-sub">{e.subtitle}</span>
                 </span>
-                {isActive && <span className="event-check" style={{ color: accent }}><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7.5l3 3 5-6.5"/></svg></span>}
+                {isActive && <span className="event-check" style={{ color: e.accent }}><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 7.5l3 3 5-6.5"/></svg></span>}
               </button>
             );
           })}
@@ -708,6 +702,7 @@ const VIEWS = {
   financials: FinancialsView,
   reports: ReportsView,
   accreditation: AccreditationView,
+  accountRequests: AccountRequestsView,
 };
 
 const ComingSoon = () => (
@@ -722,24 +717,18 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
+  const { user, isDemo, signOut, can } = useAuth();
+  const { events, activeEvent, setActiveEventId } = useEvents();
 
-  function applyEventTheme(key) {
+  function applyEventTheme(ev) {
+    if (!ev) return;
     const root = document.documentElement;
-    const evConfig = EVENTS.find(e => e.key === key);
-    let stored = {};
-    try { stored = JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) {}
-    const theme = stored[key];
-    const isCustom = theme?.preset === 'custom';
-
-    const accent    = (isCustom ? theme.accent    : null) || evConfig?.accent    || '#1aaec4';
-    const secondary = (isCustom ? theme.secondary : null) || evConfig?.secondary || '#e0c47e';
+    const accent = ev.accent || '#1aaec4';
+    const secondary = ev.secondary || '#e0c47e';
 
     setTweak('accent', accent);
     setTweak('secondary', secondary);
-    setActiveLogo({
-      dark:  isCustom ? (theme.logoDark  || '') : '',
-      light: isCustom ? (theme.logoLight || '') : '',
-    });
+    setActiveLogo({ dark: ev.logoDark || '', light: ev.logoLight || '' });
 
     const orb1 = accent;
     const orb2 = darkenHex(accent, 0.62);
@@ -775,22 +764,15 @@ export default function App() {
   }, [lang]);
 
   useEffect(() => {
-    applyEventTheme(tweaks.event || 'doha-forum');
-    const handler = (e) => {
-      if (e.detail?.eventKey === (tweaks.event || 'doha-forum')) {
-        applyEventTheme(e.detail.eventKey);
-      }
-    };
-    window.addEventListener('gms-theme-updated', handler);
-    return () => window.removeEventListener('gms-theme-updated', handler);
-  }, [tweaks.event]);
+    applyEventTheme(activeEvent);
+  }, [activeEvent]);
 
-  const activeEv = EVENTS.find(e => e.key === (tweaks.event || 'doha-forum')) || EVENTS[0];
-  const logoColorSrc = activeLogo.light || activeEv.logoColor;
-  const logoWhiteSrc = activeLogo.dark || activeEv.logoWhite;
+  const activeEv = activeEvent;
+  const logoColorSrc = activeLogo.light || activeEv?.logoLight || '';
+  const logoWhiteSrc = activeLogo.dark || activeEv?.logoDark || '';
   const triggerLogo = (tweaks.theme || 'dark') === 'dark'
-    ? (activeLogo.dark || activeEv.logoWhite)
-    : (activeLogo.light || activeEv.logoColor || activeEv.logoWhite);
+    ? (activeLogo.dark || activeEv?.logoDark || activeEv?.logoLight)
+    : (activeLogo.light || activeEv?.logoLight || activeEv?.logoDark);
 
   const sections = ["EVENT", "ONSITE", "INSIGHTS", "ADMIN"];
   const Current = VIEWS[view] || ComingSoon;
@@ -802,11 +784,11 @@ export default function App() {
     <div className="app">
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
       <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
-        <div className="brand-logo" key={tweaks.event || 'doha-forum'}>
-          <img className="logo-color" src={logoColorSrc} alt={activeEv.name}
+        <div className="brand-logo" key={activeEvent?.id || 'none'}>
+          <img className="logo-color" src={logoColorSrc} alt={activeEv?.title || ''}
             onError={e => { e.target.style.display = "none"; }}/>
-          <img className="logo-white" src={logoWhiteSrc} alt={activeEv.name}
-            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${activeEv.name.split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
+          <img className="logo-white" src={logoWhiteSrc} alt={activeEv?.title || ''}
+            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${(activeEv?.title || 'GMS').split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div>
         <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 }}>
           <div style={{ fontFamily: "var(--serif)", fontSize: 22, fontStyle: "italic", letterSpacing: "0.01em" }}>GMS</div>
@@ -817,7 +799,7 @@ export default function App() {
           {sections.map(section => (
             <React.Fragment key={section}>
               <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
-              {NAV.filter(n => n.section === section).map(n => (
+              {NAV.filter(n => n.section === section && (!n.permission || can(n.permission))).map(n => (
                 <div key={n.key}
                   className={`nav-item ${view === n.key ? "active" : ""}`}
                   onClick={() => { setView(n.key); setSidebarOpen(false); }}>
@@ -832,8 +814,8 @@ export default function App() {
 
         <div className="event-card">
           <div className="kicker">{shell.inSession}</div>
-          <h4>{shell.eventName}</h4>
-          <div className="meta">{shell.eventMeta}</div>
+          <h4>{activeEvent?.title || shell.eventName}</h4>
+          <div className="meta">{activeEvent?.subtitle || shell.eventMeta}</div>
           <div className="progress"><i/></div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(234,246,249,0.55)", marginTop: 8 }}>
             <span style={{ direction: "ltr" }}>{lang === "ar" ? "١٬٢٨٤ / ١٬٦٥٠" : "1,284 / 1,650"}</span>
@@ -846,7 +828,7 @@ export default function App() {
         <button className="mobile-menu-btn icon-btn" onClick={() => setSidebarOpen(o => !o)}>
           <Icon name="menu" size={20}/>
         </button>
-        <EventSwitcher value={tweaks.event || "doha-forum"} onChange={(v) => setTweak("event", v)} lang={lang} triggerLogo={triggerLogo} />
+        <EventSwitcher events={events} value={activeEvent?.key} onChange={(e) => setActiveEventId(e.id)} lang={lang} theme={tweaks.theme || 'dark'} />
         <div className="right">
           <div className="search">
             <Icon name="search" size={14}/>
@@ -865,10 +847,13 @@ export default function App() {
           <div className="avatar">
             <div className="pic">{lang === "ar" ? "أ.ح" : "AH"}</div>
             <div>
-              <div className="name">{shell.userName}</div>
-              <div className="role">{shell.userRole}</div>
+              <div className="name">{user && !isDemo ? user.fullName : shell.userName}</div>
+              <div className="role">{user && !isDemo ? (user.role || user.roleCode || shell.userRole) : (isDemo ? "Demo mode" : shell.userRole)}</div>
             </div>
           </div>
+          <button className="icon-btn" title="Sign out" onClick={signOut}>
+            <Icon name="power" size={16}/>
+          </button>
         </div>
       </header>
 
