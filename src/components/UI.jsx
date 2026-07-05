@@ -42,7 +42,7 @@ export function Avatar({ initials, size = 32, tier }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
-      background: `linear-gradient(135deg, hsl(${(initials.charCodeAt(0) * 13) % 360} 35% 55%) 0%, hsl(${(initials.charCodeAt(1) * 17) % 360} 30% 35%) 100%)`,
+      background: `linear-gradient(135deg, hsl(${(initials?.charCodeAt(0) * 13) % 360} 35% 55%) 0%, hsl(${(initials?.charCodeAt(1) * 17) % 360} 30% 35%) 100%)`,
       display: "grid", placeItems: "center",
       fontSize: size * 0.36, fontWeight: 600, color: "#fff",
       boxShadow: ring,

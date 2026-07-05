@@ -1,5 +1,7 @@
 // Themed wrapper around react-select. Accepts/returns the raw value (not the
 // option object) so it's a drop-in for native <select> usage.
+// Pass isMulti={true} for multi-select — value becomes string[] and onChange
+// receives string[].
 import React from 'react';
 import ReactSelect from 'react-select';
 
@@ -15,6 +17,12 @@ const styles = {
     ':hover': { borderColor: 'var(--accent)' },
   }),
   singleValue: (base) => ({ ...base, color: 'var(--ink)' }),
+  multiValue: (base) => ({ ...base, background: 'rgba(26,174,196,0.15)', borderRadius: 5 }),
+  multiValueLabel: (base) => ({ ...base, color: 'var(--ink)', fontSize: 12 }),
+  multiValueRemove: (base) => ({
+    ...base, color: 'var(--ink-mute)',
+    ':hover': { background: 'rgba(26,174,196,0.25)', color: 'var(--ink)' },
+  }),
   input: (base) => ({ ...base, color: 'var(--ink)' }),
   placeholder: (base) => ({ ...base, color: 'var(--ink-mute)' }),
   menu: (base) => ({
@@ -49,18 +57,31 @@ export default function Select({
   placeholder = 'Select…',
   isDisabled = false,
   isClearable = false,
+  isMulti = false,
   ...rest
 }) {
-  const selected = options.find((o) => o.value === value) ?? null;
+  const selected = isMulti
+    ? (value || []).map(v => options.find(o => o.value === v)).filter(Boolean)
+    : (options.find((o) => o.value === value) ?? null);
+
+  function handleChange(opt) {
+    if (isMulti) {
+      onChange((opt || []).map(o => o.value));
+    } else {
+      onChange(opt ? opt.value : '');
+    }
+  }
+
   return (
     <ReactSelect
       classNamePrefix="gms-select"
       options={options}
       value={selected}
-      onChange={(opt) => onChange(opt ? opt.value : '')}
+      onChange={handleChange}
       placeholder={placeholder}
       isDisabled={isDisabled}
       isClearable={isClearable}
+      isMulti={isMulti}
       styles={styles}
       menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
       menuPosition="fixed"

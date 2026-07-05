@@ -27,6 +27,7 @@ export const ENDPOINTS = {
     base: '/v1/users',
     byId: (id) => `/v1/users/${id}`,
     changePassword: (id) => `/v1/users/${id}/change-password`,
+    deleteUser: (id) => `/v1/users/${id}`,
   },
 
   // Per-user cross-module read access (admin only).
@@ -43,5 +44,19 @@ export const ENDPOINTS = {
     status: (id) => `/v1/events/${id}/status`,
     sessions: (id) => `/v1/events/${id}/sessions`,
     session: (id, sessionId) => `/v1/events/${id}/sessions/${sessionId}`,
+  },
+
+  guests: {
+    base: '/v1/guest',
+    byId: (id) => `/v1/guests/${id}`,
+  },
+
+  nationalities: {
+    base: '/v1/nationality',
+  },
+
+  invitationTemplates: {
+    base: '/v1/invitation-templates',
+    byId: (id) => `/v1/invitation-templates/${id}`,
   },
 };

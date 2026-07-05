@@ -27,7 +27,7 @@ import EventsView from './views/EventsView';
 import AccreditationView from './views/AccreditationView';
 import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
-
+import UsersView from './views/UsersView';
 const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View", badge: "4" },
@@ -43,6 +43,7 @@ const NAV = [
   { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
   { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
+  { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
 ];
 
 const SECTION_LABELS = {
@@ -706,6 +707,7 @@ const VIEWS = {
   accreditation: AccreditationView,
   accountRequests: AccountRequestsView,
   userAccess: UserAccessView,
+  users: UsersView,
 };
 
 const ComingSoon = () => (
@@ -869,7 +871,7 @@ export default function App() {
       </header>
 
       <main className="main">
-        <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} />
+        <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} activeEventId={activeEvent?.id || null} />
       </main>
 
       <nav className="mobile-bottom-nav">
