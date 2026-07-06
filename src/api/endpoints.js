@@ -48,7 +48,9 @@ export const ENDPOINTS = {
 
   guests: {
     base: '/v1/guest',
-    byId: (id) => `/v1/guests/${id}`,
+    byId: (id) => `/v1/guest/${id}`,
+    import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
+    deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
   },
 
   nationalities: {

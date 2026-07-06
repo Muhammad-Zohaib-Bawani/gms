@@ -33,7 +33,6 @@ const styles = {
     overflow: 'hidden',
     zIndex: 3000,
   }),
-  menuPortal: (base) => ({ ...base, zIndex: 3000 }),
   option: (base, state) => ({
     ...base,
     fontSize: 13,
@@ -83,8 +82,8 @@ export default function Select({
       isClearable={isClearable}
       isMulti={isMulti}
       styles={styles}
-      menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
       menuPosition="fixed"
+      menuPlacement="auto"
       {...rest}
     />
   );

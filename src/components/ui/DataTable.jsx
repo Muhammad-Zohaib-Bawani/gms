@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -80,12 +80,15 @@ export default function DataTable({
     setRowSelection({});
   }, [selectionResetKey]);
 
-  // Notify parent when selection changes
+  // Keep a ref so the selection effect reads the latest data without re-running on every data change
+  const dataRef = useRef(data ?? []);
+  dataRef.current = data ?? [];
+
+  // Notify parent only when the selection actually changes — not on every data reference change
   useEffect(() => {
     if (!enableRowSelection || !onSelectionChange) return;
-    const selected = (data ?? []).filter(r => rowSelection[getRowId(r)]);
-    onSelectionChange(selected);
-  }, [rowSelection, data, enableRowSelection]); // eslint-disable-line
+    onSelectionChange(dataRef.current.filter(r => rowSelection[getRowId(r)]));
+  }, [rowSelection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectColumn = useMemo(() => ({
     id: '_select',
@@ -139,7 +142,7 @@ export default function DataTable({
   });
 
   const { pageIndex, pageSize } = table.getState().pagination;
-  const totalRows = table.getFilteredRowModel().rows.length;
+  const totalRows = table?.getFilteredRowModel()?.rows?.length;
   const from = totalRows === 0 ? 0 : pageIndex * pageSize + 1;
   const to = Math.min((pageIndex + 1) * pageSize, totalRows);
 

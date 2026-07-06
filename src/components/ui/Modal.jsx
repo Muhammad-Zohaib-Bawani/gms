@@ -10,8 +10,7 @@ const overlayStyle = {
 };
 
 const contentBase = {
-  position: 'fixed', top: '50%', left: '50%',
-  transform: 'translate(-50%,-50%)',
+  position: 'fixed', inset: 0, margin: 'auto',
   maxWidth: '92vw',
   zIndex: 1001,
   display: 'flex', flexDirection: 'column',
@@ -55,6 +54,7 @@ export default function Modal({
         <Dialog.Content
           style={{ ...contentBase, width, ...(height ? { height, maxHeight } : { maxHeight }) }}
           onInteractOutside={e => e.preventDefault()}
+          onFocusOutside={e => e.preventDefault()}
         >
           {title && (
             <div style={headerStyle}>
