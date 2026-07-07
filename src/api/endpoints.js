@@ -61,4 +61,12 @@ export const ENDPOINTS = {
     base: '/v1/invitation-templates',
     byId: (id) => `/v1/invitation-templates/${id}`,
   },
+
+  lookups: {
+    categories: '/v1/lookups/categories',
+    items: (categoryCode) => `/v1/lookups/${categoryCode}/items`,
+    createItem: '/v1/lookups/items',
+    itemById: (id) => `/v1/lookups/items/${id}`,
+    guestEnums: '/v1/lookups/enums/guest',
+  },
 };

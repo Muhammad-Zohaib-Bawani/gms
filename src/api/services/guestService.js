@@ -25,3 +25,4 @@ export const deleteSelectedGuests = (eventId, guestIds) =>
   apiClient.delete(ENDPOINTS.guests.deleteSelected(eventId), {
     data: { selectedGuestsToDelete: guestIds },
   });
+export const getGuestEnums = () => apiClient.get(ENDPOINTS.lookups.guestEnums);

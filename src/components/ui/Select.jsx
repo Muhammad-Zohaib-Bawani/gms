@@ -31,7 +31,8 @@ const styles = {
     border: '1px solid var(--glass-border)',
     borderRadius: 8,
     overflow: 'hidden',
-    zIndex: 3000,
+    zIndex: 4000,
+    position: 'absolute',
   }),
   option: (base, state) => ({
     ...base,
@@ -82,8 +83,10 @@ export default function Select({
       isClearable={isClearable}
       isMulti={isMulti}
       styles={styles}
-      menuPosition="fixed"
+      // menuPosition="fixed"
       menuPlacement="auto"
+      maxMenuHeight={200}
+      menuShouldScrollIntoView={true}
       {...rest}
     />
   );

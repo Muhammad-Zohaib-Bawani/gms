@@ -28,6 +28,16 @@ import AccreditationView from './views/AccreditationView';
 import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
+import LookupsView from './views/lookups/LookupsView';
+import { LOOKUP_CATEGORIES } from './views/lookups/lookupConfig';
+
+const LOOKUP_CHILDREN = LOOKUP_CATEGORIES.map(c => ({
+  key: `lookup-${c.code}`,
+  categoryCode: c.code,
+  label: c.label,
+  permission: "Lookups.View",
+}));
+
 const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View", badge: "4" },
@@ -44,7 +54,11 @@ const NAV = [
   { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
+  { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
+
+// Flatten NAV into routable leaf items (parents with children aren't routable themselves).
+const NAV_LEAVES = NAV.flatMap(n => n.children ? n.children : [n]);
 
 const SECTION_LABELS = {
   EVENT:    { en: "EVENT",    ar: "الحدث" },
@@ -720,6 +734,7 @@ export default function App() {
   const [view, setView] = useState("dashboard");
   const [openGuest, setOpenGuest] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openMenus, setOpenMenus] = useState({});
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
@@ -784,10 +799,11 @@ export default function App() {
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 
   // If the current view is no longer accessible (permission revoked), redirect to the first visible item.
-  const visibleNav = NAV.filter(n => !n.permission || can(n.permission));
-  const activeView = visibleNav.find(n => n.key === view) ? view : (visibleNav[0]?.key || 'dashboard');
+  const visibleLeaves = NAV_LEAVES.filter(n => !n.permission || can(n.permission));
+  const activeView = visibleLeaves.find(n => n.key === view) ? view : (visibleLeaves[0]?.key || 'dashboard');
+  const activeLeaf = NAV_LEAVES.find(n => n.key === activeView);
   const Current = VIEWS[activeView] || ComingSoon;
-  const navItem = NAV.find(n => n.key === activeView);
+  const navItem = activeLeaf;
 
   return (
     <div className="app">
@@ -811,15 +827,41 @@ export default function App() {
             return (
               <React.Fragment key={section}>
                 <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
-                {visibleItems.map(n => (
-                  <div key={n.key}
-                    className={`nav-item ${view === n.key ? "active" : ""}`}
-                    onClick={() => { setView(n.key); setSidebarOpen(false); }}>
-                    <Icon name={n.icon} size={16}/>
-                    <span>{navLabelOf(n)}</span>
-                    {n.badge && <span className="badge">{n.badge}</span>}
-                  </div>
-                ))}
+                {visibleItems.map(n => {
+                  if (n.children) {
+                    const kids = n.children.filter(c => !c.permission || can(c.permission));
+                    if (kids.length === 0) return null;
+                    const hasActiveKid = kids.some(c => c.key === view);
+                    const isOpen = openMenus[n.key] ?? hasActiveKid;
+                    return (
+                      <React.Fragment key={n.key}>
+                        <div className={`nav-item ${hasActiveKid ? "active" : ""}`}
+                          onClick={() => setOpenMenus(m => ({ ...m, [n.key]: !isOpen }))}>
+                          <Icon name={n.icon} size={16}/>
+                          <span>{navLabelOf(n)}</span>
+                          <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={14} style={{ marginInlineStart: "auto" }}/>
+                        </div>
+                        {isOpen && kids.map(c => (
+                          <div key={c.key}
+                            className={`nav-item ${view === c.key ? "active" : ""}`}
+                            style={{ paddingInlineStart: 38, fontSize: 13 }}
+                            onClick={() => { setView(c.key); setSidebarOpen(false); }}>
+                            <span>{navLabelOf(c)}</span>
+                          </div>
+                        ))}
+                      </React.Fragment>
+                    );
+                  }
+                  return (
+                    <div key={n.key}
+                      className={`nav-item ${view === n.key ? "active" : ""}`}
+                      onClick={() => { setView(n.key); setSidebarOpen(false); }}>
+                      <Icon name={n.icon} size={16}/>
+                      <span>{navLabelOf(n)}</span>
+                      {n.badge && <span className="badge">{n.badge}</span>}
+                    </div>
+                  );
+                })}
               </React.Fragment>
             );
           })}
@@ -871,7 +913,9 @@ export default function App() {
       </header>
 
       <main className="main">
-        <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} activeEventId={activeEvent?.id || null} />
+        {activeLeaf?.categoryCode
+          ? <LookupsView categoryCode={activeLeaf.categoryCode} lang={lang} />
+          : <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} activeEventId={activeEvent?.id || null} />}
       </main>
 
       <nav className="mobile-bottom-nav">

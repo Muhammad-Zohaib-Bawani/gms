@@ -20,6 +20,8 @@ export const ICON_PATHS = {
   check: <><path d="M5 12l4 4 10-10"/></>,
   arrow: <><path d="M5 12h14M13 5l7 7-7 7"/></>,
   arrowLeft: <><path d="M19 12H5M11 5l-7 7 7 7"/></>,
+  chevronDown: <><path d="M6 9l6 6 6-6"/></>,
+  chevronRight: <><path d="M9 6l6 6-6 6"/></>,
   more: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></>,
   globe: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 4 3 14 0 18M12 3c-3 4-3 14 0 18"/></>,

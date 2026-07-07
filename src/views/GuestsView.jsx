@@ -9,6 +9,7 @@ import { listGuests } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getTemplates } from '../api/services/invitationTemplateService';
 import { listSessions } from '../api/services/eventService';
+import { getGuestEnums } from '../api/services/lookupService';
 
 import AddGuestModal      from './guests/modals/AddGuestModal';
 import EditGuestModal     from './guests/modals/EditGuestModal';
@@ -29,6 +30,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [nationalities, setNationalities] = useState([]);
   const [templates,     setTemplates]     = useState([]);
   const [sessions,      setSessions]      = useState([]);
+  const [guestEnums,    setGuestEnums]    = useState({});
   const [loading,       setLoading]       = useState(false);
 
   // ── filter / selection ────────────────────────────────────────────────────
