@@ -40,6 +40,11 @@ export const LOOKUP_CONFIG = {
     code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'BALLROOM' },
     metaFields: [],
   },
+  ELEMENT_TYPE: {
+    icon: 'venue',
+    code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'round' },
+    metaFields: [],
+  },
 };
 
 // Fallback for any category without an explicit config.
@@ -59,4 +64,5 @@ export const LOOKUP_CATEGORIES = [
   { code: 'VEHICLE_TYPE', label: { en: 'Vehicle Types', ar: 'أنواع المركبات' } },
   { code: 'HOTEL',        label: { en: 'Hotels',        ar: 'الفنادق' } },
   { code: 'VENUE_TYPE',   label: { en: 'Venue Types',   ar: 'أنواع القاعات' } },
+  { code: 'ELEMENT_TYPE', label: { en: 'Element Types', ar: 'أنواع العناصر' } },
 ];

@@ -5,6 +5,7 @@ import AuthView from './views/AuthView';
 import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { EventsProvider } from './events/EventsContext';
+import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
 import './style.css';
 
 // Auth gate: a stored session (real sign-in or "Explore demo") shows the app
@@ -14,13 +15,33 @@ function Gate() {
   return isAuthenticated ? <App /> : <AuthView />;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <AuthProvider>
-      <EventsProvider>
-        <Gate />
-      </EventsProvider>
-    </AuthProvider>
-    <Toaster position="top-right" richColors closeButton theme="dark" />
-  </React.StrictMode>
-);
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// The venue full-screen viewer opens as its own browser tab (via window.open)
+// rather than a router-mounted route — this app has no router, and a bare
+// query param avoids needing server-side rewrite rules for a real path. It
+// reuses the same origin/localStorage session, so the API calls stay authed.
+const screenParams = new URLSearchParams(window.location.search);
+if (screenParams.get('screen') === 'venueView') {
+  root.render(
+    <React.StrictMode>
+      <VenueFullScreenView
+        venueId={screenParams.get('venueId')}
+        eventId={screenParams.get('eventId') || null}
+        sessionId={screenParams.get('sessionId') || null}
+        lang={screenParams.get('lang') || 'en'}
+      />
+    </React.StrictMode>
+  );
+} else {
+  root.render(
+    <React.StrictMode>
+      <AuthProvider>
+        <EventsProvider>
+          <Gate />
+        </EventsProvider>
+      </AuthProvider>
+      <Toaster position="top-right" richColors closeButton theme="dark" />
+    </React.StrictMode>
+  );
+}

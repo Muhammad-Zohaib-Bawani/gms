@@ -69,4 +69,11 @@ export const ENDPOINTS = {
     itemById: (id) => `/v1/lookups/items/${id}`,
     guestEnums: '/v1/lookups/enums/guest',
   },
+
+  venues: {
+    base: '/v1/venue',
+    byId: (id) => `/v1/venue/${id}`,
+    box: '/v1/venue/box',
+    boxById: (id) => `/v1/venue/box/${id}`,
+  },
 };

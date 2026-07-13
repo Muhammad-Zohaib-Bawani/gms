@@ -1463,7 +1463,6 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
-  overflow: hidden;
 }
 .card-head {
   padding: 16px 20px;
