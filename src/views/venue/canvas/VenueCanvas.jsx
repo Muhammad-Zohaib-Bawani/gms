@@ -7,6 +7,7 @@ export default function VenueCanvas({
   zoom, setZoom, zoomIn, zoomOut, zoomReset,
   canvasW, canvasH,
   dragTypeRef, onDrop, onCanvasClick, onElementMouseDown, onSeatClick, onDeleteSeat,
+  hasAnyLayout, applyingDefault, onApplyDefaultLayout,
   isAr, emptyHint,
 }) {
   const scrollRef = useRef(null);
@@ -50,9 +51,18 @@ export default function VenueCanvas({
         <button className="icon-btn" onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
           style={{ fontSize: 16, fontWeight: 300, lineHeight: '24px', width: 28, height: 28 }}>+</button>
         <button className="btn" style={{ fontSize: 11, padding: '3px 9px', marginLeft: 2 }} onClick={zoomReset}>{isAr ? 'إعادة' : 'Reset'}</button>
-        <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--ink-faint)' }}>
-          {isAr ? 'Ctrl+scroll للتكبير' : 'Ctrl+scroll to zoom'}
-        </span>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {hasAnyLayout && (
+            <button className="btn" style={{ fontSize: 11, padding: '3px 9px' }}
+              onClick={onApplyDefaultLayout} disabled={applyingDefault}>
+              {applyingDefault ? (isAr ? 'جارٍ التطبيق…' : 'Applying…') : (isAr ? 'تطبيق المخطط الافتراضي' : 'Set Default Layout')}
+            </button>
+          )}
+          <span style={{ fontSize: 10.5, color: 'var(--ink-faint)' }}>
+            {isAr ? 'Ctrl+scroll للتكبير' : 'Ctrl+scroll to zoom'}
+          </span>
+        </div>
       </div>
 
       {/* Scrollable canvas area */}

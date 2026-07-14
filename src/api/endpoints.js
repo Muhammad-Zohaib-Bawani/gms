@@ -76,4 +76,10 @@ export const ENDPOINTS = {
     box: '/v1/venue/box',
     boxById: (id) => `/v1/venue/box/${id}`,
   },
+
+  seating: {
+    assign: '/v1/seating',
+    unassign: (seatId) => `/v1/seating/${seatId}`,
+    byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
+  },
 };

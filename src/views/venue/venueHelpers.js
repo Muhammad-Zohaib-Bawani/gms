@@ -36,6 +36,10 @@ export const ELEMENT_META = {
 // Fallback tint for a disabled seat that has no manager-set color of its own.
 export const DISABLED_SEAT_COLOR = '#e05555';
 
+// Tint used to mark a seat as assigned to a guest (Seating view only — this
+// is a derived/display-only color, never persisted back into the layout).
+export const ASSIGNED_SEAT_COLOR = '#1aaec4';
+
 // A seat's effective color: a manually-set override always wins; otherwise a
 // muted "disabled" tone kicks in once marked unavailable; otherwise null (use
 // the shape's own default styling).
@@ -87,13 +91,19 @@ export function computeCanvasSize(box, tables) {
 }
 
 // Pick the arrangement box for the current event/session: session-specific box
-// when a session is selected; otherwise ONLY the event's own default box (never
+// when a session is selected; otherwise the event's own default box (never
 // fall back to a random session-scoped box — that showed the wrong canvas when
-// switching a session dropdown back to "Event (default)").
+// switching a session dropdown back to "Event (default)"). If neither exists,
+// fall back to the venue's own event-agnostic box (e.g. blocks added via the
+// venue-creation quick-add form before any event was selected) so it's not
+// silently invisible — the caller should NOT treat this fallback as "this
+// event's own box" for save/clear purposes (see useVenueEditor's isOwnBox).
 export function pickBox(boxes, eventId, sessionId) {
   if (!boxes || !boxes.length) return null;
   if (sessionId) return boxes.find(b => b.eventId === eventId && b.sessionId === sessionId) || null;
-  return boxes.find(b => b.eventId === eventId && !b.sessionId) || null;
+  const eventBox = boxes.find(b => b.eventId === eventId && !b.sessionId);
+  if (eventBox) return eventBox;
+  return boxes.find(b => !b.eventId && !b.sessionId) || null;
 }
 
 // Per-seat overrides (disabled flag + optional info text + manual color),
@@ -107,6 +117,19 @@ function buildSeatMeta(p) {
   return seatMeta;
 }
 
+// Real backend SeatProperties.Id per flat index — needed anywhere a seat has
+// to be referenced outside the layout itself (e.g. guest-seat assignment).
+// Populated from whatever the box actually persisted, whether the seats were
+// auto-generated or explicitly customized — the backend always assigns a
+// real row/id either way, it's only the *save* path that's conditional.
+function buildSeatIds(p) {
+  const seatIds = {};
+  (p.seats || []).forEach(s => {
+    if (s.index != null && s.id) seatIds[s.index] = s.id;
+  });
+  return seatIds;
+}
+
 // Map an API box's elements + blocks into the editor's flat `tables` model.
 // These are two distinct arrays on the box (individually-placed elements vs.
 // stadium "blocks" created via the venue-creation quick-add form) — NOT a
@@ -116,7 +139,8 @@ export function boxToTables(box) {
   const elements = (box.venueElements || []).map(el => {
     const p = (el.props && el.props[0]) || {};
     const seatMeta = buildSeatMeta(p);
-    const base = { id: el.id, type: el.type, x: el.x ?? 0, y: el.y ?? 0, rotation: el.rotation ?? 0, label: p.label || '', color: p.color || null, removedSeats: [], seatMeta };
+    const seatIds = buildSeatIds(p);
+    const base = { id: el.id, type: el.type, x: el.x ?? 0, y: el.y ?? 0, rotation: el.rotation ?? 0, label: p.label || '', color: p.color || null, removedSeats: [], seatMeta, seatIds };
     if (el.type === 'round')   return { ...base, seats: p.seatsQuantity ?? 8 };
     if (el.type === 'rect')    return { ...base, seatsPerSide: p.seatsQuantity ?? 4 };
     if (el.type === 'stadium') return { ...base, rows: p.row ?? 1, seatsPerRow: p.seatsQuantity ?? 1, rowNames: p.rowNames || [], seatNumbers: {} };
@@ -140,6 +164,7 @@ export function boxToTables(box) {
       seatsPerRow: b.seatsPerRow ?? (p.seatsQuantity ?? 1),
       rowNames: p.rowNames || [], seatNumbers: {}, removedSeats: [],
       seatMeta: buildSeatMeta(p),
+      seatIds: buildSeatIds(p),
     };
   });
   return [...elements, ...blocks];

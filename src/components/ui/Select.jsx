@@ -32,7 +32,7 @@ const styles = {
     border: '1px solid var(--glass-border)',
     borderRadius: 8,
     overflow: 'hidden',
-    zIndex: 4000,
+    zIndex: 99999,
     position: 'absolute',
   }),
   option: (base, state) => ({
@@ -45,6 +45,7 @@ const styles = {
       : 'transparent',
     color: state.isSelected ? '#fff' : 'var(--ink)',
     cursor: 'pointer',
+    zIndex: 99999,
   }),
   dropdownIndicator: (base) => ({ ...base, color: 'var(--ink-mute)', padding: 6 }),
   indicatorSeparator: (base) => ({ ...base, background: 'var(--glass-border)' }),
@@ -83,7 +84,14 @@ export default function Select({
       isDisabled={isDisabled}
       isClearable={isClearable}
       isMulti={isMulti}
-      styles={styles}
+      menuPortalTarget={document.body}
+      styles={{
+    ...styles,
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 999999,
+    }),
+  }}
       // menuPosition="fixed"
       menuPlacement="auto"
       maxMenuHeight={200}

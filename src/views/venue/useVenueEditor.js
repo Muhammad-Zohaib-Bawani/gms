@@ -31,6 +31,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
   const [savingLayout, setSavingLayout] = useState(false);
   const [pendingDeleteVenueId, setPendingDeleteVenueId] = useState(null);
   const [deleteSeatMode, setDeleteSeatMode] = useState(false);
+  const [applyingDefault, setApplyingDefault] = useState(false);
 
   const dragTypeRef = useRef(null);
   const idCounter = useRef(100);
@@ -46,7 +47,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
   const loadVenues = useCallback(() => {
     getVenues()
       .then(list => {
-        const mapped = (list || []).map(v => ({ id: v.id, name: v.venueName, venueType: 'general', tables: [], boxWidth: null, boxHeight: null }));
+        const mapped = (list || []).map(v => ({ id: v.id, name: v.venueName, venueType: 'general', tables: [], boxWidth: null, boxHeight: null, hasAnyLayout: false }));
         setVenues(mapped);
         setActiveVenueId(prev => prev || mapped[0]?.id || null);
       })
@@ -68,9 +69,14 @@ export default function useVenueEditor({ lang, activeEventId }) {
       if (cancelled || !v) return;
       const box = pickBox(v.venueBoxes, activeEventId, selectedSessionId || null);
       const tables = boxToTables(box);
-      setActiveBoxId(box?.id || null);
+      // Only treat it as "this event's own box" (safe for Save/Clear to
+      // target) when it's genuinely scoped to the current event/session —
+      // pickBox's fallback to the venue's shared event-agnostic box must not
+      // be deleted/overwritten as if it were this event's own arrangement.
+      const isOwnBox = box && box.eventId === activeEventId && (box.sessionId || null) === (selectedSessionId || null);
+      setActiveBoxId(isOwnBox ? box.id : null);
       setVenues(prev => prev.map(x => x.id === activeVenueId
-        ? { ...x, tables, boxWidth: box?.width || null, boxHeight: box?.height || null }
+        ? { ...x, tables, boxWidth: box?.width || null, boxHeight: box?.height || null, hasAnyLayout: (v.venueBoxes || []).length > 0 }
         : x));
     }).catch(() => setActiveBoxId(null));
     return () => { cancelled = true; };
@@ -225,6 +231,32 @@ export default function useVenueEditor({ lang, activeEventId }) {
     }
   }
 
+  // Loads whichever box was created first for this venue (across all its
+  // events/sessions) into the local canvas — same as any other edit, it's
+  // only persisted once the user hits "Save layout".
+  async function applyDefaultLayout() {
+    if (!isGuid(activeVenue?.id)) return;
+    setApplyingDefault(true);
+    try {
+      const v = await getVenue(activeVenue.id);
+      const boxes = v?.venueBoxes || [];
+      if (!boxes.length) {
+        toast.error(isAr ? 'لا يوجد مخطط لهذا المكان' : 'No layout exists for this venue');
+        return;
+      }
+      const first = boxes.reduce((a, b) => new Date(a.createdAt) <= new Date(b.createdAt) ? a : b);
+      setTables(boxToTables(first));
+      setSelectedId(null);
+      setSelectedSeat(null);
+      toast.success(isAr ? 'تم تطبيق المخطط الافتراضي — اضغط حفظ لتثبيته' : 'Default layout applied — click Save to keep it');
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      toast.error(msg || (isAr ? 'تعذّر تطبيق المخطط الافتراضي' : 'Could not apply default layout'));
+    } finally {
+      setApplyingDefault(false);
+    }
+  }
+
   function switchVenue(venueId) {
     setActiveVenueId(venueId);
     setSelectedId(null);
@@ -275,6 +307,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
     venues, activeVenue, activeVenueId, tables, selectedTable, selectedId, selectedSeat,
     sessions, selectedSessionId, setSelectedSessionId,
     canvasSize, boxWidth: activeVenue.boxWidth, boxHeight: activeVenue.boxHeight, setBoxSize,
+    hasAnyLayout: activeVenue.hasAnyLayout, applyingDefault, applyDefaultLayout,
     zoom, setZoom, zoomIn, zoomOut, zoomReset,
     saved, savingLayout, clearingLayout, deletingVenue,
     showClearConfirm, setShowClearConfirm,

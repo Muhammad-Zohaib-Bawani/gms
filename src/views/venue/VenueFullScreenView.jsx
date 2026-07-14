@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../../components/Icons.jsx';
 import { getVenue } from '../../api/services/venueService.js';
-import { pickBox, boxToTables, computeCanvasSize, DISABLED_SEAT_COLOR } from './venueHelpers.js';
+import { getSeatAssignments } from '../../api/services/seatingService.js';
+import { pickBox, boxToTables, computeCanvasSize, DISABLED_SEAT_COLOR, ASSIGNED_SEAT_COLOR } from './venueHelpers.js';
 import CanvasElement from './canvas/CanvasElement.jsx';
 
 // Cardinal placeholders anchored to the viewport edges — these never rotate
@@ -26,6 +27,8 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
   const [tables, setTables] = useState(null); // null = still loading
   const [planSize, setPlanSize] = useState({ w: 1400, h: 900 });
   const [venueName, setVenueName] = useState('');
+  const [venueBoxId, setVenueBoxId] = useState(null);
+  const [assignments, setAssignments] = useState({}); // seatId -> guestId
   const [error, setError] = useState(null);
   const [viewAngle, setViewAngle] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -56,11 +59,26 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
         const tbls = boxToTables(box);
         setTables(tbls);
         setPlanSize(computeCanvasSize(box, tbls));
+        setVenueBoxId(box?.id || null);
       })
       .catch(() => setError(isAr
         ? 'تعذّر تحميل المخطط. تأكد من تسجيل الدخول ثم أعد المحاولة.'
         : 'Failed to load the layout. Make sure you are signed in, then retry.'));
   }, [venueId, eventId, sessionId, isAr]);
+
+  // Real seat->guest assignments for this (venue box, event, session) scope —
+  // same data source as the Seating screen, so this view stays in sync with it.
+  useEffect(() => {
+    if (!venueBoxId || !eventId) { setAssignments({}); return; }
+    let cancelled = false;
+    getSeatAssignments(venueBoxId, { eventId, sessionId: sessionId || undefined }).then(list => {
+      if (cancelled) return;
+      const map = {};
+      (list || []).forEach(a => { map[a.seatId] = a.guestId; });
+      setAssignments(map);
+    }).catch(() => { if (!cancelled) setAssignments({}); });
+    return () => { cancelled = true; };
+  }, [venueBoxId, eventId, sessionId]);
 
   // Track the viewport's actual rendered size so the plan can be scaled to
   // fit it precisely.
@@ -81,6 +99,23 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
     if (viewportSize.w <= 0 || viewportSize.h <= 0) return 0;
     return Math.min(viewportSize.w / planSize.w, viewportSize.h / planSize.h) * 0.92;
   }, [viewportSize, planSize]);
+
+  // Assigned seats render colored via the same seatMeta.color mechanism the
+  // venue editor uses — display-only, computed here rather than persisted,
+  // so this stays in sync with whatever the Seating screen currently shows.
+  const renderTables = useMemo(() => {
+    if (!tables) return tables;
+    return tables.map(t => {
+      const ids = t.seatIds || {};
+      const assignedIdx = Object.keys(ids).filter(idx => assignments[ids[idx]]);
+      if (assignedIdx.length === 0) return t;
+      const seatMeta = { ...(t.seatMeta || {}) };
+      assignedIdx.forEach(idx => {
+        seatMeta[idx] = { ...(seatMeta[idx] || {}), color: ASSIGNED_SEAT_COLOR };
+      });
+      return { ...t, seatMeta };
+    });
+  }, [tables, assignments]);
 
   function startDrag(e) {
     dragState.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
@@ -155,7 +190,7 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
                       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-faint)', fontSize: 20 }}>
                         {isAr ? 'لا عناصر' : 'No elements'}
                       </div>
-                    ) : tables.map(t => (
+                    ) : renderTables.map(t => (
                       <CanvasElement
                         key={t.id}
                         table={t}
@@ -214,6 +249,10 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'center', marginTop: 12, fontSize: 11, color: 'var(--ink-mute)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: ASSIGNED_SEAT_COLOR, flexShrink: 0 }}/>
+              {isAr ? 'مقعد معيّن' : 'Assigned seat'}
+            </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: DISABLED_SEAT_COLOR, flexShrink: 0 }}/>
               {isAr ? 'مقعد معطّل' : 'Disabled seat'}

@@ -164,6 +164,9 @@ export default function VenueConfigView({ lang, activeEventId }) {
           onElementMouseDown={ed.onElementMouseDown}
           onSeatClick={ed.onSeatClick}
           onDeleteSeat={ed.handleDeleteSeat}
+          hasAnyLayout={ed.hasAnyLayout}
+          applyingDefault={ed.applyingDefault}
+          onApplyDefaultLayout={ed.applyDefaultLayout}
           isAr={isAr}
           emptyHint={isAr ? 'اسحب عنصراً من القائمة' : 'Drag an element from the palette'}
         />

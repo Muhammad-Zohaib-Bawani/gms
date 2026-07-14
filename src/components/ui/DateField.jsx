@@ -22,6 +22,9 @@ export default function DateField({
       dateFormat="yyyy-MM-dd"
       placeholderText={placeholder}
       disabled={disabled}
+      // Picker-only — typing a free-text date risks an invalid/unparsable
+      // value slipping through, so selection via the calendar is required.
+      readOnly
       isClearable={!disabled}
       showPopperArrow={false}
       className="gms-datefield-input"
