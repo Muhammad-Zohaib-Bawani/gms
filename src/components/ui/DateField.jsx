@@ -24,7 +24,11 @@ export default function DateField({
       disabled={disabled}
       // Picker-only — typing a free-text date risks an invalid/unparsable
       // value slipping through, so selection via the calendar is required.
-      readOnly
+      // NOTE: the native `readOnly` prop looks like the right tool here, but
+      // react-datepicker's own onInputClick checks `!props.readOnly` before
+      // opening the calendar — so readOnly also blocks opening it by click,
+      // not just typing. Block raw text entry instead, via onChangeRaw.
+      onChangeRaw={(e) => e.preventDefault()}
       isClearable={!disabled}
       showPopperArrow={false}
       className="gms-datefield-input"

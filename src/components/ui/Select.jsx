@@ -87,9 +87,14 @@ export default function Select({
       menuPortalTarget={document.body}
       styles={{
     ...styles,
+    // Radix Dialog sets `pointer-events: none` on <body> while open, only
+    // re-enabling it on the dialog's own content node. This menu is portaled
+    // straight to <body> as a sibling, so without an explicit override here
+    // it inherits `none` and becomes unclickable while still visible.
     menuPortal: (base) => ({
       ...base,
       zIndex: 999999,
+      pointerEvents: 'auto',
     }),
   }}
       // menuPosition="fixed"

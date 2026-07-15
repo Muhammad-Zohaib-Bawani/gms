@@ -566,17 +566,17 @@ export default function AddGuestModal({
                     {isAr ? "الاعتماد" : "Accreditation"}
                   </label>
                   <div style={{ display: "flex", gap: 10 }}>
-                    {enums?.GuestAccreditationStatus.map((s) => (
+                    {enums?.GuestAccreditationStatus?.map((s) => (
                       <div
-                        key={s}
-                        onClick={() => setG("accreditationStatus", s?.code)}
+                        key={s.code}
+                        onClick={() => setG("accreditationStatus", s.code)}
                         style={{
                           flex: 1,
                           padding: "12px 14px",
                           borderRadius: 10,
                           cursor: "pointer",
                           textAlign: "center",
-                          border: `1px solid ${guest.accreditationStatus === s ? "var(--accent)" : "var(--glass-border)"}`,
+                          border: `1px solid ${guest.accreditationStatus === s.code ? "var(--accent)" : "var(--glass-border)"}`,
                           background:
                             guest.accreditationStatus === s.code
                               ? "rgba(26,174,196,0.12)"
@@ -584,10 +584,10 @@ export default function AddGuestModal({
                           fontSize: 13,
                           textTransform: "capitalize",
                           fontWeight:
-                            guest.accreditationStatus === s ? 600 : 400,
+                            guest.accreditationStatus === s.code ? 600 : 400,
                         }}
                       >
-                        {isAr ? s.nameAr : s.name }
+                        {isAr ? s.nameAr : s.name}
                       </div>
                     ))}
                   </div>
