@@ -75,11 +75,20 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/venue/${id}`,
     box: '/v1/venue/box',
     boxById: (id) => `/v1/venue/box/${id}`,
+    // Adds one more block to whichever VenueBox already exists for this event.
+    addBlock: (eventId) => `/v1/venue/${eventId}`,
   },
 
   seating: {
     assign: '/v1/seating',
     unassign: (seatId) => `/v1/seating/${seatId}`,
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
+  },
+
+  meetings: {
+    base: '/v1/meeting',
+    // The route param is named "id" backend-side, but it's really the eventId —
+    // this returns every meeting scoped to that event, not one meeting by its own id.
+    byEvent: (eventId) => `/v1/meeting/${eventId}`,
   },
 };

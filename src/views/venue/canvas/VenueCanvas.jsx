@@ -8,6 +8,7 @@ export default function VenueCanvas({
   canvasW, canvasH,
   dragTypeRef, onDrop, onCanvasClick, onElementMouseDown, onSeatClick, onDeleteSeat,
   hasAnyLayout, applyingDefault, onApplyDefaultLayout,
+  onAddBlockClick,
   isAr, emptyHint,
 }) {
   const scrollRef = useRef(null);
@@ -53,6 +54,9 @@ export default function VenueCanvas({
         <button className="btn" style={{ fontSize: 11, padding: '3px 9px', marginLeft: 2 }} onClick={zoomReset}>{isAr ? 'إعادة' : 'Reset'}</button>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button className="btn" style={{ fontSize: 11, padding: '3px 9px' }} onClick={onAddBlockClick}>
+            + {isAr ? 'إضافة قسم' : 'Add Block'}
+          </button>
           {hasAnyLayout && (
             <button className="btn" style={{ fontSize: 11, padding: '3px 9px' }}
               onClick={onApplyDefaultLayout} disabled={applyingDefault}>

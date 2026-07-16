@@ -1,33 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
-import { GUESTS, MEETINGS } from '../data/mockData.js';
+import toast from '../lib/toast.js';
+import { createMeeting, getMeetings } from '../api/services/meetingService.js';
+import { listGuests } from '../api/services/guestService.js';
 
-const HOUR_HEIGHT = 56;
-const START_HOUR = 8;
-const END_HOUR = 21;
-// Anchor: Sunday Dec 7 2025 — week Dec 7–13 shows all forum meetings
-const ANCHOR = new Date(2025, 11, 7);
+const ANCHOR = new Date();
 
-function getWeekDays(offset) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(ANCHOR);
-    d.setDate(d.getDate() + offset * 7 + i);
-    return d;
-  });
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function dateKey(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function initialsFromName(name) {
+  const parts = (name || '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-function timeToMinutes(t) {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+// Backend GetMeetingResponse -> the shape this view renders internally.
+function mapMeeting(m) {
+  return {
+    id: m.id,
+    title: m.name,
+    date: m.date,
+    startTime: (m.startTime || '').slice(0, 5),
+    endTime: (m.endTime || '').slice(0, 5),
+    location: m.location || '',
+    notes: m.meetingAgenda || '',
+    color: '#1aaec4',
+    guests: (m.guests || []).map(g => ({ id: g.id, name: g.name || '' })),
+  };
 }
 
-export default function MeetingsView({ lang }) {
+export default function MeetingsView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
 
@@ -44,13 +54,15 @@ export default function MeetingsView({ lang }) {
     date: 'التاريخ', startTime: 'وقت البدء', endTime: 'وقت الانتهاء',
     location: 'الموقع',
     searchGuest: 'بحث عن ضيف…',
-    cancel: 'إلغاء', back: 'السابق', next: 'التالي', save: 'حفظ الاجتماع',
+    cancel: 'إلغاء', back: 'السابق', next: 'التالي', save: 'حفظ الاجتماع', saving: 'جارٍ الحفظ…',
     days: ['أح','اث','ث','أر','خ','ج','س'],
     months: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
     newTitle: 'اجتماع جديد',
     addAttendee: 'إضافة مشارك',
     noMeetings: 'لا اجتماعات هذا الأسبوع',
     meetingDetail: 'تفاصيل الاجتماع',
+    noEvent: 'اختر فعالية أولاً',
+    created: 'تم إنشاء الاجتماع بنجاح',
   } : {
     title: 'Meetings',
     sub: 'Weekly schedule · bilateral and working group management',
@@ -64,58 +76,89 @@ export default function MeetingsView({ lang }) {
     date: 'Date', startTime: 'Start time', endTime: 'End time',
     location: 'Location',
     searchGuest: 'Search guest…',
-    cancel: 'Cancel', back: 'Back', next: 'Next', save: 'Save Meeting',
+    cancel: 'Cancel', back: 'Back', next: 'Next', save: 'Save Meeting', saving: 'Saving…',
     days: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     newTitle: 'New Meeting',
     addAttendee: 'Add attendee',
     noMeetings: 'No meetings this week',
     meetingDetail: 'Meeting detail',
+    noEvent: 'Select an event first',
+    created: 'Meeting created successfully',
   };
 
-  const [meetings, setMeetings] = useState(MEETINGS);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [meetings, setMeetings] = useState([]);
+  const [guestList, setGuestList] = useState([]);
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [newStep, setNewStep] = useState(1);
-  const [newForm, setNewForm] = useState({ title:'', date:'2025-12-07', startTime:'09:00', endTime:'10:00', location:'' });
+  const [newForm, setNewForm] = useState({ title:'', date: todayStr(), startTime:'09:00', endTime:'10:00', location:'' });
   const [newNotes, setNewNotes] = useState('');
   const [newAttendees, setNewAttendees] = useState([]);
   const [attendeeSearch, setAttendeeSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const calendarRef = useRef(null);
 
-  const weekDays = getWeekDays(weekOffset);
+  useEffect(() => {
+    if (!activeEventId) { setMeetings([]); return; }
+    let cancelled = false;
+    getMeetings(activeEventId)
+      .then(res => { if (!cancelled) setMeetings((res || []).map(mapMeeting)); })
+      .catch(() => { if (!cancelled) toast.error(isAr ? 'تعذر تحميل الاجتماعات' : 'Could not load meetings'); });
+    return () => { cancelled = true; };
+  }, [activeEventId]);
 
-  const meetingsByDay = {};
-  meetings.forEach(m => {
-    if (!meetingsByDay[m.date]) meetingsByDay[m.date] = [];
-    meetingsByDay[m.date].push(m);
-  });
+  useEffect(() => {
+    if (!activeEventId) { setGuestList([]); return; }
+    let cancelled = false;
+    listGuests({ eventId: activeEventId, pageSize: 200 })
+      .then(res => { if (!cancelled) setGuestList(res?.items || []); })
+      .catch(() => { if (!cancelled) setGuestList([]); });
+    return () => { cancelled = true; };
+  }, [activeEventId]);
 
-  const filteredGuests = GUESTS
-    .filter(g => !attendeeSearch || g.name.toLowerCase().includes(attendeeSearch.toLowerCase()))
+  const filteredGuests = guestList
+    .filter(g => !attendeeSearch || `${g.firstName} ${g.lastName}`.toLowerCase().includes(attendeeSearch.toLowerCase()))
     .slice(0, 6);
 
-  const monthLabel = (() => {
-    const s = weekDays[0], e = weekDays[6];
-    const ms = STR.months[s.getMonth()], me = STR.months[e.getMonth()];
-    if (s.getMonth() === e.getMonth()) {
-      return `${ms} ${ad(s.getDate())}–${ad(e.getDate())}, ${ad(s.getFullYear())}`;
+  const calendarEvents = useMemo(() => meetings.map(m => ({
+    id: m.id,
+    title: m.title,
+    start: `${m.date}T${m.startTime}:00`,
+    end: `${m.date}T${m.endTime}:00`,
+    backgroundColor: m.color,
+    borderColor: m.color,
+    textColor: '#fff',
+  })), [meetings]);
+
+  async function saveNewMeeting() {
+    if (!activeEventId) { toast.error(STR.noEvent); return; }
+    setSaving(true);
+    try {
+      const res = await createMeeting({
+        eventId: activeEventId,
+        name: newForm.title,
+        date: newForm.date,
+        location: newForm.location || null,
+        startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
+        endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
+        meetingAgenda: newNotes || null,
+        guestIds: newAttendees.map(g => g.id),
+      });
+      setMeetings(prev => [...prev, mapMeeting(res)]);
+      setShowNew(false);
+      setNewStep(1);
+      setNewForm({ title:'', date: todayStr(), startTime:'09:00', endTime:'10:00', location:'' });
+      setNewNotes('');
+      setNewAttendees([]);
+      setAttendeeSearch('');
+      toast.success(STR.created);
+    } catch (err) {
+      toast.fromError(err, isAr ? 'حدث خطأ أثناء إنشاء الاجتماع' : 'Error creating meeting');
+    } finally {
+      setSaving(false);
     }
-    return `${ms} – ${me} ${ad(s.getFullYear())}`;
-  })();
-
-  function saveNewMeeting() {
-    const id = `M-${String(meetings.length + 1).padStart(3,'0')}`;
-    setMeetings(prev => [...prev, { id, ...newForm, notes: newNotes, attendees: newAttendees, color: '#1aaec4' }]);
-    setShowNew(false);
-    setNewStep(1);
-    setNewForm({ title:'', date:'2025-12-07', startTime:'09:00', endTime:'10:00', location:'' });
-    setNewNotes('');
-    setNewAttendees([]);
-    setAttendeeSearch('');
   }
-
-  const hours = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
   const inputStyle = {
     width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -142,93 +185,30 @@ export default function MeetingsView({ lang }) {
 
       <div className="meetings-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         {/* Calendar card */}
-        <div className="card meetings-calendar" style={{ flex: 1, padding: 0, overflow: 'hidden', minWidth: 0 }}>
-          {/* Calendar toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--glass-border)' }}>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontStyle: 'italic' }}>{monthLabel}</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="icon-btn" onClick={() => setWeekOffset(w => w - 1)}>
-                <Icon name="arrowLeft" size={14}/>
-              </button>
-              <button className="btn ghost" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => setWeekOffset(0)}>
-                {STR.today}
-              </button>
-              <button className="icon-btn" onClick={() => setWeekOffset(w => w + 1)}>
-                <Icon name="arrow" size={14}/>
-              </button>
-            </div>
-          </div>
-
-          {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: '44px repeat(7,1fr)', borderBottom: '1px solid var(--glass-border)' }}>
-            <div style={{ borderRight: '1px solid var(--glass-border)' }}/>
-            {weekDays.map((d, i) => {
-              const hasMeetings = (meetingsByDay[dateKey(d)] || []).length > 0;
-              return (
-                <div key={i} style={{ padding: '8px 4px', textAlign: 'center', borderLeft: i > 0 ? '1px solid var(--glass-border)' : undefined }}>
-                  <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    {STR.days[d.getDay()]}
-                  </div>
-                  <div style={{ width: 26, height: 26, margin: '3px auto 0', borderRadius: '50%', display: 'grid', placeItems: 'center',
-                    fontSize: 12, fontWeight: 600,
-                    background: hasMeetings ? 'rgba(26,174,196,0.15)' : 'transparent',
-                    color: hasMeetings ? 'var(--accent)' : 'var(--ink)',
-                    border: hasMeetings ? '1px solid rgba(26,174,196,0.4)' : '1px solid transparent',
-                  }}>{ad(d.getDate())}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Time grid */}
-          <div style={{ overflowY: 'auto', maxHeight: 490 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '44px repeat(7,1fr)' }}>
-              {/* Time labels */}
-              <div style={{ borderRight: '1px solid var(--glass-border)' }}>
-                {hours.map(h => (
-                  <div key={h} style={{ height: HOUR_HEIGHT, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', paddingRight: 8, paddingTop: 4,
-                    borderBottom: '1px solid var(--glass-border)', fontSize: 10, color: 'var(--ink-faint)', fontFamily: 'var(--mono)' }}>
-                    {ad(String(h).padStart(2,'0'))}
-                  </div>
-                ))}
-              </div>
-
-              {/* Day columns */}
-              {weekDays.map((day, di) => {
-                const dk = dateKey(day);
-                const dayMeetings = meetingsByDay[dk] || [];
-                return (
-                  <div key={di} style={{ position: 'relative', borderLeft: di > 0 ? '1px solid var(--glass-border)' : undefined }}>
-                    {hours.map(h => (
-                      <div key={h} style={{ height: HOUR_HEIGHT, borderBottom: '1px solid rgba(255,255,255,0.03)' }}/>
-                    ))}
-                    {dayMeetings.map(m => {
-                      const startMin = timeToMinutes(m.startTime) - START_HOUR * 60;
-                      const durMin = timeToMinutes(m.endTime) - timeToMinutes(m.startTime);
-                      if (startMin < 0) return null;
-                      const top = (startMin / 60) * HOUR_HEIGHT;
-                      const height = Math.max((durMin / 60) * HOUR_HEIGHT - 3, 18);
-                      return (
-                        <div key={m.id} onClick={() => setSelectedMeeting(m)}
-                          style={{ position: 'absolute', top, left: 2, right: 2, height, borderRadius: 5, cursor: 'pointer',
-                            background: m.color + '28', borderLeft: `3px solid ${m.color}`, padding: '3px 5px', overflow: 'hidden',
-                          }}>
-                          <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {m.title}
-                          </div>
-                          {height > 32 && (
-                            <div style={{ fontSize: 9.5, color: 'var(--ink-mute)', fontFamily: 'var(--mono)' }}>
-                              {m.startTime}–{m.endTime}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        <div className="card meetings-calendar gms-fullcalendar" style={{ flex: 1, padding: 12, overflow: 'hidden', minWidth: 0 }}>
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+            initialView="timeGridWeek"
+            initialDate={ANCHOR}
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay,dayGridMonth' }}
+            allDaySlot={false}
+            nowIndicator
+            height="auto"
+            contentHeight={560}
+            firstDay={0}
+            events={calendarEvents}
+            eventClick={(info) => {
+              const m = meetings.find(x => x.id === info.event.id);
+              if (m) setSelectedMeeting(m);
+            }}
+            dateClick={(info) => {
+              setNewForm(f => ({ ...f, date: info.dateStr.slice(0, 10) }));
+              setNewStep(1);
+              setShowNew(true);
+            }}
+            direction={isAr ? 'rtl' : 'ltr'}
+          />
         </div>
 
         {/* Upcoming sidebar */}
@@ -238,12 +218,17 @@ export default function MeetingsView({ lang }) {
               {STR.upcomingTitle}
             </div>
             <div className="meetings-list-scroll" style={{ maxHeight: 580, overflowY: 'auto' }}>
+              {meetings.length === 0 && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 12 }}>
+                  {STR.noMeetings}
+                </div>
+              )}
               {[...meetings]
                 .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
                 .map(m => {
                   const [, mo, dy] = m.date.split('-').map(Number);
                   const dateStr = `${STR.months[mo-1]} ${ad(dy)}`;
-                  const firstAttendees = m.attendees.slice(0, 3).map(id => GUESTS.find(g => g.id === id)).filter(Boolean);
+                  const firstAttendees = m.guests.slice(0, 3);
                   return (
                     <div key={m.id} onClick={() => setSelectedMeeting(m)}
                       style={{ padding: '12px 16px', borderBottom: '1px solid var(--glass-border)', cursor: 'pointer', display: 'flex', gap: 10 }}
@@ -263,8 +248,8 @@ export default function MeetingsView({ lang }) {
                         </div>
                         {firstAttendees.length > 0 && (
                           <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                            {firstAttendees.map(g => <Avatar key={g.id} initials={g.initials} size={16} tier={g.tier}/>)}
-                            {m.attendees.length > 3 && <span style={{ fontSize: 10, color: 'var(--ink-mute)' }}>+{m.attendees.length - 3}</span>}
+                            {firstAttendees.map(g => <Avatar key={g.id} initials={initialsFromName(g.name)} size={16}/>)}
+                            {m.guests.length > 3 && <span style={{ fontSize: 10, color: 'var(--ink-mute)' }}>+{m.guests.length - 3}</span>}
                           </div>
                         )}
                       </div>
@@ -303,22 +288,15 @@ export default function MeetingsView({ lang }) {
                 </div>
               )}
               <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--ink-mute)', marginBottom: 10 }}>
-                {STR.attendees} · {ad(selectedMeeting.attendees.length)}
+                {STR.attendees} · {ad(selectedMeeting.guests.length)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {selectedMeeting.attendees.map(id => {
-                  const g = GUESTS.find(g => g.id === id);
-                  if (!g) return null;
-                  return (
-                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
-                      <Avatar initials={g.initials} size={28} tier={g.tier}/>
-                      <div>
-                        <div style={{ fontSize: 12.5, fontWeight: 500 }}>{g.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.role} · {g.org}</div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {selectedMeeting.guests.map(g => (
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
+                    <Avatar initials={initialsFromName(g.name)} size={28}/>
+                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{g.name}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -387,36 +365,37 @@ export default function MeetingsView({ lang }) {
                   </div>
                   {newAttendees.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                      {newAttendees.map(id => {
-                        const g = GUESTS.find(g => g.id === id);
-                        if (!g) return null;
-                        return (
-                          <span key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(26,174,196,0.15)', border: '1px solid rgba(26,174,196,0.3)', fontSize: 11.5 }}>
-                            <Avatar initials={g.initials} size={18} tier={g.tier}/>
-                            {g.name}
-                            <button onClick={() => setNewAttendees(a => a.filter(x => x !== id))}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-mute)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
-                              <Icon name="close" size={10}/>
-                            </button>
-                          </span>
-                        );
-                      })}
+                      {newAttendees.map(g => (
+                        <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(26,174,196,0.15)', border: '1px solid rgba(26,174,196,0.3)', fontSize: 11.5 }}>
+                          <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18}/>
+                          {g.firstName} {g.lastName}
+                          <button onClick={() => setNewAttendees(a => a.filter(x => x.id !== g.id))}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-mute)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
+                            <Icon name="close" size={10}/>
+                          </button>
+                        </span>
+                      ))}
                     </div>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {filteredGuests.filter(g => !newAttendees.includes(g.id)).map(g => (
-                      <div key={g.id} onClick={() => setNewAttendees(a => [...a, g.id])}
+                    {filteredGuests.filter(g => !newAttendees.some(a => a.id === g.id)).map(g => (
+                      <div key={g.id} onClick={() => setNewAttendees(a => [...a, g])}
                         style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}>
-                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
+                        <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={28}/>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.role} · {g.org}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{g.firstName} {g.lastName}</div>
+                          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{[g.tier, g.organization].filter(Boolean).join(' · ')}</div>
                         </div>
                         <Icon name="plus" size={13} style={{ color: 'var(--accent)', flexShrink: 0 }}/>
                       </div>
                     ))}
+                    {guestList.length === 0 && (
+                      <div style={{ padding: '12px', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 12 }}>
+                        {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -440,8 +419,8 @@ export default function MeetingsView({ lang }) {
                   {STR.next} <Icon name="arrow" size={13}/>
                 </button>
               ) : (
-                <button className="btn primary" onClick={saveNewMeeting}>
-                  <Icon name="check" size={13}/> {STR.save}
+                <button className="btn primary" onClick={saveNewMeeting} disabled={saving}>
+                  <Icon name="check" size={13}/> {saving ? STR.saving : STR.save}
                 </button>
               )}
             </div>

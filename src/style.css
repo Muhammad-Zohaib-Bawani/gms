@@ -1987,3 +1987,32 @@ html[dir="rtl"] .avatar { direction: ltr; }
   .venue-config-panel .card > div[style] { max-height: 50vh !important; }
 }
 *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+/* FullCalendar theming — map its CSS vars onto the app's own tokens */
+.gms-fullcalendar {
+  --fc-border-color: var(--glass-border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--surface-soft-2);
+  --fc-list-event-hover-bg-color: var(--surface-soft-3);
+  --fc-today-bg-color: rgba(26,174,196,0.08);
+  --fc-now-indicator-color: var(--accent);
+  --fc-button-bg-color: var(--surface-soft-3);
+  --fc-button-border-color: var(--glass-border);
+  --fc-button-hover-bg-color: var(--surface-soft-4);
+  --fc-button-hover-border-color: var(--accent);
+  --fc-button-active-bg-color: var(--accent);
+  --fc-button-active-border-color: var(--accent);
+  --fc-small-font-size: 11px;
+  color: var(--ink);
+}
+.gms-fullcalendar .fc { font-family: inherit; }
+.gms-fullcalendar .fc .fc-toolbar-title { font-family: var(--serif); font-size: 17px; font-style: italic; font-weight: 400; }
+.gms-fullcalendar .fc .fc-button { text-transform: capitalize; box-shadow: none !important; padding: 5px 11px; font-size: 12px; }
+.gms-fullcalendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+.gms-fullcalendar .fc .fc-button-primary:not(:disabled):active { color: #fff; }
+.gms-fullcalendar .fc .fc-col-header-cell-cushion,
+.gms-fullcalendar .fc .fc-daygrid-day-number { color: var(--ink); text-decoration: none; }
+.gms-fullcalendar .fc .fc-timegrid-slot-label-cushion { color: var(--ink-faint); font-family: var(--mono); font-size: 10px; }
+.gms-fullcalendar .fc .fc-event { border-radius: 5px; cursor: pointer; }
+.gms-fullcalendar .fc .fc-event-main { padding: 1px 4px; font-size: 11px; }
+.gms-fullcalendar .fc .fc-day-today .fc-daygrid-day-number { color: var(--accent); font-weight: 600; }

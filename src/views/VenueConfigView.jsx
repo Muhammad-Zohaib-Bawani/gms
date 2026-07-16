@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { toArDigits } from '../i18n/translations.js';
 import { Icon } from '../components/Icons.jsx';
 import Modal from '../components/ui/Modal.jsx';
+import Select from '../components/ui/Select.jsx';
 import AddVenueModal from './venue/AddVenueModal.jsx';
 import VenueToolbar from './venue/VenueToolbar.jsx';
 import ElementPalette from './venue/ElementPalette.jsx';
 import VenueCanvas from './venue/canvas/VenueCanvas.jsx';
 import ConfigPanel from './venue/ConfigPanel.jsx';
 import useVenueEditor from './venue/useVenueEditor.js';
+import { VENUE_CATEGORY_OPTIONS } from './venue/venueHelpers.js';
 
 export default function VenueConfigView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
@@ -38,6 +40,8 @@ export default function VenueConfigView({ lang, activeEventId }) {
     seatInfo: 'معلومات المقعد', disableSeat: 'تعطيل المقعد', enableSeat: 'تفعيل المقعد',
     seatColor: 'لون المقعد', viewFullscreen: 'عرض ملء الشاشة',
     canvasSize: 'حجم اللوحة', canvasSizeAuto: 'تلقائي', canvasSizeAutoHint: 'تلقائي حسب العناصر',
+    addBlock: 'إضافة قسم', addBlockMsg: 'أضف قسماً جديداً (منصّة/مدرّج) إلى هذا المخطط',
+    blockLabel: 'اسم القسم', blockCategory: 'الفئة (اختياري)', add: 'إضافة', adding: 'جارٍ الإضافة…',
   } : {
     title: 'Venue Configuration', sub: 'Design the floor plan using drag-and-drop',
     palette: 'Element types',
@@ -63,6 +67,8 @@ export default function VenueConfigView({ lang, activeEventId }) {
     seatInfo: 'Seat info', disableSeat: 'Disable seat', enableSeat: 'Enable seat',
     seatColor: 'Seat color', viewFullscreen: 'View fullscreen',
     canvasSize: 'Canvas size', canvasSizeAuto: 'Auto', canvasSizeAutoHint: 'Auto-fits elements',
+    addBlock: 'Add Block', addBlockMsg: 'Add a new block (stand/stadium section) to this layout',
+    blockLabel: 'Block label', blockCategory: 'Category (optional)', add: 'Add', adding: 'Adding…',
   };
 
   const descByCode = {
@@ -70,6 +76,22 @@ export default function VenueConfigView({ lang, activeEventId }) {
   };
 
   const ed = useVenueEditor({ lang, activeEventId });
+  const BLANK_BLOCK_FORM = { label: '', category: '', rows: 10, seatsPerRow: 20 };
+  const [blockForm, setBlockForm] = useState(BLANK_BLOCK_FORM);
+  const blockCategoryOptions = useMemo(
+    () => VENUE_CATEGORY_OPTIONS.map(c => ({ value: c.value, label: isAr ? c.label.ar : c.label.en })),
+    [isAr],
+  );
+
+  async function submitAddBlock() {
+    const ok = await ed.addVenueBlock({
+      label: blockForm.label,
+      category: blockForm.category,
+      rows: +blockForm.rows || 1,
+      seatsPerRow: +blockForm.seatsPerRow || 1,
+    });
+    if (ok) setBlockForm(BLANK_BLOCK_FORM);
+  }
 
   function openFullscreenView() {
     const params = new URLSearchParams({
@@ -167,6 +189,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
           hasAnyLayout={ed.hasAnyLayout}
           applyingDefault={ed.applyingDefault}
           onApplyDefaultLayout={ed.applyDefaultLayout}
+          onAddBlockClick={() => ed.setShowAddBlock(true)}
           isAr={isAr}
           emptyHint={isAr ? 'اسحب عنصراً من القائمة' : 'Drag an element from the palette'}
         />
@@ -228,6 +251,61 @@ export default function VenueConfigView({ lang, activeEventId }) {
           {isAr ? `سيتم حذف ${ad(ed.tables.length)} عنصر.` : `This will remove all ${ed.tables.length} elements from this venue.`}
         </div>
       </Modal>
+
+      {/* Add block */}
+      <Modal
+        open={ed.showAddBlock}
+        onClose={() => ed.setShowAddBlock(false)}
+        title={t.addBlock}
+        subtitle={t.addBlockMsg}
+        width={380}
+        footer={
+          <>
+            <button className="btn" onClick={() => ed.setShowAddBlock(false)} disabled={ed.addingBlock}>{t.cancel}</button>
+            <button className="btn primary" onClick={submitAddBlock} disabled={ed.addingBlock || !blockForm.label.trim()}>
+              {ed.addingBlock ? t.adding : t.add}
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label style={blockLabelStyle}>{t.blockLabel}</label>
+          <input style={blockInputStyle} value={blockForm.label}
+            onChange={e => setBlockForm(f => ({ ...f, label: e.target.value }))}
+            placeholder={isAr ? 'مثال: المدرج الشمالي' : 'e.g. North Stand'}/>
+        </div>
+        <div>
+          <label style={blockLabelStyle}>{t.blockCategory}</label>
+          <Select
+            value={blockForm.category}
+            onChange={v => setBlockForm(f => ({ ...f, category: v }))}
+            options={blockCategoryOptions}
+            placeholder={isAr ? '— اختر —' : '— Select —'}
+            isClearable
+          />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={blockLabelStyle}>{t.rows}</label>
+            <input type="number" min={1} style={blockInputStyle} value={blockForm.rows}
+              onChange={e => setBlockForm(f => ({ ...f, rows: e.target.value }))}/>
+          </div>
+          <div>
+            <label style={blockLabelStyle}>{t.seatsPerRow}</label>
+            <input type="number" min={1} style={blockInputStyle} value={blockForm.seatsPerRow}
+              onChange={e => setBlockForm(f => ({ ...f, seatsPerRow: e.target.value }))}/>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
+
+const blockInputStyle = {
+  width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+  borderRadius: 8, padding: '9px 12px', color: 'var(--ink)', fontSize: 13, boxSizing: 'border-box',
+};
+const blockLabelStyle = {
+  display: 'block', fontSize: 10.5, color: 'var(--ink-mute)',
+  textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5,
+};

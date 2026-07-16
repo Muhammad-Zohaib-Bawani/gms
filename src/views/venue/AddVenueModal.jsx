@@ -5,17 +5,9 @@ import { Icon } from '../../components/Icons';
 import toast from '../../lib/toast';
 import { createVenue } from '../../api/services/venueService';
 import { getCachedLookupItems } from '../../api/services/lookupService';
+import { VENUE_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from './venueHelpers';
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
-
-// Venue categories are a fixed set (backend stores them as plain strings).
-const CATEGORY_OPTIONS = [
-  { value: 'general', label: { en: 'General', ar: 'عام' } },
-  { value: 'indoor',  label: { en: 'Indoor',  ar: 'داخلي' } },
-  { value: 'outdoor', label: { en: 'Outdoor', ar: 'خارجي' } },
-  { value: 'vip',     label: { en: 'VIP',     ar: 'كبار الشخصيات' } },
-  { value: 'media',   label: { en: 'Media',   ar: 'إعلام' } },
-];
 
 const SWATCHES = ['#1aaec4', '#e0c47e', '#e05252', '#16a34a', '#2563eb', '#7c3aed', '#db2777', '#ea7c1e'];
 

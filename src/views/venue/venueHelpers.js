@@ -8,7 +8,7 @@ export const MIN_ZOOM = 0.3, MAX_ZOOM = 2.5;
 // Default/minimum canvas size — the effective size (see computeCanvasSize)
 // auto-grows past this to fit content, or can be pinned via an explicit
 // manager-set VenueBox.Width/Height.
-export const CANVAS_W = 1400, CANVAS_H = 900;
+export const CANVAS_W = 1000, CANVAS_H = 600;
 export const TABLE_R = 30, SEAT_R = 8, SEAT_DIST = TABLE_R + SEAT_R + 7;
 export const ROUND_SIZE = (SEAT_DIST + SEAT_R + 5) * 2;
 export const ROW_LABEL_W = 20;
@@ -20,6 +20,17 @@ export const SWATCH_COLORS = [
   '#06b6d4', '#3b82f6', '#2563eb', '#6366f1',
   '#7c3aed', '#a855f7', '#d946ef', '#db2777',
   '#ec4899', '#64748b', '#94a3b8', '#475569',
+];
+
+// Fixed category set (backend stores these as plain strings, no dedicated
+// lookup exists for them) — shared by the venue-level category picker
+// (AddVenueModal) and the per-block category picker (VenueConfigView).
+export const VENUE_CATEGORY_OPTIONS = [
+  { value: 'general', label: { en: 'General', ar: 'عام' } },
+  { value: 'indoor',  label: { en: 'Indoor',  ar: 'داخلي' } },
+  { value: 'outdoor', label: { en: 'Outdoor', ar: 'خارجي' } },
+  { value: 'vip',     label: { en: 'VIP',     ar: 'كبار الشخصيات' } },
+  { value: 'media',   label: { en: 'Media',   ar: 'إعلام' } },
 ];
 
 // Presentation only (icon/accent color per element type). The list of element

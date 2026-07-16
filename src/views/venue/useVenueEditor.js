@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCachedLookupItems } from '../../api/services/lookupService.js';
-import { createVenueBox, deleteVenueBox, deleteVenue, getVenues, getVenue } from '../../api/services/venueService.js';
+import { createVenueBox, deleteVenueBox, deleteVenue, getVenues, getVenue, addVenueBlock as addVenueBlockApi } from '../../api/services/venueService.js';
 import { listSessions } from '../../api/services/eventService.js';
 import toast from '../../lib/toast.js';
 import {
@@ -32,6 +32,8 @@ export default function useVenueEditor({ lang, activeEventId }) {
   const [pendingDeleteVenueId, setPendingDeleteVenueId] = useState(null);
   const [deleteSeatMode, setDeleteSeatMode] = useState(false);
   const [applyingDefault, setApplyingDefault] = useState(false);
+  const [showAddBlock, setShowAddBlock] = useState(false);
+  const [addingBlock, setAddingBlock] = useState(false);
 
   const dragTypeRef = useRef(null);
   const idCounter = useRef(100);
@@ -224,7 +226,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       toast.success(isAr ? 'تم حذف المخطط' : 'Layout cleared');
     } catch (err) {
       const msg = err?.response?.data?.message;
-      toast.error(msg || (isAr ? 'تعذّر حذف المخطط' : 'Could not clear layout'));
+      toast.error(err.message || msg || (isAr ? 'تعذّر حذف المخطط' : 'Could not clear layout'));
     } finally {
       setClearingLayout(false);
       setShowClearConfirm(false);
@@ -254,6 +256,62 @@ export default function useVenueEditor({ lang, activeEventId }) {
       toast.error(msg || (isAr ? 'تعذّر تطبيق المخطط الافتراضي' : 'Could not apply default layout'));
     } finally {
       setApplyingDefault(false);
+    }
+  }
+
+  // Adds one more block directly via the API — persisted immediately (unlike
+  // addTable, which only stages an element locally until "Save layout"). Only
+  // valid once this event/session already has its own saved box — the backend
+  // endpoint doesn't create one on the fly, it only adds to an existing box.
+  async function addVenueBlock({ label, category, rows, seatsPerRow }) {
+    if (!activeEventId) {
+      toast.error(isAr ? 'يرجى اختيار فعالية أولاً' : 'Select an event first');
+      return false;
+    }
+    if (!isGuid(activeVenue?.id)) {
+      toast.error(isAr ? 'هذا المكان غير محفوظ على الخادم' : 'This venue is not saved to the server yet');
+      return false;
+    }
+    if (!activeBoxId) {
+      toast.error(isAr ? 'يرجى حفظ التخطيط أولاً لإنشاء صندوق لهذه الفعالية' : 'Save the layout first to create a box for this event');
+      return false;
+    }
+    setAddingBlock(true);
+    try {
+      // Walk the same stacking sequence blocks fall back to (see boxToTables)
+      // and take the first slot no existing block already occupies — the
+      // backend rejects an exact (X, Y) clash, so this avoids handing back a
+      // position that's already taken (e.g. after a block was moved/removed).
+      const taken = new Set(tables.filter(t => t.type === 'stadium').map(t => `${t.x}:${t.y}`));
+      let i = 0, x, y;
+      do {
+        x = 10 + (i % 4) * 320;
+        y = 10 + Math.floor(i / 4) * 200;
+        i++;
+      } while (taken.has(`${x}:${y}`));
+
+      const result = await addVenueBlockApi(activeEventId, selectedSessionId || null, activeVenue.id, {
+        label,
+        category: category || null,
+        x, y,
+        rotation: 0,
+        rows,
+        seatsPerRow,
+      });
+      const box = pickBox(result?.venueBoxes, activeEventId, selectedSessionId || null);
+      if (box) {
+        setTables(boxToTables(box));
+        setVenues(prev => prev.map(v => v.id === activeVenueId ? { ...v, hasAnyLayout: true } : v));
+      }
+      toast.success(isAr ? 'تمت إضافة القسم' : 'Block added');
+      setShowAddBlock(false);
+      return true;
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      toast.error(msg || (isAr ? 'تعذّر إضافة القسم' : 'Could not add block'));
+      return false;
+    } finally {
+      setAddingBlock(false);
     }
   }
 
@@ -294,7 +352,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       setPendingDeleteVenueId(null);
     } catch (err) {
       const msg = err?.response?.data?.message;
-      toast.error(msg || (isAr ? 'تعذّر حذف المكان' : 'Could not delete venue'));
+      toast.error(err.message || msg || (isAr ? 'تعذّر حذف المكان' : 'Could not delete venue'));
     } finally {
       setDeletingVenue(false);
     }
@@ -308,6 +366,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
     sessions, selectedSessionId, setSelectedSessionId,
     canvasSize, boxWidth: activeVenue.boxWidth, boxHeight: activeVenue.boxHeight, setBoxSize,
     hasAnyLayout: activeVenue.hasAnyLayout, applyingDefault, applyDefaultLayout,
+    showAddBlock, setShowAddBlock, addingBlock, addVenueBlock,
     zoom, setZoom, zoomIn, zoomOut, zoomReset,
     saved, savingLayout, clearingLayout, deletingVenue,
     showClearConfirm, setShowClearConfirm,

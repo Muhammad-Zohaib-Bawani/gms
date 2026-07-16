@@ -20,3 +20,10 @@ export const deleteVenueBox = (id, { venueId, eventId, sessionId }) =>
 // Delete a venue outright. The backend refuses (409) if any of its seats are
 // already assigned to a guest, or if it has event seating data.
 export const deleteVenue = (id) => apiClient.delete(ENDPOINTS.venues.byId(id));
+
+// Add one more stadium block to the VenueBox already saved for this venue/event/session.
+// Returns the full venue (with updated VenueBoxes) — same shape as getVenue.
+export const addVenueBlock = (eventId, sessionId, venueId, body) =>
+  apiClient.post(ENDPOINTS.venues.addBlock(eventId), body, {
+    params: { sessionId: sessionId || undefined, venueId },
+  });

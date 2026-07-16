@@ -25,7 +25,7 @@ const DIR_PRESETS = [
 export default function VenueFullScreenView({ venueId, eventId, sessionId, lang }) {
   const isAr = lang === 'ar';
   const [tables, setTables] = useState(null); // null = still loading
-  const [planSize, setPlanSize] = useState({ w: 1400, h: 900 });
+  const [planSize, setPlanSize] = useState({ w: 1000, h: 600 });
   const [venueName, setVenueName] = useState('');
   const [venueBoxId, setVenueBoxId] = useState(null);
   const [assignments, setAssignments] = useState({}); // seatId -> guestId
