@@ -233,7 +233,7 @@ export default function ConfigPanel({
               );
             })()}
 
-            {hasSeats && (
+            {/* {hasSeats && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <div style={{ height: 1, background: 'var(--glass-border)' }}/>
                 <button className="btn" style={{ width: '100%', justifyContent: 'center', ...(deleteSeatMode ? { background: 'rgba(220,70,70,0.1)', color: '#e05555', borderColor: 'rgba(220,70,70,0.3)' } : {}) }}
@@ -251,7 +251,7 @@ export default function ConfigPanel({
                   </div>
                 )}
               </div>
-            )}
+            )} */}
 
             <button className="btn" style={{ width: '100%', justifyContent: 'center', color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
               onClick={() => removeTable(selectedTable.id)}>

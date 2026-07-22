@@ -85,10 +85,22 @@ export const ENDPOINTS = {
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
   },
 
+  travelLogistics: {
+    createBooking: '/v1/TravelLogistics',
+  },
+
+  locations: {
+    create: '/v1/Location',
+  },
+
   meetings: {
     base: '/v1/meeting',
     // The route param is named "id" backend-side, but it's really the eventId —
     // this returns every meeting scoped to that event, not one meeting by its own id.
     byEvent: (eventId) => `/v1/meeting/${eventId}`,
+  },
+
+  dashboard: {
+    byEvent: (eventId) => `/v1/Dashboard/${eventId}`,
   },
 };

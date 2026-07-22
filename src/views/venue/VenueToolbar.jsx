@@ -72,11 +72,11 @@ export default function VenueToolbar({
           <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
             {t.canvasSize}
           </span>
-          <input type="number" min={1} style={numInputStyle} value={boxWidth || ''}
+          <input type="number" min={300} style={numInputStyle} value={boxWidth || ''}
             placeholder={String(canvasSize.w)}
             onChange={e => patchSize({ w: e.target.value ? +e.target.value : null })}/>
           <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>×</span>
-          <input type="number" min={1} style={numInputStyle} value={boxHeight || ''}
+          <input type="number" min={300} style={numInputStyle} value={boxHeight || ''}
             placeholder={String(canvasSize.h)}
             onChange={e => patchSize({ h: e.target.value ? +e.target.value : null })}/>
           <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>px</span>

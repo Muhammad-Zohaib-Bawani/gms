@@ -7,7 +7,7 @@ import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
-import { createMeeting, getMeetings } from '../api/services/meetingService.js';
+import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
 import { listGuests } from '../api/services/guestService.js';
 
 const ANCHOR = new Date();
@@ -63,6 +63,9 @@ export default function MeetingsView({ lang, activeEventId }) {
     meetingDetail: 'تفاصيل الاجتماع',
     noEvent: 'اختر فعالية أولاً',
     created: 'تم إنشاء الاجتماع بنجاح',
+    editMeeting: 'تعديل الاجتماع', editTitle: 'تعديل الاجتماع',
+    update: 'تحديث', updating: 'جارٍ التحديث…', updated: 'تم تحديث الاجتماع بنجاح',
+    dateLocked: 'لا يمكن تغيير تاريخ الاجتماع بعد إنشائه',
   } : {
     title: 'Meetings',
     sub: 'Weekly schedule · bilateral and working group management',
@@ -85,6 +88,9 @@ export default function MeetingsView({ lang, activeEventId }) {
     meetingDetail: 'Meeting detail',
     noEvent: 'Select an event first',
     created: 'Meeting created successfully',
+    editMeeting: 'Edit meeting', editTitle: 'Edit Meeting',
+    update: 'Update', updating: 'Updating…', updated: 'Meeting updated successfully',
+    dateLocked: "A meeting's date can't be changed after it's created",
   };
 
   const [meetings, setMeetings] = useState([]);
@@ -97,6 +103,7 @@ export default function MeetingsView({ lang, activeEventId }) {
   const [newAttendees, setNewAttendees] = useState([]);
   const [attendeeSearch, setAttendeeSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editingMeetingId, setEditingMeetingId] = useState(null);
   const calendarRef = useRef(null);
 
   useEffect(() => {
@@ -131,30 +138,78 @@ export default function MeetingsView({ lang, activeEventId }) {
     textColor: '#fff',
   })), [meetings]);
 
+  function resetMeetingForm() {
+    setShowNew(false);
+    setNewStep(1);
+    setEditingMeetingId(null);
+    setNewForm({ title:'', date: todayStr(), startTime:'09:00', endTime:'10:00', location:'' });
+    setNewNotes('');
+    setNewAttendees([]);
+    setAttendeeSearch('');
+  }
+
+  function openNewMeeting(prefilledDate) {
+    resetMeetingForm();
+    if (prefilledDate) setNewForm(f => ({ ...f, date: prefilledDate }));
+    setShowNew(true);
+  }
+
+  function openEditMeeting(meeting) {
+    setEditingMeetingId(meeting.id);
+    setNewForm({
+      title: meeting.title, date: meeting.date,
+      startTime: meeting.startTime, endTime: meeting.endTime, location: meeting.location,
+    });
+    setNewNotes(meeting.notes);
+    // The edit form's attendee chips render firstName/lastName (matching the
+    // real guest-list shape); the meeting's own guests only carry a full name.
+    setNewAttendees(meeting.guests.map(g => {
+      const [firstName, ...rest] = g.name.split(' ');
+      return { id: g.id, firstName, lastName: rest.join(' ') };
+    }));
+    setAttendeeSearch('');
+    setNewStep(1);
+    setSelectedMeeting(null);
+    setShowNew(true);
+  }
+
   async function saveNewMeeting() {
     if (!activeEventId) { toast.error(STR.noEvent); return; }
     setSaving(true);
     try {
-      const res = await createMeeting({
-        eventId: activeEventId,
-        name: newForm.title,
-        date: newForm.date,
-        location: newForm.location || null,
-        startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
-        endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
-        meetingAgenda: newNotes || null,
-        guestIds: newAttendees.map(g => g.id),
-      });
-      setMeetings(prev => [...prev, mapMeeting(res)]);
-      setShowNew(false);
-      setNewStep(1);
-      setNewForm({ title:'', date: todayStr(), startTime:'09:00', endTime:'10:00', location:'' });
-      setNewNotes('');
-      setNewAttendees([]);
-      setAttendeeSearch('');
-      toast.success(STR.created);
+      const guestIds = newAttendees.map(g => g.id);
+      if (editingMeetingId) {
+        const res = await editMeeting({
+          meetId: editingMeetingId,
+          eventId: activeEventId,
+          name: newForm.title,
+          location: newForm.location || null,
+          startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
+          endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
+          agenda: newNotes || null,
+          guestIds,
+        });
+        setMeetings(prev => prev.map(m => m.id === editingMeetingId ? mapMeeting(res) : m));
+        toast.success(STR.updated);
+      } else {
+        const res = await createMeeting({
+          eventId: activeEventId,
+          name: newForm.title,
+          date: newForm.date,
+          location: newForm.location || null,
+          startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
+          endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
+          meetingAgenda: newNotes || null,
+          guestIds,
+        });
+        setMeetings(prev => [...prev, mapMeeting(res)]);
+        toast.success(STR.created);
+      }
+      resetMeetingForm();
     } catch (err) {
-      toast.fromError(err, isAr ? 'حدث خطأ أثناء إنشاء الاجتماع' : 'Error creating meeting');
+      toast.fromError(err, editingMeetingId
+        ? (isAr ? 'حدث خطأ أثناء تحديث الاجتماع' : 'Error updating meeting')
+        : (isAr ? 'حدث خطأ أثناء إنشاء الاجتماع' : 'Error creating meeting'));
     } finally {
       setSaving(false);
     }
@@ -177,7 +232,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           <div className="page-sub">{STR.sub}</div>
         </div>
         <div className="page-actions">
-          <button className="btn primary" onClick={() => { setShowNew(true); setNewStep(1); }}>
+          <button className="btn primary" onClick={() => openNewMeeting()}>
             <Icon name="plus" size={14}/> {STR.newMeeting}
           </button>
         </div>
@@ -202,11 +257,7 @@ export default function MeetingsView({ lang, activeEventId }) {
               const m = meetings.find(x => x.id === info.event.id);
               if (m) setSelectedMeeting(m);
             }}
-            dateClick={(info) => {
-              setNewForm(f => ({ ...f, date: info.dateStr.slice(0, 10) }));
-              setNewStep(1);
-              setShowNew(true);
-            }}
+            dateClick={(info) => openNewMeeting(info.dateStr.slice(0, 10))}
             direction={isAr ? 'rtl' : 'ltr'}
           />
         </div>
@@ -268,7 +319,12 @@ export default function MeetingsView({ lang, activeEventId }) {
           <div className="drawer open" style={{ width: 380, zIndex: 500 }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--ink-mute)' }}>{STR.meetingDetail}</div>
-              <button className="icon-btn" onClick={() => setSelectedMeeting(null)}><Icon name="close" size={14}/></button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="icon-btn" title={STR.editMeeting} onClick={() => openEditMeeting(selectedMeeting)}>
+                  <Icon name="edit" size={14}/>
+                </button>
+                <button className="icon-btn" onClick={() => setSelectedMeeting(null)}><Icon name="close" size={14}/></button>
+              </div>
             </div>
             <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
@@ -309,7 +365,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           <div className="card glass" style={{ width: 520, maxWidth: '90vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ margin: 0 }}>{STR.newTitle}</h3>
+                <h3 style={{ margin: 0 }}>{editingMeetingId ? STR.editTitle : STR.newTitle}</h3>
                 <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                   {[STR.step1, STR.step2, STR.step3].map((l, i) => (
                     <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: newStep === i+1 ? 'var(--accent)' : newStep > i+1 ? 'var(--ink-dim)' : 'var(--ink-mute)' }}>
@@ -322,7 +378,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                   ))}
                 </div>
               </div>
-              <button className="icon-btn" onClick={() => setShowNew(false)}><Icon name="close" size={14}/></button>
+              <button className="icon-btn" onClick={resetMeetingForm}><Icon name="close" size={14}/></button>
             </div>
 
             <div style={{ padding: '20px 22px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -336,7 +392,11 @@ export default function MeetingsView({ lang, activeEventId }) {
                   </div>
                   <div>
                     <label style={labelStyle}>{STR.date}</label>
-                    <input type="date" style={inputStyle} value={newForm.date} onChange={e => setNewForm(f => ({...f, date: e.target.value}))}/>
+                    <input type="date" style={inputStyle} value={newForm.date} disabled={!!editingMeetingId}
+                      onChange={e => setNewForm(f => ({...f, date: e.target.value}))}/>
+                    {editingMeetingId && (
+                      <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', fontStyle: 'italic', marginTop: 4 }}>{STR.dateLocked}</div>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
@@ -411,7 +471,7 @@ export default function MeetingsView({ lang, activeEventId }) {
             </div>
 
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-              <button className="btn" onClick={() => newStep > 1 ? setNewStep(s => s - 1) : setShowNew(false)}>
+              <button className="btn" onClick={() => newStep > 1 ? setNewStep(s => s - 1) : resetMeetingForm()}>
                 {newStep > 1 ? <><Icon name="arrowLeft" size={13}/> {STR.back}</> : STR.cancel}
               </button>
               {newStep < 3 ? (
@@ -420,7 +480,8 @@ export default function MeetingsView({ lang, activeEventId }) {
                 </button>
               ) : (
                 <button className="btn primary" onClick={saveNewMeeting} disabled={saving}>
-                  <Icon name="check" size={13}/> {saving ? STR.saving : STR.save}
+                  <Icon name="check" size={13}/>
+                  {editingMeetingId ? (saving ? STR.updating : STR.update) : (saving ? STR.saving : STR.save)}
                 </button>
               )}
             </div>

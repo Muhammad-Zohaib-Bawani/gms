@@ -1,8 +1,12 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { GUESTS } from '../data/mockData.js';
 import { Icon } from '../components/Icons.jsx';
+import toast from '../lib/toast.js';
+import { listGuests } from '../api/services/guestService.js';
+import { createBooking } from '../api/services/travelService.js';
+import LocationPickerModal from '../components/ui/LocationPickerModal.jsx';
 
 // ─── Seed helpers ─────────────────────────────────────────────────────────────
 const HAYYA_ST  = ['approved','approved','approved','submitted','approved','pending','approved','rejected'];
@@ -63,6 +67,11 @@ const STATUS_COLOR = {
 
 const HOTEL_LIST = ['Sheraton Grand','Mondrian Doha','Mandarin Oriental','St. Regis','Four Seasons'];
 
+function initialsFromName(name) {
+  const parts = (name || '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
+}
+
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
 function StatusChip({ status, label }) {
@@ -87,7 +96,7 @@ function SearchInput({ value, onChange, placeholder }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function TravelView({ lang }) {
+export default function TravelView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const fmtN = n => fmtNum(n, lang);
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
@@ -198,22 +207,66 @@ export default function TravelView({ lang }) {
   const [bookStep, setBookStep] = useState(1);
   const [bookType, setBookType] = useState(0);
   const [bookGuest, setBookGuest] = useState('');
+  const [bookGuestId, setBookGuestId] = useState('');
   const [guestSearch, setGuestSearch] = useState('');
   const [bookings, setBookings] = useState([]);
+  const [savingBooking, setSavingBooking] = useState(false);
+  const [realGuests, setRealGuests] = useState([]);
   const [flightData, setFlightData] = useState({ flightNum:'QR512',from:'DOH',to:'LHR',date:'2025-12-09' });
   const [hotelData, setHotelData]   = useState({ hotel:'Sheraton Grand',checkIn:'2025-12-06',checkOut:'2025-12-10',roomType:'Deluxe King' });
-  const [transferData, setTransferData] = useState({ vehicle:'VIP Sedan',driver:'',pickup:'Hamad Intl Airport',dropoff:'Sheraton Grand' });
+  // pickup/dropoff hold { id, label } once picked on the map — null until then.
+  const [transferData, setTransferData] = useState({ vehicle:'VIP Sedan',driver:'',pickup:null,dropoff:null });
+  const [showLocationPicker, setShowLocationPicker] = useState(null); // 'pickup' | 'dropoff' | null
+
+  // Real guests for this event — fetched once the booking modal is opened
+  // (the picker used to search the local GUESTS mock data).
+  useEffect(() => {
+    if (!showNewBooking || !activeEventId) return;
+    listGuests({ eventId: activeEventId, pageSize: 200 })
+      .then(res => setRealGuests(res?.items || []))
+      .catch(() => setRealGuests([]));
+  }, [showNewBooking, activeEventId]);
 
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1); setBookType(0);
-    setBookGuest(''); setGuestSearch('');
+    setBookGuest(''); setBookGuestId(''); setGuestSearch('');
     setFlightData({ flightNum:'QR512',from:'DOH',to:'LHR',date:'2025-12-09' });
     setHotelData({ hotel:'Sheraton Grand',checkIn:'2025-12-06',checkOut:'2025-12-10',roomType:'Deluxe King' });
-    setTransferData({ vehicle:'VIP Sedan',driver:'',pickup:'Hamad Intl Airport',dropoff:'Sheraton Grand' });
+    setTransferData({ vehicle:'VIP Sedan',driver:'',pickup:null,dropoff:null });
   }
-  function saveBooking() {
-    setBookings(prev => [...prev, { guest:bookGuest, type:STR.bookingTypes[bookType] }]);
-    setShowNewBooking(false); setBookStep(1); setBookGuest(''); setGuestSearch('');
+
+  async function saveBooking() {
+    if (!activeEventId || !bookGuestId) return;
+    const base = { eventId: activeEventId, guestId: bookGuestId };
+    // bookType: 0 = Flight, 1 = Hotel, 2 = Ground Transfer — matches the
+    // backend's Core.Constants.BookingTypes string values.
+    const payload = bookType === 0 ? {
+      ...base, bookingType: 'flight',
+      flightNumber: flightData.flightNum, flightDate: flightData.date,
+      flightDeparture: flightData.from, flightArrival: flightData.to,
+    } : bookType === 1 ? {
+      ...base, bookingType: 'hotel',
+      hotelCheckIn: hotelData.checkIn, hotelCheckOut: hotelData.checkOut, roomType: hotelData.roomType,
+      // NOTE: hotelData.hotel is just a display name — the backend expects a
+      // real HotelId and there's no hotel lookup/endpoint yet, so it isn't sent.
+    } : {
+      ...base, bookingType: 'byRoad',
+      vehicleType: transferData.vehicle, driverName: transferData.driver,
+      pickupLocationId: transferData.pickup?.id || null,
+      dropoffLocationId: transferData.dropoff?.id || null,
+    };
+
+    setSavingBooking(true);
+    try {
+      await createBooking(payload);
+      setBookings(prev => [...prev, { guest: bookGuest, type: STR.bookingTypes[bookType] }]);
+      setShowNewBooking(false); setBookStep(1); setBookGuest(''); setBookGuestId(''); setGuestSearch('');
+      toast.success(isAr ? 'تم إنشاء الحجز بنجاح' : 'Booking created successfully');
+    } catch (err) {
+      toast.fromError(err, isAr ? 'حدث خطأ أثناء إنشاء الحجز' : 'Error creating booking');
+    } finally {
+      setSavingBooking(false);
+    }
   }
 
   // ── Sync ────────────────────────────────────────────────────────────────────
@@ -244,7 +297,9 @@ export default function TravelView({ lang }) {
     return s && st;
   }), [transferRows, tSearch, tStatus]);
 
-  const filteredGuests = GUESTS.filter(g => !guestSearch || g.name.toLowerCase().includes(guestSearch.toLowerCase())).slice(0, 6);
+  const filteredGuests = realGuests
+    .filter(g => !guestSearch || `${g.firstName} ${g.lastName}`.toLowerCase().includes(guestSearch.toLowerCase()))
+    .slice(0, 6);
 
   const hayyaCounts = {
     approved: flightRows.filter(f=>f.hayyaStatus==='approved').length,
@@ -800,19 +855,28 @@ export default function TravelView({ lang }) {
                     <label style={lSt}>{isAr?'الضيف':'Guest'}</label>
                     <input placeholder={STR.guestSearch} value={guestSearch} onChange={e => setGuestSearch(e.target.value)} style={iSt}/>
                     <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto', marginTop:8 }}>
-                      {filteredGuests.map(g => (
-                        <div key={g.id} onClick={() => setBookGuest(g.name)}
-                          style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
-                            border:`1px solid ${bookGuest===g.name?'var(--accent)':'var(--glass-border)'}`,
-                            background:bookGuest===g.name?'rgba(26,174,196,0.12)':'var(--surface-soft-2)' }}>
-                          <Avatar initials={g.initials} size={28} tier={g.tier}/>
-                          <div>
-                            <div style={{ fontSize:13, fontWeight:500 }}>{g.name}</div>
-                            <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
+                      {filteredGuests.map(g => {
+                        const fullName = `${g.firstName} ${g.lastName}`.trim();
+                        const selected = bookGuestId === g.id;
+                        return (
+                          <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}
+                            style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                              border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
+                              background:selected?'rgba(26,174,196,0.12)':'var(--surface-soft-2)' }}>
+                            <Avatar initials={initialsFromName(fullName)} size={28} tier={g.tier}/>
+                            <div>
+                              <div style={{ fontSize:13, fontWeight:500 }}>{fullName}</div>
+                              <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
+                            </div>
+                            {selected && <Icon name="check" size={13} style={{ marginLeft:'auto', color:'var(--accent)' }}/>}
                           </div>
-                          {bookGuest===g.name && <Icon name="check" size={13} style={{ marginLeft:'auto', color:'var(--accent)' }}/>}
+                        );
+                      })}
+                      {filteredGuests.length === 0 && (
+                        <div style={{ padding:'12px', textAlign:'center', color:'var(--ink-mute)', fontSize:12 }}>
+                          {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </>
@@ -856,8 +920,22 @@ export default function TravelView({ lang }) {
                     </select>
                   </div>
                   <div><label style={lSt}>{STR.driver}</label><input style={iSt} value={transferData.driver} onChange={e => setTransferData(d=>({...d,driver:e.target.value}))}/></div>
-                  <div><label style={lSt}>{STR.pickupLoc}</label><input style={iSt} value={transferData.pickup} onChange={e => setTransferData(d=>({...d,pickup:e.target.value}))}/></div>
-                  <div><label style={lSt}>{STR.dropoffLoc}</label><input style={iSt} value={transferData.dropoff} onChange={e => setTransferData(d=>({...d,dropoff:e.target.value}))}/></div>
+                  <div>
+                    <label style={lSt}>{STR.pickupLoc}</label>
+                    <button type="button" onClick={() => setShowLocationPicker('pickup')}
+                      style={{ ...iSt, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: transferData.pickup ? 'var(--ink)' : 'var(--ink-mute)' }}>
+                      <Icon name="venue" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
+                      {transferData.pickup?.label || (isAr ? 'اختر على الخريطة…' : 'Pick on map…')}
+                    </button>
+                  </div>
+                  <div>
+                    <label style={lSt}>{STR.dropoffLoc}</label>
+                    <button type="button" onClick={() => setShowLocationPicker('dropoff')}
+                      style={{ ...iSt, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: transferData.dropoff ? 'var(--ink)' : 'var(--ink-mute)' }}>
+                      <Icon name="venue" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
+                      {transferData.dropoff?.label || (isAr ? 'اختر على الخريطة…' : 'Pick on map…')}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -867,18 +945,25 @@ export default function TravelView({ lang }) {
                 {bookStep>1?<><Icon name="arrowLeft" size={13}/> {STR.back}</>:STR.cancel2}
               </button>
               {bookStep < 2 ? (
-                <button className="btn primary" onClick={() => setBookStep(2)} disabled={!bookGuest}>
+                <button className="btn primary" onClick={() => setBookStep(2)} disabled={!bookGuestId}>
                   {STR.next} <Icon name="arrow" size={13}/>
                 </button>
               ) : (
-                <button className="btn primary" onClick={saveBooking}>
-                  <Icon name="check" size={13}/> {STR.save}
+                <button className="btn primary" onClick={saveBooking} disabled={savingBooking}>
+                  <Icon name="check" size={13}/> {savingBooking ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : STR.save}
                 </button>
               )}
             </div>
           </div>
         </div>
       )}
+
+      <LocationPickerModal
+        open={!!showLocationPicker}
+        onClose={() => setShowLocationPicker(null)}
+        lang={lang}
+        onSelect={(loc) => setTransferData(d => ({ ...d, [showLocationPicker]: loc }))}
+      />
     </div>
   );
 }
