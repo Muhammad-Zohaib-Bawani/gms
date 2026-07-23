@@ -15,7 +15,6 @@ const LANG_OPTIONS = [
 const LANG_LABELS = { en: 'EN', ar: 'AR', both: 'EN/AR' };
 const TIER_OPTIONS = TIERS.map(t => ({ value: t, label: t }));
 
-// NEW: body type options (plain text vs raw HTML)
 const BODY_TYPE_OPTIONS_EN = [
   { value: 'text', label: 'Plain text' },
   { value: 'html', label: 'Raw HTML' },
@@ -28,7 +27,7 @@ const BODY_TYPE_OPTIONS_AR = [
 const EMPTY_FORM = {
   name: '', nameAr: '', language: 'en',
   subject: '', subjectAr: '', body: '', bodyAr: '',
-  bodyType: 'text', // NEW
+  bodyType: 'text',
   color: TEMPLATE_COLORS[0], targetTiers: [],
 };
 
@@ -39,6 +38,159 @@ function validate(form) {
   if (form.language !== 'en' && !form.subjectAr.trim()) errors.subjectAr = true;
   return errors;
 }
+
+const inputStyleBase = {
+  width: '100%', background: 'var(--surface-soft-3)',
+  border: '1px solid var(--glass-border)', borderRadius: 8,
+  padding: '8px 12px', color: 'var(--ink)', fontSize: 13,
+};
+const errMsgStyle = { fontSize: 11, color: '#e05050', marginTop: 3 };
+
+// ── Moved OUTSIDE the main component so they don't get recreated on every render ──
+
+function FieldLabel({ children }) {
+  return (
+    <label style={{ display: 'block', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
+      {children}
+    </label>
+  );
+}
+
+function ColorPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {TEMPLATE_COLORS.map(c => (
+        <div
+          key={c}
+          onClick={() => onChange(c)}
+          style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', outline: value === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
+  const showAr = form.language !== 'en';
+  const inputStyle = inputStyleBase;
+  const errorBorder = { ...inputStyleBase, borderColor: '#e05050' };
+
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
+        <div>
+          <FieldLabel>{STR.name} *</FieldLabel>
+          <input
+            style={errors.name ? errorBorder : inputStyle}
+            value={form.name}
+            onChange={e => setField('name', e.target.value)}
+            placeholder={isAr ? 'مثال: دعوة رسمية' : 'e.g. Official Invite'}
+          />
+          {errors.name && <div style={errMsgStyle}>{STR.required}</div>}
+        </div>
+        <div>
+          <FieldLabel>{STR.language}</FieldLabel>
+          <Select
+            value={form.language}
+            onChange={v => setField('language', v)}
+            options={LANG_OPTIONS}
+            placeholder={STR.selectPlaceholder}
+          />
+        </div>
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{STR.nameAr}</FieldLabel>
+          <input style={inputStyle} value={form.nameAr || ''} onChange={e => setField('nameAr', e.target.value)} dir="rtl" placeholder="مثال: دعوة رسمية"/>
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{STR.subject} *</FieldLabel>
+        <input
+          style={errors.subject ? errorBorder : inputStyle}
+          value={form.subject}
+          onChange={e => setField('subject', e.target.value)}
+          placeholder={isAr ? 'موضوع الدعوة' : 'Invitation subject'}
+        />
+        {errors.subject && <div style={errMsgStyle}>{STR.required}</div>}
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{STR.subjectAr} *</FieldLabel>
+          <input
+            style={errors.subjectAr ? errorBorder : inputStyle}
+            value={form.subjectAr || ''}
+            onChange={e => setField('subjectAr', e.target.value)}
+            dir="rtl"
+            placeholder="موضوع الدعوة"
+          />
+          {errors.subjectAr && <div style={errMsgStyle}>{STR.required}</div>}
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{STR.bodyType}</FieldLabel>
+        <Select
+          value={form.bodyType || 'text'}
+          onChange={v => setField('bodyType', v)}
+          options={bodyTypeOptions}
+          placeholder={STR.selectPlaceholder}
+        />
+      </div>
+
+      <div>
+        <FieldLabel>{STR.body}</FieldLabel>
+        <textarea
+          rows={4}
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
+          value={form.body || ''}
+          onChange={e => setField('body', e.target.value)}
+          placeholder={
+            form.bodyType === 'html'
+              ? '<p>Dear {{GuestName}},</p>'
+              : (isAr ? 'عزيزي {{GuestName}}،' : 'Dear {{GuestName}},')
+          }
+        />
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{STR.bodyAr}</FieldLabel>
+          <textarea
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
+            value={form.bodyAr || ''}
+            onChange={e => setField('bodyAr', e.target.value)}
+            dir="rtl"
+            placeholder={form.bodyType === 'html' ? '<p>عزيزي {{GuestName}}،</p>' : 'عزيزي {{GuestName}}،'}
+          />
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{STR.color}</FieldLabel>
+        <ColorPicker value={form.color} onChange={v => setField('color', v)}/>
+      </div>
+
+      <div>
+        <FieldLabel>{STR.targetTiers}</FieldLabel>
+        <Select
+          isMulti
+          value={form.targetTiers || []}
+          onChange={v => setField('targetTiers', v)}
+          options={TIER_OPTIONS}
+          placeholder={STR.selectPlaceholder}
+          isClearable
+        />
+      </div>
+    </>
+  );
+}
+
+// ── Main component ──
 
 export default function InvitationsView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
@@ -55,7 +207,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     name: 'اسم القالب', nameAr: 'الاسم (عربي)', language: 'اللغة',
     subject: 'سطر الموضوع', subjectAr: 'الموضوع (عربي)',
     body: 'نص الرسالة', bodyAr: 'النص (عربي)',
-    bodyType: 'نوع المحتوى', // NEW
+    bodyType: 'نوع المحتوى',
     color: 'اللون', targetTiers: 'الفئات المستهدفة',
     saveChanges: 'حفظ التغييرات', editTitle: 'تعديل القالب',
     deleteTitle: 'تأكيد الحذف',
@@ -74,7 +226,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     pageTitle: ['Invitation', 'lifecycle'],
     pageSub: 'Design · automate · track delivery across channels',
     newTemplate: 'New template',
-    tabs: { templates: 'Templates',  builder: 'Builder' },
+    tabs: { templates: 'Templates', builder: 'Builder' },
     edit: 'Edit', delete: 'Delete', cancel: 'Cancel',
     create: 'Create template', loading: 'Loading…',
     noTemplates: 'No templates yet — create one from the Builder tab',
@@ -82,7 +234,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     name: 'Template name', nameAr: 'Name (AR)', language: 'Language',
     subject: 'Subject line', subjectAr: 'Subject (AR)',
     body: 'Body', bodyAr: 'Body (AR)',
-    bodyType: 'Content type', // NEW
+    bodyType: 'Content type',
     color: 'Color', targetTiers: 'Target tiers',
     saveChanges: 'Save changes', editTitle: 'Edit Template',
     deleteTitle: 'Confirm Delete',
@@ -99,15 +251,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     selectPlaceholder: '— Select —',
   };
 
-  const BODY_TYPE_OPTIONS = isAr ? BODY_TYPE_OPTIONS_AR : BODY_TYPE_OPTIONS_EN; // NEW
-
-  const inputStyle = {
-    width: '100%', background: 'var(--surface-soft-3)',
-    border: '1px solid var(--glass-border)', borderRadius: 8,
-    padding: '8px 12px', color: 'var(--ink)', fontSize: 13,
-  };
-  const errorBorder = { ...inputStyle, borderColor: '#e05050' };
-  const errMsg = { fontSize: 11, color: '#e05050', marginTop: 3 };
+  const BODY_TYPE_OPTIONS = isAr ? BODY_TYPE_OPTIONS_AR : BODY_TYPE_OPTIONS_EN;
 
   // ── state ──────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState('templates');
@@ -156,7 +300,7 @@ export default function InvitationsView({ lang, activeEventId }) {
         subjectAr:  builder.subjectAr.trim() || null,
         body:       builder.body.trim() || null,
         bodyAr:     builder.bodyAr.trim() || null,
-        bodyType:   builder.bodyType, // NEW
+        bodyType:   builder.bodyType,
         color:      builder.color,
         targetTiers: builder.targetTiers,
       });
@@ -182,7 +326,7 @@ export default function InvitationsView({ lang, activeEventId }) {
       subjectAr:   tmpl.subjectAr || '',
       body:        tmpl.body || '',
       bodyAr:      tmpl.bodyAr || '',
-      bodyType:    tmpl.bodyType || 'text', // NEW
+      bodyType:    tmpl.bodyType || 'text',
       color:       tmpl.color || TEMPLATE_COLORS[0],
       targetTiers: tmpl.targetTiers || [],
     });
@@ -205,7 +349,7 @@ export default function InvitationsView({ lang, activeEventId }) {
         subjectAr:   editForm.subjectAr.trim() || null,
         body:        editForm.body.trim() || null,
         bodyAr:      editForm.bodyAr.trim() || null,
-        bodyType:    editForm.bodyType, // NEW
+        bodyType:    editForm.bodyType,
         color:       editForm.color,
         targetTiers: editForm.targetTiers,
       });
@@ -309,147 +453,6 @@ export default function InvitationsView({ lang, activeEventId }) {
     },
   ], [isAr, STR, openEdit]);
 
-  // ── form field helpers ─────────────────────────────────────────────────────
-  function FieldLabel({ children }) {
-    return (
-      <label style={{ display: 'block', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
-        {children}
-      </label>
-    );
-  }
-
-  function ColorPicker({ value, onChange }) {
-    return (
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {TEMPLATE_COLORS.map(c => (
-          <div
-            key={c}
-            onClick={() => onChange(c)}
-            style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', outline: value === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  function TemplateForm({ form, setField, errors }) {
-    const showAr = form.language !== 'en';
-    return (
-      <>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
-          <div>
-            <FieldLabel>{STR.name} *</FieldLabel>
-            <input
-              style={errors.name ? errorBorder : inputStyle}
-              value={form.name}
-              onChange={e => setField('name', e.target.value)}
-              placeholder={isAr ? 'مثال: دعوة رسمية' : 'e.g. Official Invite'}
-            />
-            {errors.name && <div style={errMsg}>{STR.required}</div>}
-          </div>
-          <div>
-            <FieldLabel>{STR.language}</FieldLabel>
-            <Select
-              value={form.language}
-              onChange={v => setField('language', v)}
-              options={LANG_OPTIONS}
-              placeholder={STR.selectPlaceholder}
-            />
-          </div>
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.nameAr}</FieldLabel>
-            <input style={inputStyle} value={form.nameAr || ''} onChange={e => setField('nameAr', e.target.value)} dir="rtl" placeholder="مثال: دعوة رسمية"/>
-          </div>
-        )}
-
-        <div>
-          <FieldLabel>{STR.subject} *</FieldLabel>
-          <input
-            style={errors.subject ? errorBorder : inputStyle}
-            value={form.subject}
-            onChange={e => setField('subject', e.target.value)}
-            placeholder={isAr ? 'موضوع الدعوة' : 'Invitation subject'}
-          />
-          {errors.subject && <div style={errMsg}>{STR.required}</div>}
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.subjectAr} *</FieldLabel>
-            <input
-              style={errors.subjectAr ? errorBorder : inputStyle}
-              value={form.subjectAr || ''}
-              onChange={e => setField('subjectAr', e.target.value)}
-              dir="rtl"
-              placeholder="موضوع الدعوة"
-            />
-            {errors.subjectAr && <div style={errMsg}>{STR.required}</div>}
-          </div>
-        )}
-
-        {/* NEW: body type toggle */}
-        <div>
-          <FieldLabel>{STR.bodyType}</FieldLabel>
-          <Select
-            value={form.bodyType || 'text'}
-            onChange={v => setField('bodyType', v)}
-            options={BODY_TYPE_OPTIONS}
-            placeholder={STR.selectPlaceholder}
-          />
-        </div>
-
-        <div>
-          <FieldLabel>{STR.body}</FieldLabel>
-          <textarea
-            rows={4}
-            style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
-            value={form.body || ''}
-            onChange={e => setField('body', e.target.value)}
-            placeholder={
-              form.bodyType === 'html'
-                ? '<p>Dear {{GuestName}},</p>'
-                : (isAr ? 'عزيزي {{GuestName}}،' : 'Dear {{GuestName}},')
-            }
-          />
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.bodyAr}</FieldLabel>
-            <textarea
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
-              value={form.bodyAr || ''}
-              onChange={e => setField('bodyAr', e.target.value)}
-              dir="rtl"
-              placeholder={form.bodyType === 'html' ? '<p>عزيزي {{GuestName}}،</p>' : 'عزيزي {{GuestName}}،'}
-            />
-          </div>
-        )}
-
-        <div>
-          <FieldLabel>{STR.color}</FieldLabel>
-          <ColorPicker value={form.color} onChange={v => setField('color', v)}/>
-        </div>
-
-        <div>
-          <FieldLabel>{STR.targetTiers}</FieldLabel>
-          <Select
-            isMulti
-            value={form.targetTiers || []}
-            onChange={v => setField('targetTiers', v)}
-            options={TIER_OPTIONS}
-            placeholder={STR.selectPlaceholder}
-            isClearable
-          />
-        </div>
-      </>
-    );
-  }
-
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -471,7 +474,6 @@ export default function InvitationsView({ lang, activeEventId }) {
         ))}
       </div>
 
-      {/* ── TEMPLATES ── */}
       {tab === 'templates' && (
         <div className="card" style={{ padding: 0 }}>
           <DataTable
@@ -485,7 +487,6 @@ export default function InvitationsView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* ── BUILDER ── */}
       {tab === 'builder' && (
         <div className="cols-2-narrow">
           <div className="card">
@@ -493,7 +494,14 @@ export default function InvitationsView({ lang, activeEventId }) {
               <h3>{isAr ? 'قالب جديد' : 'New Template'}</h3>
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <TemplateForm form={builder} setField={(k, v) => { setB(k, v); setBuilderErrors(e => ({ ...e, [k]: false })); }} errors={builderErrors}/>
+              <TemplateForm
+                form={builder}
+                setField={(k, v) => { setB(k, v); setBuilderErrors(e => ({ ...e, [k]: false })); }}
+                errors={builderErrors}
+                isAr={isAr}
+                STR={STR}
+                bodyTypeOptions={BODY_TYPE_OPTIONS}
+              />
             </div>
             <div className="card-foot">
               <button className="btn primary" onClick={handleCreate} disabled={building}>
@@ -506,7 +514,6 @@ export default function InvitationsView({ lang, activeEventId }) {
             <div className="card-head">
               <h3>{STR.livePreview}</h3>
               <div style={{ display: 'flex', gap: 6 }}>
-                {/* NEW: shows the active content-type as a chip in the preview header */}
                 <span className="chip">
                   <span className="dot" style={{ background: builder.bodyType === 'html' ? 'var(--accent-2)' : 'var(--accent)' }}/>
                   {BODY_TYPE_OPTIONS.find(o => o.value === builder.bodyType)?.label}
@@ -527,7 +534,6 @@ export default function InvitationsView({ lang, activeEventId }) {
                 <div style={{ fontWeight: 600, marginBottom: 10 }}>
                   {builder.subject || (isAr ? 'سطر الموضوع…' : 'Subject line…')}
                 </div>
-                {/* NEW: render HTML bodies as actual HTML, plain text as pre-wrap text */}
                 {builder.bodyType === 'html' ? (
                   builder.body
                     ? <div style={{ color: 'var(--ink-dim)', lineHeight: 1.7, fontSize: 12 }} dangerouslySetInnerHTML={{ __html: builder.body }} />
@@ -558,16 +564,14 @@ export default function InvitationsView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* ── QUEUE ── */}
-      {/* {tab === 'queue' && (
+      {tab === 'queue' && (
         <div className="card" style={{ padding: '48px 20px', textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 14 }}>📬</div>
           <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>{STR.queueTitle}</div>
           <div style={{ fontSize: 13, color: 'var(--ink-mute)', maxWidth: 340, margin: '0 auto' }}>{STR.queueNote}</div>
         </div>
-      )} */}
+      )}
 
-      {/* ── EDIT MODAL ── */}
       {editTmpl && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card glass" style={{ width: 560, maxWidth: '92vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
@@ -576,7 +580,14 @@ export default function InvitationsView({ lang, activeEventId }) {
               <button className="icon-btn" onClick={() => setEditTmpl(null)}><Icon name="close" size={14}/></button>
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
-              <TemplateForm form={editForm} setField={(k, v) => { setEf(k, v); setEditErrors(e => ({ ...e, [k]: false })); }} errors={editErrors}/>
+              <TemplateForm
+                form={editForm}
+                setField={(k, v) => { setEf(k, v); setEditErrors(e => ({ ...e, [k]: false })); }}
+                errors={editErrors}
+                isAr={isAr}
+                STR={STR}
+                bodyTypeOptions={BODY_TYPE_OPTIONS}
+              />
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
               <button className="btn" onClick={() => setEditTmpl(null)}>{STR.cancel}</button>
@@ -588,7 +599,6 @@ export default function InvitationsView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* ── DELETE CONFIRM ── */}
       {deleteTmpl && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card glass" style={{ width: 420, maxWidth: '90vw', padding: 0 }}>
