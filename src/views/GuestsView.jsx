@@ -18,7 +18,7 @@ import AccreditationModal from './guests/modals/AccreditationModal';
 import DeleteGuestsModal  from './guests/modals/DeleteGuestsModal';
 import ImportModal        from './guests/modals/ImportModal';
 
-const TIERS = ['VVIP','VIP','Speaker','Delegate','Press','Observer'];
+const TIERS = ['vvip','vip','Speaker','Delegate','press','Observer'];
 
 export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const t    = getTranslations(lang);
@@ -225,7 +225,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 <Icon name="badge" size={14}/> {t.common?.issueAccreditation || 'Issue Accreditation'}
               </button>
               <button className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.4)' }} onClick={() => setShowDeleteGuests(true)}>
-                <Icon name="close" size={14}/> {isAr ? `حذف (${fmtN(selCount)})` : `Delete (${fmtN(selCount)})`}
+                <Icon name="trash" size={14}/> {isAr ? `حذف (${fmtN(selCount)})` : `Delete (${fmtN(selCount)})`}
               </button>
             </>
           )}

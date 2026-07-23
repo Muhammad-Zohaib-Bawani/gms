@@ -10,7 +10,7 @@
   box-sizing: border-box;
 }
 .gms-datefield-input:focus { outline: none; border-color: var(--accent); }
-.gms-datepicker-popper { z-index: 3000 !important; }
+/* .gms-datepicker-popper { z-index: 3000 !important; } */
 
 /* Dark-themed calendar */
 .react-datepicker {

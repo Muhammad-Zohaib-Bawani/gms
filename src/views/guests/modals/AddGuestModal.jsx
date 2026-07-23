@@ -5,6 +5,7 @@ import Select from "../../../components/ui/Select";
 import DateField from "../../../components/ui/DateField";
 import toast from "../../../lib/toast";
 import { createGuest, getGuestEnums } from "../../../api/services/guestService";
+import { getCachedLookupItems } from "../../../api/services/lookupService";
 
 const GUEST_TYPES = [
   "dignitary",
@@ -15,6 +16,16 @@ const GUEST_TYPES = [
   "observer",
 ];
 
+// Sentinel for the Hotel select's "Other" option — the actual hotel name (or
+// custom free-text value) still lives in guest.hotel, this just switches the
+// field between "pick from the list" and "type your own" UI modes.
+const OTHER_HOTEL = "__other__";
+
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const EMPTY_GUEST = {
   firstName: "",
   lastName: "",
@@ -22,19 +33,13 @@ const EMPTY_GUEST = {
   guestType: "delegate",
   organization: "",
   nationalityId: "",
-  tier: "Delegate",
+  tier: "delegate",
   invitationStatus: "not_sent",
   arrivalDate: "",
+  departureDate: "",
   flightNumber: "",
   hotel: "",
   accreditationStatus: "not_issued",
-};
-const invitationStatusColors = {
-  not_sent: '#9CA3AF',
-  sent: '#3B82F6',
-  opened: '#F59E0B',
-  accepted: '#10B981',
-  declined: '#EF4444',
 };
 const overlayStyle = {
   position: "fixed",
@@ -82,6 +87,11 @@ export default function AddGuestModal({
   const [guestSessions, setGuestSessions] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [enums, setEnums] = useState({});
+  const [hotels, setHotels] = useState([]);
+  // null = not yet touched by the user this session (auto-detect from the
+  // current value); true/false once the user explicitly picks "Other" or a
+  // real option, which then wins regardless of what the value looks like.
+  const [hotelOtherOverride, setHotelOtherOverride] = useState(null);
 
   const setG = (k, v) => setGuest((p) => ({ ...p, [k]: v }));
 
@@ -91,7 +101,30 @@ export default function AddGuestModal({
     setStep1Errors({});
     setTemplateId(null);
     setGuestSessions(new Set());
+    setHotelOtherOverride(null);
     onClose();
+  }
+
+  function setArrivalDate(v) {
+    setGuest((p) => ({
+      ...p,
+      arrivalDate: v,
+      // A departure earlier than the newly-picked arrival is no longer valid.
+      departureDate: p.departureDate && v && p.departureDate < v ? "" : p.departureDate,
+    }));
+  }
+
+  const knownHotelNames = useMemo(() => hotels.map((h) => h.name), [hotels]);
+  const isHotelOther = hotelOtherOverride ?? (!!guest.hotel && !knownHotelNames.includes(guest.hotel));
+
+  function handleHotelChange(v) {
+    if (v === OTHER_HOTEL) {
+      setHotelOtherOverride(true);
+      setG("hotel", "");
+    } else {
+      setHotelOtherOverride(false);
+      setG("hotel", v || "");
+    }
   }
 
   function handleNext() {
@@ -121,6 +154,7 @@ export default function AddGuestModal({
         tier: guest.tier,
         invitationStatus: guest.invitationStatus,
         arrivalDate: guest.arrivalDate || null,
+        departureDate: guest.departureDate || null,
         flightNumber: guest.flightNumber || null,
         hotel: guest.hotel || null,
         accreditationStatus: guest.accreditationStatus,
@@ -164,8 +198,16 @@ export default function AddGuestModal({
   );
 
   const stepLabels = isAr
-    ? ["المعلومات الشخصية", "الفئة والحالة", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", "Tier & Status", "Travel & Stay", "Invitation"];
+    ? ["المعلومات الشخصية", "الفئة والإقامة", "السفر والإقامة", "الدعوة"]
+    : ["Personal Info", "Tier and Stay", "Travel & Stay", "Invitation"];
+
+  const hotelOptions = useMemo(
+    () => [
+      ...hotels.map((h) => ({ value: h.name, label: isAr ? h.nameAr || h.name : h.name })),
+      { value: OTHER_HOTEL, label: isAr ? "أخرى" : "Other" },
+    ],
+    [hotels, isAr],
+  );
 
   const inputStyle = {
     width: "100%",
@@ -198,6 +240,9 @@ export default function AddGuestModal({
   useEffect(() => {
     getGuestEnums().then(setEnums);
   }, [guest?.id]);
+  useEffect(() => {
+    getCachedLookupItems("HOTEL").then(setHotels).catch(() => setHotels([]));
+  }, []);
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>
       <Dialog.Portal>
@@ -451,122 +496,13 @@ export default function AddGuestModal({
                       color: "var(--ink-mute)",
                       textTransform: "uppercase",
                       letterSpacing: "0.12em",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {isAr ? "حالة الدعوة" : "Invitation Status"}
-                  </label>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {enums?.GuestInvitationStatus?.map((status) => (
-                      <div
-                        key={status.code}
-                        onClick={() => setG("invitationStatus", status.code)}
-                        style={{
-                          padding: "11px 14px",
-                          borderRadius: 10,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          border: `1px solid ${
-                            guest.invitationStatus === status.code
-                              ? "var(--accent)"
-                              : "var(--glass-border)"
-                          }`,
-                          background:
-                            guest.invitationStatus === status.code
-                              ? "rgba(26,174,196,0.12)"
-                              : "var(--surface-soft-2)",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: 9,
-                            height: 9,
-                            borderRadius: "50%",
-                            background: invitationStatusColors[status.code],
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span
-                          style={{
-                            fontSize: 13,
-                            textTransform: "capitalize",
-                            fontWeight:
-                              guest.invitationStatus === status.code
-                                ? 600
-                                : 400,
-                          }}
-                        >
-                          {isAr ? status.nameAr : status.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* STEP 3 — Travel & Stay */}
-            {step === 3 && (
-              <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <FieldLabel>
-                      {isAr ? "تاريخ الوصول" : "Arrival Date"}
-                    </FieldLabel>
-                    <DateField
-                      value={guest.arrivalDate}
-                      onChange={(v) => setG("arrivalDate", v)}
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel>
-                      {isAr ? "رقم الرحلة" : "Flight No."}
-                    </FieldLabel>
-                    <input
-                      placeholder="QR 512"
-                      value={guest.flightNumber}
-                      onChange={(e) => setG("flightNumber", e.target.value)}
-                      style={inputStyle}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? "الفندق" : "Hotel"}</FieldLabel>
-                  <input
-                    placeholder={
-                      isAr ? "مثال: شيراتون الدوحة" : "e.g. Sheraton Grand Doha"
-                    }
-                    value={guest.hotel}
-                    onChange={(e) => setG("hotel", e.target.value)}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 10.5,
-                      color: "var(--ink-mute)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.12em",
                       marginBottom: 8,
                     }}
                   >
                     {isAr ? "الاعتماد" : "Accreditation"}
                   </label>
                   <div style={{ display: "flex", gap: 10 }}>
-                    {enums?.GuestAccreditationStatus?.map((s) => (
+                    {enums?.GuestAccreditationStatus?.filter((s) => s.code !== "revoked").map((s) => (
                       <div
                         key={s.code}
                         onClick={() => setG("accreditationStatus", s.code)}
@@ -591,6 +527,70 @@ export default function AddGuestModal({
                       </div>
                     ))}
                   </div>
+                </div>
+              </>
+            )}
+
+            {/* STEP 3 — Travel & Stay */}
+            {step === 3 && (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <FieldLabel>
+                      {isAr ? "تاريخ الوصول" : "Arrival Date"}
+                    </FieldLabel>
+                    <DateField
+                      value={guest.arrivalDate}
+                      onChange={setArrivalDate}
+                      minDate={todayIso()}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>
+                      {isAr ? "تاريخ المغادرة" : "Departure Date"}
+                    </FieldLabel>
+                    <DateField
+                      value={guest.departureDate}
+                      onChange={(v) => setG("departureDate", v)}
+                      minDate={guest.arrivalDate || todayIso()}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>{isAr ? "رقم الرحلة" : "Flight No."}</FieldLabel>
+                  <input
+                    placeholder="QR 512"
+                    value={guest.flightNumber}
+                    onChange={(e) => setG("flightNumber", e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{isAr ? "الفندق" : "Hotel"}</FieldLabel>
+                  <Select
+                    value={isHotelOther ? OTHER_HOTEL : guest.hotel || ""}
+                    onChange={handleHotelChange}
+                    options={hotelOptions}
+                    placeholder={isAr ? "— اختر —" : "— Select —"}
+                  />
+                  {isHotelOther && (
+                    <input
+                      style={{ ...inputStyle, marginTop: 8 }}
+                      placeholder={
+                        isAr ? "مثال: شيراتون الدوحة" : "e.g. Sheraton Grand Doha"
+                      }
+                      value={guest.hotel}
+                      onChange={(e) => setG("hotel", e.target.value)}
+                    />
+                  )}
                 </div>
               </>
             )}

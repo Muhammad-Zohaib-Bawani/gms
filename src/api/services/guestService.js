@@ -1,9 +1,13 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
-export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search } = {}) {
+export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search, excludeDeclined } = {}) {
   return apiClient.get(ENDPOINTS.guests.base, {
-    params: { eventId, pageNumber, pageSize, searchTerm: search || undefined },
+    params: {
+      eventId, pageNumber, pageSize,
+      searchTerm: search || undefined,
+      excludeDeclined: excludeDeclined || undefined,
+    },
   });
 }
 

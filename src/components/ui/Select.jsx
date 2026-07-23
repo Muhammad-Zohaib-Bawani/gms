@@ -15,7 +15,7 @@ const styles = {
     borderRadius: 8,
     fontSize: 13,
     ':hover': { borderColor: 'var(--accent)' },
-    zIndex: 3000,
+    // zIndex: 3000,
   }),
   singleValue: (base) => ({ ...base, color: 'var(--ink)' }),
   multiValue: (base) => ({ ...base, background: 'rgba(26,174,196,0.15)', borderRadius: 5 }),

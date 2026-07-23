@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Icon } from '../components/Icons';
 import DataTable from '../components/ui/DataTable';
 import Select from '../components/ui/Select';
@@ -14,12 +14,24 @@ const LANG_OPTIONS = [
 ];
 const LANG_LABELS = { en: 'EN', ar: 'AR', both: 'EN/AR' };
 const TIER_OPTIONS = TIERS.map(t => ({ value: t, label: t }));
+const VARIABLES = ['{{GuestName}}', '{{EventName}}', '{{EventDate}}', '{{Venue}}'];
 
 const EMPTY_FORM = {
   name: '', nameAr: '', language: 'en',
   subject: '', subjectAr: '', body: '', bodyAr: '',
   color: TEMPLATE_COLORS[0], targetTiers: [],
 };
+
+// Static — safe to hoist out of the component so they aren't recreated (and
+// diffed as "changed") on every render.
+const inputStyle = {
+  width: '100%', background: 'var(--surface-soft-3)',
+  border: '1px solid var(--glass-border)', borderRadius: 8,
+  padding: '8px 12px', color: 'var(--ink)', fontSize: 13,
+};
+const errorBorder = { ...inputStyle, borderColor: '#e05050' };
+const errMsg = { fontSize: 11, color: '#e05050', marginTop: 3 };
+const monoInputStyle = { ...inputStyle, fontFamily: 'var(--mono)', fontSize: 12.5 };
 
 function validate(form) {
   const errors = {};
@@ -29,6 +41,229 @@ function validate(form) {
   return errors;
 }
 
+// ── Module-level components ───────────────────────────────────────────────
+// These used to be declared INSIDE InvitationsView's render body, which meant
+// React saw a brand-new component type on every re-render and remounted the
+// whole subtree — including every <input>/<textarea> DOM node — wiping focus
+// after a single keystroke. Hoisting them here (so their identity is stable
+// across renders) fixes that; anything they need from the parent (isAr, t)
+// comes in as props instead of a closure.
+
+function FieldLabel({ children }) {
+  return (
+    <label style={{ display: 'block', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
+      {children}
+    </label>
+  );
+}
+
+function ColorPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {TEMPLATE_COLORS.map(c => (
+        <div
+          key={c}
+          onClick={() => onChange(c)}
+          style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', outline: value === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Inserts an HTML snippet into a body textarea at the current cursor position
+// (falls back to appending if the field isn't focused/no selection is known),
+// then restores focus so typing can continue right after the inserted text.
+function useBodyInserter(value, onChange) {
+  const ref = useRef(null);
+  function insert(snippet) {
+    const el = ref.current;
+    const current = value || '';
+    if (!el) { onChange(current + snippet); return; }
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? start;
+    const next = current.slice(0, start) + snippet + current.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + snippet.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
+  return [ref, insert];
+}
+
+function ButtonInserter({ isAr, t, color, onInsert }) {
+  const [label, setLabel] = useState('');
+  const [url, setUrl] = useState('');
+
+  function handleInsert() {
+    const btnLabel = label.trim() || (isAr ? 'انقر هنا' : 'Click here');
+    const btnUrl = url.trim() || '{{ActionUrl}}';
+    const html = `<a href="${btnUrl}" style="display:inline-block;padding:10px 22px;background:${color || '#1aaec4'};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;font-family:sans-serif;">${btnLabel}</a>`;
+    onInsert(html);
+    setLabel(''); setUrl('');
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input
+        style={{ ...monoInputStyle, width: 130 }}
+        value={label}
+        onChange={e => setLabel(e.target.value)}
+        placeholder={t.buttonLabelPh}
+      />
+      <input
+        style={{ ...monoInputStyle, width: 160 }}
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        placeholder={t.buttonUrlPh}
+      />
+      <button type="button" className="btn" style={{ padding: '5px 10px', fontSize: 11.5 }} onClick={handleInsert}>
+        <Icon name="plus" size={11}/> {t.insertButton}
+      </button>
+    </div>
+  );
+}
+
+function TemplateForm({ form, setField, errors, isAr, t }) {
+  const showAr = form.language !== 'en';
+  const [bodyRef, insertIntoBody] = useBodyInserter(form.body, v => setField('body', v));
+  const [bodyArRef, insertIntoBodyAr] = useBodyInserter(form.bodyAr, v => setField('bodyAr', v));
+
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
+        <div>
+          <FieldLabel>{t.name} *</FieldLabel>
+          <input
+            style={errors.name ? errorBorder : inputStyle}
+            value={form.name}
+            onChange={e => setField('name', e.target.value)}
+            placeholder={isAr ? 'مثال: دعوة رسمية' : 'e.g. Official Invite'}
+          />
+          {errors.name && <div style={errMsg}>{t.required}</div>}
+        </div>
+        <div>
+          <FieldLabel>{t.language}</FieldLabel>
+          <Select
+            value={form.language}
+            onChange={v => setField('language', v)}
+            options={LANG_OPTIONS}
+            placeholder={t.selectPlaceholder}
+          />
+        </div>
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{t.nameAr}</FieldLabel>
+          <input style={inputStyle} value={form.nameAr || ''} onChange={e => setField('nameAr', e.target.value)} dir="rtl" placeholder="مثال: دعوة رسمية"/>
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{t.subject} *</FieldLabel>
+        <input
+          style={errors.subject ? errorBorder : inputStyle}
+          value={form.subject}
+          onChange={e => setField('subject', e.target.value)}
+          placeholder={isAr ? 'موضوع الدعوة' : 'Invitation subject'}
+        />
+        {errors.subject && <div style={errMsg}>{t.required}</div>}
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{t.subjectAr} *</FieldLabel>
+          <input
+            style={errors.subjectAr ? errorBorder : inputStyle}
+            value={form.subjectAr || ''}
+            onChange={e => setField('subjectAr', e.target.value)}
+            dir="rtl"
+            placeholder="موضوع الدعوة"
+          />
+          {errors.subjectAr && <div style={errMsg}>{t.required}</div>}
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{t.body}</FieldLabel>
+        <textarea
+          ref={bodyRef}
+          rows={7}
+          style={{ ...monoInputStyle, resize: 'vertical' }}
+          value={form.body || ''}
+          onChange={e => setField('body', e.target.value)}
+          placeholder={isAr ? '<p>عزيزي {{GuestName}}،</p>' : '<p>Dear {{GuestName}},</p>'}
+          spellCheck={false}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {VARIABLES.map(v => (
+              <span key={v} className="chip" style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }} onClick={() => insertIntoBody(v)}>
+                <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
+              </span>
+            ))}
+          </div>
+          <ButtonInserter isAr={isAr} t={t} color={form.color} onInsert={insertIntoBody}/>
+        </div>
+      </div>
+
+      {showAr && (
+        <div>
+          <FieldLabel>{t.bodyAr}</FieldLabel>
+          <textarea
+            ref={bodyArRef}
+            rows={5}
+            style={{ ...monoInputStyle, resize: 'vertical' }}
+            value={form.bodyAr || ''}
+            onChange={e => setField('bodyAr', e.target.value)}
+            dir="rtl"
+            placeholder="<p>عزيزي {{GuestName}}،</p>"
+            spellCheck={false}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {VARIABLES.map(v => (
+                <span key={v} className="chip" style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }} onClick={() => insertIntoBodyAr(v)}>
+                  <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
+                </span>
+              ))}
+            </div>
+            <ButtonInserter isAr={isAr} t={t} color={form.color} onInsert={insertIntoBodyAr}/>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <FieldLabel>{t.color}</FieldLabel>
+        <ColorPicker value={form.color} onChange={v => setField('color', v)}/>
+      </div>
+
+      <div>
+        <FieldLabel>{t.targetTiers}</FieldLabel>
+        <Select
+          isMulti
+          value={form.targetTiers || []}
+          onChange={v => setField('targetTiers', v)}
+          options={TIER_OPTIONS}
+          placeholder={t.selectPlaceholder}
+          isClearable
+        />
+      </div>
+    </>
+  );
+}
+
+function htmlPreviewDoc(bodyHtml, dir) {
+  return `<!doctype html><html dir="${dir}"><head><meta charset="utf-8"/></head>` +
+    `<body style="margin:0;padding:20px;font-family:sans-serif;color:#222;background:#fff;">` +
+    `${bodyHtml || ''}</body></html>`;
+}
+
+// ── Main view ──────────────────────────────────────────────────────────────
+
 export default function InvitationsView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
 
@@ -36,14 +271,14 @@ export default function InvitationsView({ lang, activeEventId }) {
     pageTitle: ['دورة حياة', 'الدعوة'],
     pageSub: 'تصميم · أتمتة · متابعة الإرسال عبر القنوات',
     newTemplate: 'قالب جديد',
-    tabs: { templates: 'القوالب', queue: 'طابور مجدول', builder: 'المُنشئ' },
+    tabs: { templates: 'القوالب', builder: 'المُنشئ' },
     edit: 'تعديل', delete: 'حذف', cancel: 'إلغاء',
     create: 'إنشاء القالب', loading: 'جارٍ التحميل…',
     noTemplates: 'لا توجد قوالب — أنشئ قالبًا جديدًا من تبويب "المُنشئ"',
     noEvent: 'الرجاء اختيار حدث أولًا',
     name: 'اسم القالب', nameAr: 'الاسم (عربي)', language: 'اللغة',
     subject: 'سطر الموضوع', subjectAr: 'الموضوع (عربي)',
-    body: 'نص الرسالة', bodyAr: 'النص (عربي)',
+    body: 'نص الرسالة (HTML)', bodyAr: 'النص (عربي، HTML)',
     color: 'اللون', targetTiers: 'الفئات المستهدفة',
     saveChanges: 'حفظ التغييرات', editTitle: 'تعديل القالب',
     deleteTitle: 'تأكيد الحذف',
@@ -52,24 +287,22 @@ export default function InvitationsView({ lang, activeEventId }) {
     builderSaved: 'تم إنشاء القالب بنجاح',
     editSaved: 'تم تحديث القالب', deletedMsg: 'تم حذف القالب',
     required: 'هذا الحقل مطلوب',
-    queueTitle: 'طابور مجدول',
-    queueNote: 'جدولة إرسال الدعوات وتتبع الحالة — قادمًا قريبًا.',
     templatesHeader: 'القوالب',
     colLang: 'اللغة', colSubject: 'الموضوع', colTiers: 'الفئات',
-    variables: 'متغيرات',
     selectPlaceholder: '— اختر —',
+    insertButton: 'إدراج زر', buttonLabelPh: 'نص الزر', buttonUrlPh: 'الرابط أو {{ActionUrl}}',
   } : {
     pageTitle: ['Invitation', 'lifecycle'],
     pageSub: 'Design · automate · track delivery across channels',
     newTemplate: 'New template',
-    tabs: { templates: 'Templates', queue: 'Scheduled queue', builder: 'Builder' },
+    tabs: { templates: 'Templates', builder: 'Builder' },
     edit: 'Edit', delete: 'Delete', cancel: 'Cancel',
     create: 'Create template', loading: 'Loading…',
     noTemplates: 'No templates yet — create one from the Builder tab',
     noEvent: 'Please select an event first',
     name: 'Template name', nameAr: 'Name (AR)', language: 'Language',
     subject: 'Subject line', subjectAr: 'Subject (AR)',
-    body: 'Body', bodyAr: 'Body (AR)',
+    body: 'Body (HTML)', bodyAr: 'Body (AR, HTML)',
     color: 'Color', targetTiers: 'Target tiers',
     saveChanges: 'Save changes', editTitle: 'Edit Template',
     deleteTitle: 'Confirm Delete',
@@ -78,21 +311,11 @@ export default function InvitationsView({ lang, activeEventId }) {
     builderSaved: 'Template created successfully',
     editSaved: 'Template updated', deletedMsg: 'Template deleted',
     required: 'This field is required',
-    queueTitle: 'Scheduled queue',
-    queueNote: 'Scheduled sending and delivery tracking — coming soon.',
     templatesHeader: 'Templates',
     colLang: 'Language', colSubject: 'Subject', colTiers: 'Tiers',
-    variables: 'Variables',
     selectPlaceholder: '— Select —',
+    insertButton: 'Insert button', buttonLabelPh: 'Button text', buttonUrlPh: 'URL or {{ActionUrl}}',
   };
-
-  const inputStyle = {
-    width: '100%', background: 'var(--surface-soft-3)',
-    border: '1px solid var(--glass-border)', borderRadius: 8,
-    padding: '8px 12px', color: 'var(--ink)', fontSize: 13,
-  };
-  const errorBorder = { ...inputStyle, borderColor: '#e05050' };
-  const errMsg = { fontSize: 11, color: '#e05050', marginTop: 3 };
 
   // ── state ──────────────────────────────────────────────────────────────────
   const [tab, setTab] = useState('templates');
@@ -284,138 +507,12 @@ export default function InvitationsView({ lang, activeEventId }) {
             style={{ padding: '4px 10px', fontSize: 12, color: '#e05050' }}
             onClick={e => { e.stopPropagation(); setDeleteTmpl(t); }}
           >
-            <Icon name="close" size={12}/> {STR.delete}
+            <Icon name="trash" size={12}/> {STR.delete}
           </button>
         </div>
       ),
     },
   ], [isAr, STR, openEdit]);
-
-  // ── form field helpers ─────────────────────────────────────────────────────
-  function FieldLabel({ children }) {
-    return (
-      <label style={{ display: 'block', fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>
-        {children}
-      </label>
-    );
-  }
-
-  function ColorPicker({ value, onChange }) {
-    return (
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {TEMPLATE_COLORS.map(c => (
-          <div
-            key={c}
-            onClick={() => onChange(c)}
-            style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', outline: value === c ? `2px solid ${c}` : 'none', outlineOffset: 2 }}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  function TemplateForm({ form, setField, errors }) {
-    const showAr = form.language !== 'en';
-    return (
-      <>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
-          <div>
-            <FieldLabel>{STR.name} *</FieldLabel>
-            <input
-              style={errors.name ? errorBorder : inputStyle}
-              value={form.name}
-              onChange={e => setField('name', e.target.value)}
-              placeholder={isAr ? 'مثال: دعوة رسمية' : 'e.g. Official Invite'}
-            />
-            {errors.name && <div style={errMsg}>{STR.required}</div>}
-          </div>
-          <div>
-            <FieldLabel>{STR.language}</FieldLabel>
-            <Select
-              value={form.language}
-              onChange={v => setField('language', v)}
-              options={LANG_OPTIONS}
-              placeholder={STR.selectPlaceholder}
-            />
-          </div>
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.nameAr}</FieldLabel>
-            <input style={inputStyle} value={form.nameAr || ''} onChange={e => setField('nameAr', e.target.value)} dir="rtl" placeholder="مثال: دعوة رسمية"/>
-          </div>
-        )}
-
-        <div>
-          <FieldLabel>{STR.subject} *</FieldLabel>
-          <input
-            style={errors.subject ? errorBorder : inputStyle}
-            value={form.subject}
-            onChange={e => setField('subject', e.target.value)}
-            placeholder={isAr ? 'موضوع الدعوة' : 'Invitation subject'}
-          />
-          {errors.subject && <div style={errMsg}>{STR.required}</div>}
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.subjectAr} *</FieldLabel>
-            <input
-              style={errors.subjectAr ? errorBorder : inputStyle}
-              value={form.subjectAr || ''}
-              onChange={e => setField('subjectAr', e.target.value)}
-              dir="rtl"
-              placeholder="موضوع الدعوة"
-            />
-            {errors.subjectAr && <div style={errMsg}>{STR.required}</div>}
-          </div>
-        )}
-
-        <div>
-          <FieldLabel>{STR.body}</FieldLabel>
-          <textarea
-            rows={4}
-            style={{ ...inputStyle, resize: 'vertical' }}
-            value={form.body || ''}
-            onChange={e => setField('body', e.target.value)}
-            placeholder={isAr ? 'عزيزي {{GuestName}}،' : 'Dear {{GuestName}},'}
-          />
-        </div>
-
-        {showAr && (
-          <div>
-            <FieldLabel>{STR.bodyAr}</FieldLabel>
-            <textarea
-              rows={3}
-              style={{ ...inputStyle, resize: 'vertical' }}
-              value={form.bodyAr || ''}
-              onChange={e => setField('bodyAr', e.target.value)}
-              dir="rtl"
-              placeholder="عزيزي {{GuestName}}،"
-            />
-          </div>
-        )}
-
-        <div>
-          <FieldLabel>{STR.color}</FieldLabel>
-          <ColorPicker value={form.color} onChange={v => setField('color', v)}/>
-        </div>
-
-        <div>
-          <FieldLabel>{STR.targetTiers}</FieldLabel>
-          <Select
-            isMulti
-            value={form.targetTiers || []}
-            onChange={v => setField('targetTiers', v)}
-            options={TIER_OPTIONS}
-            placeholder={STR.selectPlaceholder}
-            isClearable
-          />
-        </div>
-      </>
-    );
-  }
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
@@ -460,7 +557,13 @@ export default function InvitationsView({ lang, activeEventId }) {
               <h3>{isAr ? 'قالب جديد' : 'New Template'}</h3>
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <TemplateForm form={builder} setField={(k, v) => { setB(k, v); setBuilderErrors(e => ({ ...e, [k]: false })); }} errors={builderErrors}/>
+              <TemplateForm
+                form={builder}
+                setField={(k, v) => { setB(k, v); setBuilderErrors(e => ({ ...e, [k]: false })); }}
+                errors={builderErrors}
+                isAr={isAr}
+                t={STR}
+              />
             </div>
             <div className="card-foot">
               <button className="btn primary" onClick={handleCreate} disabled={building}>
@@ -478,45 +581,32 @@ export default function InvitationsView({ lang, activeEventId }) {
               </span>
             </div>
             <div className="card-body">
-              <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '20px 18px', fontSize: 13, borderInlineStart: `4px solid ${builder.color}` }}>
+              <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '14px 14px 18px', borderInlineStart: `4px solid ${builder.color}` }}>
                 {builder.name && (
-                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0 4px' }}>
                     {builder.name}
                   </div>
                 )}
-                <div style={{ fontWeight: 600, marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13, padding: '0 4px' }}>
                   {builder.subject || (isAr ? 'سطر الموضوع…' : 'Subject line…')}
                 </div>
-                <div style={{ color: 'var(--ink-dim)', lineHeight: 1.7, fontSize: 12, whiteSpace: 'pre-wrap' }}>
-                  {builder.body || (isAr ? 'نص الرسالة…' : 'Body text…')}
-                </div>
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{STR.variables}</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {['{{GuestName}}', '{{EventName}}', '{{EventDate}}', '{{Venue}}'].map(v => (
-                    <span
-                      key={v}
-                      className="chip"
-                      style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }}
-                      onClick={() => setB('body', builder.body + (builder.body && !builder.body.endsWith(' ') ? ' ' : '') + v)}
-                    >
-                      <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
-                    </span>
-                  ))}
-                </div>
+                <iframe
+                  title="email-preview-en"
+                  srcDoc={htmlPreviewDoc(builder.body, 'ltr')}
+                  style={{ width: '100%', height: 260, border: '1px solid var(--glass-border)', borderRadius: 8, background: '#fff' }}
+                  sandbox=""
+                />
+                {builder.language !== 'en' && (
+                  <iframe
+                    title="email-preview-ar"
+                    srcDoc={htmlPreviewDoc(builder.bodyAr, 'rtl')}
+                    style={{ width: '100%', height: 220, border: '1px solid var(--glass-border)', borderRadius: 8, background: '#fff', marginTop: 10 }}
+                    sandbox=""
+                  />
+                )}
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── QUEUE ── */}
-      {tab === 'queue' && (
-        <div className="card" style={{ padding: '48px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 14 }}>📬</div>
-          <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>{STR.queueTitle}</div>
-          <div style={{ fontSize: 13, color: 'var(--ink-mute)', maxWidth: 340, margin: '0 auto' }}>{STR.queueNote}</div>
         </div>
       )}
 
@@ -529,7 +619,13 @@ export default function InvitationsView({ lang, activeEventId }) {
               <button className="icon-btn" onClick={() => setEditTmpl(null)}><Icon name="close" size={14}/></button>
             </div>
             <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 }}>
-              <TemplateForm form={editForm} setField={(k, v) => { setEf(k, v); setEditErrors(e => ({ ...e, [k]: false })); }} errors={editErrors}/>
+              <TemplateForm
+                form={editForm}
+                setField={(k, v) => { setEf(k, v); setEditErrors(e => ({ ...e, [k]: false })); }}
+                errors={editErrors}
+                isAr={isAr}
+                t={STR}
+              />
             </div>
             <div style={{ padding: '14px 22px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
               <button className="btn" onClick={() => setEditTmpl(null)}>{STR.cancel}</button>

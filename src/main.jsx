@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { EventsProvider } from './events/EventsContext';
 import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
+import InvitationResponseView from './views/InvitationResponseView.jsx';
 import './style.css';
 
 // Auth gate: a stored session (real sign-in or "Explore demo") shows the app
@@ -31,6 +32,19 @@ if (screenParams.get('screen') === 'venueView') {
         sessionId={screenParams.get('sessionId') || null}
         lang={screenParams.get('lang') || 'en'}
       />
+    </React.StrictMode>
+  );
+} else if (screenParams.get('screen') === 'invitation') {
+  // Public guest invitation accept/reject page — reached from the tokenised
+  // link in the invitation email. Rendered outside AuthProvider/Gate: the
+  // guest has no login, and the API endpoints it hits are [AllowAnonymous].
+  root.render(
+    <React.StrictMode>
+      <InvitationResponseView
+        token={screenParams.get('token')}
+        lang={screenParams.get('lang') || 'en'}
+      />
+      <Toaster position="top-right" richColors closeButton theme="dark" />
     </React.StrictMode>
   );
 } else {

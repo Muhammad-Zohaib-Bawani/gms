@@ -40,7 +40,7 @@ const LOOKUP_CHILDREN = LOOKUP_CATEGORIES.map(c => ({
 
 const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
-  { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View", badge: "4" },
+  { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
   { key: "travel",         icon: "travel",     label: { en: "Travel & logistics",  ar: "السفر واللوجستيات"     }, section: "EVENT",    permission: "Travel.View"            },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
@@ -130,7 +130,7 @@ function blendHex(base, accent, amt) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b_.toString(16).padStart(2,'0')}`;
 }
 function applyBgVars(root, accent, isDark) {
-  const base = isDark ? '#000000' : '#f8f8f8';
+  const base = isDark ? '#121212' : '#f8f8f8';
   const amounts = isDark ? [0.10, 0.18, 0.28] : [0.05, 0.10, 0.16];
   root.style.setProperty('--bg-0', blendHex(base, accent, amounts[0]));
   root.style.setProperty('--bg-1', blendHex(base, accent, amounts[1]));
@@ -243,7 +243,7 @@ function GuestDrawer({ guest, onClose, lang }) {
   const [saved, setSaved] = React.useState(false);
 
   const [showMessage, setShowMessage] = React.useState(false);
-  const [msgSubject, setMsgSubject] = React.useState(`23rd Doha Forum — ${guest.name}`);
+  const [msgSubject, setMsgSubject] = React.useState(`Invitation — ${guest.fullName || guest.name || ''}`);
   const [msgBody, setMsgBody] = React.useState("");
   const [msgSent, setMsgSent] = React.useState(false);
   const [inviteTemplateId, setInviteTemplateId] = React.useState(null);
@@ -348,6 +348,29 @@ function GuestDrawer({ guest, onClose, lang }) {
 
   const iStyle = { width: "100%", background: "var(--surface-soft-3)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: "8px 11px", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" };
   const tierColor = TIER_COLOR[guest.tier] || "var(--accent)";
+
+  // Real GuestResponse fields (fullName/invitationStatus/accreditationStatus)
+  // — the rest of this drawer predates the API and still reads some mock names.
+  const guestName = guest.fullName || guest.name || `${guest.firstName || ""} ${guest.lastName || ""}`.trim();
+  const INVITE_BADGE = {
+    not_sent: { label: isAr ? "لم تُرسل" : "Not sent",  color: "#9CA3AF" },
+    sent:     { label: isAr ? "أُرسلت"   : "Sent",      color: "#3B82F6" },
+    opened:   { label: isAr ? "فُتحت"    : "Opened",    color: "#F59E0B" },
+    accepted: { label: isAr ? "مقبولة"   : "Accepted",  color: "#5abf6e" },
+    declined: { label: isAr ? "مرفوضة"   : "Declined",  color: "#e08a7e" },
+  };
+  const ACCRED_BADGE = {
+    not_issued: { label: isAr ? "غير صادر" : "Not issued", color: "#9CA3AF" },
+    issued:     { label: isAr ? "صادر"     : "Issued",     color: "#5abf6e" },
+    revoked:    { label: isAr ? "ملغى"     : "Revoked",    color: "#e05050" },
+  };
+  const inviteBadge = INVITE_BADGE[guest.invitationStatus] || INVITE_BADGE.not_sent;
+  const accredBadge = ACCRED_BADGE[guest.accreditationStatus] || ACCRED_BADGE.not_issued;
+  const Badge = ({ dotColor, children }) => (
+    <span className="chip" style={{ borderColor: `${dotColor}55`, color: dotColor, background: `${dotColor}18` }}>
+      <span className="dot" style={{ background: dotColor }}/>{children}
+    </span>
+  );
   const menuBtnStyle = { display:"flex", alignItems:"center", gap:10, width:"100%", padding:"8px 10px", borderRadius:8, background:"none", border:"none", color:"var(--ink)", fontSize:13, cursor:"pointer", textAlign:"start" };
 
   return (
@@ -358,20 +381,24 @@ function GuestDrawer({ guest, onClose, lang }) {
       </div>
       <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <Avatar initials={guest.initials} size={64} tier={guest.tier}/>
           <div>
-            <h2 style={{ fontFamily: "var(--serif)", fontSize: 26, margin: 0, fontWeight: 400 }}>{guest.name}</h2>
-            <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.role} · {guest.org}</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <h2 style={{ fontFamily: "var(--serif)", fontSize: 26, margin: 0, fontWeight: 400 }}>{guestName}</h2>
+            <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.organization}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <TierChip tier={guest.tier} lang={lang}/>
-              <StatusChip status={guest.status} lang={lang}/>
-              <span className="chip"><span className="dot"/>{guest.country}</span>
+              {guest.nationalityName && <span className="chip"><span className="dot"/>{guest.nationalityName}</span>}
             </div>
           </div>
         </div>
 
+        {/* Real-status badges */}
+        <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+          <Badge dotColor={inviteBadge.color}>{inviteBadge.label}</Badge>
+          <Badge dotColor={accredBadge.color}>{isAr ? "الاعتماد" : "Accred"} · {accredBadge.label}</Badge>
+        </div>
+
         <div style={{ display: "flex", gap: 6, marginTop: 18 }}>
-          <button className="btn primary" style={{ flex: 1 }} onClick={() => { setShowMessage(true); setInviteTemplateId(null); setMsgSubject(`23rd Doha Forum — ${guest.name}`); }}>
+          <button className="btn primary" style={{ flex: 1 }} onClick={() => { setShowMessage(true); setInviteTemplateId(null); setMsgSubject(`Invitation — ${guestName}`); }}>
             <Icon name="message" size={14}/> {D.message}
           </button>
           <button className="btn" style={{ flex: 1 }} onClick={() => setShowBadge(true)}>
@@ -412,11 +439,9 @@ function GuestDrawer({ guest, onClose, lang }) {
 
         <div className="divider"/>
 
-        <DetailRow label={D.guestId} value={guest.id} mono/>
-        <DetailRow label={D.email} value={guest.email} mono/>
-        <DetailRow label={D.invited} value={guest.invited}/>
-        <DetailRow label={D.table} value={`T${guest.table} · ${D.secondRing}`} mono/>
-        <DetailRow label={D.accreditation} value={guest.accreditation === "issued" ? D.issued : D.pending}/>
+        <DetailRow label={D.email} value={guest.email || "—"} mono/>
+        {guest.arrivalDate && <DetailRow label={D.arrival} value={guest.arrivalDate} mono/>}
+        <DetailRow label={D.accreditation} value={accredBadge.label}/>
 
         <div className="divider"/>
 
@@ -438,15 +463,15 @@ function GuestDrawer({ guest, onClose, lang }) {
         {editTravel ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px", borderRadius: 10, background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)", marginBottom: 14 }}>
             <div>
-              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.arrivalDate}</label>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.arrivalDate || "-"}</label>
               <input style={iStyle} value={arrival} onChange={e => setArrival(e.target.value)} placeholder="Dec 7"/>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.flight}</label>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.flightNumber || "-"}</label>
               <input style={iStyle} value={flight} onChange={e => setFlight(e.target.value)} placeholder="QR 512"/>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.hotel}</label>
+              <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{D.hotel || "-"}</label>
               <select style={{ ...iStyle, appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23718fa3' stroke-width='1.6'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: 28 }}
                 value={hotel} onChange={e => setHotel(e.target.value)}>
                 {HOTELS.map(h => <option key={h} value={h}>{h}</option>)}
@@ -473,9 +498,9 @@ function GuestDrawer({ guest, onClose, lang }) {
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {sessionsSaved && <span style={{ fontSize: 11, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}><Icon name="check" size={11}/> {D.sessionsSaved}</span>}
-            <button className="btn ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => setEditSessions(e => !e)}>
+            {/* <button className="btn ghost" style={{ padding: "3px 8px", fontSize: 11 }} onClick={() => setEditSessions(e => !e)}>
               <Icon name={editSessions ? "close" : "edit"} size={11}/> {editSessions ? D.cancel : D.editTravel}
-            </button>
+            </button> */}
           </div>
         </div>
         {editSessions ? (
@@ -528,14 +553,14 @@ function GuestDrawer({ guest, onClose, lang }) {
           )
         )}
 
-        <div className="divider"/>
+        {/* <div className="divider"/>
 
         <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)", marginBottom: 10 }}>{D.activity}</div>
         <div className="timeline">
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{D.today}</div><div style={{ fontSize: 12.5 }}>{D.line1}</div></div>
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{D.yest}</div><div style={{ fontSize: 12.5 }}>{D.line2} {hotel}</div></div>
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{guest.invited}</div><div style={{ fontSize: 12.5 }}>{D.line3}</div></div>
-        </div>
+        </div> */}
       </div>
 
       {/* ── Message modal ── */}
@@ -867,7 +892,7 @@ export default function App() {
           })}
         </div>
 
-        <div className="event-card">
+        {/* <div className="event-card">
           <div className="kicker">{shell.inSession}</div>
           <h4>{activeEvent?.title || shell.eventName}</h4>
           <div className="meta">{activeEvent?.subtitle || shell.eventMeta}</div>
@@ -876,7 +901,7 @@ export default function App() {
             <span style={{ direction: "ltr" }}>{lang === "ar" ? "١٬٢٨٤ / ١٬٦٥٠" : "1,284 / 1,650"}</span>
             <span>{shell.daysOut}</span>
           </div>
-        </div>
+        </div> */}
       </aside>
 
       <header className="topbar glass">

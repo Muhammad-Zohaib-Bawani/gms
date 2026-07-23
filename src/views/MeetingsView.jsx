@@ -118,7 +118,7 @@ export default function MeetingsView({ lang, activeEventId }) {
   useEffect(() => {
     if (!activeEventId) { setGuestList([]); return; }
     let cancelled = false;
-    listGuests({ eventId: activeEventId, pageSize: 200 })
+    listGuests({ eventId: activeEventId, pageSize: 200, excludeDeclined: true })
       .then(res => { if (!cancelled) setGuestList(res?.items || []); })
       .catch(() => { if (!cancelled) setGuestList([]); });
     return () => { cancelled = true; };

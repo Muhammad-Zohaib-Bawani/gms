@@ -82,8 +82,8 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     loading: 'جارٍ التحميل…',
     loadError: 'تعذّر تحميل لوحة المعلومات',
   } : {
-    greeting: 'Good morning,',
-    name: 'Amira',
+    greeting: 'Good morning',
+    name: "",
     export: 'Export',
     newInvite: 'New Invitation',
     confirmed: 'Confirmed Guests',
@@ -235,7 +235,10 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                 </tr></thead>
                 <tbody>
                   {recentGuests.map(g => (
-                    <tr key={g.id} style={{ cursor: 'pointer' }} onClick={() => onOpenGuest && onOpenGuest(g)}>
+                    // onClick={() => onOpenGuest && onOpenGuest(g)} - temp removed
+                    <tr key={g.id} 
+                    // style={{ cursor: 'pointer' }}
+                     >
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <Avatar initials={initialsFromName(g.name)} size={28} tier={toChipTier(g.tier)}/>

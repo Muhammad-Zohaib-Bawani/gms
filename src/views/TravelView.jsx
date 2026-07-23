@@ -1,7 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
-import { GUESTS } from '../data/mockData.js';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { listGuests } from '../api/services/guestService.js';
@@ -17,46 +16,100 @@ const VEHICLES  = ['VIP Sedan','SUV','Minivan','Luxury Van'];
 const DRIVERS   = ['M. Al-Kuwari','S. Hamdan','K. Al-Thani','F. Al-Marri','A. Sultan','R. Hassan'];
 const PICKUPS   = ['Hamad Intl Airport','Sheraton Grand','Mondrian Doha','Pearl Auditorium','Hotel Lobby'];
 const DROPOFFS  = ['Sheraton Grand','Pearl Auditorium','Al Mayassa Hall','Hamad Intl Airport','Venue Main Entrance'];
+const HOTEL_LIST = ['Sheraton Grand','Mondrian Doha','Mandarin Oriental','St. Regis','Four Seasons'];
 
-function buildFlights() {
-  return GUESTS.map((g, i) => ({
-    id: g.id, name: g.name, initials: g.initials, tier: g.tier, org: g.org,
-    flight: `${AIRLINES[i % AIRLINES.length]}${100 + ((i * 137) % 800)}`,
-    from: 'DOH',
-    to: ROUTES[i % ROUTES.length].split(' → ')[1],
-    date: `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`,
-    dateLabel: `Dec ${5 + (i % 5)}`,
-    passport: `QA${String(1000000 + i * 12345).slice(0, 7)}`,
-    hayyaStatus: HAYYA_ST[i % HAYYA_ST.length],
-    reference: `HYA-2025-${String(10000 + i * 1337).slice(0, 5)}`,
-    flightStatus: ['confirmed','confirmed','confirmed','pending'][i % 4],
-  }));
+function initialsFromName(name) {
+  const parts = (name || '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-function buildHotels() {
-  return GUESTS.map((g, i) => ({
-    id: g.id, name: g.name, initials: g.initials, tier: g.tier, org: g.org,
-    hotel: g.hotel,
-    roomType: ROOM_TYPES[i % ROOM_TYPES.length],
-    roomNumber: `${(i % 10) + 1}${String((i * 37) % 100).padStart(2,'0')}`,
-    checkIn: `2025-12-${String(5 + (i % 3)).padStart(2,'0')}`,
-    checkOut: `2025-12-${String(9 + (i % 2)).padStart(2,'0')}`,
-    hotelStatus: ['confirmed','confirmed','confirmed','pending'][i % 4],
-  }));
+function guestFullName(g) {
+  return g.fullName || `${g.firstName || ''} ${g.lastName || ''}`.trim() || '—';
 }
 
-function buildTransfers() {
-  return GUESTS.slice(0, 48).map((g, i) => ({
-    id: g.id + '-T', name: g.name, initials: g.initials, tier: g.tier,
-    vehicle: VEHICLES[i % VEHICLES.length],
-    driver: DRIVERS[i % DRIVERS.length],
-    pickup: PICKUPS[i % PICKUPS.length],
-    dropoff: DROPOFFS[i % DROPOFFS.length],
-    date: `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`,
-    dateLabel: `Dec ${5 + (i % 5)}`,
-    time: `${String(6 + (i % 14)).padStart(2,'0')}:${['00','30'][i % 2]}`,
-    transferStatus: ['scheduled','scheduled','completed','pending'][i % 4],
-  }));
+function dateLabelFor(dateStr) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return ''; }
+}
+
+// Map whatever visa/accreditation signal the guest record carries onto our
+// Hayya-style status buckets; fall back to a rotating placeholder so the UI
+// still has variety for guests without accreditation data yet.
+function mapVisaStatus(g, i) {
+  if (g.accreditationStatus === 'issued') return 'approved';
+  if (g.accreditationStatus === 'rejected') return 'rejected';
+  if (g.invitationStatus === 'sent') return 'submitted';
+  if (g.invitationStatus === 'declined') return 'rejected';
+  return HAYYA_ST[i % HAYYA_ST.length];
+}
+
+// ─── Row builders (sourced from real guest API data) ──────────────────────────
+
+function buildFlights(guests) {
+  return guests.map((g, i) => {
+    const name = guestFullName(g);
+    const date = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`;
+    return {
+      id: g.id,
+      name,
+      initials: initialsFromName(name),
+      tier: g.tier,
+      org: g.organization,
+      flight: g.flightNumber || `${AIRLINES[i % AIRLINES.length]}${100 + ((i * 137) % 800)}`,
+      from: 'DOH',
+      to: ROUTES[i % ROUTES.length].split(' → ')[1],
+      date,
+      dateLabel: g.arrivalDate ? dateLabelFor(date) : `Dec ${5 + (i % 5)}`,
+      passport: g.passportNumber || `${g.nationalityCode || 'XX'}${(g.id || '').replace(/-/g,'').slice(0,7).toUpperCase()}`,
+      hayyaStatus: mapVisaStatus(g, i),
+      reference: `HYA-2025-${(g.id || '').replace(/-/g,'').slice(0,5).toUpperCase()}`,
+      flightStatus: g.flightNumber ? 'confirmed' : ['confirmed','confirmed','confirmed','pending'][i % 4],
+    };
+  });
+}
+
+function buildHotels(guests) {
+  return guests.map((g, i) => {
+    const name = guestFullName(g);
+    const checkIn = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 3)).padStart(2,'0')}`;
+    const checkOut = g.departureDate ? g.departureDate.slice(0, 10) : `2025-12-${String(9 + (i % 2)).padStart(2,'0')}`;
+    return {
+      id: g.id,
+      name,
+      initials: initialsFromName(name),
+      tier: g.tier,
+      org: g.organization,
+      hotel: g.hotel || HOTEL_LIST[i % HOTEL_LIST.length],
+      roomType: ROOM_TYPES[i % ROOM_TYPES.length],
+      roomNumber: `${(i % 10) + 1}${String((i * 37) % 100).padStart(2,'0')}`,
+      checkIn,
+      checkOut,
+      hotelStatus: g.hotel ? 'confirmed' : ['confirmed','confirmed','confirmed','pending'][i % 4],
+    };
+  });
+}
+
+function buildTransfers(guests) {
+  return guests.map((g, i) => {
+    const name = guestFullName(g);
+    const date = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`;
+    return {
+      id: g.id + '-T',
+      name,
+      initials: initialsFromName(name),
+      tier: g.tier,
+      vehicle: VEHICLES[i % VEHICLES.length],
+      driver: DRIVERS[i % DRIVERS.length],
+      pickup: PICKUPS[i % PICKUPS.length],
+      dropoff: DROPOFFS[i % DROPOFFS.length],
+      date,
+      dateLabel: g.arrivalDate ? dateLabelFor(date) : `Dec ${5 + (i % 5)}`,
+      time: `${String(6 + (i % 14)).padStart(2,'0')}:${['00','30'][i % 2]}`,
+      transferStatus: ['scheduled','scheduled','completed','pending'][i % 4],
+    };
+  });
 }
 
 const STATUS_COLOR = {
@@ -64,13 +117,6 @@ const STATUS_COLOR = {
   submitted:'#e0c47e', pending:'#e0c47e',
   rejected:'#e08a7e', completed:'var(--ink-mute)',
 };
-
-const HOTEL_LIST = ['Sheraton Grand','Mondrian Doha','Mandarin Oriental','St. Regis','Four Seasons'];
-
-function initialsFromName(name) {
-  const parts = (name || '').trim().split(/\s+/);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
-}
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
@@ -135,7 +181,9 @@ export default function TravelView({ lang, activeEventId }) {
   } : {
     title:['Travel &','logistics'],
     sub:'Flights, visa applications, hotels and ground transfers',
-    tabs:['Overview','Flights & Visas','Hotel','Ground Transfers'],
+    tabs:[
+      // 'Overview',
+      'Flights & Visas','Hotel','Ground Transfers'],
     newBooking:'New booking',
     kpi:{ flights:'Flights confirmed',flightsH:'74% coverage · QR partner fares',
       rooms:'Hotel rooms blocked',roomsH:'5 properties · 92% allocated',
@@ -165,10 +213,29 @@ export default function TravelView({ lang, activeEventId }) {
     guestSearch:'Search guest…',back:'Back',next:'Next',
   };
 
-  // ── Data state ──────────────────────────────────────────────────────────────
-  const [flightRows, setFlightRows]     = useState(buildFlights);
-  const [hotelRows, setHotelRows]       = useState(buildHotels);
-  const [transferRows, setTransferRows] = useState(buildTransfers);
+  // ── Real guest data (single source of truth for this whole view) ───────────
+  const [guests, setGuests] = useState([]);
+  const [guestsLoading, setGuestsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeEventId) { setGuests([]); return; }
+    setGuestsLoading(true);
+    listGuests({ eventId: activeEventId, pageSize: 500, excludeDeclined: true })
+      .then(res => setGuests(res?.items || []))
+      .catch(() => setGuests([]))
+      .finally(() => setGuestsLoading(false));
+  }, [activeEventId]);
+
+  // ── Data state (editable rows, rebuilt whenever the guest list changes) ────
+  const [flightRows, setFlightRows]     = useState([]);
+  const [hotelRows, setHotelRows]       = useState([]);
+  const [transferRows, setTransferRows] = useState([]);
+
+  useEffect(() => {
+    setFlightRows(buildFlights(guests));
+    setHotelRows(buildHotels(guests));
+    setTransferRows(buildTransfers(guests));
+  }, [guests]);
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0);
@@ -211,21 +278,11 @@ export default function TravelView({ lang, activeEventId }) {
   const [guestSearch, setGuestSearch] = useState('');
   const [bookings, setBookings] = useState([]);
   const [savingBooking, setSavingBooking] = useState(false);
-  const [realGuests, setRealGuests] = useState([]);
   const [flightData, setFlightData] = useState({ flightNum:'QR512',from:'DOH',to:'LHR',date:'2025-12-09' });
   const [hotelData, setHotelData]   = useState({ hotel:'Sheraton Grand',checkIn:'2025-12-06',checkOut:'2025-12-10',roomType:'Deluxe King' });
   // pickup/dropoff hold { id, label } once picked on the map — null until then.
   const [transferData, setTransferData] = useState({ vehicle:'VIP Sedan',driver:'',pickup:null,dropoff:null });
   const [showLocationPicker, setShowLocationPicker] = useState(null); // 'pickup' | 'dropoff' | null
-
-  // Real guests for this event — fetched once the booking modal is opened
-  // (the picker used to search the local GUESTS mock data).
-  useEffect(() => {
-    if (!showNewBooking || !activeEventId) return;
-    listGuests({ eventId: activeEventId, pageSize: 200 })
-      .then(res => setRealGuests(res?.items || []))
-      .catch(() => setRealGuests([]));
-  }, [showNewBooking, activeEventId]);
 
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1); setBookType(0);
@@ -297,8 +354,8 @@ export default function TravelView({ lang, activeEventId }) {
     return s && st;
   }), [transferRows, tSearch, tStatus]);
 
-  const filteredGuests = realGuests
-    .filter(g => !guestSearch || `${g.firstName} ${g.lastName}`.toLowerCase().includes(guestSearch.toLowerCase()))
+  const filteredGuests = guests
+    .filter(g => !guestSearch || guestFullName(g).toLowerCase().includes(guestSearch.toLowerCase()))
     .slice(0, 6);
 
   const hayyaCounts = {
@@ -327,13 +384,6 @@ export default function TravelView({ lang, activeEventId }) {
     } catch { return '—'; }
   };
 
-  const inbound = [
-    { flight:'QR512', eta:'08:20', hayya:'approved', driver:'M. Al-Kuwari' },
-    { flight:'BA105', eta:'09:45', hayya:'approved', driver:'S. Hamdan' },
-    { flight:'LH788', eta:'11:10', hayya:'submitted', driver: isAr ? 'قيد الانتظار' : 'Pending' },
-    { flight:'EK023', eta:'13:30', hayya:'approved', driver:'K. Al-Thani' },
-  ];
-
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -359,10 +409,10 @@ export default function TravelView({ lang, activeEventId }) {
       {/* KPI row */}
       <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
         {[
-          { icon:'flight', val:fmtN(948),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:1 },
-          { icon:'hotel',  val:fmtN(1192), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:2 },
-          { icon:'car',    val:ad('24'),   label:STR.kpi.transfers,  help:STR.kpi.transfersH, tab:3 },
-          { icon:'badge',  val:fmtN(hayyaCounts.approved), label:STR.kpi.visas, help:STR.kpi.visasH, tab:1 },
+          { icon:'flight', val:fmtN(flightRows.filter(f=>f.flightStatus==='confirmed').length),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:0 },
+          { icon:'hotel',  val:fmtN(hotelRows.filter(h=>h.hotelStatus==='confirmed').length), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:1 },
+          { icon:'car',    val:fmtN(transferRows.length),   label:STR.kpi.transfers,  help:STR.kpi.transfersH, tab:2 },
+          // { icon:'badge',  val:fmtN(hayyaCounts.approved), label:STR.kpi.visas, help:STR.kpi.visasH, tab:1 },
         ].map((k, i) => (
           <div key={i} className="card" style={{ padding:'14px 18px', cursor:'pointer' }}
             onClick={() => setActiveTab(k.tab)}
@@ -385,106 +435,8 @@ export default function TravelView({ lang, activeEventId }) {
         ))}
       </div>
 
-      {/* ── Tab 0: Overview ── */}
-      {activeTab === 0 && (
-        <div className="cols-2-narrow">
-          <div className="card">
-            <div className="card-head">
-              <div><h3>{STR.hayya.title}</h3><div className="sub">{STR.hayya.sub}</div></div>
-              <div style={{ display:'flex', gap:6 }}>
-                <span className="chip confirmed"><span className="dot"/>{STR.hayya.connected}</span>
-                <button className="btn ghost" style={{ padding:'4px 10px', fontSize:11 }} onClick={handleSync}>
-                  <Icon name={synced?'check':'refresh'} size={12}/> {synced?STR.hayya.synced:STR.hayya.syncNow}
-                </button>
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:8, padding:'12px 20px 14px', flexWrap:'wrap' }}>
-              {Object.entries(hayyaCounts).map(([k, count]) => (
-                <span key={k} className="chip" style={{ borderColor:STATUS_COLOR[k], color:STATUS_COLOR[k], cursor:'pointer' }}
-                  onClick={() => { setFHayya(k); setActiveTab(1); }}>
-                  <span className="dot" style={{ background:STATUS_COLOR[k] }}/>
-                  {STR.statuses[k]} <strong style={{ marginLeft:3 }}>{fmtN(count)}</strong>
-                </span>
-              ))}
-            </div>
-            <table className="table">
-              <thead><tr>
-                <th>{STR.cols.guest}</th><th>{STR.cols.passport}</th>
-                <th>{STR.cols.hayya}</th><th>{STR.cols.date}</th>
-              </tr></thead>
-              <tbody>
-                {flightRows.slice(0, 8).map(r => (
-                  <tr key={r.id}>
-                    <td><div style={{ display:'flex', alignItems:'center', gap:8 }}><Avatar initials={r.initials} size={26} tier={r.tier}/><span style={{ fontSize:12 }}>{r.name}</span></div></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:11 }}>{r.passport}</span></td>
-                    <td><StatusChip status={r.hayyaStatus} label={STR.statuses[r.hayyaStatus]}/></td>
-                    <td style={{ fontFamily:'var(--mono)', fontSize:11 }}>{r.dateLabel}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ padding:'10px 20px', borderTop:'1px solid var(--glass-border)', textAlign:'center' }}>
-              <button className="btn" style={{ fontSize:12 }} onClick={() => setActiveTab(1)}>
-                {isAr ? 'عرض كل الرحلات والتأشيرات' : 'View all flights & visas'} →
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            <div className="card">
-              <div className="card-head">
-                <div><h3>{STR.inbound.title}</h3></div>
-                <span className="chip confirmed"><span className="dot"/>{STR.inbound.chip}</span>
-              </div>
-              <table className="table">
-                <thead><tr>
-                  <th>{STR.cols.flight}</th><th>ETA</th>
-                  <th>{STR.cols.hayya}</th><th>{STR.cols.driver}</th>
-                </tr></thead>
-                <tbody>
-                  {inbound.map((r, i) => (
-                    <tr key={i}>
-                      <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.flight}</span></td>
-                      <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{ad(r.eta)}</span></td>
-                      <td><StatusChip status={r.hayya} label={STR.statuses[r.hayya]}/></td>
-                      <td style={{ fontSize:12 }}>{r.driver}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="card">
-              <div className="card-head"><h3>{STR.itinerary}</h3></div>
-              <div className="card-body">
-                <div style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
-                  <Avatar initials={GUESTS[0].initials} size={40} tier={GUESTS[0].tier}/>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:600 }}>{GUESTS[0].name}</div>
-                    <div style={{ fontSize:11, color:'var(--ink-mute)', marginBottom:12 }}>{GUESTS[0].role} · {GUESTS[0].org}</div>
-                    <div className="timeline">
-                      {[
-                        { time:ad('Dec 4 · 08:20'), ev: isAr ? 'QR512 — DOH · تصريح هيّا موافق' : 'QR512 — DOH · Hayya permit approved' },
-                        { time:ad('Dec 4 · 09:30'), ev: isAr ? 'وصول · شيراتون الكبرى · غرفة ٧٢١' : 'Check-in · Sheraton Grand · Room 721' },
-                        { time:ad('Dec 7 · 09:00'), ev: isAr ? 'الجلسة الافتتاحية — قاعة الميسرا' : 'Opening Plenary — Al Mayassa Hall' },
-                        { time:ad('Dec 9 · 18:00'), ev: isAr ? 'المغادرة · QR514 — DOH → CDG' : 'Departure · QR514 — DOH → CDG' },
-                      ].map((ev, i) => (
-                        <div key={i} className="timeline-item">
-                          <div style={{ fontSize:11, color:'var(--accent-2)', fontFamily:'var(--mono)', direction:'ltr' }}>{ev.time}</div>
-                          <div style={{ fontSize:12.5 }}>{ev.ev}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Tab 1: Flights & Visas ── */}
-      {activeTab === 1 && (
+      {activeTab === 0 && (
         <div>
           <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
             <span style={{ fontSize:11, color:'var(--ink-mute)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', marginRight:4 }}>Visa</span>
@@ -540,8 +492,11 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('flight', r)}</td>
                   </tr>
                 ))}
-                {filteredFlights.length === 0 && (
+                {!guestsLoading && filteredFlights.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
+                )}
+                {guestsLoading && (
+                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -550,7 +505,7 @@ export default function TravelView({ lang, activeEventId }) {
       )}
 
       {/* ── Tab 2: Hotel ── */}
-      {activeTab === 2 && (
+      {activeTab === 1 && (
         <div>
           <div className="filter-bar" style={{ marginBottom:12 }}>
             <SearchInput value={hSearch} onChange={setHSearch} placeholder={STR.searchPh}/>
@@ -595,8 +550,11 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('hotel', r)}</td>
                   </tr>
                 ))}
-                {filteredHotels.length === 0 && (
+                {!guestsLoading && filteredHotels.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
+                )}
+                {guestsLoading && (
+                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -605,7 +563,7 @@ export default function TravelView({ lang, activeEventId }) {
       )}
 
       {/* ── Tab 3: Ground Transfers ── */}
-      {activeTab === 3 && (
+      {activeTab === 2 && (
         <div>
           <div className="filter-bar" style={{ marginBottom:12 }}>
             <SearchInput value={tSearch} onChange={setTSearch} placeholder={STR.searchPh}/>
@@ -652,8 +610,11 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('transfer', r)}</td>
                   </tr>
                 ))}
-                {filteredTransfers.length === 0 && (
+                {!guestsLoading && filteredTransfers.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
+                )}
+                {guestsLoading && (
+                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -856,7 +817,7 @@ export default function TravelView({ lang, activeEventId }) {
                     <input placeholder={STR.guestSearch} value={guestSearch} onChange={e => setGuestSearch(e.target.value)} style={iSt}/>
                     <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto', marginTop:8 }}>
                       {filteredGuests.map(g => {
-                        const fullName = `${g.firstName} ${g.lastName}`.trim();
+                        const fullName = guestFullName(g);
                         const selected = bookGuestId === g.id;
                         return (
                           <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}

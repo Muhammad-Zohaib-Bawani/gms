@@ -125,7 +125,7 @@ export default function SeatingView({ lang, activeEventId }) {
   const [guests, setGuests] = useState([]);
   useEffect(() => {
     if (!eventId) { setGuests([]); return; }
-    listGuests({ eventId, pageSize: 100 }).then(page => setGuests(page?.items || [])).catch(() => setGuests([]));
+    listGuests({ eventId, pageSize: 100, excludeDeclined: true }).then(page => setGuests(page?.items || [])).catch(() => setGuests([]));
   }, [eventId]);
 
   const [tab, setTab] = useState('floor');

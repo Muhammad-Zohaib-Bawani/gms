@@ -103,4 +103,10 @@ export const ENDPOINTS = {
   dashboard: {
     byEvent: (eventId) => `/v1/Dashboard/${eventId}`,
   },
+
+  // Public (no-login) invitation accept/reject surface.
+  invitation: {
+    byToken: (token) => `/v1/invitation/${token}`,
+    respond: (token) => `/v1/invitation/${token}/respond`,
+  },
 };

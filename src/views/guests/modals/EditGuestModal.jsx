@@ -4,10 +4,20 @@ import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
 import toast from '../../../lib/toast';
-import { updateGuest } from '../../../api/services/guestService';
+import { updateGuest, getGuestEnums } from '../../../api/services/guestService';
+import { getCachedLookupItems } from '../../../api/services/lookupService';
 
 const GUEST_TYPES = ['dignitary', 'delegate', 'media', 'staff', 'vip', 'observer'];
-const TIERS       = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
+
+// Sentinel for the Hotel select's "Other" option — see AddGuestModal for the
+// full rationale (same pattern, duplicated since these two modals don't share
+// a form component).
+const OTHER_HOTEL = '__other__';
+
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 const overlayStyle = {
   position: 'fixed', inset: 0,
@@ -37,9 +47,10 @@ function guestToForm(g) {
     guestType:           g.guestType           || 'delegate',
     organization:        g.organization        || '',
     nationalityId:       g.nationalityId       || '',
-    tier:                g.tier                || 'Delegate',
+    tier:                g.tier                || 'delegate',
     invitationStatus:    g.invitationStatus    || 'not_sent',
     arrivalDate:         g.arrivalDate         || '',
+    departureDate:       g.departureDate       || '',
     flightNumber:        g.flightNumber        || '',
     hotel:               g.hotel               || '',
     accreditationStatus: g.accreditationStatus || 'not_issued',
@@ -55,6 +66,9 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
   const [guestSessions, setGuestSessions] = useState(new Set(guest?.sessionIds || []));
   const [step1Errors,   setStep1Errors]   = useState({});
   const [saving,        setSaving]        = useState(false);
+  const [enums,         setEnums]         = useState({});
+  const [hotels,        setHotels]        = useState([]);
+  const [hotelOtherOverride, setHotelOtherOverride] = useState(null);
 
   // Sync form when guest prop changes (e.g. opening a different guest)
   useEffect(() => {
@@ -64,9 +78,38 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
     setGuestSessions(new Set(guest.sessionIds || []));
     setStep(1);
     setStep1Errors({});
+    setHotelOtherOverride(null);
   }, [guest?.id]);
 
+  useEffect(() => {
+    getGuestEnums().then(setEnums);
+  }, []);
+  useEffect(() => {
+    getCachedLookupItems('HOTEL').then(setHotels).catch(() => setHotels([]));
+  }, []);
+
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  function setArrivalDate(v) {
+    setForm(p => ({
+      ...p,
+      arrivalDate: v,
+      departureDate: p.departureDate && v && p.departureDate < v ? '' : p.departureDate,
+    }));
+  }
+
+  const knownHotelNames = useMemo(() => hotels.map(h => h.name), [hotels]);
+  const isHotelOther = hotelOtherOverride ?? (!!form.hotel && !knownHotelNames.includes(form.hotel));
+
+  function handleHotelChange(v) {
+    if (v === OTHER_HOTEL) {
+      setHotelOtherOverride(true);
+      setF('hotel', '');
+    } else {
+      setHotelOtherOverride(false);
+      setF('hotel', v || '');
+    }
+  }
 
   function handleClose() {
     setStep(1);
@@ -97,6 +140,7 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
         tier:                form.tier,
         invitationStatus:    form.invitationStatus,
         arrivalDate:         form.arrivalDate || null,
+        departureDate:       form.departureDate || null,
         flightNumber:        form.flightNumber || null,
         hotel:               form.hotel || null,
         accreditationStatus: form.accreditationStatus,
@@ -121,8 +165,16 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
   [nationalities, isAr]);
 
   const stepLabels = isAr
-    ? ['المعلومات الشخصية', 'الفئة والحالة', 'السفر والإقامة', 'الدعوة']
-    : ['Personal Info', 'Tier & Status', 'Travel & Stay', 'Invitation'];
+    ? ['المعلومات الشخصية', 'الفئة والإقامة', 'السفر والإقامة', 'الدعوة']
+    : ['Personal Info', 'Tier and Stay', 'Travel & Stay', 'Invitation'];
+
+  const hotelOptions = useMemo(
+    () => [
+      ...hotels.map(h => ({ value: h.name, label: isAr ? (h.nameAr || h.name) : h.name })),
+      { value: OTHER_HOTEL, label: isAr ? 'أخرى' : 'Other' },
+    ],
+    [hotels, isAr],
+  );
 
   const inputStyle = {
     width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -228,37 +280,33 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
               </>
             )}
 
-            {/* STEP 2 — Tier & Status */}
+            {/* STEP 2 — Tier and Stay */}
             {step === 2 && (
               <>
                 <div>
                   <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>{isAr ? 'الفئة' : 'Tier'}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                    {TIERS.map(tier => (
-                      <div key={tier} onClick={() => setF('tier', tier)}
+                    {enums?.GuestTier?.map(tier => (
+                      <div key={tier.code} onClick={() => setF('tier', tier.code)}
                         style={{ padding: '12px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
-                          border: `1px solid ${form.tier === tier ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.tier === tier ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
-                          fontSize: 13, fontWeight: form.tier === tier ? 600 : 400 }}>
-                        {tier}
+                          border: `1px solid ${form.tier === tier.code ? 'var(--accent)' : 'var(--glass-border)'}`,
+                          background: form.tier === tier.code ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
+                          fontSize: 13, fontWeight: form.tier === tier.code ? 600 : 400 }}>
+                        {tier.name}
                       </div>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>{isAr ? 'حالة الدعوة' : 'Invitation Status'}</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {[
-                      { val: 'not_sent', color: 'var(--ink-mute)' },
-                      { val: 'sent',     color: 'var(--accent)' },
-                      { val: 'accepted', color: '#4caf50' },
-                    ].map(({ val, color }) => (
-                      <div key={val} onClick={() => setF('invitationStatus', val)}
-                        style={{ padding: '11px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
-                          border: `1px solid ${form.invitationStatus === val ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.invitationStatus === val ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)' }}>
-                        <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }}/>
-                        <span style={{ fontSize: 13, textTransform: 'capitalize', fontWeight: form.invitationStatus === val ? 600 : 400 }}>{val.replace('_', ' ')}</span>
+                  <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>{isAr ? 'الاعتماد' : 'Accreditation'}</label>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {enums?.GuestAccreditationStatus?.filter(s => s.code !== 'revoked').map(s => (
+                      <div key={s.code} onClick={() => setF('accreditationStatus', s.code)}
+                        style={{ flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
+                          border: `1px solid ${form.accreditationStatus === s.code ? 'var(--accent)' : 'var(--glass-border)'}`,
+                          background: form.accreditationStatus === s.code ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
+                          fontSize: 13, textTransform: 'capitalize', fontWeight: form.accreditationStatus === s.code ? 600 : 400 }}>
+                        {isAr ? s.nameAr : s.name}
                       </div>
                     ))}
                   </div>
@@ -272,30 +320,33 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <FieldLabel>{isAr ? 'تاريخ الوصول' : 'Arrival Date'}</FieldLabel>
-                    <DateField value={form.arrivalDate} onChange={v => setF('arrivalDate', v)} placeholder="YYYY-MM-DD"/>
+                    <DateField value={form.arrivalDate} onChange={setArrivalDate} minDate={todayIso()} placeholder="YYYY-MM-DD"/>
                   </div>
                   <div>
-                    <FieldLabel>{isAr ? 'رقم الرحلة' : 'Flight No.'}</FieldLabel>
-                    <input value={form.flightNumber} onChange={e => setF('flightNumber', e.target.value)} style={inputStyle}/>
+                    <FieldLabel>{isAr ? 'تاريخ المغادرة' : 'Departure Date'}</FieldLabel>
+                    <DateField value={form.departureDate} onChange={v => setF('departureDate', v)} minDate={form.arrivalDate || todayIso()} placeholder="YYYY-MM-DD"/>
                   </div>
+                </div>
+                <div>
+                  <FieldLabel>{isAr ? 'رقم الرحلة' : 'Flight No.'}</FieldLabel>
+                  <input value={form.flightNumber} onChange={e => setF('flightNumber', e.target.value)} style={inputStyle}/>
                 </div>
                 <div>
                   <FieldLabel>{isAr ? 'الفندق' : 'Hotel'}</FieldLabel>
-                  <input value={form.hotel} onChange={e => setF('hotel', e.target.value)} style={inputStyle}/>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>{isAr ? 'الاعتماد' : 'Accreditation'}</label>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    {['not_issued', 'issued'].map(s => (
-                      <div key={s} onClick={() => setF('accreditationStatus', s)}
-                        style={{ flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
-                          border: `1px solid ${form.accreditationStatus === s ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.accreditationStatus === s ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
-                          fontSize: 13, textTransform: 'capitalize', fontWeight: form.accreditationStatus === s ? 600 : 400 }}>
-                        {s.replace('_', ' ')}
-                      </div>
-                    ))}
-                  </div>
+                  <Select
+                    value={isHotelOther ? OTHER_HOTEL : (form.hotel || '')}
+                    onChange={handleHotelChange}
+                    options={hotelOptions}
+                    placeholder={isAr ? '— اختر —' : '— Select —'}
+                  />
+                  {isHotelOther && (
+                    <input
+                      style={{ ...inputStyle, marginTop: 8 }}
+                      value={form.hotel}
+                      onChange={e => setF('hotel', e.target.value)}
+                      placeholder={isAr ? 'مثال: شيراتون الدوحة' : 'e.g. Sheraton Grand Doha'}
+                    />
+                  )}
                 </div>
               </>
             )}
