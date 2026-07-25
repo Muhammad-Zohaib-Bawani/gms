@@ -8,9 +8,14 @@ export const toast = {
   warning: (message, opts) => sonner.warning(message, opts),
   info: (message, opts) => sonner.info(message, opts),
   message: (message, opts) => sonner(message, opts),
-  // Resolve a thrown ApiError (or anything) to an error toast.
-  fromError: (err, fallback = 'Something went wrong') =>
-    sonner.error(err?.message || fallback),
+  // Resolve a thrown ApiError (or anything) to an error toast. Prefers the
+  // backend message; appends field-level errors[] as the description if present.
+  fromError: (err, fallback = 'Something went wrong') => {
+    const list = Array.isArray(err?.errors) ? err.errors.filter(Boolean) : [];
+    return sonner.error(err?.message || fallback, {
+      description: list.length ? list.join('\n') : undefined,
+    });
+  },
 };
 
 export default toast;

@@ -27,3 +27,10 @@ export const addVenueBlock = (eventId, sessionId, venueId, body) =>
   apiClient.post(ENDPOINTS.venues.addBlock(eventId), body, {
     params: { sessionId: sessionId || undefined, venueId },
   });
+
+// ── Venue reference data (dedicated tables) ──────────────────────────────────
+export const getVenueTypes    = () => apiClient.get(ENDPOINTS.venues.types);
+export const createVenueType  = (name, nameAr) => apiClient.post(ENDPOINTS.venues.types, { name, nameAr });
+export const getElementTypes  = () => apiClient.get(ENDPOINTS.venues.elementTypes);
+export const createElementType = (code, name, nameAr) =>
+  apiClient.post(ENDPOINTS.venues.elementTypes, { code, name, nameAr });

@@ -3,8 +3,7 @@ import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
 import { Icon } from '../../components/Icons';
 import toast from '../../lib/toast';
-import { createVenue } from '../../api/services/venueService';
-import { getCachedLookupItems } from '../../api/services/lookupService';
+import { createVenue, getVenueTypes } from '../../api/services/venueService';
 import { VENUE_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from './venueHelpers';
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
@@ -30,13 +29,12 @@ export default function AddVenueModal({ open, onClose, lang, onSaved, activeEven
   const [errors,    setErrors]    = useState({});
   const [saving,    setSaving]    = useState(false);
 
-  // Load venue types from the VENUE_TYPE lookup when the modal opens.
-  // getCachedLookupItems serves from localStorage after the first fetch.
+  // Load venue types from the dedicated VenueType endpoint when the modal opens.
   useEffect(() => {
     if (!open) return;
     setForm(emptyForm());
     setErrors({});
-    getCachedLookupItems('VENUE_TYPE').then(r => setTypes(r || [])).catch(() => setTypes([]));
+    getVenueTypes().then(r => setTypes(r || [])).catch(() => setTypes([]));
   }, [open]);
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));

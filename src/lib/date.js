@@ -19,6 +19,23 @@ export function toIsoDate(date) {
   return `${y}-${m}-${day}`;
 }
 
+// Datetime variants for 'YYYY-MM-DDTHH:mm' (local, no zone) — used by the
+// datetime picker. Kept local to dodge UTC off-by-one like the date helpers.
+export function toDateTime(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(value));
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return toDate(value);
+}
+
+export function toIsoDateTime(date) {
+  const d = date instanceof Date ? date : toDateTime(date);
+  if (!d) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export function startOfToday() {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());

@@ -2,10 +2,15 @@ import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Icon } from "../../../components/Icons";
 import Select from "../../../components/ui/Select";
-import DateField from "../../../components/ui/DateField";
 import toast from "../../../lib/toast";
 import { createGuest, getGuestEnums } from "../../../api/services/guestService";
-import { getCachedLookupItems } from "../../../api/services/lookupService";
+import { getTravelLookups, saveGuestTravel } from "../../../api/services/travelService";
+import TravelAccordion, {
+  EMPTY_TRAVEL,
+  anyTravelEnabled,
+  buildTravelPayload,
+  validateTravel,
+} from "./TravelAccordion";
 
 const GUEST_TYPES = [
   "dignitary",
@@ -16,14 +21,23 @@ const GUEST_TYPES = [
   "observer",
 ];
 
-// Sentinel for the Hotel select's "Other" option — the actual hotel name (or
-// custom free-text value) still lives in guest.hotel, this just switches the
-// field between "pick from the list" and "type your own" UI modes.
-const OTHER_HOTEL = "__other__";
-
-function todayIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// Module scope: defining this inside the component gives it a fresh identity
+// each render, remounting the label DOM on every keystroke.
+function FieldLabel({ children }) {
+  return (
+    <label
+      style={{
+        display: "block",
+        fontSize: 10.5,
+        color: "var(--ink-mute)",
+        textTransform: "uppercase",
+        letterSpacing: "0.12em",
+        marginBottom: 5,
+      }}
+    >
+      {children}
+    </label>
+  );
 }
 
 const EMPTY_GUEST = {
@@ -35,10 +49,6 @@ const EMPTY_GUEST = {
   nationalityId: "",
   tier: "delegate",
   invitationStatus: "not_sent",
-  arrivalDate: "",
-  departureDate: "",
-  flightNumber: "",
-  hotel: "",
   accreditationStatus: "not_issued",
 };
 const overlayStyle = {
@@ -60,8 +70,10 @@ const contentStyle = {
   zIndex: 1101,
   display: "flex",
   flexDirection: "column",
-  background: "var(--glass-bg, rgba(10,28,36,0.92))",
-  backdropFilter: "blur(20px)",
+  // Near-opaque bg + the overlay's own blur give the glass look without a
+  // backdrop-filter on this box — that filter repaints on every keystroke and
+  // makes typing jerky.
+  background: "var(--glass-bg, rgba(10,28,36,0.97))",
   border: "1px solid var(--glass-border)",
   borderRadius: 16,
   boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
@@ -87,11 +99,8 @@ export default function AddGuestModal({
   const [guestSessions, setGuestSessions] = useState(new Set());
   const [saving, setSaving] = useState(false);
   const [enums, setEnums] = useState({});
-  const [hotels, setHotels] = useState([]);
-  // null = not yet touched by the user this session (auto-detect from the
-  // current value); true/false once the user explicitly picks "Other" or a
-  // real option, which then wins regardless of what the value looks like.
-  const [hotelOtherOverride, setHotelOtherOverride] = useState(null);
+  const [travel, setTravel] = useState(EMPTY_TRAVEL);
+  const [travelLookups, setTravelLookups] = useState({});
 
   const setG = (k, v) => setGuest((p) => ({ ...p, [k]: v }));
 
@@ -101,30 +110,8 @@ export default function AddGuestModal({
     setStep1Errors({});
     setTemplateId(null);
     setGuestSessions(new Set());
-    setHotelOtherOverride(null);
+    setTravel(EMPTY_TRAVEL);
     onClose();
-  }
-
-  function setArrivalDate(v) {
-    setGuest((p) => ({
-      ...p,
-      arrivalDate: v,
-      // A departure earlier than the newly-picked arrival is no longer valid.
-      departureDate: p.departureDate && v && p.departureDate < v ? "" : p.departureDate,
-    }));
-  }
-
-  const knownHotelNames = useMemo(() => hotels.map((h) => h.name), [hotels]);
-  const isHotelOther = hotelOtherOverride ?? (!!guest.hotel && !knownHotelNames.includes(guest.hotel));
-
-  function handleHotelChange(v) {
-    if (v === OTHER_HOTEL) {
-      setHotelOtherOverride(true);
-      setG("hotel", "");
-    } else {
-      setHotelOtherOverride(false);
-      setG("hotel", v || "");
-    }
   }
 
   function handleNext() {
@@ -141,9 +128,14 @@ export default function AddGuestModal({
   }
 
   async function handleSave() {
+    const travelErr = validateTravel(travel, isAr);
+    if (travelErr) {
+      toast.error(travelErr);
+      return;
+    }
     setSaving(true);
     try {
-      await createGuest({
+      const created = await createGuest({
         firstName: guest.firstName.trim(),
         lastName: guest.lastName.trim(),
         email: guest.email || null,
@@ -152,15 +144,18 @@ export default function AddGuestModal({
         organization: guest.organization || null,
         nationalityId: guest.nationalityId || null,
         tier: guest.tier,
-        invitationStatus: guest.invitationStatus,
-        arrivalDate: guest.arrivalDate || null,
-        departureDate: guest.departureDate || null,
-        flightNumber: guest.flightNumber || null,
-        hotel: guest.hotel || null,
-        accreditationStatus: guest.accreditationStatus,
         invitationTemplateId: templateId || null,
         sessionIds: Array.from(guestSessions),
       });
+      // Persist the travel sections the admin enabled (skip if the guest id is
+      // missing — nothing to attach the travel record to).
+      if (created?.id && anyTravelEnabled(travel)) {
+        try {
+          await saveGuestTravel(created.id, buildTravelPayload(travel));
+        } catch (err) {
+          toast.fromError(err, isAr ? "تم حفظ الضيف لكن تعذّر حفظ بيانات السفر" : "Guest saved, but travel details failed to save");
+        }
+      }
       onSaved?.();
       handleClose();
       toast.success(
@@ -172,8 +167,8 @@ export default function AddGuestModal({
             ? "تمت إضافة الضيف بنجاح"
             : "Guest added successfully",
       );
-    } catch {
-      toast.error(isAr ? "حدث خطأ أثناء إضافة الضيف" : "Error adding guest");
+    } catch (err) {
+      toast.fromError(err, isAr ? "حدث خطأ أثناء إضافة الضيف" : "Error adding guest");
     } finally {
       setSaving(false);
     }
@@ -201,14 +196,6 @@ export default function AddGuestModal({
     ? ["المعلومات الشخصية", "الفئة والإقامة", "السفر والإقامة", "الدعوة"]
     : ["Personal Info", "Tier and Stay", "Travel & Stay", "Invitation"];
 
-  const hotelOptions = useMemo(
-    () => [
-      ...hotels.map((h) => ({ value: h.name, label: isAr ? h.nameAr || h.name : h.name })),
-      { value: OTHER_HOTEL, label: isAr ? "أخرى" : "Other" },
-    ],
-    [hotels, isAr],
-  );
-
   const inputStyle = {
     width: "100%",
     background: "var(--surface-soft-3)",
@@ -221,27 +208,11 @@ export default function AddGuestModal({
   const errorBorder = { ...inputStyle, border: "1px solid #e05050" };
   const errMsg = { fontSize: 11, color: "#e05050", marginTop: 3 };
 
-  function FieldLabel({ children }) {
-    return (
-      <label
-        style={{
-          display: "block",
-          fontSize: 10.5,
-          color: "var(--ink-mute)",
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          marginBottom: 5,
-        }}
-      >
-        {children}
-      </label>
-    );
-  }
   useEffect(() => {
     getGuestEnums().then(setEnums);
   }, [guest?.id]);
   useEffect(() => {
-    getCachedLookupItems("HOTEL").then(setHotels).catch(() => setHotels([]));
+    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
   }, []);
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -534,64 +505,12 @@ export default function AddGuestModal({
             {/* STEP 3 — Travel & Stay */}
             {step === 3 && (
               <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <FieldLabel>
-                      {isAr ? "تاريخ الوصول" : "Arrival Date"}
-                    </FieldLabel>
-                    <DateField
-                      value={guest.arrivalDate}
-                      onChange={setArrivalDate}
-                      minDate={todayIso()}
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel>
-                      {isAr ? "تاريخ المغادرة" : "Departure Date"}
-                    </FieldLabel>
-                    <DateField
-                      value={guest.departureDate}
-                      onChange={(v) => setG("departureDate", v)}
-                      minDate={guest.arrivalDate || todayIso()}
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? "رقم الرحلة" : "Flight No."}</FieldLabel>
-                  <input
-                    placeholder="QR 512"
-                    value={guest.flightNumber}
-                    onChange={(e) => setG("flightNumber", e.target.value)}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? "الفندق" : "Hotel"}</FieldLabel>
-                  <Select
-                    value={isHotelOther ? OTHER_HOTEL : guest.hotel || ""}
-                    onChange={handleHotelChange}
-                    options={hotelOptions}
-                    placeholder={isAr ? "— اختر —" : "— Select —"}
-                  />
-                  {isHotelOther && (
-                    <input
-                      style={{ ...inputStyle, marginTop: 8 }}
-                      placeholder={
-                        isAr ? "مثال: شيراتون الدوحة" : "e.g. Sheraton Grand Doha"
-                      }
-                      value={guest.hotel}
-                      onChange={(e) => setG("hotel", e.target.value)}
-                    />
-                  )}
-                </div>
+                <TravelAccordion
+                  travel={travel}
+                  onChange={setTravel}
+                  lookups={travelLookups}
+                  isAr={isAr}
+                />
               </>
             )}
 

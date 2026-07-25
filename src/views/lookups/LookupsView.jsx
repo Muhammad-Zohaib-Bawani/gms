@@ -1,230 +1,131 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Icon } from '../../components/Icons';
-import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import toast from '../../lib/toast';
-import { getLookupItems, deleteLookupItem } from '../../api/services/lookupService';
-import { getLookupConfig, LOOKUP_CATEGORIES } from './lookupConfig';
-import LookupItemModal from './LookupItemModal';
+import { getLookupDef } from './lookupConfig';
 
-export default function LookupsView({ categoryCode, lang }) {
-  const isAr   = lang === 'ar';
-  const config = getLookupConfig(categoryCode);
+const inputStyle = {
+  width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+  borderRadius: 8, padding: '9px 12px', color: 'var(--ink)', fontSize: 13, boxSizing: 'border-box',
+};
+const errorStyle = { ...inputStyle, border: '1px solid #e05050' };
+const labelStyle = {
+  display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase',
+  letterSpacing: '0.12em', marginBottom: 5,
+};
 
-  const [items,      setItems]      = useState([]);
-  const [loading,    setLoading]    = useState(false);
-  const [query,      setQuery]      = useState('');
-  const [editItem,   setEditItem]   = useState(null);   // item object when editing
-  const [showAdd,    setShowAdd]    = useState(false);
-  const [deleteItem, setDeleteItem] = useState(null);
-  const [deleting,   setDeleting]   = useState(false);
+// Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
+export default function LookupsView({ lookupKey, lang }) {
+  const isAr = lang === 'ar';
+  const def = getLookupDef(lookupKey);
 
-  const catLabel = useMemo(() => {
-    const c = LOOKUP_CATEGORIES.find(c => c.code === categoryCode);
-    return c ? (isAr ? c.label.ar : c.label.en) : categoryCode;
-  }, [categoryCode, isAr]);
+  const [rows, setRows]       = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm]       = useState({});
+  const [errors, setErrors]   = useState({});
+  const [saving, setSaving]   = useState(false);
 
   const load = useCallback(async () => {
-    if (!categoryCode) return;
+    if (!def) return;
     setLoading(true);
-    try {
-      const r = await getLookupItems(categoryCode, { includeInactive: true });
-      setItems(r || []);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [categoryCode]);
+    try { setRows((await def.list()) || []); }
+    catch { setRows([]); }
+    finally { setLoading(false); }
+  }, [def]);
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(i =>
-      (i.name || '').toLowerCase().includes(q) ||
-      (i.nameAr || '').toLowerCase().includes(q) ||
-      (i.code || '').toLowerCase().includes(q));
-  }, [items, query]);
+  if (!def) return null;
 
-  async function handleDelete() {
-    setDeleting(true);
+  const label = isAr ? def.label.ar : def.label.en;
+  const openAdd = () => { setForm({}); setErrors({}); setShowAdd(true); };
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  async function handleSave() {
+    const errs = {};
+    def.fields.forEach(f => { if (f.required && !(form[f.key] || '').trim()) errs[f.key] = true; });
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    setSaving(true);
     try {
-      await deleteLookupItem(deleteItem.id);
-      setDeleteItem(null);
+      await def.create(form);
+      setShowAdd(false);
       load();
-      toast.success(isAr ? 'تم حذف العنصر' : 'Item deleted');
-    } catch {
-      toast.error(isAr ? 'تعذّر حذف العنصر' : 'Could not delete item');
+      toast.success(isAr ? 'تمت الإضافة' : 'Added');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || (isAr ? 'خطأ أثناء الحفظ' : 'Error saving'));
     } finally {
-      setDeleting(false);
+      setSaving(false);
     }
   }
 
-  const columns = useMemo(() => {
-    const cols = [];
-
-    if (config.code.show) {
-      cols.push({
-        id: 'code',
-        header: isAr ? config.code.labelAr : config.code.label,
-        accessorKey: 'code',
-        size: 110,
-        cell: ({ getValue }) => (
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>{getValue() || '—'}</span>
-        ),
-      });
-    }
-
-    cols.push({
-      id: 'name',
-      header: isAr ? 'الاسم' : 'Name',
-      accessorKey: 'name',
-      cell: ({ row: { original: i } }) => (
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>{isAr ? (i.nameAr || i.name) : i.name}</div>
-          {isAr ? (i.name && <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{i.name}</div>)
-                : (i.nameAr && <div style={{ fontSize: 11, color: 'var(--ink-mute)' }} dir="rtl">{i.nameAr}</div>)}
-        </div>
-      ),
-    });
-
-    config.metaFields.forEach(f => {
-      cols.push({
-        id: `meta_${f.key}`,
-        header: isAr ? f.labelAr : f.label,
-        enableSorting: false,
-        cell: ({ row: { original: i } }) => (
-          <span style={{ fontSize: 12 }}>{i.metadata?.[f.key] || '—'}</span>
-        ),
-      });
-    });
-
-    cols.push({
-      id: 'status',
-      header: isAr ? 'الحالة' : 'Status',
-      accessorKey: 'isActive',
-      size: 90,
-      cell: ({ getValue }) => {
-        const active = getValue();
-        return (
-          <span className={`chip ${active ? 'confirmed' : 'pending'}`}>
-            <span className="dot"/>
-            {active ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}
-          </span>
-        );
-      },
-    });
-
-    cols.push({
-      id: 'edit',
-      size: 40,
-      enableSorting: false,
-      cell: ({ row: { original: i } }) => (
-        <button className="btn" onClick={e => { e.stopPropagation(); setEditItem(i); }}>
-          <Icon name="edit" size={14}/>
-        </button>
-      ),
-    });
-
-    cols.push({
-      id: 'delete',
-      size: 40,
-      enableSorting: false,
-      cell: ({ row: { original: i } }) => (
-        <button className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.4)' }}
-          onClick={e => { e.stopPropagation(); setDeleteItem(i); }}>
-          <Icon name="trash" size={14}/>
-        </button>
-      ),
-    });
-
-    return cols;
-  }, [config, isAr]);
-
   return (
     <div>
-      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">{catLabel}</h1>
-          <div className="page-sub">
-            {filtered.length} {isAr ? 'عنصر' : `item${filtered.length !== 1 ? 's' : ''}`}
-          </div>
+          <h1 className="page-title">{label}</h1>
+          <div className="page-sub">{rows.length} {isAr ? 'عنصر' : `item${rows.length !== 1 ? 's' : ''}`}</div>
         </div>
         <div className="page-actions">
-          <button className="btn primary" onClick={() => setShowAdd(true)}>
-            <Icon name="plus" size={14}/> {isAr ? 'إضافة عنصر' : 'Add Item'}
+          <button className="btn primary" onClick={openAdd}>
+            <Icon name="plus" size={14} /> {isAr ? 'إضافة' : 'Add'}
           </button>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="filter-bar">
-        <div className="search" style={{ flex: 1, maxWidth: 320 }}>
-          <Icon name="search" size={14}/>
-          <input
-            placeholder={isAr ? 'بحث…' : 'Search…'}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
       <div className="card" style={{ padding: 0 }}>
-        <DataTable
-          columns={columns}
-          data={filtered}
-          loading={loading}
-          emptyText={isAr ? 'لا توجد عناصر بعد' : 'No items yet'}
-          showSearch={false}
-          pageSize={20}
-        />
+        <table className="table">
+          <thead>
+            <tr>{def.columns.map(c => <th key={c.key}>{isAr ? c.label.ar : c.label.en}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id || i}>
+                {def.columns.map(c => (
+                  <td key={c.key} style={{ fontSize: 13 }}>{r[c.key] || '—'}</td>
+                ))}
+              </tr>
+            ))}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={def.columns.length} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
+                {isAr ? 'لا توجد عناصر بعد' : 'No items yet'}
+              </td></tr>
+            )}
+            {loading && (
+              <tr><td colSpan={def.columns.length} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
+                {isAr ? 'جارٍ التحميل…' : 'Loading…'}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Add / Edit modals */}
-      <LookupItemModal
+      <Modal
         open={showAdd}
         onClose={() => setShowAdd(false)}
-        categoryCode={categoryCode}
-        config={config}
-        item={null}
-        lang={lang}
-        onSaved={load}
-      />
-      <LookupItemModal
-        open={!!editItem}
-        onClose={() => setEditItem(null)}
-        categoryCode={categoryCode}
-        config={config}
-        item={editItem}
-        lang={lang}
-        onSaved={load}
-      />
-
-      {/* Delete confirm */}
-      <Modal
-        open={!!deleteItem}
-        onClose={() => setDeleteItem(null)}
-        title={isAr ? 'حذف العنصر' : 'Delete Item'}
-        width={400}
+        title={`${isAr ? 'إضافة' : 'Add'} — ${label}`}
+        width={440}
         footer={
           <>
-            <button className="btn" onClick={() => setDeleteItem(null)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
-            <button className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.4)' }}
-              onClick={handleDelete} disabled={deleting}>
-              <Icon name="trash" size={13}/> {deleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? 'حذف' : 'Delete')}
+            <button className="btn" onClick={() => setShowAdd(false)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+            <button className="btn primary" onClick={handleSave} disabled={saving}>
+              <Icon name="check" size={13} /> {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ' : 'Save')}
             </button>
           </>
         }
       >
-        <div style={{ fontSize: 13, color: 'var(--ink-dim)' }}>
-          {isAr
-            ? `هل تريد حذف "${deleteItem?.nameAr || deleteItem?.name}"؟`
-            : `Delete "${deleteItem?.name}"? This can't be undone.`}
-        </div>
+        {def.fields.map(f => (
+          <div key={f.key} style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{isAr ? f.label.ar : f.label.en}{f.required ? ' *' : ''}</label>
+            <input
+              style={errors[f.key] ? errorStyle : inputStyle}
+              value={form[f.key] || ''}
+              dir={f.key === 'nameAr' ? 'rtl' : undefined}
+              onChange={e => { setF(f.key, e.target.value); if (errors[f.key]) setErrors(p => ({ ...p, [f.key]: false })); }}
+            />
+          </div>
+        ))}
       </Modal>
     </div>
   );

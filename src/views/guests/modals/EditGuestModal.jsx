@@ -5,14 +5,16 @@ import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
 import toast from '../../../lib/toast';
 import { updateGuest, getGuestEnums } from '../../../api/services/guestService';
-import { getCachedLookupItems } from '../../../api/services/lookupService';
+import { getTravelLookups, getGuestTravel, saveGuestTravel } from '../../../api/services/travelService';
+import TravelAccordion, {
+  EMPTY_TRAVEL,
+  hydrateTravel,
+  anyTravelEnabled,
+  buildTravelPayload,
+  validateTravel,
+} from './TravelAccordion';
 
 const GUEST_TYPES = ['dignitary', 'delegate', 'media', 'staff', 'vip', 'observer'];
-
-// Sentinel for the Hotel select's "Other" option — see AddGuestModal for the
-// full rationale (same pattern, duplicated since these two modals don't share
-// a form component).
-const OTHER_HOTEL = '__other__';
 
 function todayIso() {
   const d = new Date();
@@ -51,8 +53,6 @@ function guestToForm(g) {
     invitationStatus:    g.invitationStatus    || 'not_sent',
     arrivalDate:         g.arrivalDate         || '',
     departureDate:       g.departureDate       || '',
-    flightNumber:        g.flightNumber        || '',
-    hotel:               g.hotel               || '',
     accreditationStatus: g.accreditationStatus || 'not_issued',
   };
 }
@@ -67,8 +67,8 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
   const [step1Errors,   setStep1Errors]   = useState({});
   const [saving,        setSaving]        = useState(false);
   const [enums,         setEnums]         = useState({});
-  const [hotels,        setHotels]        = useState([]);
-  const [hotelOtherOverride, setHotelOtherOverride] = useState(null);
+  const [travel,        setTravel]        = useState(EMPTY_TRAVEL);
+  const [travelLookups, setTravelLookups] = useState({});
 
   // Sync form when guest prop changes (e.g. opening a different guest)
   useEffect(() => {
@@ -78,14 +78,18 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
     setGuestSessions(new Set(guest.sessionIds || []));
     setStep(1);
     setStep1Errors({});
-    setHotelOtherOverride(null);
+    // Prefill travel; sections that come back non-null are marked enabled.
+    setTravel(EMPTY_TRAVEL);
+    getGuestTravel(guest.id)
+      .then(data => setTravel(hydrateTravel(data)))
+      .catch(() => setTravel(EMPTY_TRAVEL));
   }, [guest?.id]);
 
   useEffect(() => {
     getGuestEnums().then(setEnums);
   }, []);
   useEffect(() => {
-    getCachedLookupItems('HOTEL').then(setHotels).catch(() => setHotels([]));
+    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
   }, []);
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -96,19 +100,6 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
       arrivalDate: v,
       departureDate: p.departureDate && v && p.departureDate < v ? '' : p.departureDate,
     }));
-  }
-
-  const knownHotelNames = useMemo(() => hotels.map(h => h.name), [hotels]);
-  const isHotelOther = hotelOtherOverride ?? (!!form.hotel && !knownHotelNames.includes(form.hotel));
-
-  function handleHotelChange(v) {
-    if (v === OTHER_HOTEL) {
-      setHotelOtherOverride(true);
-      setF('hotel', '');
-    } else {
-      setHotelOtherOverride(false);
-      setF('hotel', v || '');
-    }
   }
 
   function handleClose() {
@@ -128,6 +119,11 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
   }
 
   async function handleSave() {
+    const travelErr = validateTravel(travel, isAr);
+    if (travelErr) {
+      toast.error(travelErr);
+      return;
+    }
     setSaving(true);
     try {
       await updateGuest(guest.id, {
@@ -138,15 +134,19 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
         organization:        form.organization || null,
         nationalityId:       form.nationalityId || null,
         tier:                form.tier,
-        invitationStatus:    form.invitationStatus,
         arrivalDate:         form.arrivalDate || null,
         departureDate:       form.departureDate || null,
-        flightNumber:        form.flightNumber || null,
-        hotel:               form.hotel || null,
-        accreditationStatus: form.accreditationStatus,
         invitationTemplateId: templateId || null,
         sessionIds:          Array.from(guestSessions),
       });
+      // Persist the enabled travel sections against the same guest.
+      if (guest?.id && anyTravelEnabled(travel)) {
+        try {
+          await saveGuestTravel(guest.id, buildTravelPayload(travel));
+        } catch {
+          toast.error(isAr ? 'تم تحديث الضيف لكن تعذّر حفظ بيانات السفر' : 'Guest updated, but travel details failed to save');
+        }
+      }
       onSaved?.();
       handleClose();
       toast.success(isAr ? 'تم تحديث بيانات الضيف' : 'Guest updated successfully');
@@ -167,14 +167,6 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
   const stepLabels = isAr
     ? ['المعلومات الشخصية', 'الفئة والإقامة', 'السفر والإقامة', 'الدعوة']
     : ['Personal Info', 'Tier and Stay', 'Travel & Stay', 'Invitation'];
-
-  const hotelOptions = useMemo(
-    () => [
-      ...hotels.map(h => ({ value: h.name, label: isAr ? (h.nameAr || h.name) : h.name })),
-      { value: OTHER_HOTEL, label: isAr ? 'أخرى' : 'Other' },
-    ],
-    [hotels, isAr],
-  );
 
   const inputStyle = {
     width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -327,27 +319,12 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                     <DateField value={form.departureDate} onChange={v => setF('departureDate', v)} minDate={form.arrivalDate || todayIso()} placeholder="YYYY-MM-DD"/>
                   </div>
                 </div>
-                <div>
-                  <FieldLabel>{isAr ? 'رقم الرحلة' : 'Flight No.'}</FieldLabel>
-                  <input value={form.flightNumber} onChange={e => setF('flightNumber', e.target.value)} style={inputStyle}/>
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? 'الفندق' : 'Hotel'}</FieldLabel>
-                  <Select
-                    value={isHotelOther ? OTHER_HOTEL : (form.hotel || '')}
-                    onChange={handleHotelChange}
-                    options={hotelOptions}
-                    placeholder={isAr ? '— اختر —' : '— Select —'}
-                  />
-                  {isHotelOther && (
-                    <input
-                      style={{ ...inputStyle, marginTop: 8 }}
-                      value={form.hotel}
-                      onChange={e => setF('hotel', e.target.value)}
-                      placeholder={isAr ? 'مثال: شيراتون الدوحة' : 'e.g. Sheraton Grand Doha'}
-                    />
-                  )}
-                </div>
+                <TravelAccordion
+                  travel={travel}
+                  onChange={setTravel}
+                  lookups={travelLookups}
+                  isAr={isAr}
+                />
               </>
             )}
 

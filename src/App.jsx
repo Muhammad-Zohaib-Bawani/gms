@@ -29,12 +29,12 @@ import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
 import LookupsView from './views/lookups/LookupsView';
-import { LOOKUP_CATEGORIES } from './views/lookups/lookupConfig';
+import { LOOKUP_DEFS } from './views/lookups/lookupConfig';
 
-const LOOKUP_CHILDREN = LOOKUP_CATEGORIES.map(c => ({
-  key: `lookup-${c.code}`,
-  categoryCode: c.code,
-  label: c.label,
+const LOOKUP_CHILDREN = LOOKUP_DEFS.map(d => ({
+  key: `lookup-${d.key}`,
+  lookupKey: d.key,
+  label: d.label,
   permission: "Lookups.View",
 }));
 
@@ -938,8 +938,8 @@ export default function App() {
       </header>
 
       <main className="main">
-        {activeLeaf?.categoryCode
-          ? <LookupsView categoryCode={activeLeaf.categoryCode} lang={lang} />
+        {activeLeaf?.lookupKey
+          ? <LookupsView lookupKey={activeLeaf.lookupKey} lang={lang} />
           : <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} activeEventId={activeEvent?.id || null} />}
       </main>
 

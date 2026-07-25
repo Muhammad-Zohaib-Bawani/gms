@@ -1,68 +1,66 @@
-// Per-category UI config for the generic lookup screens.
-// `code`      — whether the item Code column/input is shown and how it's labelled.
-// `metaFields`— category-specific fields stored in the item's JSON metadata.
-// Category codes match the backend seeded LookupCategory.Code values.
+// Admin-managed reference data. Each lookup is a dedicated table with a
+// GET (list) + POST (create) endpoint. `columns` drives the table, `fields`
+// drives the Add form. No edit/delete — the backend exposes create only.
+import {
+  getFlightTypes, createFlightType,
+  getFlightClasses, createFlightClass,
+  getRoomTypes, createRoomType,
+  getHotels, createHotel,
+  getLocations,
+} from '../../api/services/travelService';
+import {
+  getVenueTypes, createVenueType,
+  getElementTypes, createElementType,
+} from '../../api/services/venueService';
+import { createLocation } from '../../api/services/locationService';
 
-export const LOOKUP_CONFIG = {
-  AIRLINE: {
-    icon: 'travel',
-    code: { show: true, label: 'IATA Code', labelAr: 'رمز الأياتا', placeholder: 'QR' },
-    metaFields: [
-      { key: 'country', label: 'Country', labelAr: 'الدولة' },
+const NAME = { key: 'name', label: { en: 'Name', ar: 'الاسم' } };
+const NAME_AR = { key: 'nameAr', label: { en: 'Name (Arabic)', ar: 'الاسم بالعربية' } };
+const ADDRESS = { key: 'address', label: { en: 'Address', ar: 'العنوان' } };
+const CODE = { key: 'code', label: { en: 'Code', ar: 'الرمز' } };
+
+export const LOOKUP_DEFS = [
+  {
+    key: 'flight-types', label: { en: 'Flight Types', ar: 'أنواع الرحلات' },
+    list: getFlightTypes, create: (f) => createFlightType(f.name),
+    columns: [NAME], fields: [{ ...NAME, required: true }],
+  },
+  {
+    key: 'flight-classes', label: { en: 'Flight Classes', ar: 'درجات الرحلة' },
+    list: getFlightClasses, create: (f) => createFlightClass(f.name),
+    columns: [NAME], fields: [{ ...NAME, required: true }],
+  },
+  {
+    key: 'room-types', label: { en: 'Room Types', ar: 'أنواع الغرف' },
+    list: getRoomTypes, create: (f) => createRoomType(f.name),
+    columns: [NAME], fields: [{ ...NAME, required: true }],
+  },
+  {
+    key: 'hotels', label: { en: 'Hotels', ar: 'الفنادق' },
+    list: getHotels, create: (f) => createHotel(f.name, f.address),
+    columns: [NAME, ADDRESS], fields: [{ ...NAME, required: true }, ADDRESS],
+  },
+  {
+    key: 'locations', label: { en: 'Locations', ar: 'المواقع' },
+    list: getLocations,
+    create: (f) => createLocation({ latitude: f.latitude, longitude: f.longitude, address: f.address }),
+    columns: [ADDRESS],
+    fields: [
+      ADDRESS,
+      { key: 'latitude', label: { en: 'Latitude', ar: 'خط العرض' }, required: true },
+      { key: 'longitude', label: { en: 'Longitude', ar: 'خط الطول' }, required: true },
     ],
   },
-  AIRPORT: {
-    icon: 'travel',
-    code: { show: true, label: 'IATA Code', labelAr: 'رمز الأياتا', placeholder: 'DOH' },
-    metaFields: [
-      { key: 'city',    label: 'City',    labelAr: 'المدينة' },
-      { key: 'country', label: 'Country', labelAr: 'الدولة' },
-      { key: 'icao',    label: 'ICAO',    labelAr: 'إيكاو' },
-    ],
+  {
+    key: 'venue-types', label: { en: 'Venue Types', ar: 'أنواع القاعات' },
+    list: getVenueTypes, create: (f) => createVenueType(f.name, f.nameAr),
+    columns: [NAME, NAME_AR], fields: [{ ...NAME, required: true }, NAME_AR],
   },
-  VEHICLE_TYPE: {
-    icon: 'travel',
-    code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'SEDAN' },
-    metaFields: [
-      { key: 'capacity', label: 'Capacity (seats)', labelAr: 'السعة (مقاعد)' },
-    ],
+  {
+    key: 'element-types', label: { en: 'Element Types', ar: 'أنواع العناصر' },
+    list: getElementTypes, create: (f) => createElementType(f.code, f.name, f.nameAr),
+    columns: [CODE, NAME], fields: [CODE, { ...NAME, required: true }, NAME_AR],
   },
-  HOTEL: {
-    icon: 'venue',
-    code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'SHER' },
-    metaFields: [
-      { key: 'city',    label: 'City',    labelAr: 'المدينة' },
-      { key: 'address', label: 'Address', labelAr: 'العنوان' },
-    ],
-  },
-  VENUE_TYPE: {
-    icon: 'venue',
-    code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'BALLROOM' },
-    metaFields: [],
-  },
-  ELEMENT_TYPE: {
-    icon: 'venue',
-    code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: 'round' },
-    metaFields: [],
-  },
-};
-
-// Fallback for any category without an explicit config.
-export const DEFAULT_LOOKUP_CONFIG = {
-  icon: 'reports',
-  code: { show: true, label: 'Code', labelAr: 'الرمز', placeholder: '' },
-  metaFields: [],
-};
-
-export const getLookupConfig = (categoryCode) =>
-  LOOKUP_CONFIG[categoryCode] || DEFAULT_LOOKUP_CONFIG;
-
-// The category list that drives the ADMIN submenu, in display order.
-export const LOOKUP_CATEGORIES = [
-  { code: 'AIRLINE',      label: { en: 'Airlines',      ar: 'شركات الطيران' } },
-  { code: 'AIRPORT',      label: { en: 'Airports',      ar: 'المطارات' } },
-  { code: 'VEHICLE_TYPE', label: { en: 'Vehicle Types', ar: 'أنواع المركبات' } },
-  { code: 'HOTEL',        label: { en: 'Hotels',        ar: 'الفنادق' } },
-  { code: 'VENUE_TYPE',   label: { en: 'Venue Types',   ar: 'أنواع القاعات' } },
-  { code: 'ELEMENT_TYPE', label: { en: 'Element Types', ar: 'أنواع العناصر' } },
 ];
+
+export const getLookupDef = (key) => LOOKUP_DEFS.find(d => d.key === key);

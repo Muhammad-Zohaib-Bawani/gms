@@ -3,7 +3,7 @@ import React from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import './datefield.css';
-import { toDate, toIsoDate } from '../../lib/date';
+import { toDate, toIsoDate, toDateTime, toIsoDateTime } from '../../lib/date';
 
 export default function DateField({
   value,
@@ -12,14 +12,20 @@ export default function DateField({
   maxDate,
   placeholder = 'Select date',
   disabled = false,
+  showTime = false,
 }) {
+  const parse = showTime ? toDateTime : toDate;
+  const format = showTime ? toIsoDateTime : toIsoDate;
   return (
     <DatePicker
-      selected={toDate(value)}
-      onChange={(d) => onChange(toIsoDate(d))}
+      selected={parse(value)}
+      onChange={(d) => onChange(format(d))}
       minDate={minDate ? toDate(minDate) : undefined}
       maxDate={maxDate ? toDate(maxDate) : undefined}
-      dateFormat="yyyy-MM-dd"
+      showTimeSelect={showTime}
+      timeFormat="HH:mm"
+      timeIntervals={15}
+      dateFormat={showTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd'}
       placeholderText={placeholder}
       disabled={disabled}
       // Picker-only — typing a free-text date risks an invalid/unparsable

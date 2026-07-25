@@ -62,11 +62,9 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/invitation-templates/${id}`,
   },
 
+  // Only code-defined guest enums survive here; all reference data moved to
+  // dedicated tables (travel + venue endpoints).
   lookups: {
-    categories: '/v1/lookups/categories',
-    items: (categoryCode) => `/v1/lookups/${categoryCode}/items`,
-    createItem: '/v1/lookups/items',
-    itemById: (id) => `/v1/lookups/items/${id}`,
     guestEnums: '/v1/lookups/enums/guest',
   },
 
@@ -77,6 +75,9 @@ export const ENDPOINTS = {
     boxById: (id) => `/v1/venue/box/${id}`,
     // Adds one more block to whichever VenueBox already exists for this event.
     addBlock: (eventId) => `/v1/venue/${eventId}`,
+    // Venue reference data (GET list / POST create share the path).
+    types: '/v1/venue/types',
+    elementTypes: '/v1/venue/element-types',
   },
 
   seating: {
@@ -87,6 +88,21 @@ export const ENDPOINTS = {
 
   travelLogistics: {
     createBooking: '/v1/TravelLogistics',
+  },
+
+  // Guest travel: flight / accommodation / transport sections.
+  // Each lookup path serves GET (list) and POST (create).
+  travel: {
+    guest: (id) => `/v1/travel/guest/${id}`,
+    // Per-event booking lists — one per travel tab.
+    eventFlights: (eventId) => `/v1/travel/event/${eventId}/flights`,
+    eventAccommodation: (eventId) => `/v1/travel/event/${eventId}/accommodation`,
+    eventTransport: (eventId) => `/v1/travel/event/${eventId}/transport`,
+    flightTypes: '/v1/travel/lookups/flight-types',
+    flightClasses: '/v1/travel/lookups/flight-classes',
+    roomTypes: '/v1/travel/lookups/room-types',
+    hotels: '/v1/travel/lookups/hotels',
+    locations: '/v1/travel/lookups/locations',
   },
 
   locations: {

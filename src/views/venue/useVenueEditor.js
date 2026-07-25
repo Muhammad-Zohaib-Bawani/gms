@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getCachedLookupItems } from '../../api/services/lookupService.js';
-import { createVenueBox, deleteVenueBox, deleteVenue, getVenues, getVenue, addVenueBlock as addVenueBlockApi } from '../../api/services/venueService.js';
+import { createVenueBox, deleteVenueBox, deleteVenue, getVenues, getVenue, addVenueBlock as addVenueBlockApi, getElementTypes } from '../../api/services/venueService.js';
 import { listSessions } from '../../api/services/eventService.js';
 import toast from '../../lib/toast.js';
 import {
@@ -38,9 +37,9 @@ export default function useVenueEditor({ lang, activeEventId }) {
   const dragTypeRef = useRef(null);
   const idCounter = useRef(100);
 
-  // Element types come from the ELEMENT_TYPE lookup (cached in localStorage).
+  // Element types come from the dedicated ElementType endpoint.
   useEffect(() => {
-    getCachedLookupItems('ELEMENT_TYPE')
+    getElementTypes()
       .then(r => setElementTypes(r || []))
       .catch(() => setElementTypes([]));
   }, []);

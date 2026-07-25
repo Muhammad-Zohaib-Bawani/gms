@@ -4,18 +4,14 @@ import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { listGuests } from '../api/services/guestService.js';
-import { createBooking } from '../api/services/travelService.js';
+import { createBooking, getEventFlights, getEventAccommodation, getEventTransport } from '../api/services/travelService.js';
 import LocationPickerModal from '../components/ui/LocationPickerModal.jsx';
 
-// ─── Seed helpers ─────────────────────────────────────────────────────────────
-const HAYYA_ST  = ['approved','approved','approved','submitted','approved','pending','approved','rejected'];
-const ROUTES    = ['DOH → LHR','DOH → CDG','DOH → JFK','DOH → SIN','DOH → NBO','DOH → DEL','DOH → GRU','DOH → DXB'];
-const AIRLINES  = ['QR','BA','LH','EK','KL','TK','SQ','ET'];
-const ROOM_TYPES= ['Deluxe King','Executive Suite','Premier Room','Junior Suite','Club Room'];
-const VEHICLES  = ['VIP Sedan','SUV','Minivan','Luxury Van'];
-const DRIVERS   = ['M. Al-Kuwari','S. Hamdan','K. Al-Thani','F. Al-Marri','A. Sultan','R. Hassan'];
-const PICKUPS   = ['Hamad Intl Airport','Sheraton Grand','Mondrian Doha','Pearl Auditorium','Hotel Lobby'];
-const DROPOFFS  = ['Sheraton Grand','Pearl Auditorium','Al Mayassa Hall','Hamad Intl Airport','Venue Main Entrance'];
+// ─── Static option lists for the edit / new-booking modals ───────────────────
+// ponytail: hardcoded — replace with the room-type/hotel/vehicle lookup APIs
+// when those modals move off placeholder options.
+const ROOM_TYPES = ['Deluxe King','Executive Suite','Premier Room','Junior Suite','Club Room'];
+const VEHICLES   = ['VIP Sedan','SUV','Minivan','Luxury Van'];
 const HOTEL_LIST = ['Sheraton Grand','Mondrian Doha','Mandarin Oriental','St. Regis','Four Seasons'];
 
 function initialsFromName(name) {
@@ -34,82 +30,58 @@ function dateLabelFor(dateStr) {
   } catch { return ''; }
 }
 
-// Map whatever visa/accreditation signal the guest record carries onto our
-// Hayya-style status buckets; fall back to a rotating placeholder so the UI
-// still has variety for guests without accreditation data yet.
-function mapVisaStatus(g, i) {
-  if (g.accreditationStatus === 'issued') return 'approved';
-  if (g.accreditationStatus === 'rejected') return 'rejected';
-  if (g.invitationStatus === 'sent') return 'submitted';
-  if (g.invitationStatus === 'declined') return 'rejected';
-  return HAYYA_ST[i % HAYYA_ST.length];
+// ─── API row → table row mappers (data comes from the travel tables) ─────────
+// Fields the DB doesn't carry (passport, visa/Hayya, room number, booking
+// status for hotels) render as '—'; we don't fabricate them.
+function mapFlight(r) {
+  return {
+    id: r.guestId,
+    name: r.guestName || '—',
+    initials: initialsFromName(r.guestName),
+    tier: r.tier,
+    org: r.organization,
+    flight: r.flightNumber || '—',
+    from: r.departureCode || '—',
+    to: r.arrivalCode || '—',
+    date: r.date ? r.date.slice(0, 10) : '',
+    dateLabel: r.date ? dateLabelFor(r.date) : '—',
+    passport: '—',
+    hayyaStatus: '',
+    flightStatus: (r.status || '').toLowerCase(),
+  };
 }
 
-// ─── Row builders (sourced from real guest API data) ──────────────────────────
-
-function buildFlights(guests) {
-  return guests.map((g, i) => {
-    const name = guestFullName(g);
-    const date = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`;
-    return {
-      id: g.id,
-      name,
-      initials: initialsFromName(name),
-      tier: g.tier,
-      org: g.organization,
-      flight: g.flightNumber || `${AIRLINES[i % AIRLINES.length]}${100 + ((i * 137) % 800)}`,
-      from: 'DOH',
-      to: ROUTES[i % ROUTES.length].split(' → ')[1],
-      date,
-      dateLabel: g.arrivalDate ? dateLabelFor(date) : `Dec ${5 + (i % 5)}`,
-      passport: g.passportNumber || `${g.nationalityCode || 'XX'}${(g.id || '').replace(/-/g,'').slice(0,7).toUpperCase()}`,
-      hayyaStatus: mapVisaStatus(g, i),
-      reference: `HYA-2025-${(g.id || '').replace(/-/g,'').slice(0,5).toUpperCase()}`,
-      flightStatus: g.flightNumber ? 'confirmed' : ['confirmed','confirmed','confirmed','pending'][i % 4],
-    };
-  });
+function mapHotel(r) {
+  return {
+    id: r.guestId,
+    name: r.guestName || '—',
+    initials: initialsFromName(r.guestName),
+    tier: r.tier,
+    org: r.organization,
+    hotel: r.hotel || '—',
+    roomType: r.roomType || '—',
+    roomNumber: '—',
+    checkIn: r.checkIn || '',
+    checkOut: r.checkOut || '',
+    hotelStatus: '',
+  };
 }
 
-function buildHotels(guests) {
-  return guests.map((g, i) => {
-    const name = guestFullName(g);
-    const checkIn = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 3)).padStart(2,'0')}`;
-    const checkOut = g.departureDate ? g.departureDate.slice(0, 10) : `2025-12-${String(9 + (i % 2)).padStart(2,'0')}`;
-    return {
-      id: g.id,
-      name,
-      initials: initialsFromName(name),
-      tier: g.tier,
-      org: g.organization,
-      hotel: g.hotel || HOTEL_LIST[i % HOTEL_LIST.length],
-      roomType: ROOM_TYPES[i % ROOM_TYPES.length],
-      roomNumber: `${(i % 10) + 1}${String((i * 37) % 100).padStart(2,'0')}`,
-      checkIn,
-      checkOut,
-      hotelStatus: g.hotel ? 'confirmed' : ['confirmed','confirmed','confirmed','pending'][i % 4],
-    };
-  });
-}
-
-function buildTransfers(guests) {
-  return guests.map((g, i) => {
-    const name = guestFullName(g);
-    const date = g.arrivalDate ? g.arrivalDate.slice(0, 10) : `2025-12-${String(5 + (i % 5)).padStart(2,'0')}`;
-    return {
-      id: g.id + '-T',
-      name,
-      initials: initialsFromName(name),
-      tier: g.tier,
-      vehicle: VEHICLES[i % VEHICLES.length],
-      driver: DRIVERS[i % DRIVERS.length],
-      pickup: PICKUPS[i % PICKUPS.length],
-      dropoff: DROPOFFS[i % DROPOFFS.length],
-      date,
-      dateLabel: g.arrivalDate ? dateLabelFor(date) : `Dec ${5 + (i % 5)}`,
-      time: `${String(6 + (i % 14)).padStart(2,'0')}:${['00','30'][i % 2]}`,
-      transferStatus: ['scheduled','scheduled','completed','pending'][i % 4],
-    };
-  });
+function mapTransfer(r) {
+  return {
+    id: r.guestId + '-T',
+    name: r.guestName || '—',
+    initials: initialsFromName(r.guestName),
+    tier: r.tier,
+    vehicle: r.vehicleType || '—',
+    driver: r.driverName || '—',
+    pickup: r.pickup || '—',
+    dropoff: r.dropoff || '—',
+    date: r.pickupTime ? r.pickupTime.slice(0, 10) : '',
+    dateLabel: r.pickupTime ? dateLabelFor(r.pickupTime) : '—',
+    time: r.pickupTime ? r.pickupTime.slice(11, 16) : '—',
+    transferStatus: (r.tripStatus || '').toLowerCase(),
+  };
 }
 
 const STATUS_COLOR = {
@@ -121,6 +93,7 @@ const STATUS_COLOR = {
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
 function StatusChip({ status, label }) {
+  if (!status) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
   const color = STATUS_COLOR[status] || 'var(--ink-mute)';
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:20, fontSize:11, fontWeight:600, background:`${color}18`, color, border:`1px solid ${color}40` }}>
@@ -128,6 +101,17 @@ function StatusChip({ status, label }) {
       {label || status}
     </span>
   );
+}
+
+// Shimmer placeholder rows shown while a tab's API call is in flight.
+function SkeletonRows({ cols, rows = 6 }) {
+  return Array.from({ length: rows }).map((_, r) => (
+    <tr key={r}>
+      {Array.from({ length: cols }).map((_, c) => (
+        <td key={c}><div className="skel-bar" style={{ width: c === 0 ? 150 : `${45 + ((r + c) % 4) * 14}%` }}/></td>
+      ))}
+    </tr>
+  ));
 }
 
 function SearchInput({ value, onChange, placeholder }) {
@@ -213,34 +197,46 @@ export default function TravelView({ lang, activeEventId }) {
     guestSearch:'Search guest…',back:'Back',next:'Next',
   };
 
-  // ── Real guest data (single source of truth for this whole view) ───────────
+  // ── Guests — only the "new booking" guest picker needs this list ───────────
   const [guests, setGuests] = useState([]);
-  const [guestsLoading, setGuestsLoading] = useState(false);
 
   useEffect(() => {
     if (!activeEventId) { setGuests([]); return; }
-    setGuestsLoading(true);
     listGuests({ eventId: activeEventId, pageSize: 500, excludeDeclined: true })
       .then(res => setGuests(res?.items || []))
-      .catch(() => setGuests([]))
-      .finally(() => setGuestsLoading(false));
+      .catch(() => setGuests([]));
   }, [activeEventId]);
 
-  // ── Data state (editable rows, rebuilt whenever the guest list changes) ────
+  // ── Per-tab booking rows — each tab pulls from its own table via its own
+  //    endpoint, lazily on first open, refetched when the active event changes.
   const [flightRows, setFlightRows]     = useState([]);
   const [hotelRows, setHotelRows]       = useState([]);
   const [transferRows, setTransferRows] = useState([]);
-
-  useEffect(() => {
-    setFlightRows(buildFlights(guests));
-    setHotelRows(buildHotels(guests));
-    setTransferRows(buildTransfers(guests));
-  }, [guests]);
+  const [tabLoading, setTabLoading]     = useState({ 0: false, 1: false, 2: false });
+  const loadedRef = useRef({ 0: null, 1: null, 2: null }); // tab -> eventId already loaded
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0);
   const [synced, setSynced]       = useState(false);
   const syncTimerRef              = useRef(null);
+
+  // Fetch the active tab's rows the first time it's shown for this event.
+  useEffect(() => {
+    if (!activeEventId) {
+      setFlightRows([]); setHotelRows([]); setTransferRows([]);
+      loadedRef.current = { 0: null, 1: null, 2: null };
+      return;
+    }
+    if (loadedRef.current[activeTab] === activeEventId) return; // already loaded
+    const svc     = [getEventFlights, getEventAccommodation, getEventTransport][activeTab];
+    const setRows = [setFlightRows, setHotelRows, setTransferRows][activeTab];
+    const map     = [mapFlight, mapHotel, mapTransfer][activeTab];
+    setTabLoading(l => ({ ...l, [activeTab]: true }));
+    svc(activeEventId)
+      .then(res => { loadedRef.current[activeTab] = activeEventId; setRows((res || []).map(map)); })
+      .catch(err => { toast.fromError(err); setRows([]); })
+      .finally(() => setTabLoading(l => ({ ...l, [activeTab]: false })));
+  }, [activeTab, activeEventId]);
 
   const [fSearch, setFSearch]         = useState('');
   const [fHayya, setFHayya]           = useState('All');
@@ -492,11 +488,9 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('flight', r)}</td>
                   </tr>
                 ))}
-                {!guestsLoading && filteredFlights.length === 0 && (
+                {tabLoading[0] && <SkeletonRows cols={8} />}
+                {!tabLoading[0] && filteredFlights.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
-                )}
-                {guestsLoading && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -550,11 +544,9 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('hotel', r)}</td>
                   </tr>
                 ))}
-                {!guestsLoading && filteredHotels.length === 0 && (
+                {tabLoading[1] && <SkeletonRows cols={8} />}
+                {!tabLoading[1] && filteredHotels.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
-                )}
-                {guestsLoading && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -610,11 +602,9 @@ export default function TravelView({ lang, activeEventId }) {
                     <td>{editBtn('transfer', r)}</td>
                   </tr>
                 ))}
-                {!guestsLoading && filteredTransfers.length === 0 && (
+                {tabLoading[2] && <SkeletonRows cols={8} />}
+                {!tabLoading[2] && filteredTransfers.length === 0 && (
                   <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
-                )}
-                {guestsLoading && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
