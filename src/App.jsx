@@ -138,10 +138,16 @@ function applyBgVars(root, accent, isDark) {
   root.style.setProperty('--bg',   blendHex(base, accent, amounts[1]));
 }
 
+// ── Brand theme (Qatar Olympic — maroon #8d0134 + white) ────────────────────
+// One switch: set enabled=false to restore per-event theming from the backend.
+// The event accent/secondary fields and applyEventTheme code are left intact,
+// so reverting is a single boolean flip (no data or logic is removed).
+const BRAND_THEME = { enabled: true, accent: "#8d0134", secondary: "#c21857" };
+
 const TWEAK_DEFAULTS = {
-  theme: "dark",
-  accent: "#1aaec4",
-  secondary: "#e0c47e",
+  theme: "light",
+  accent: BRAND_THEME.accent,
+  secondary: BRAND_THEME.secondary,
   blur: 22,
   density: "comfortable",
   orbIntensity: 0.1,
@@ -150,7 +156,7 @@ const TWEAK_DEFAULTS = {
 };
 
 const EVENTS = [
-  { key: "doha-forum", name: "Doha Forum", subtitle: "22nd Edition · 7–9 Dec", logoColor: "assets/doha-forum-logo.png", logoWhite: "assets/doha-forum-logo-white.png", accent: "#1aaec4", secondary: "#5fd1e0" },
+  { key: "doha-forum", name: "Doha Forum", subtitle: "22nd Edition · 7–9 Dec", logoColor: "assets/doha-forum-logo.png", logoWhite: "assets/doha-forum-logo-white.png", accent: "#8d0134", secondary: "#c21857" },
   { key: "qef", name: "Qatar Economic Forum", subtitle: "Powered by Bloomberg · May", logoColor: "assets/qef-logo-white.png", logoWhite: "assets/qef-logo-white.png", accent: "#c9943a", secondary: "#e8c068", invertInLight: true },
   { key: "qabf", name: "Qatar–Africa Business Forum", subtitle: "Doha · October", logoColor: "assets/qabf-logo.png", logoWhite: "assets/qabf-logo.png", accent: "#3d7ab5", secondary: "#6aabdf", invertInLight: true },
 ];
@@ -432,7 +438,7 @@ function GuestDrawer({ guest, onClose, lang }) {
         </div>
 
         {drawerNotice && (
-          <div style={{ marginTop:10, padding:"8px 12px", borderRadius:8, background:"rgba(26,174,196,0.1)", border:"1px solid rgba(26,174,196,0.25)", fontSize:12.5, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ marginTop:10, padding:"8px 12px", borderRadius:8, background:"rgba(141, 1, 52,0.1)", border:"1px solid rgba(141, 1, 52,0.25)", fontSize:12.5, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
             <Icon name="check" size={13}/> {drawerNotice}
           </div>
         )}
@@ -517,7 +523,7 @@ function GuestDrawer({ guest, onClose, lang }) {
                 <div key={s.id} onClick={() => toggleSession(s.id)}
                   style={{ padding: "9px 12px", borderRadius: 9, cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 10,
                     border: `1px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`,
-                    background: checked ? "rgba(26,174,196,0.08)" : "var(--surface-soft-2)" }}>
+                    background: checked ? "rgba(141, 1, 52,0.08)" : "var(--surface-soft-2)" }}>
                   <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`, background: checked ? "var(--accent)" : "transparent", display: "grid", placeItems: "center", flexShrink: 0, marginTop: 2 }}>
                     {checked && <Icon name="check" size={9} style={{ color: "#fff" }}/>}
                   </div>
@@ -581,7 +587,7 @@ function GuestDrawer({ guest, onClose, lang }) {
                   <div onClick={() => setInviteTemplateId(null)}
                     style={{ padding:"5px 11px", borderRadius:8, cursor:"pointer", fontSize:11.5, whiteSpace:"nowrap",
                       border:`1px solid ${!inviteTemplateId ? "var(--accent)" : "var(--glass-border)"}`,
-                      background:!inviteTemplateId ? "rgba(26,174,196,0.1)" : "var(--surface-soft-3)" }}>
+                      background:!inviteTemplateId ? "rgba(141, 1, 52,0.1)" : "var(--surface-soft-3)" }}>
                     {D.noTemplate}
                   </div>
                   {INVITATION_TEMPLATES.map(t => (
@@ -606,7 +612,7 @@ function GuestDrawer({ guest, onClose, lang }) {
                   value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder={D.msgPh}/>
               </div>
               {msgSent ? (
-                <div style={{ padding:"10px 14px", borderRadius:8, background:"rgba(26,174,196,0.1)", border:"1px solid rgba(26,174,196,0.25)", fontSize:13, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ padding:"10px 14px", borderRadius:8, background:"rgba(141, 1, 52,0.1)", border:"1px solid rgba(141, 1, 52,0.25)", fontSize:13, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
                   <Icon name="check" size={14}/> {D.sentMsg}
                 </div>
               ) : (
@@ -666,7 +672,7 @@ function GuestDrawer({ guest, onClose, lang }) {
                       value={`https://doha-forum.qa/verify/${guest.id}`}
                       size={64}
                       bgColor="#ffffff"
-                      fgColor="#0a3947"
+                      fgColor="#5e0022"
                       level="M"
                     />
                   </div>
@@ -766,14 +772,16 @@ export default function App() {
   const { events, activeEvent, setActiveEventId } = useEvents();
 
   function applyEventTheme(ev) {
-    if (!ev) return;
+    // Brand theme overrides per-event colors. Flip BRAND_THEME.enabled to false
+    // (top of this file) to restore event-based accent/secondary from the backend.
+    if (!ev && !BRAND_THEME.enabled) return;
     const root = document.documentElement;
-    const accent = ev.accent || '#1aaec4';
-    const secondary = ev.secondary || '#e0c47e';
+    const accent = BRAND_THEME.enabled ? BRAND_THEME.accent : (ev?.accent || '#8d0134');
+    const secondary = BRAND_THEME.enabled ? BRAND_THEME.secondary : (ev?.secondary || '#e0c47e');
 
     setTweak('accent', accent);
     setTweak('secondary', secondary);
-    setActiveLogo({ dark: ev.logoDark || '', light: ev.logoLight || '' });
+    if (ev) setActiveLogo({ dark: ev.logoDark || '', light: ev.logoLight || '' });
 
     const orb1 = accent;
     const orb2 = darkenHex(accent, 0.62);
@@ -798,7 +806,7 @@ export default function App() {
     root.style.setProperty("--accent-2", tweaks.secondary || "#e0c47e");
     root.style.setProperty("--glass-blur", `${tweaks.blur}px`);
     root.style.setProperty("--orb-opacity", String(tweaks.orbIntensity));
-    applyBgVars(root, tweaks.accent || '#1aaec4', (tweaks.theme || 'dark') === 'dark');
+    applyBgVars(root, tweaks.accent || '#8d0134', (tweaks.theme || 'dark') === 'dark');
   }, [tweaks]);
 
   const lang = tweaks.lang || "en";

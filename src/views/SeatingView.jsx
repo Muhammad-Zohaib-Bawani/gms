@@ -431,8 +431,8 @@ export default function SeatingView({ lang, activeEventId }) {
                             fontSize:11, fontFamily:'var(--mono)', fontWeight:500,
                             padding:'2px 9px', borderRadius:20,
                             color: cc || 'var(--accent)',
-                            background: cc ? `${cc}1a` : 'rgba(26,174,196,0.08)',
-                            border:`1px solid ${cc ? `${cc}4d` : 'rgba(26,174,196,0.2)'}`,
+                            background: cc ? `${cc}1a` : 'rgba(141, 1, 52,0.08)',
+                            border:`1px solid ${cc ? `${cc}4d` : 'rgba(141, 1, 52,0.2)'}`,
                           }}>
                             {cc && <span style={{ width:6, height:6, borderRadius:'50%', background:cc, flexShrink:0 }}/>}
                             {isAr ? `مقعد ${ad(seatCodeForIndex(info.table, info.seatIdx))}` : `Seat ${seatCodeForIndex(info.table, info.seatIdx)}`}

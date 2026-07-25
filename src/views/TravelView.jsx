@@ -396,7 +396,7 @@ export default function TravelView({ lang, activeEventId }) {
       </div>
 
       {bookings.length > 0 && (
-        <div style={{ marginBottom:14, padding:'10px 16px', borderRadius:10, background:'rgba(26,174,196,0.1)', border:'1px solid rgba(26,174,196,0.3)', fontSize:13, display:'flex', gap:10, alignItems:'center' }}>
+        <div style={{ marginBottom:14, padding:'10px 16px', borderRadius:10, background:'rgba(141, 1, 52,0.1)', border:'1px solid rgba(141, 1, 52,0.3)', fontSize:13, display:'flex', gap:10, alignItems:'center' }}>
           <Icon name="check" size={14} style={{ color:'var(--accent)' }}/>
           <span>{isAr ? `تم إضافة ${ad(bookings.length)} حجز` : `${bookings.length} new booking${bookings.length>1?'s':''} added`}</span>
         </div>
@@ -795,7 +795,7 @@ export default function TravelView({ lang, activeEventId }) {
                         <div key={i} onClick={() => setBookType(i)}
                           style={{ padding:'12px 10px', borderRadius:10, cursor:'pointer', textAlign:'center',
                             border:`1px solid ${bookType===i?'var(--accent)':'var(--glass-border)'}`,
-                            background:bookType===i?'rgba(26,174,196,0.12)':'var(--surface-soft-2)' }}>
+                            background:bookType===i?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
                           <Icon name={bt.icon} size={18} style={{ color:bookType===i?'var(--accent)':'var(--ink-mute)', display:'block', margin:'0 auto 6px' }}/>
                           <div style={{ fontSize:12, fontWeight:bookType===i?600:400 }}>{bt.label}</div>
                         </div>
@@ -813,7 +813,7 @@ export default function TravelView({ lang, activeEventId }) {
                           <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}
                             style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
                               border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
-                              background:selected?'rgba(26,174,196,0.12)':'var(--surface-soft-2)' }}>
+                              background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
                             <Avatar initials={initialsFromName(fullName)} size={28} tier={g.tier}/>
                             <div>
                               <div style={{ fontSize:13, fontWeight:500 }}>{fullName}</div>

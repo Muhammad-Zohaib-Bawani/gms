@@ -29,8 +29,8 @@ export function RoundSVG({ table, selected, onDeleteSeat, onSeatClick, selectedI
   const cx = ROUND_SIZE / 2, cy = ROUND_SIZE / 2;
   const removed = new Set(table.removedSeats || []);
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(26,174,196,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(26,174,196,0.1)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(26,174,196,0.45)');
+  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(141, 1, 52,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(141, 1, 52,0.1)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(141, 1, 52,0.45)');
   return (
     <svg width={ROUND_SIZE} height={ROUND_SIZE} style={{ display: 'block' }}>
       <circle cx={cx} cy={cy} r={TABLE_R} fill={fill} stroke={stroke} strokeWidth={selected ? 2 : 1.5}/>
@@ -49,7 +49,7 @@ export function RoundSVG({ table, selected, onDeleteSeat, onSeatClick, selectedI
             onClick={onSeatClick ? (e => { e.stopPropagation(); onSeatClick(i); }) : undefined}
             style={{ cursor: onSeatClick ? 'pointer' : 'default' }}>
             <circle cx={sx} cy={sy} r={SEAT_R}
-              fill={isSeatSel ? 'rgba(26,174,196,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
+              fill={isSeatSel ? 'rgba(141, 1, 52,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
               stroke={isSeatSel ? 'var(--accent)' : (sc || 'var(--glass-border)')}
               strokeWidth={isSeatSel ? 1.5 : 1}/>
             <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{i + 1}</text>
@@ -74,8 +74,8 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
   const seatY1 = 10, seatY2 = h - 10;
   const removed = new Set(table.removedSeats || []);
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(26,174,196,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(26,174,196,0.1)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(26,174,196,0.45)');
+  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(141, 1, 52,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(141, 1, 52,0.1)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(141, 1, 52,0.45)');
 
   function seat(index, sx, sy, code) {
     if (removed.has(index)) return null;
@@ -88,7 +88,7 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
         onClick={onSeatClick ? (e => { e.stopPropagation(); onSeatClick(index); }) : undefined}
         style={{ cursor: onSeatClick ? 'pointer' : 'default' }}>
         <circle cx={sx} cy={sy} r={SEAT_R}
-          fill={isSeatSel ? 'rgba(26,174,196,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
+          fill={isSeatSel ? 'rgba(141, 1, 52,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
           stroke={isSeatSel ? 'var(--accent)' : (sc || 'var(--glass-border)')}
           strokeWidth={isSeatSel ? 1.5 : 1}/>
         <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{code}</text>
@@ -127,8 +127,8 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
   const seatNums = table.seatNumbers || {};
   const rowNamesArr = table.rowNames || [];
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.12) : 'rgba(26,174,196,0.12)') : (c ? hexToRgba(c, 0.05) : 'rgba(26,174,196,0.05)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.3) : 'rgba(26,174,196,0.3)');
+  const fill = selected ? (c ? hexToRgba(c, 0.12) : 'rgba(141, 1, 52,0.12)') : (c ? hexToRgba(c, 0.05) : 'rgba(141, 1, 52,0.05)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.3) : 'rgba(141, 1, 52,0.3)');
   const labelColor = c || 'var(--accent)';
 
   return (
@@ -163,7 +163,7 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
                   onClick={onSeatClick ? (e => { e.stopPropagation(); onSeatClick(idx); }) : undefined}
                   style={{ cursor: onSeatClick ? 'pointer' : 'default' }}>
                   <rect x={bx} y={by} width={seatW} height={seatH} rx={3}
-                    fill={isSeatSel ? 'rgba(26,174,196,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
+                    fill={isSeatSel ? 'rgba(141, 1, 52,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
                     stroke={isSeatSel ? 'var(--accent)' : (sc || 'var(--glass-border)')}
                     strokeWidth={isSeatSel ? 1.5 : 0.8}/>
                   <text x={bx + seatW / 2} y={by + seatH / 2 + 3.5}

@@ -115,9 +115,9 @@ export default function AccreditationView({ lang }) {
   const chipStyle = issued => ({
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-    background: issued ? 'rgba(26,174,196,0.15)' : 'rgba(224,184,100,0.15)',
+    background: issued ? 'rgba(141, 1, 52,0.15)' : 'rgba(224,184,100,0.15)',
     color: issued ? 'var(--accent)' : '#e0b864',
-    border: `1px solid ${issued ? 'rgba(26,174,196,0.3)' : 'rgba(224,184,100,0.3)'}`,
+    border: `1px solid ${issued ? 'rgba(141, 1, 52,0.3)' : 'rgba(224,184,100,0.3)'}`,
   });
 
   return (
@@ -193,7 +193,7 @@ export default function AccreditationView({ lang }) {
 
       {/* Bulk action bar */}
       {someSelected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(26,174,196,0.1)', border: '1px solid rgba(26,174,196,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}>
             {ad(sel.size)} {STR.selected}
           </span>
@@ -234,7 +234,7 @@ export default function AccreditationView({ lang }) {
                 const isIssued = accr === 'issued';
                 const isChecked = sel.has(g.id);
                 return (
-                  <tr key={g.id} style={{ background: isChecked ? 'rgba(26,174,196,0.05)' : undefined }}>
+                  <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
                     <td style={{ paddingRight: 0 }}>
                       <input type="checkbox" checked={isChecked} onChange={() => toggleSel(g.id)}
                         style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
@@ -422,7 +422,7 @@ export default function AccreditationView({ lang }) {
                           value={`https://doha-forum.qa/verify/${previewGuest.id}`}
                           size={72}
                           bgColor="#ffffff"
-                          fgColor="#0a3947"
+                          fgColor="#5e0022"
                           level="M"
                         />
                       </div>

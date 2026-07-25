@@ -168,7 +168,7 @@ export default function ReportsView({ lang }) {
             {STR.filters.map(f => (
               <button key={f}
                 className={"btn ghost" + (activeFilter === f ? " active" : "")}
-                style={{ padding: "4px 14px", fontSize: 12, background: activeFilter === f ? "rgba(26,174,196,0.15)" : undefined, borderColor: activeFilter === f ? "rgba(26,174,196,0.4)" : undefined }}
+                style={{ padding: "4px 14px", fontSize: 12, background: activeFilter === f ? "rgba(141, 1, 52,0.15)" : undefined, borderColor: activeFilter === f ? "rgba(141, 1, 52,0.4)" : undefined }}
                 onClick={() => setActiveFilter(f)}>
                 {f}
               </button>

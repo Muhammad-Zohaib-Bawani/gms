@@ -49,7 +49,7 @@ export const DISABLED_SEAT_COLOR = '#e05555';
 
 // Tint used to mark a seat as assigned to a guest (Seating view only — this
 // is a derived/display-only color, never persisted back into the layout).
-export const ASSIGNED_SEAT_COLOR = '#1aaec4';
+export const ASSIGNED_SEAT_COLOR = '#8d0134';
 
 // A seat's effective color: a manually-set override always wins; otherwise a
 // muted "disabled" tone kicks in once marked unavailable; otherwise null (use

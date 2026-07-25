@@ -115,7 +115,7 @@ export default function AuthView() {
                 flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 13, cursor: 'pointer',
                 fontWeight: mode === k ? 600 : 400,
                 border: `1px solid ${mode === k ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: mode === k ? 'rgba(26,174,196,0.1)' : 'transparent',
+                background: mode === k ? 'rgba(141, 1, 52,0.1)' : 'transparent',
                 color: mode === k ? 'var(--accent)' : 'var(--ink-mute)',
               }}>
               {l}
@@ -179,12 +179,12 @@ export default function AuthView() {
         </form>
 
         {/* Demo escape hatch */}
-        {/* <div style={{ padding: '14px 28px', borderTop: '1px solid var(--glass-border)', textAlign: 'center' }}>
+        <div style={{ padding: '14px 28px', borderTop: '1px solid var(--glass-border)', textAlign: 'center' }}>
           <button type="button" onClick={enterDemo}
             style={{ background: 'none', border: 'none', color: 'var(--ink-dim)', fontSize: 12.5, cursor: 'pointer' }}>
             Explore the demo without signing in →
           </button>
-        </div> */}
+        </div>
       </div>
     </div>
   );

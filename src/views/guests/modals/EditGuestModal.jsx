@@ -282,7 +282,7 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                       <div key={tier.code} onClick={() => setF('tier', tier.code)}
                         style={{ padding: '12px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
                           border: `1px solid ${form.tier === tier.code ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.tier === tier.code ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
+                          background: form.tier === tier.code ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-2)',
                           fontSize: 13, fontWeight: form.tier === tier.code ? 600 : 400 }}>
                         {tier.name}
                       </div>
@@ -296,7 +296,7 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                       <div key={s.code} onClick={() => setF('accreditationStatus', s.code)}
                         style={{ flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
                           border: `1px solid ${form.accreditationStatus === s.code ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.accreditationStatus === s.code ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
+                          background: form.accreditationStatus === s.code ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-2)',
                           fontSize: 13, textTransform: 'capitalize', fontWeight: form.accreditationStatus === s.code ? 600 : 400 }}>
                         {isAr ? s.nameAr : s.name}
                       </div>
@@ -346,7 +346,7 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                     <div onClick={() => setTemplateId(null)}
                       style={{ padding: '10px 14px', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
                         border: `1px solid ${!templateId ? 'var(--accent)' : 'var(--glass-border)'}`,
-                        background: !templateId ? 'rgba(26,174,196,0.1)' : 'var(--surface-soft-2)' }}>
+                        background: !templateId ? 'rgba(141, 1, 52,0.1)' : 'var(--surface-soft-2)' }}>
                       <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${!templateId ? 'var(--accent)' : 'var(--glass-border)'}`, background: !templateId ? 'var(--accent)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
                         {!templateId && <Icon name="check" size={10} style={{ color: '#fff' }}/>}
                       </div>
@@ -392,7 +392,7 @@ export default function EditGuestModal({ open, onClose, guest, nationalities, te
                         <div key={s.id} onClick={() => setGuestSessions(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n; })}
                           style={{ padding: '8px 12px', borderRadius: 9, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 10,
                             border: `1px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
-                            background: checked ? 'rgba(26,174,196,0.08)' : 'var(--surface-soft-2)' }}>
+                            background: checked ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)' }}>
                           <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`, background: checked ? 'var(--accent)' : 'transparent', display: 'grid', placeItems: 'center', flexShrink: 0, marginTop: 1 }}>
                             {checked && <Icon name="check" size={9} style={{ color: '#fff' }}/>}
                           </div>

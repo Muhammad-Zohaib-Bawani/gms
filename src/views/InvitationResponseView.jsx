@@ -149,7 +149,7 @@ export default function InvitationResponseView({ token, lang }) {
                   disabled={submitting}
                   style={{
                     width: '100%', padding: '13px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: 'var(--accent, #1aaec4)', color: '#fff', fontSize: 15, fontWeight: 600,
+                    background: 'var(--accent, #8d0134)', color: '#fff', fontSize: 15, fontWeight: 600,
                     opacity: submitting ? 0.6 : 1,
                   }}>
                   {T.accept}

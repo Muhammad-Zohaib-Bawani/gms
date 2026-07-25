@@ -152,8 +152,8 @@ export default function UsersView() {
         return role ? (
           <span style={{
             fontSize: 11.5, padding: '3px 10px', borderRadius: 20,
-            background: 'rgba(26,174,196,0.10)', color: 'var(--accent)',
-            border: '1px solid rgba(26,174,196,0.25)', whiteSpace: 'nowrap',
+            background: 'rgba(141, 1, 52,0.10)', color: 'var(--accent)',
+            border: '1px solid rgba(141, 1, 52,0.25)', whiteSpace: 'nowrap',
           }}>{role}</span>
         ) : <span style={{ color: 'var(--ink-faint)' }}>—</span>;
       },

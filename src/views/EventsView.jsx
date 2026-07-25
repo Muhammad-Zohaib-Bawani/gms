@@ -16,8 +16,8 @@ const EVENT_TYPE_ICONS = {
   Workshop: "edit", Exhibition: "image", Bilateral: "guests", Ceremony: "badge", default: "meetings",
 };
 const EVENT_TYPE_COLORS = {
-  Conference: "#1aaec4", Forum: "#3aa3b5", Summit: "#9d80c3", Gala: "#e0c47e",
-  Workshop: "#5fd1e0", Exhibition: "#e07e7e", Bilateral: "#a3b53a", Ceremony: "#e0a47e", default: "#1aaec4",
+  Conference: "#8d0134", Forum: "#3aa3b5", Summit: "#9d80c3", Gala: "#e0c47e",
+  Workshop: "#c21857", Exhibition: "#e07e7e", Bilateral: "#a3b53a", Ceremony: "#e0a47e", default: "#8d0134",
 };
 
 const INITIAL_EVENTS = [
@@ -63,7 +63,7 @@ function toHex(color) {
   return s;
 }
 
-const DEFAULT_UI_THEME = { preset: 'default', accent: '#1aaec4', secondary: '#e0c47e', logoDark: '', logoLight: '' };
+const DEFAULT_UI_THEME = { preset: 'default', accent: '#8d0134', secondary: '#e0c47e', logoDark: '', logoLight: '' };
 function getStoredThemes() {
   try { return JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) { return {}; }
 }
@@ -124,7 +124,7 @@ function LogoInput({ label, value, onChange, isAr }) {
       <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
         {['upload', 'url'].map(m => (
           <button key={m} type="button" onClick={() => setMode(m)}
-            style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--glass-border)'}`, background: mode === m ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-3)', color: mode === m ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer' }}>
+            style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--glass-border)'}`, background: mode === m ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-3)', color: mode === m ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer' }}>
             {m === 'upload' ? (isAr ? 'رفع ملف' : 'Upload') : 'URL'}
           </button>
         ))}
@@ -239,7 +239,7 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
             <button key={p} type="button" onClick={() => setUiTheme(t => ({ ...t, preset: p }))}
               style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: uiTheme.preset === p ? 600 : 400,
                 border: `1px solid ${uiTheme.preset === p ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: uiTheme.preset === p ? 'rgba(26,174,196,0.1)' : 'var(--surface-soft-3)',
+                background: uiTheme.preset === p ? 'rgba(141, 1, 52,0.1)' : 'var(--surface-soft-3)',
                 color: uiTheme.preset === p ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer', transition: 'all 0.15s' }}>
               {p === 'default' ? (isAr ? 'الافتراضي' : 'Default') : (isAr ? 'مخصص' : 'Custom')}
             </button>
@@ -638,7 +638,7 @@ export default function EventsView({ lang }) {
               return (
               <div key={ev.id} onClick={() => { setSelectedId(ev.id); setEditEventId(null); }}
                 className="card dsd"
-                style={{ padding: 0, cursor: "pointer", border: `1px solid ${selectedId === ev.id ? "var(--accent)" : "var(--glass-border)"}`, background: selectedId === ev.id ? "rgba(26,174,196,0.06)" : undefined, overflow: "hidden" }}>
+                style={{ padding: 0, cursor: "pointer", border: `1px solid ${selectedId === ev.id ? "var(--accent)" : "var(--glass-border)"}`, background: selectedId === ev.id ? "rgba(141, 1, 52,0.06)" : undefined, overflow: "hidden" }}>
                 <div style={{ height: 3, background: evColor, opacity: selectedId === ev.id ? 1 : 0.55 }}/>
                 <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
                   <EventCover type={ev.type} image={ev.image} width={44} height={44} radius={8}/>

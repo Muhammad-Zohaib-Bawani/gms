@@ -889,21 +889,21 @@
 }
 
 :root, html[data-theme="dark"] {
-  --bg-0: #04141a;
-  --bg-1: #062430;
-  --bg-2: #0a3947;
-  --bg: #062430;
+  --bg-0: #14000a;
+  --bg-1: #200011;
+  --bg-2: #2e0018;
+  --bg: #200011;
 
   --ink: #eaf6f9;
   --ink-dim: rgba(234, 246, 249, 0.74);
   --ink-mute: rgba(234, 246, 249, 0.50);
   --ink-faint: rgba(234, 246, 249, 0.16);
 
-  --accent: #1aaec4;
-  --accent-2: #5fd1e0;
-  --accent-deep: #0e6a7a;
-  --maroon: #0a3947;
-  --teal: #1aaec4;
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --maroon: #8d0134;
+  --teal: #8d0134;
   --rose: #e08a7e;
 
   --glass-bg: rgba(255, 255, 255, 0.06);
@@ -918,26 +918,26 @@
   --surface-soft-4: rgba(255,255,255,0.08);
   --surface-soft-5: rgba(255,255,255,0.10);
   --hover-tint: rgba(255,255,255,0.12);
-  --selected-tint: rgba(26,174,196,0.10);
+  --selected-tint: rgba(141, 1, 52,0.10);
   --row-tint: rgba(255,255,255,0.025);
 }
 
 html[data-theme="light"] {
-  --bg-0: #eef4f6;
-  --bg-1: #e3edf0;
-  --bg-2: #d6e6ea;
-  --bg: #e3edf0;
+  --bg-0: #ffffff;
+  --bg-1: #faf6f7;
+  --bg-2: #f2e7ec;
+  --bg: #faf6f7;
 
-  --ink: #0c2230;
+  --ink: #2a0512;
   --ink-dim: rgba(12, 34, 48, 0.74);
   --ink-mute: rgba(12, 34, 48, 0.55);
   --ink-faint: rgba(12, 34, 48, 0.18);
 
-  --accent: #0e6a7a;
-  --accent-2: #1aaec4;
-  --accent-deep: #073945;
-  --maroon: #073945;
-  --teal: #0e6a7a;
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --maroon: #8d0134;
+  --teal: #8d0134;
   --rose: #c25c4e;
 
   --glass-bg: rgba(255, 255, 255, 0.62);
@@ -952,7 +952,7 @@ html[data-theme="light"] {
   --surface-soft-4: rgba(12,34,48,0.07);
   --surface-soft-5: rgba(12,34,48,0.10);
   --hover-tint: rgba(12,34,48,0.05);
-  --selected-tint: rgba(26,174,196,0.14);
+  --selected-tint: rgba(141, 1, 52,0.14);
   --row-tint: rgba(12,34,48,0.02);
 }
 
@@ -962,9 +962,9 @@ html[data-theme="light"] {
   --radius-lg: 22px;
   --radius-xl: 28px;
 
-  --serif: 'Instrument Serif', 'Times New Roman', serif;
-  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --serif: 'Loew Next Arabic', 'Instrument Serif', 'Times New Roman', serif;
+  --sans: 'Loew Next Arabic', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Loew Next Arabic', 'JetBrains Mono', ui-monospace, monospace;
 
   --glass-blur: 22px;
   --orb-opacity: 0.55;
@@ -1014,16 +1014,16 @@ select option {
 .bg-scene {
   position: fixed; inset: 0; overflow: hidden;
   background:
-    radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a, rgba(26,174,196,0.30)), transparent 60%),
-    radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b, rgba(95,209,224,0.16)), transparent 55%),
-    radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c, rgba(14,106,122,0.35)), transparent 60%),
+    radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a, rgba(141, 1, 52,0.30)), transparent 60%),
+    radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b, rgba(194, 24, 87,0.16)), transparent 55%),
+    radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c, rgba(94, 0, 34,0.35)), transparent 60%),
     linear-gradient(180deg, var(--bg-0, #03101a) 0%, var(--bg-1, #051f2a) 50%, var(--bg-2, #062834) 100%);
 }
 html[data-theme="light"] .bg-scene {
   background:
-    radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a-lt, rgba(26,174,196,0.22)), transparent 60%),
-    radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b-lt, rgba(95,209,224,0.20)), transparent 55%),
-    radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c-lt, rgba(14,106,122,0.18)), transparent 60%),
+    radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a-lt, rgba(141, 1, 52,0.22)), transparent 60%),
+    radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b-lt, rgba(194, 24, 87,0.20)), transparent 55%),
+    radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c-lt, rgba(94, 0, 34,0.18)), transparent 60%),
     linear-gradient(180deg, var(--bg-0, #f4f8fa) 0%, var(--bg-1, #e6eff2) 50%, var(--bg-2, #dbe8ec) 100%);
 }
 html[data-theme="light"] .bg-orb { mix-blend-mode: multiply; opacity: calc(var(--orb-opacity) * 0.4); filter: blur(90px); }
@@ -1033,9 +1033,9 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
   filter: blur(80px); opacity: var(--orb-opacity); mix-blend-mode: screen;
   animation: orb 18s ease-in-out infinite alternate;
 }
-.bg-orb--1 { width: 520px; height: 520px; background: var(--orb-1, #1aaec4); top: -120px; left: 8%; }
-.bg-orb--2 { width: 620px; height: 620px; background: var(--orb-2, #0a3947); top: 20%; right: -120px; animation-delay: -6s; }
-.bg-orb--3 { width: 480px; height: 480px; background: var(--orb-3, #5fd1e0); bottom: -160px; left: 35%; animation-delay: -12s; }
+.bg-orb--1 { width: 520px; height: 520px; background: var(--orb-1, #8d0134); top: -120px; left: 8%; }
+.bg-orb--2 { width: 620px; height: 620px; background: var(--orb-2, #5e0022); top: 20%; right: -120px; animation-delay: -6s; }
+.bg-orb--3 { width: 480px; height: 480px; background: var(--orb-3, #c21857); bottom: -160px; left: 35%; animation-delay: -12s; }
 @keyframes orb {
   0%   { transform: translate3d(0,0,0) scale(1); }
   100% { transform: translate3d(40px,-30px,0) scale(1.08); }
@@ -1198,7 +1198,7 @@ html[data-theme="light"] .event-menu { background: #ffffff; border-color: rgba(4
 .event-row .event-name { font-size: 13px; max-width: none; }
 .event-row .event-sub { font-size: 11px; }
 .event-row:hover { background: var(--surface-soft-5); }
-.event-row.active { background: rgba(26,174,196,0.12); }
+.event-row.active { background: rgba(141, 1, 52,0.12); }
 .event-row.active .event-name { color: var(--accent); }
 .event-check { margin-left: auto; color: var(--accent); display: grid; place-items: center; }
 
@@ -1234,7 +1234,7 @@ html[data-theme="light"] .event-menu { background: #ffffff; border-color: rgba(4
 .lang-opt.active {
   background: var(--accent);
   color: #04141a;
-  box-shadow: 0 4px 12px -4px rgba(26,174,196,0.5);
+  box-shadow: 0 4px 12px -4px rgba(141, 1, 52,0.5);
 }
 html[data-theme="light"] .lang-opt.active { color: #ffffff; }
 .icon-btn .dot {
@@ -1293,7 +1293,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   background: linear-gradient(140deg, var(--accent) 0%, var(--accent-deep) 100%);
   display: grid; place-items: center; color: #f6fdff; font-family: var(--serif);
   font-size: 22px; font-weight: 600; font-style: italic;
-  box-shadow: 0 6px 20px rgba(26,174,196,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
+  box-shadow: 0 6px 20px rgba(141, 1, 52,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
 }
 .brand-text { line-height: 1.1; }
 .brand-text .a { font-family: var(--serif); font-size: 19px; font-style: italic; letter-spacing: 0.01em; }
@@ -1324,7 +1324,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
 }
 .nav-item .badge {
   margin-left: auto; font-size: 10.5px; padding: 1px 7px;
-  border-radius: 999px; background: rgba(26,174,196,0.20);
+  border-radius: 999px; background: rgba(141, 1, 52,0.20);
   color: var(--accent-2); font-family: var(--mono);
 }
 
@@ -1333,7 +1333,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   padding: 14px;
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(10,57,71,0.85), rgba(14,106,122,0.55)),
+    linear-gradient(135deg, rgba(94, 0, 34,0.85), rgba(94, 0, 34,0.55)),
     rgba(4,20,26,0.6);
   border: 1px solid rgba(255,255,255,0.14);
   position: relative; overflow: hidden;
@@ -1341,7 +1341,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
 }
 .event-card .kicker {
   font-size: 10.5px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: #5fd1e0; margin-bottom: 6px;
+  color: #c21857; margin-bottom: 6px;
 }
 .event-card h4 {
   margin: 0; font-family: var(--serif); font-size: 19px; font-weight: 400;
@@ -1416,7 +1416,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
   color: #f6fdff; border-color: rgba(255,255,255,0.25);
   font-weight: 500;
-  box-shadow: 0 6px 20px rgba(26,174,196,0.30), inset 0 1px 0 rgba(255,255,255,0.30);
+  box-shadow: 0 6px 20px rgba(141, 1, 52,0.30), inset 0 1px 0 rgba(255,255,255,0.30);
 }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-dim); }
@@ -1504,28 +1504,28 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   color: var(--ink-dim);
 }
 .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
-.chip.confirmed { color: #5fd1e0; background: var(--selected-tint); border-color: rgba(26,174,196,0.30); }
-.chip.confirmed .dot { background: #5fd1e0; }
+.chip.confirmed { color: #c21857; background: var(--selected-tint); border-color: rgba(141, 1, 52,0.30); }
+.chip.confirmed .dot { background: #c21857; }
 .chip.pending { color: #f1d99e; background: rgba(241,217,158,0.08); border-color: rgba(241,217,158,0.28); }
 .chip.pending .dot { background: #f1d99e; }
 .chip.declined { color: #ec9b94; background: rgba(224,138,126,0.10); border-color: rgba(224,138,126,0.30); }
 .chip.declined .dot { background: #ec9b94; }
 .chip.draft { color: var(--ink-mute); }
 .chip.draft .dot { background: var(--ink-mute); }
-.chip.vip { color: #9fe5ee; background: linear-gradient(135deg, rgba(26,174,196,0.16), rgba(10,57,71,0.30)); border-color: rgba(26,174,196,0.4); }
+.chip.vip { color: #9fe5ee; background: linear-gradient(135deg, rgba(141, 1, 52,0.16), rgba(94, 0, 34,0.30)); border-color: rgba(141, 1, 52,0.4); }
 .chip.vip .dot { background: var(--accent); }
-.chip.vvip { color: #c5f1f7; background: linear-gradient(135deg, rgba(26,174,196,0.30), rgba(10,57,71,0.55)); border-color: rgba(95,209,224,0.6); }
+.chip.vvip { color: #c5f1f7; background: linear-gradient(135deg, rgba(141, 1, 52,0.30), rgba(94, 0, 34,0.55)); border-color: rgba(194, 24, 87,0.6); }
 .chip.vvip .dot { background: var(--accent-2); }
 
 /* Light theme: deeper inks for legibility on white surfaces */
-html[data-theme="light"] .chip.confirmed { color: #0c6f7d; background: rgba(26,174,196,0.12); border-color: rgba(26,174,196,0.35); }
-html[data-theme="light"] .chip.confirmed .dot { background: #0c6f7d; }
+html[data-theme="light"] .chip.confirmed { color: #6b0027; background: rgba(141, 1, 52,0.12); border-color: rgba(141, 1, 52,0.35); }
+html[data-theme="light"] .chip.confirmed .dot { background: #6b0027; }
 html[data-theme="light"] .chip.pending { color: #7a5a16; background: rgba(217,170,46,0.16); border-color: rgba(217,170,46,0.45); }
 html[data-theme="light"] .chip.pending .dot { background: #b8860b; }
 html[data-theme="light"] .chip.declined { color: #9b2f24; background: rgba(224,138,126,0.18); border-color: rgba(224,138,126,0.45); }
 html[data-theme="light"] .chip.declined .dot { background: #9b2f24; }
-html[data-theme="light"] .chip.vip { color: #0a3947; background: linear-gradient(135deg, rgba(26,174,196,0.16), rgba(26,174,196,0.06)); border-color: rgba(26,174,196,0.45); }
-html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradient(135deg, rgba(26,174,196,0.28), rgba(26,174,196,0.10)); border-color: rgba(26,174,196,0.55); }
+html[data-theme="light"] .chip.vip { color: #5e0022; background: linear-gradient(135deg, rgba(141, 1, 52,0.16), rgba(141, 1, 52,0.06)); border-color: rgba(141, 1, 52,0.45); }
+html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradient(135deg, rgba(141, 1, 52,0.28), rgba(141, 1, 52,0.10)); border-color: rgba(141, 1, 52,0.55); }
 
 /* ===== Forms ===== */
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -1614,7 +1614,7 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
   position: relative; aspect-ratio: 16/10;
   border-radius: var(--radius);
   background:
-    radial-gradient(circle at 50% 0%, rgba(26,174,196,0.12), transparent 60%),
+    radial-gradient(circle at 50% 0%, rgba(141, 1, 52,0.12), transparent 60%),
     rgba(0,0,0,0.22);
   border: 1px solid var(--glass-border); overflow: hidden;
 }
@@ -1622,8 +1622,8 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
   position: absolute; left: 50%; transform: translateX(-50%);
   top: 8px; width: 60%; height: 38px;
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(26,174,196,0.4), rgba(26,174,196,0.1));
-  border: 1px solid rgba(26,174,196,0.4);
+  background: linear-gradient(180deg, rgba(141, 1, 52,0.4), rgba(141, 1, 52,0.1));
+  border: 1px solid rgba(141, 1, 52,0.4);
   display: grid; place-items: center;
   font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--accent-2);
 }
@@ -1635,11 +1635,11 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
   font-size: 11px; font-family: var(--mono); color: var(--ink-dim);
   cursor: pointer; transition: all 0.15s ease;
 }
-.seat-table:hover { background: rgba(26,174,196,0.18); border-color: var(--accent); color: var(--ink); }
+.seat-table:hover { background: rgba(141, 1, 52,0.18); border-color: var(--accent); color: var(--ink); }
 .seat-table.selected {
-  background: rgba(26,174,196,0.28);
+  background: rgba(141, 1, 52,0.28);
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(26,174,196,0.18);
+  box-shadow: 0 0 0 4px rgba(141, 1, 52,0.18);
 }
 .seat-table.full { background: rgba(224,138,126,0.22); border-color: rgba(224,138,126,0.5); }
 
@@ -1691,7 +1691,7 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
   content: ""; position: absolute; left: -21px; top: 6px;
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(26,174,196,0.20);
+  box-shadow: 0 0 0 3px rgba(141, 1, 52,0.20);
 }
 .timeline-item.flight::before { background: var(--accent); }
 .timeline-item.hotel::before { background: var(--teal); box-shadow: 0 0 0 3px rgba(47,181,168,0.18); }
@@ -1708,7 +1708,7 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
 }
 .bars .bar:hover { opacity: 1; }
 .bars .bar.alt {
-  background: linear-gradient(180deg, var(--teal), #1a6b65);
+  background: linear-gradient(180deg, var(--teal), #5e0022);
 }
 .bars-x { display: flex; gap: 8px; margin-top: 6px; }
 .bars-x span { flex: 1; text-align: center; font-size: 10.5px; color: var(--ink-mute); font-family: var(--mono); }
@@ -1722,12 +1722,12 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
 }
 .divider { height: 1px; background: var(--glass-border); margin: 14px 0; }
 
-::selection { background: rgba(26,174,196,0.45); color: #fff; }
+::selection { background: rgba(141, 1, 52,0.45); color: #fff; }
 
 /* ===== Arabic / RTL ===== */
 html[lang="ar"] {
-  --serif: 'Noto Naskh Arabic', 'Amiri', 'Times New Roman', serif;
-  --sans: 'Noto Sans Arabic', 'Inter', system-ui, sans-serif;
+  --serif: 'Loew Next Arabic', 'Noto Naskh Arabic', 'Amiri', serif;
+  --sans: 'Loew Next Arabic', 'Noto Sans Arabic', 'Inter', sans-serif;
 }
 html[lang="ar"] .stat .value,
 html[lang="ar"] .page-title,
@@ -1994,7 +1994,7 @@ html[dir="rtl"] .avatar { direction: ltr; }
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: var(--surface-soft-2);
   --fc-list-event-hover-bg-color: var(--surface-soft-3);
-  --fc-today-bg-color: rgba(26,174,196,0.08);
+  --fc-today-bg-color: rgba(141, 1, 52,0.08);
   --fc-now-indicator-color: var(--accent);
   --fc-button-bg-color: var(--surface-soft-3);
   --fc-button-border-color: var(--glass-border);
@@ -2026,3 +2026,91 @@ html[dir="rtl"] .avatar { direction: ltr; }
   animation: skel-shimmer 1.4s ease infinite;
 }
 @keyframes skel-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+/* ==========================================================================
+   QATAR-OLYMPIC BRAND THEME (maroon #8d0134 + white)
+   Added on top of the base theme. To fully revert, delete this block, restore
+   the teal palette vars above, and set BRAND_THEME.enabled = false in App.jsx.
+   ========================================================================== */
+
+/* Loew Next Arabic across the entire app (falls back gracefully if the font
+   file isn't installed — see note: add an @font-face with the real files). */
+*, *::before, *::after {
+  font-family: 'Loew Next Arabic', 'Noto Naskh Arabic', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+}
+
+/* Richer maroon gradient on primary actions & pills */
+.btn.primary {
+  background: linear-gradient(135deg, #a1023d 0%, #8d0134 55%, #5e0022 100%) !important;
+  border-color: #8d0134 !important;
+  color: #fff !important;
+}
+.btn.primary:hover { filter: brightness(1.08); }
+
+/* Light theme: keep surfaces clean white with a faint maroon tint */
+html[data-theme="light"] {
+  --selected-tint: rgba(141, 1, 52, 0.08);
+  --hover-tint: rgba(141, 1, 52, 0.05);
+}
+html[data-theme="light"] .topbar,
+html[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(250,246,247,0.88));
+}
+
+/* ==========================================================================
+   Loew Next Arabic — actual font files (dropped into src/assets/fonts).
+   The family has no "Regular" weight, so Medium is mapped to 400 & 500.
+   ========================================================================== */
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-thin.ttf')      format('truetype'); font-weight:100; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-light.ttf')     format('truetype'); font-weight:300; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-medium.ttf')    format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-medium.ttf')    format('truetype'); font-weight:500; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-bold.ttf')      format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-extrabold.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
+@font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-black.ttf')     format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
+
+/* ==========================================================================
+   QOC MAROON SHELL — make maroon the dominant surface (solid maroon rail +
+   clean white content), so the app reads as the Qatar-Olympic brand rather
+   than a white app with a few maroon buttons.
+   ========================================================================== */
+
+/* Left rail: solid maroon with white content */
+.sidebar {
+  background: linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(0,0,0,0.18) !important;
+  box-shadow: 2px 0 26px rgba(94,0,34,0.28) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.sidebar .sidebar-brand-text,
+.sidebar .sidebar-brand-text * { color: #fff !important; }
+.sidebar .nav-section { color: rgba(255,255,255,0.62) !important; }
+.sidebar .nav-item {
+  color: rgba(255,255,255,0.86) !important;
+  border-color: transparent !important;
+}
+.sidebar .nav-item svg { color: currentColor !important; stroke: currentColor !important; }
+.sidebar .nav-item:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; }
+.sidebar .nav-item.active {
+  background: rgba(255,255,255,0.18) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+.sidebar .nav-item.active::before { background: #fff !important; }
+.sidebar .nav-item .badge { background: rgba(255,255,255,0.22) !important; color: #fff !important; }
+/* Always show the white event logo on the maroon rail */
+.sidebar .brand-logo .logo-white { display: block !important; mix-blend-mode: normal !important; }
+.sidebar .brand-logo .logo-color { display: none !important; }
+
+/* Top bar: clean, with a maroon underline to tie into the brand */
+.topbar { border-bottom: 2px solid rgba(141,1,52,0.22) !important; }
+
+/* Headings in maroon on the white content area */
+.page-title { color: #8d0134 !important; }
+.page-title em { color: #b8164c !important; font-style: italic; }
+html[data-theme="dark"] .page-title { color: #fff !important; }
+html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
+
+/* Mobile bottom nav active tint already uses --accent (maroon) — leave as is. */

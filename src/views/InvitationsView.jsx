@@ -5,7 +5,7 @@ import Select from '../components/ui/Select';
 import toast from '../lib/toast';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../api/services/invitationTemplateService';
 
-const TEMPLATE_COLORS = ['#1aaec4', '#e0b864', '#a78bda', '#5abf6e', '#e08a7e', '#0a3947'];
+const TEMPLATE_COLORS = ['#8d0134', '#e0b864', '#a78bda', '#5abf6e', '#e08a7e', '#5e0022'];
 const TIERS = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
 const LANG_OPTIONS = [
   { value: 'en',   label: 'EN (English)' },

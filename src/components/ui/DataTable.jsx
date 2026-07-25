@@ -47,7 +47,7 @@ const S = {
     color: 'var(--ink-mute)', lineHeight: 1.4,
   },
   pageBtnActive: {
-    background: 'rgba(26,174,196,0.12)', border: '1px solid rgba(26,174,196,0.4)',
+    background: 'rgba(141, 1, 52,0.12)', border: '1px solid rgba(141, 1, 52,0.4)',
     color: 'var(--accent)',
   },
   pageBtnDisabled: { opacity: 0.35, cursor: 'not-allowed' },

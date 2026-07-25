@@ -448,7 +448,7 @@ export default function AddGuestModal({
                           border: `1px solid ${guest.tier === tier.code ? "var(--accent)" : "var(--glass-border)"}`,
                           background:
                             guest.tier === tier.code
-                              ? "rgba(26,174,196,0.12)"
+                              ? "rgba(141, 1, 52,0.12)"
                               : "var(--surface-soft-2)",
                           fontSize: 13,
                           fontWeight: guest.tier === tier.code ? 600 : 400,
@@ -486,7 +486,7 @@ export default function AddGuestModal({
                           border: `1px solid ${guest.accreditationStatus === s.code ? "var(--accent)" : "var(--glass-border)"}`,
                           background:
                             guest.accreditationStatus === s.code
-                              ? "rgba(26,174,196,0.12)"
+                              ? "rgba(141, 1, 52,0.12)"
                               : "var(--surface-soft-2)",
                           fontSize: 13,
                           textTransform: "capitalize",
@@ -581,7 +581,7 @@ export default function AddGuestModal({
                         gap: 12,
                         border: `1px solid ${!templateId ? "var(--accent)" : "var(--glass-border)"}`,
                         background: !templateId
-                          ? "rgba(26,174,196,0.1)"
+                          ? "rgba(141, 1, 52,0.1)"
                           : "var(--surface-soft-2)",
                       }}
                     >
@@ -780,7 +780,7 @@ export default function AddGuestModal({
                             gap: 10,
                             border: `1px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`,
                             background: checked
-                              ? "rgba(26,174,196,0.08)"
+                              ? "rgba(141, 1, 52,0.08)"
                               : "var(--surface-soft-2)",
                           }}
                         >
