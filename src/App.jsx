@@ -13,22 +13,8 @@ import {
 import { INVITATION_TEMPLATES, SESSIONS } from './data/mockData';
 import { useAuth } from './auth/AuthContext';
 import { useEvents } from './events/EventsContext';
-import DashboardView from './views/DashboardView';
-import InvitationsView from './views/InvitationsView';
-import GuestsView from './views/GuestsView';
-import TravelView from './views/TravelView';
-import MeetingsView from './views/MeetingsView';
-import SeatingView from './views/SeatingView';
-import VenueConfigView from './views/VenueConfigView';
-import ProtocolView from './views/ProtocolView';
-import FinancialsView from './views/FinancialsView';
-import ReportsView from './views/ReportsView';
-import EventsView from './views/EventsView';
-import AccreditationView from './views/AccreditationView';
-import AccountRequestsView from './views/AccountRequestsView';
-import UserAccessView from './views/UserAccessView';
-import UsersView from './views/UsersView';
-import LookupsView from './views/lookups/LookupsView';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { pathForKey } from './nav';
 import { LOOKUP_DEFS } from './views/lookups/lookupConfig';
 
 const LOOKUP_CHILDREN = LOOKUP_DEFS.map(d => ({
@@ -737,32 +723,9 @@ function Tweaks({ tweaks, setTweak }) {
   );
 }
 
-const VIEWS = {
-  dashboard: DashboardView,
-  events: EventsView,
-  invitations: InvitationsView,
-  guests: GuestsView,
-  travel: TravelView,
-  meetings: MeetingsView,
-  seating: SeatingView,
-  venueConfig: VenueConfigView,
-  protocol: ProtocolView,
-  financials: FinancialsView,
-  reports: ReportsView,
-  accreditation: AccreditationView,
-  accountRequests: AccountRequestsView,
-  userAccess: UserAccessView,
-  users: UsersView,
-};
-
-const ComingSoon = () => (
-  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--ink-mute)", fontSize: 14 }}>
-    Coming soon
-  </div>
-);
-
 export default function App() {
-  const [view, setView] = useState("dashboard");
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [openGuest, setOpenGuest] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState({});
@@ -770,6 +733,14 @@ export default function App() {
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
   const { events, activeEvent, setActiveEventId } = useEvents();
+
+  // Navigate by NAV key (URL comes from the shared path map) and close the
+  // mobile sidebar. Passed to views as `gotoView` for backward compatibility.
+  const gotoView = (key) => { navigate(pathForKey(key)); setSidebarOpen(false); };
+  const isActiveKey = (key) => {
+    const p = pathForKey(key);
+    return pathname === p || pathname.startsWith(p + '/');
+  };
 
   function applyEventTheme(ev) {
     // Brand theme overrides per-event colors. Flip BRAND_THEME.enabled to false
@@ -831,13 +802,6 @@ export default function App() {
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 
-  // If the current view is no longer accessible (permission revoked), redirect to the first visible item.
-  const visibleLeaves = NAV_LEAVES.filter(n => !n.permission || can(n.permission));
-  const activeView = visibleLeaves.find(n => n.key === view) ? view : (visibleLeaves[0]?.key || 'dashboard');
-  const activeLeaf = NAV_LEAVES.find(n => n.key === activeView);
-  const Current = VIEWS[activeView] || ComingSoon;
-  const navItem = activeLeaf;
-
   return (
     <div className="app">
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
@@ -864,7 +828,7 @@ export default function App() {
                   if (n.children) {
                     const kids = n.children.filter(c => !c.permission || can(c.permission));
                     if (kids.length === 0) return null;
-                    const hasActiveKid = kids.some(c => c.key === view);
+                    const hasActiveKid = kids.some(c => isActiveKey(c.key));
                     const isOpen = openMenus[n.key] ?? hasActiveKid;
                     return (
                       <React.Fragment key={n.key}>
@@ -876,9 +840,9 @@ export default function App() {
                         </div>
                         {isOpen && kids.map(c => (
                           <div key={c.key}
-                            className={`nav-item ${view === c.key ? "active" : ""}`}
+                            className={`nav-item ${isActiveKey(c.key) ? "active" : ""}`}
                             style={{ paddingInlineStart: 38, fontSize: 13 }}
-                            onClick={() => { setView(c.key); setSidebarOpen(false); }}>
+                            onClick={() => gotoView(c.key)}>
                             <span>{navLabelOf(c)}</span>
                           </div>
                         ))}
@@ -887,8 +851,8 @@ export default function App() {
                   }
                   return (
                     <div key={n.key}
-                      className={`nav-item ${view === n.key ? "active" : ""}`}
-                      onClick={() => { setView(n.key); setSidebarOpen(false); }}>
+                      className={`nav-item ${isActiveKey(n.key) ? "active" : ""}`}
+                      onClick={() => gotoView(n.key)}>
                       <Icon name={n.icon} size={16}/>
                       <span>{navLabelOf(n)}</span>
                       {n.badge && <span className="badge">{n.badge}</span>}
@@ -939,16 +903,14 @@ export default function App() {
               <div className="role">{user && !isDemo ? (user.role || user.roleCode || shell.userRole) : (isDemo ? "Demo mode" : shell.userRole)}</div>
             </div>
           </div>
-          <button className="icon-btn" title="Sign out" onClick={signOut}>
+          <button className="icon-btn" title="Sign out" onClick={async () => { await signOut(); navigate('/login'); }}>
             <Icon name="power" size={16}/>
           </button>
         </div>
       </header>
 
       <main className="main">
-        {activeLeaf?.lookupKey
-          ? <LookupsView lookupKey={activeLeaf.lookupKey} lang={lang} />
-          : <Current onOpenGuest={setOpenGuest} gotoView={setView} lang={lang} activeEventId={activeEvent?.id || null} />}
+        <Outlet context={{ lang, activeEventId: activeEvent?.id || null, onOpenGuest: setOpenGuest, gotoView }} />
       </main>
 
       <nav className="mobile-bottom-nav">
@@ -960,8 +922,8 @@ export default function App() {
           { key:'__menu',    icon:'menu',      label:{en:'More',     ar:'المزيد'} },
         ].map(n => (
           <button key={n.key}
-            className={`mob-nav-item${view === n.key ? ' active' : ''}`}
-            onClick={() => n.key === '__menu' ? setSidebarOpen(o => !o) : (setView(n.key), setSidebarOpen(false))}>
+            className={`mob-nav-item${n.key !== '__menu' && isActiveKey(n.key) ? ' active' : ''}`}
+            onClick={() => n.key === '__menu' ? setSidebarOpen(o => !o) : gotoView(n.key)}>
             <Icon name={n.icon} size={22}/>
             <span>{n.label[lang] || n.label.en}</span>
           </button>
