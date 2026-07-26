@@ -49,12 +49,12 @@ function mapFlight(r) {
     tier: r.tier,
     org: r.organization,
     flight: r.flightNumber || '—',
+    flightType: r.flightType || '—',
+    flightClass: r.flightClass || '—',
     from: r.departureCode || '—',
     to: r.arrivalCode || '—',
     date: r.date ? r.date.slice(0, 10) : '',
     dateLabel: r.date ? dateLabelFor(r.date) : '—',
-    passport: '—',
-    hayyaStatus: '',
     flightStatus: (r.status || '').toLowerCase(),
   };
 }
@@ -152,8 +152,8 @@ export default function TravelView({ lang, activeEventId }) {
       connected:'متصل · وزارة الداخلية',syncNow:'مزامنة',synced:'تمت ✓' },
     inbound:{ title:'وصول اليوم · مطار حمد',chip:'مباشر' },
     itinerary:'جدول الرحلة', viewPermit:'عرض التصريح →',
-    cols:{ guest:'الضيف',flight:'الرحلة',route:'المسار',date:'التاريخ',hayya:'التأشيرة',
-      passport:'الجواز',status:'الحالة',hotel:'الفندق',room:'الغرفة',
+    cols:{ guest:'الضيف',flight:'الرحلة',flightType:'نوع الرحلة',flightClass:'الدرجة',route:'المسار',date:'التاريخ',
+      status:'الحالة',hotel:'الفندق',room:'الغرفة',
       checkIn:'الوصول',checkOut:'المغادرة',nights:'الليالي',
       vehicle:'المركبة',driver:'السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت' },
     statuses:{ approved:'موافق',submitted:'قيد المراجعة',pending:'قيد الانتظار',rejected:'مرفوض',
@@ -175,7 +175,7 @@ export default function TravelView({ lang, activeEventId }) {
     sub:'Flights, visa applications, hotels and ground transfers',
     tabs:[
       // 'Overview',
-      'Flights & Visas','Hotel','Ground Transfers'],
+      'Flights','Hotel','Ground Transfers'],
     newBooking:'New booking',
     kpi:{ flights:'Flights confirmed',flightsH:'74% coverage · QR partner fares',
       rooms:'Hotel rooms blocked',roomsH:'5 properties · 92% allocated',
@@ -185,8 +185,8 @@ export default function TravelView({ lang, activeEventId }) {
       connected:'Connected · MOI Qatar',syncNow:'Sync now',synced:'Synced ✓' },
     inbound:{ title:'Arrivals today · Hamad International',chip:'Live · MOI sync' },
     itinerary:'Itinerary', viewPermit:'View permit →',
-    cols:{ guest:'Guest',flight:'Flight',route:'Route',date:'Date',hayya:'Visa status',
-      passport:'Passport',status:'Status',hotel:'Hotel',room:'Room',
+    cols:{ guest:'Guest',flight:'Flight',flightType:'Flight Type',flightClass:'Class',route:'Route',date:'Date',
+      status:'Status',hotel:'Hotel',room:'Room',
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
       vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time' },
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
@@ -238,8 +238,6 @@ export default function TravelView({ lang, activeEventId }) {
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0);
-  const [synced, setSynced]       = useState(false);
-  const syncTimerRef              = useRef(null);
 
   // Fetch the active tab's rows the first time it's shown for this event.
   useEffect(() => {
@@ -260,7 +258,6 @@ export default function TravelView({ lang, activeEventId }) {
   }, [activeTab, activeEventId]);
 
   const [fSearch, setFSearch]         = useState('');
-  const [fHayya, setFHayya]           = useState('All');
   const [fFlight, setFFlight]         = useState('All');
   const [hSearch, setHSearch]         = useState('');
   const [hHotel, setHHotel]           = useState('All hotels');
@@ -385,20 +382,12 @@ export default function TravelView({ lang, activeEventId }) {
     }
   }
 
-  // ── Sync ────────────────────────────────────────────────────────────────────
-  function handleSync() {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    setSynced(true);
-    syncTimerRef.current = setTimeout(() => setSynced(false), 2500);
-  }
-
   // ── Filtered data ───────────────────────────────────────────────────────────
   const filteredFlights = useMemo(() => flightRows.filter(r => {
     const s = !fSearch || r.name.toLowerCase().includes(fSearch.toLowerCase()) || r.flight.toLowerCase().includes(fSearch.toLowerCase());
-    const h = fHayya === 'All' || r.hayyaStatus === fHayya;
     const f = fFlight === 'All' || r.flightStatus === fFlight;
-    return s && h && f;
-  }), [flightRows, fSearch, fHayya, fFlight]);
+    return s && f;
+  }), [flightRows, fSearch, fFlight]);
 
   const filteredHotels = useMemo(() => hotelRows.filter(r => {
     const s = !hSearch || r.name.toLowerCase().includes(hSearch.toLowerCase()) || r.hotel.toLowerCase().includes(hSearch.toLowerCase());
@@ -417,12 +406,6 @@ export default function TravelView({ lang, activeEventId }) {
     .filter(g => !guestSearch || guestFullName(g).toLowerCase().includes(guestSearch.toLowerCase()))
     .slice(0, 6);
 
-  const hayyaCounts = {
-    approved: flightRows.filter(f=>f.hayyaStatus==='approved').length,
-    submitted: flightRows.filter(f=>f.hayyaStatus==='submitted').length,
-    pending: flightRows.filter(f=>f.hayyaStatus==='pending').length,
-    rejected: flightRows.filter(f=>f.hayyaStatus==='rejected').length,
-  };
 
   // ── Styles ──────────────────────────────────────────────────────────────────
   const iSt = { width:'100%', background:'var(--surface-soft-3)', border:'1px solid var(--glass-border)', borderRadius:8, padding:'8px 11px', color:'var(--ink)', fontSize:13, boxSizing:'border-box', outline:'none' };
@@ -494,29 +477,11 @@ export default function TravelView({ lang, activeEventId }) {
         ))}
       </div>
 
-      {/* ── Tab 1: Flights & Visas ── */}
+      {/* ── Tab 1: Flights ── */}
       {activeTab === 0 && (
         <div>
-          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
-            <span style={{ fontSize:11, color:'var(--ink-mute)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.08em', marginRight:4 }}>Visa</span>
-            {Object.entries(hayyaCounts).map(([k, count]) => (
-              <span key={k} className={`chip${fHayya===k?' active':''}`}
-                style={{ borderColor:STATUS_COLOR[k], color:STATUS_COLOR[k], cursor:'pointer' }}
-                onClick={() => setFHayya(f => f===k?'All':k)}>
-                <span className="dot" style={{ background:STATUS_COLOR[k] }}/>
-                {STR.statuses[k]} <strong style={{ marginLeft:3 }}>{fmtN(count)}</strong>
-              </span>
-            ))}
-            <button className="btn ghost" style={{ padding:'4px 10px', fontSize:11, marginLeft:'auto', flexShrink:0 }} onClick={handleSync}>
-              <Icon name={synced?'check':'refresh'} size={12}/> {synced?STR.hayya.synced:STR.hayya.syncNow}
-            </button>
-          </div>
           <div className="filter-bar" style={{ marginBottom:12 }}>
             <SearchInput value={fSearch} onChange={setFSearch} placeholder={STR.searchPh}/>
-            <select className="select" value={fHayya} onChange={e => setFHayya(e.target.value)}>
-              <option value="All">{STR.filterAll}</option>
-              {['approved','submitted','pending','rejected'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-            </select>
             <select className="select" value={fFlight} onChange={e => setFFlight(e.target.value)}>
               <option value="All">{isAr?'كل الرحلات':'All flights'}</option>
               {['confirmed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
@@ -526,8 +491,8 @@ export default function TravelView({ lang, activeEventId }) {
             <table className="table">
               <thead><tr>
                 <th>{STR.cols.guest}</th><th>{STR.cols.flight}</th>
+                <th>{STR.cols.flightType}</th><th>{STR.cols.flightClass}</th>
                 <th>{STR.cols.route}</th><th>{STR.cols.date}</th>
-                <th>{STR.cols.passport}</th><th>{STR.cols.hayya}</th>
                 <th>{STR.cols.status}</th><th style={{ width:40 }}/>
               </tr></thead>
               <tbody>
@@ -543,10 +508,10 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>{r.flight}</span></td>
+                    <td><span style={{ fontSize:12 }}>{r.flightType}</span></td>
+                    <td><span style={{ fontSize:12 }}>{r.flightClass}</span></td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{r.from} → {r.to}</span></td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.dateLabel || r.date}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{r.passport}</span></td>
-                    <td><StatusChip status={r.hayyaStatus} label={STR.statuses[r.hayyaStatus]}/></td>
                     <td><StatusChip status={r.flightStatus} label={STR.statuses[r.flightStatus]}/></td>
                     <td>{editBtn('flight', r)}</td>
                   </tr>
@@ -912,6 +877,10 @@ export default function TravelView({ lang, activeEventId }) {
                     </div>
                   </div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{STR.from}</label><input style={iSt} value={flightData.flightDeparture} onChange={e => setFlightData(d=>({...d,flightDeparture:e.target.value}))}/></div>
+                    <div><label style={lSt}>{STR.to}</label><input style={iSt} value={flightData.flightArrival} onChange={e => setFlightData(d=>({...d,flightArrival:e.target.value}))}/></div>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                     <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'}</label>
                       <Select value={flightData.flightTypeId} onChange={v => setFlightData(d=>({...d,flightTypeId:v}))}
                         options={(travelLookups.flightTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
@@ -924,10 +893,6 @@ export default function TravelView({ lang, activeEventId }) {
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                     <div><label style={lSt}>{STR.flightNum}</label><input style={iSt} value={flightData.flightNumber} onChange={e => setFlightData(d=>({...d,flightNumber:e.target.value}))}/></div>
                     <div><label style={lSt}>{STR.cols.date}</label><DateField value={flightData.flightDate} onChange={v => setFlightData(d=>({...d,flightDate:v||''}))} minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD"/></div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.from}</label><input style={iSt} value={flightData.flightDeparture} onChange={e => setFlightData(d=>({...d,flightDeparture:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.to}</label><input style={iSt} value={flightData.flightArrival} onChange={e => setFlightData(d=>({...d,flightArrival:e.target.value}))}/></div>
                   </div>
                 </div>
               )}

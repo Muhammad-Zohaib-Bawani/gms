@@ -172,8 +172,19 @@ export default function TravelAccordion({
   const setField = (section, key, value) =>
     onChange((p) => ({ ...p, [section]: { ...p[section], [key]: value } }));
 
-  const toggle = (section) =>
-    onChange((p) => ({ ...p, [section]: { ...p[section], enabled: !p[section].enabled } }));
+  // Closing a section clears its fields rather than just hiding them — so
+  // reopening it (or leaving it closed) never silently resubmits stale data.
+  const toggle = (section) => {
+    const wasEnabled = travel[section].enabled;
+    onChange((p) => ({
+      ...p,
+      [section]: wasEnabled ? { ...EMPTY_TRAVEL[section] } : { ...p[section], enabled: true },
+    }));
+    if (wasEnabled && section === 'flight') {
+      onArrivalDateChange?.('');
+      onDepartureDateChange?.('');
+    }
+  };
 
   const flightTypeOpts = mapOpts(lookups.flightTypes, (x) => x.name);
   const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
@@ -268,16 +279,16 @@ export default function TravelAccordion({
           </div>
         </>)}
         {grid(<>
+          {txt('flight', 'flightDeparture', isAr ? 'من' : 'From', { ph: 'DOH' })}
+          {txt('flight', 'flightArrival', isAr ? 'إلى' : 'To', { ph: 'LHR' })}
+        </>)}
+        {grid(<>
           {sel('flight', 'flightTypeId', isAr ? 'نوع الرحلة' : 'Flight Type', flightTypeOpts, { required: true })}
           {sel('flight', 'flightClassId', isAr ? 'الدرجة' : 'Flight Class', flightClassOpts)}
         </>)}
         {grid(<>
           {txt('flight', 'flightNumber', isAr ? 'رقم الرحلة' : 'Flight No.', { ph: 'QR 512' })}
           {date('flight', 'flightDate', isAr ? 'تاريخ الرحلة' : 'Flight Date', { minDate: eventMinDate, maxDate: eventMaxDate })}
-        </>)}
-        {grid(<>
-          {txt('flight', 'flightDeparture', isAr ? 'من' : 'From', { ph: 'DOH' })}
-          {txt('flight', 'flightArrival', isAr ? 'إلى' : 'To', { ph: 'LHR' })}
         </>)}
       </Section>
 
