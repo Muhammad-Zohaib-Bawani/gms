@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { EventsProvider } from './events/EventsContext';
 import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
 import InvitationResponseView from './views/InvitationResponseView.jsx';
+import UserInviteAcceptView from './views/UserInviteAcceptView.jsx';
 import './style.css';
 
 // Auth gate: a stored session (real sign-in or "Explore demo") shows the app
@@ -44,6 +45,16 @@ if (screenParams.get('screen') === 'venueView') {
         token={screenParams.get('token')}
         lang={screenParams.get('lang') || 'en'}
       />
+      <Toaster position="top-right" richColors closeButton theme="dark" />
+    </React.StrictMode>
+  );
+} else if (screenParams.get('screen') === 'userInvite') {
+  // Public admin-invited-user accept page — reached from the tokenised link
+  // in the invite email. Rendered outside AuthProvider/Gate: the invitee has
+  // no login yet, and the API endpoints it hits are [AllowAnonymous].
+  root.render(
+    <React.StrictMode>
+      <UserInviteAcceptView token={screenParams.get('token')} />
       <Toaster position="top-right" richColors closeButton theme="dark" />
     </React.StrictMode>
   );

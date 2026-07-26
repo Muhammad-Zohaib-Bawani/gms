@@ -15,15 +15,16 @@ export const getEventTransport     = (eventId) => apiClient.get(ENDPOINTS.travel
 export const getFlightTypes   = () => apiClient.get(ENDPOINTS.travel.flightTypes);
 export const getFlightClasses = () => apiClient.get(ENDPOINTS.travel.flightClasses);
 export const getRoomTypes     = () => apiClient.get(ENDPOINTS.travel.roomTypes);
+export const getVehicleTypes  = () => apiClient.get(ENDPOINTS.travel.vehicleTypes);
 export const getHotels        = () => apiClient.get(ENDPOINTS.travel.hotels);
 export const getLocations     = () => apiClient.get(ENDPOINTS.travel.locations);
 
-// Fills every wizard dropdown by calling the five endpoints in parallel.
+// Fills every wizard dropdown by calling the six endpoints in parallel.
 export const getTravelLookups = async () => {
-  const [flightTypes, flightClasses, roomTypes, hotels, locations] = await Promise.all([
-    getFlightTypes(), getFlightClasses(), getRoomTypes(), getHotels(), getLocations(),
+  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations] = await Promise.all([
+    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(),
   ]);
-  return { flightTypes, flightClasses, roomTypes, hotels, locations };
+  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations };
 };
 
 // Prefill for edit — { flight?, accommodation?, transport? } (sections may be null).
@@ -39,4 +40,5 @@ export const saveGuestTravel = (guestId, body) =>
 export const createFlightType  = (name)          => apiClient.post(ENDPOINTS.travel.flightTypes,  { name });
 export const createFlightClass = (name)          => apiClient.post(ENDPOINTS.travel.flightClasses, { name });
 export const createRoomType    = (name)          => apiClient.post(ENDPOINTS.travel.roomTypes,    { name });
+export const createVehicleType = (name)          => apiClient.post(ENDPOINTS.travel.vehicleTypes, { name });
 export const createHotel       = (name, address) => apiClient.post(ENDPOINTS.travel.hotels,       { name, address });

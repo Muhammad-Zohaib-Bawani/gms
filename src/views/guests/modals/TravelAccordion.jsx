@@ -1,13 +1,19 @@
 // Shared travel step for the guest create/edit wizards.
 // Renders three collapsible sections — Flight, Accommodation, Transport — each
 // with an "include this" toggle. Only enabled sections are sent to the backend.
+// Field names mirror the Travel_logistics columns exactly (the same table the
+// Travel & Logistics "New Booking" flow writes to), except `roomTypeId`/
+// `vehicleTypeId` which are UI-only — the entity stores both as plain name
+// strings, so they're resolved to/from their lookup lists at the payload
+// boundary below.
 //
 // State shape (held by the parent modal):
 //   {
-//     flight:        { enabled, flightTypeId, flightClassId, flightNumber, startTime, endTime },
-//     accommodation: { enabled, hotelId, roomTypeId, checkIn, checkOut },
-//     transport:     { enabled, pickupLocationId, dropoffLocationId, vehicleType,
-//                      pickupTime, estimatedArrival },
+//     flight:        { enabled, flightNumber, flightTypeId, flightClassId,
+//                       flightDate, flightDeparture, flightArrival },
+//     accommodation: { enabled, hotelId, roomTypeId, hotelCheckIn, hotelCheckOut },
+//     transport:     { enabled, vehicleTypeId, driverName, pickupLocationId,
+//                      dropoffLocationId, pickupTime, estimatedArrival },
 //   }
 import React from 'react';
 import { Icon } from '../../../components/Icons';
@@ -17,16 +23,16 @@ import DateField from '../../../components/ui/DateField';
 export const EMPTY_TRAVEL = {
   flight: {
     enabled: false,
-    flightTypeId: '', flightClassId: '', flightNumber: '',
-    startTime: '', endTime: '',
+    flightNumber: '', flightTypeId: '', flightClassId: '',
+    flightDate: '', flightDeparture: '', flightArrival: '',
   },
   accommodation: {
     enabled: false,
-    hotelId: '', roomTypeId: '', checkIn: '', checkOut: '',
+    hotelId: '', roomTypeId: '', hotelCheckIn: '', hotelCheckOut: '',
   },
   transport: {
     enabled: false,
-    pickupLocationId: '', dropoffLocationId: '', vehicleType: '',
+    vehicleTypeId: '', driverName: '', pickupLocationId: '', dropoffLocationId: '',
     pickupTime: '', estimatedArrival: '',
   },
 };
@@ -48,11 +54,19 @@ function hydrateSection(defaults, data) {
 }
 
 // Build state from GET /travel/guest/{id} → { flight?, accommodation?, transport? }.
-export function hydrateTravel(data) {
+// `lookups.roomTypes`/`lookups.vehicleTypes` resolve the backend's plain-string
+// RoomType/VehicleType back to the matching lookup id for the Select — falls
+// back to blank if no match (a value saved by name only, then renamed/removed
+// from the lookup, or otherwise no longer present in the list).
+export function hydrateTravel(data, lookups = {}) {
+  const accommodation = hydrateSection(EMPTY_TRAVEL.accommodation, data?.accommodation);
+  const roomTypeId = (lookups.roomTypes || []).find((r) => r.name === data?.accommodation?.roomType)?.id || '';
+  const transport = hydrateSection(EMPTY_TRAVEL.transport, data?.transport);
+  const vehicleTypeId = (lookups.vehicleTypes || []).find((v) => v.name === data?.transport?.vehicleType)?.id || '';
   return {
     flight: hydrateSection(EMPTY_TRAVEL.flight, data?.flight),
-    accommodation: hydrateSection(EMPTY_TRAVEL.accommodation, data?.accommodation),
-    transport: hydrateSection(EMPTY_TRAVEL.transport, data?.transport),
+    accommodation: { ...accommodation, roomTypeId },
+    transport: { ...transport, vehicleTypeId },
   };
 }
 
@@ -79,12 +93,23 @@ function cleanSection(sec) {
   return out;
 }
 
-// Build the POST body — only the enabled sections, with the `enabled` flag stripped.
-export function buildTravelPayload(travel) {
+// Build the POST body — only the enabled sections, with the `enabled` flag
+// stripped. Accommodation's `roomTypeId`/transport's `vehicleTypeId` are
+// resolved to their lookup's name text, since those are the string columns
+// the entity actually stores.
+export function buildTravelPayload(travel, lookups = {}) {
   const body = {};
   if (travel.flight.enabled) body.flight = cleanSection(travel.flight);
-  if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation);
-  if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
+  if (travel.accommodation.enabled) {
+    const { roomTypeId, ...rest } = travel.accommodation;
+    const roomType = (lookups.roomTypes || []).find((r) => r.id === roomTypeId)?.name || null;
+    body.accommodation = { ...cleanSection(rest), roomType };
+  }
+  if (travel.transport.enabled) {
+    const { vehicleTypeId, ...rest } = travel.transport;
+    const vehicleType = (lookups.vehicleTypes || []).find((v) => v.id === vehicleTypeId)?.name || null;
+    body.transport = { ...cleanSection(rest), vehicleType };
+  }
   return body;
 }
 
@@ -133,7 +158,15 @@ function Section({ enabled, onToggle, icon, title, children }) {
   );
 }
 
-export default function TravelAccordion({ travel, onChange, lookups = {}, isAr = false }) {
+export default function TravelAccordion({
+  travel, onChange, lookups = {}, isAr = false,
+  arrivalDate, departureDate, onArrivalDateChange, onDepartureDateChange,
+  dateMinDate, dateMaxDate, dateOpenTo,
+  // Raw event start/end (no margin) — bounds every other travel date
+  // (flight date, hotel check-in/out, pickup/est. arrival). Only Arrival
+  // Date/Departure Date above get the wider dateMinDate/dateMaxDate margin.
+  eventMinDate, eventMaxDate,
+}) {
   const selPlaceholder = isAr ? '— اختر —' : '— Select —';
 
   const setField = (section, key, value) =>
@@ -145,6 +178,7 @@ export default function TravelAccordion({ travel, onChange, lookups = {}, isAr =
   const flightTypeOpts = mapOpts(lookups.flightTypes, (x) => x.name);
   const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
   const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
+  const vehicleTypeOpts = mapOpts(lookups.vehicleTypes, (x) => x.name);
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
 
@@ -175,23 +209,27 @@ export default function TravelAccordion({ travel, onChange, lookups = {}, isAr =
     </div>
   );
 
-  const date = (section, key, label) => (
+  const date = (section, key, label, { minDate, maxDate } = {}) => (
     <div>
       <Label>{label}</Label>
       <DateField
         value={travel[section][key]}
         onChange={(v) => setField(section, key, v || '')}
+        minDate={minDate}
+        maxDate={maxDate}
         placeholder="YYYY-MM-DD"
       />
     </div>
   );
 
-  const dt = (section, key, label) => (
+  const dt = (section, key, label, { minDate, maxDate } = {}) => (
     <div>
       <Label>{label}</Label>
       <DateField
         value={travel[section][key]}
         onChange={(v) => setField(section, key, v || '')}
+        minDate={minDate}
+        maxDate={maxDate}
         showTime
         placeholder="YYYY-MM-DD HH:mm"
       />
@@ -206,16 +244,40 @@ export default function TravelAccordion({ travel, onChange, lookups = {}, isAr =
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Section enabled={travel.flight.enabled} onToggle={() => toggle('flight')} icon="flight" title={isAr ? 'الرحلة الجوية' : 'Flight'}>
         {grid(<>
+          <div>
+            <Label>{isAr ? 'تاريخ الوصول' : 'Arrival Date'}</Label>
+            <DateField
+              value={arrivalDate}
+              onChange={onArrivalDateChange}
+              minDate={dateMinDate}
+              maxDate={dateMaxDate}
+              openToDate={dateOpenTo}
+              placeholder="YYYY-MM-DD"
+            />
+          </div>
+          <div>
+            <Label>{isAr ? 'تاريخ المغادرة' : 'Departure Date'}</Label>
+            <DateField
+              value={departureDate}
+              onChange={onDepartureDateChange}
+              minDate={arrivalDate || dateMinDate}
+              maxDate={dateMaxDate}
+              openToDate={dateOpenTo}
+              placeholder="YYYY-MM-DD"
+            />
+          </div>
+        </>)}
+        {grid(<>
           {sel('flight', 'flightTypeId', isAr ? 'نوع الرحلة' : 'Flight Type', flightTypeOpts, { required: true })}
           {sel('flight', 'flightClassId', isAr ? 'الدرجة' : 'Flight Class', flightClassOpts)}
         </>)}
         {grid(<>
           {txt('flight', 'flightNumber', isAr ? 'رقم الرحلة' : 'Flight No.', { ph: 'QR 512' })}
-          <div />
+          {date('flight', 'flightDate', isAr ? 'تاريخ الرحلة' : 'Flight Date', { minDate: eventMinDate, maxDate: eventMaxDate })}
         </>)}
         {grid(<>
-          {dt('flight', 'startTime', isAr ? 'وقت المغادرة' : 'Departure Time')}
-          {dt('flight', 'endTime', isAr ? 'وقت الوصول' : 'Arrival Time')}
+          {txt('flight', 'flightDeparture', isAr ? 'من' : 'From', { ph: 'DOH' })}
+          {txt('flight', 'flightArrival', isAr ? 'إلى' : 'To', { ph: 'LHR' })}
         </>)}
       </Section>
 
@@ -225,8 +287,8 @@ export default function TravelAccordion({ travel, onChange, lookups = {}, isAr =
           {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts)}
         </>)}
         {grid(<>
-          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in')}
-          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out')}
+          {date('accommodation', 'hotelCheckIn', isAr ? 'تسجيل الوصول' : 'Check-in', { minDate: dateMinDate, maxDate: dateMaxDate })}
+          {date('accommodation', 'hotelCheckOut', isAr ? 'تسجيل المغادرة' : 'Check-out', { minDate: travel.accommodation.hotelCheckIn || dateMinDate, maxDate: dateMaxDate })}
         </>)}
       </Section>
 
@@ -236,12 +298,12 @@ export default function TravelAccordion({ travel, onChange, lookups = {}, isAr =
           {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts)}
         </>)}
         {grid(<>
-          {txt('transport', 'vehicleType', isAr ? 'نوع المركبة' : 'Vehicle Type')}
-          <div />
+          {sel('transport', 'vehicleTypeId', isAr ? 'نوع المركبة' : 'Vehicle Type', vehicleTypeOpts)}
+          {txt('transport', 'driverName', isAr ? 'اسم السائق' : 'Driver Name')}
         </>)}
         {grid(<>
-          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time')}
-          {dt('transport', 'estimatedArrival', isAr ? 'الوصول المتوقع' : 'Est. Arrival')}
+          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'estimatedArrival', isAr ? 'الوصول المتوقع' : 'Est. Arrival', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
         </>)}
       </Section>
     </div>

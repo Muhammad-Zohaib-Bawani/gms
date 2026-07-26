@@ -42,14 +42,14 @@ const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
-  { key: "travel",         icon: "travel",     label: { en: "Travel & logistics",  ar: "السفر واللوجستيات"     }, section: "EVENT",    permission: "Travel.View"            },
+  { key: "travel",         icon: "travel",     label: { en: "Services",            ar: "الخدمات"                }, section: "EVENT",    permission: "Travel.View"            },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
   { key: "meetings",       icon: "meetings",   label: { en: "Meetings",            ar: "الاجتماعات"            }, section: "ONSITE",   permission: "Meetings.View"          },
   { key: "venueConfig",    icon: "venue",      label: { en: "Venue Config",        ar: "تهيئة المكان"          }, section: "ONSITE",   permission: "Venue.View"             },
-  { key: "protocol",       icon: "protocol",   label: { en: "Protocol",            ar: "البروتوكول"            }, section: "ONSITE",   permission: "Protocol.View"          },
-  { key: "financials",     icon: "finance",    label: { en: "Financials",          ar: "الماليات"              }, section: "INSIGHTS", permission: "Financials.View"        },
-  { key: "reports",        icon: "reports",    label: { en: "Reports",             ar: "التقارير"              }, section: "INSIGHTS", permission: "Reports.View"           },
+  // { key: "protocol",       icon: "protocol",   label: { en: "Protocol",            ar: "البروتوكول"            }, section: "ONSITE",   permission: "Protocol.View"          },
+  // { key: "financials",     icon: "finance",    label: { en: "Financials",          ar: "الماليات"              }, section: "INSIGHTS", permission: "Financials.View"        },
+  // { key: "reports",        icon: "reports",    label: { en: "Reports",             ar: "التقارير"              }, section: "INSIGHTS", permission: "Reports.View"           },
   { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
   { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
@@ -360,8 +360,8 @@ function GuestDrawer({ guest, onClose, lang }) {
     declined: { label: isAr ? "مرفوضة"   : "Declined",  color: "#e08a7e" },
   };
   const ACCRED_BADGE = {
-    not_issued: { label: isAr ? "غير صادر" : "Not issued", color: "#9CA3AF" },
-    issued:     { label: isAr ? "صادر"     : "Issued",     color: "#5abf6e" },
+    not_issued: { label: isAr ? "غير صادر" : "Not Required", color: "#9CA3AF" },
+    issued:     { label: isAr ? "صادر"     : "Required",     color: "#5abf6e" },
     revoked:    { label: isAr ? "ملغى"     : "Revoked",    color: "#e05050" },
   };
   const inviteBadge = INVITE_BADGE[guest.invitationStatus] || INVITE_BADGE.not_sent;

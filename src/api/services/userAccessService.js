@@ -16,3 +16,13 @@ export async function getAllUsers() {
 export async function deleteUser(userId) {
   return apiClient.delete(ENDPOINTS.users.deleteUser(userId));
 }
+
+// Admin-only invite flow — no password is set until the invitee accepts by email.
+export const inviteUser = (payload) => apiClient.post(ENDPOINTS.users.invite, payload);
+export const getPendingUsers = () => apiClient.get(ENDPOINTS.users.pending);
+export const resendInvite = (userId) => apiClient.post(ENDPOINTS.users.resendInvite(userId));
+
+// Distinct from the user's own change-password flow: no current-password
+// check, for when a user forgot theirs and an admin sets a new one directly.
+export const adminSetPassword = (userId, newPassword) =>
+  apiClient.post(ENDPOINTS.users.setPassword(userId), { newPassword });

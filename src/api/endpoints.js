@@ -11,8 +11,12 @@ export const ENDPOINTS = {
     resetPassword: '/v1/auth/reset-password',
     verifyOtp: '/v1/auth/verify-otp',
     resendOtp: '/v1/auth/resend-otp',
-    register: '/v1/auth/register', // self-service account request (pending approval)
-    requestableRoles: '/v1/auth/roles', // public: roles a person may request
+  },
+
+  // Public (no login) invite-accept flow — mirrors the guest invitation pattern.
+  userInvite: {
+    byToken: (token) => `/v1/user-invite/${token}`,
+    accept: (token) => `/v1/user-invite/${token}/accept`,
   },
 
   // Admin review queue for self-service account requests.
@@ -28,6 +32,10 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/users/${id}`,
     changePassword: (id) => `/v1/users/${id}/change-password`,
     deleteUser: (id) => `/v1/users/${id}`,
+    invite: '/v1/users/invite',
+    pending: '/v1/users/pending',
+    resendInvite: (id) => `/v1/users/${id}/resend-invite`,
+    setPassword: (id) => `/v1/users/${id}/set-password`,
   },
 
   // Per-user cross-module read access (admin only).
@@ -101,6 +109,7 @@ export const ENDPOINTS = {
     flightTypes: '/v1/travel/lookups/flight-types',
     flightClasses: '/v1/travel/lookups/flight-classes',
     roomTypes: '/v1/travel/lookups/room-types',
+    vehicleTypes: '/v1/travel/lookups/vehicle-types',
     hotels: '/v1/travel/lookups/hotels',
     locations: '/v1/travel/lookups/locations',
   },
