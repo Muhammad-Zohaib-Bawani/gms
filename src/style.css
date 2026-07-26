@@ -2114,3 +2114,75 @@ html[data-theme="dark"] .page-title { color: #fff !important; }
 html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
 
 /* Mobile bottom nav active tint already uses --accent (maroon) — leave as is. */
+
+/* ==========================================================================
+   QOC MAROON TOP BAR — match the sidebar rail, and flip the inner controls
+   (crumbs, search, language switch, event switcher, avatar, icon buttons)
+   to read on maroon. Overrides the earlier maroon-underline rule.
+   ========================================================================== */
+.topbar {
+  background: linear-gradient(90deg, #8d0134 0%, #7a012c 100%) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(0,0,0,0.18) !important;
+  box-shadow: 0 2px 22px rgba(94,0,34,0.22) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  color: #fff !important;
+}
+.topbar .crumbs, .topbar .crumbs strong { color: #fff !important; }
+.topbar .crumbs .sep { color: rgba(255,255,255,0.5) !important; }
+
+/* Icon buttons: bell, theme toggle, sign-out, mobile menu */
+.topbar .icon-btn {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  color: rgba(255,255,255,0.92) !important;
+}
+.topbar .icon-btn:hover { background: rgba(255,255,255,0.20) !important; color: #fff !important; }
+.topbar .icon-btn .dot { background: #fff !important; box-shadow: 0 0 10px rgba(255,255,255,0.7) !important; }
+
+/* Search pill */
+.topbar .search {
+  background: rgba(255,255,255,0.12) !important;
+  border-color: rgba(255,255,255,0.22) !important;
+  color: rgba(255,255,255,0.85) !important;
+}
+.topbar .search svg { color: rgba(255,255,255,0.85) !important; stroke: currentColor !important; }
+.topbar .search input { color: #fff !important; }
+.topbar .search input::placeholder { color: rgba(255,255,255,0.65) !important; }
+.topbar .search kbd {
+  background: rgba(255,255,255,0.18) !important;
+  border-color: rgba(255,255,255,0.28) !important;
+  color: #fff !important;
+}
+
+/* Language switch */
+.topbar .lang-switch {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.22) !important;
+}
+.topbar .lang-opt { color: rgba(255,255,255,0.78) !important; }
+.topbar .lang-opt:hover { color: #fff !important; }
+.topbar .lang-opt.active { background: #fff !important; color: #8d0134 !important; box-shadow: none !important; }
+
+/* Event switcher trigger */
+.topbar .event-trigger {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  color: #fff !important;
+}
+.topbar .event-trigger:hover { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.32) !important; }
+.topbar .event-trigger.open { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.5) !important; }
+.topbar .event-name { color: #fff !important; }
+.topbar .event-sub { color: rgba(255,255,255,0.72) !important; }
+.topbar .event-caret, .topbar .event-trigger.open .event-caret { color: rgba(255,255,255,0.9) !important; }
+.topbar .event-logo-mark { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.28) !important; }
+
+/* Avatar pill: white chip, maroon monogram */
+.topbar .avatar {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+}
+.topbar .avatar .pic { background: #fff !important; color: #8d0134 !important; }
+.topbar .avatar .name { color: #fff !important; }
+.topbar .avatar .role { color: rgba(255,255,255,0.72) !important; }

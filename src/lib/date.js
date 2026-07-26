@@ -47,3 +47,12 @@ export function isPastDate(value) {
   if (!d) return false;
   return d < startOfToday();
 }
+
+// Add (or subtract, with a negative count) whole days to a 'YYYY-MM-DD'
+// string, returning another 'YYYY-MM-DD' string. Null in, null out.
+export function addDaysIso(iso, days) {
+  const d = toDate(iso);
+  if (!d) return null;
+  d.setDate(d.getDate() + days);
+  return toIsoDate(d);
+}

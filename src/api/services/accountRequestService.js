@@ -1,5 +1,5 @@
-// Account-request admin service (review queue). Public submit lives in
-// authService.requestAccount.
+// Account-request admin service — legacy review queue for self-service
+// requests submitted before registration was closed to admin-only invites.
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 

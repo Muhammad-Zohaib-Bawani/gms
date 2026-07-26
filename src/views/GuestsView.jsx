@@ -8,11 +8,10 @@ import toast from '../lib/toast';
 import { listGuests } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getTemplates } from '../api/services/invitationTemplateService';
-import { listSessions } from '../api/services/eventService';
+import { listSessions, getEvent } from '../api/services/eventService';
 import { getGuestEnums } from '../api/services/lookupService';
 
-import AddGuestModal      from './guests/modals/AddGuestModal';
-import EditGuestModal     from './guests/modals/EditGuestModal';
+import GuestModal         from './guests/modals/GuestModal';
 import MessageModal       from './guests/modals/MessageModal';
 import AccreditationModal from './guests/modals/AccreditationModal';
 import DeleteGuestsModal  from './guests/modals/DeleteGuestsModal';
@@ -30,6 +29,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [nationalities, setNationalities] = useState([]);
   const [templates,     setTemplates]     = useState([]);
   const [sessions,      setSessions]      = useState([]);
+  const [activeEvent,   setActiveEvent]   = useState(null);
   const [guestEnums,    setGuestEnums]    = useState({});
   const [loading,       setLoading]       = useState(false);
 
@@ -57,9 +57,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   }, []);
 
   useEffect(() => {
-    if (!activeEventId) { setTemplates([]); setSessions([]); return; }
+    if (!activeEventId) { setTemplates([]); setSessions([]); setActiveEvent(null); return; }
     getTemplates(activeEventId).then(r => setTemplates(r || [])).catch(() => {});
     listSessions(activeEventId).then(r => setSessions(r || [])).catch(() => {});
+    getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null));
   }, [activeEventId]);
 
   const loadGuests = useCallback(async () => {
@@ -283,10 +284,13 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
-      <AddGuestModal
+      <GuestModal
         open={showAddGuest}
         onClose={() => setShowAddGuest(false)}
+        guest={null}
         activeEventId={activeEventId}
+        eventStartDate={activeEvent?.startDate}
+        eventEndDate={activeEvent?.endDate}
         nationalities={nationalities}
         templates={templates}
         sessions={sessions}
@@ -294,10 +298,13 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         onSaved={loadGuests}
       />
 
-      <EditGuestModal
+      <GuestModal
         open={!!editGuest}
         onClose={() => setEditGuest(null)}
         guest={editGuest}
+        activeEventId={activeEventId}
+        eventStartDate={activeEvent?.startDate}
+        eventEndDate={activeEvent?.endDate}
         nationalities={nationalities}
         templates={templates}
         sessions={sessions}

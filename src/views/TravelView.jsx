@@ -3,9 +3,17 @@ import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
-import { listGuests } from '../api/services/guestService.js';
-import { createBooking, getEventFlights, getEventAccommodation, getEventTransport } from '../api/services/travelService.js';
+import { listGuests, updateGuest } from '../api/services/guestService.js';
+import { getEvent } from '../api/services/eventService.js';
+import { createBooking, getEventFlights, getEventAccommodation, getEventTransport, getTravelLookups } from '../api/services/travelService.js';
 import LocationPickerModal from '../components/ui/LocationPickerModal.jsx';
+import Select from '../components/ui/Select.jsx';
+import DateField from '../components/ui/DateField.jsx';
+import { addDaysIso } from '../lib/date.js';
+
+// One week of slack around the event's own start/end date — same rule as the
+// guest wizard's Arrival/Departure fields (GuestModal.jsx).
+const DATE_MARGIN_DAYS = 7;
 
 // ─── Static option lists for the edit / new-booking modals ───────────────────
 // ponytail: hardcoded — replace with the room-type/hotel/vehicle lookup APIs
@@ -132,7 +140,7 @@ export default function TravelView({ lang, activeEventId }) {
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
 
   const STR = isAr ? {
-    title:['السفر','واللوجستيات'],
+    title:['الخدمات',''],
     sub:'الرحلات والتأشيرات والفنادق والنقل البري',
     tabs:['نظرة عامة','الرحلات والتأشيرات','الفنادق','النقل البري'],
     newBooking:'حجز جديد',
@@ -163,7 +171,7 @@ export default function TravelView({ lang, activeEventId }) {
     bookingTypes:['رحلة جوية','فندق','نقل بري'],
     guestSearch:'بحث عن ضيف…',back:'السابق',next:'التالي',
   } : {
-    title:['Travel &','logistics'],
+    title:['Services',''],
     sub:'Flights, visa applications, hotels and ground transfers',
     tabs:[
       // 'Overview',
@@ -206,6 +214,19 @@ export default function TravelView({ lang, activeEventId }) {
       .then(res => setGuests(res?.items || []))
       .catch(() => setGuests([]));
   }, [activeEventId]);
+
+  // ── Active event's own start/end date — bounds every New Booking date field,
+  //    same as the guest wizard's TravelAccordion (event window ± margin for
+  //    Arrival/Departure, raw event window for everything else).
+  const [activeEvent, setActiveEvent] = useState(null);
+  useEffect(() => {
+    if (!activeEventId) { setActiveEvent(null); return; }
+    getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null));
+  }, [activeEventId]);
+  const eventMinDate = activeEvent?.startDate || undefined;
+  const eventMaxDate = activeEvent?.endDate || undefined;
+  const dateWindowMin = useMemo(() => addDaysIso(activeEvent?.startDate, -DATE_MARGIN_DAYS) || undefined, [activeEvent?.startDate]);
+  const dateWindowMax = useMemo(() => addDaysIso(activeEvent?.endDate, DATE_MARGIN_DAYS) || undefined, [activeEvent?.endDate]);
 
   // ── Per-tab booking rows — each tab pulls from its own table via its own
   //    endpoint, lazily on first open, refetched when the active event changes.
@@ -274,18 +295,32 @@ export default function TravelView({ lang, activeEventId }) {
   const [guestSearch, setGuestSearch] = useState('');
   const [bookings, setBookings] = useState([]);
   const [savingBooking, setSavingBooking] = useState(false);
-  const [flightData, setFlightData] = useState({ flightNum:'QR512',from:'DOH',to:'LHR',date:'2025-12-09' });
-  const [hotelData, setHotelData]   = useState({ hotel:'Sheraton Grand',checkIn:'2025-12-06',checkOut:'2025-12-10',roomType:'Deluxe King' });
+  // Same field set as the guest wizard's TravelAccordion (Services step) —
+  // both write to the same Travel_logistics table, so the fields must match.
+  // arrivalDate/departureDate live on the Guest entity, not Travel_logistics —
+  // included here purely so this form matches the wizard's Flight section;
+  // saveBooking() below persists them via a separate guest update.
+  const EMPTY_FLIGHT_DATA = { flightNumber:'', flightTypeId:'', flightClassId:'', flightDate:'', flightDeparture:'', flightArrival:'', arrivalDate:'', departureDate:'' };
+  const EMPTY_HOTEL_DATA  = { hotelId:'', roomTypeId:'', hotelCheckIn:'', hotelCheckOut:'' };
   // pickup/dropoff hold { id, label } once picked on the map — null until then.
-  const [transferData, setTransferData] = useState({ vehicle:'VIP Sedan',driver:'',pickup:null,dropoff:null });
+  const EMPTY_TRANSFER_DATA = { vehicleTypeId:'', driverName:'', pickup:null, dropoff:null, pickupTime:'', estimatedArrival:'' };
+
+  const [flightData, setFlightData] = useState(EMPTY_FLIGHT_DATA);
+  const [hotelData, setHotelData]   = useState(EMPTY_HOTEL_DATA);
+  const [transferData, setTransferData] = useState(EMPTY_TRANSFER_DATA);
   const [showLocationPicker, setShowLocationPicker] = useState(null); // 'pickup' | 'dropoff' | null
+  const [travelLookups, setTravelLookups] = useState({});
+
+  useEffect(() => {
+    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
+  }, []);
 
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1); setBookType(0);
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
-    setFlightData({ flightNum:'QR512',from:'DOH',to:'LHR',date:'2025-12-09' });
-    setHotelData({ hotel:'Sheraton Grand',checkIn:'2025-12-06',checkOut:'2025-12-10',roomType:'Deluxe King' });
-    setTransferData({ vehicle:'VIP Sedan',driver:'',pickup:null,dropoff:null });
+    setFlightData(EMPTY_FLIGHT_DATA);
+    setHotelData(EMPTY_HOTEL_DATA);
+    setTransferData(EMPTY_TRANSFER_DATA);
   }
 
   async function saveBooking() {
@@ -293,25 +328,53 @@ export default function TravelView({ lang, activeEventId }) {
     const base = { eventId: activeEventId, guestId: bookGuestId };
     // bookType: 0 = Flight, 1 = Hotel, 2 = Ground Transfer — matches the
     // backend's Core.Constants.BookingTypes string values.
+    const roomType = (travelLookups.roomTypes || []).find(r => r.id === hotelData.roomTypeId)?.name || null;
+    const vehicleType = (travelLookups.vehicleTypes || []).find(v => v.id === transferData.vehicleTypeId)?.name || null;
     const payload = bookType === 0 ? {
       ...base, bookingType: 'flight',
-      flightNumber: flightData.flightNum, flightDate: flightData.date,
-      flightDeparture: flightData.from, flightArrival: flightData.to,
+      flightNumber: flightData.flightNumber, flightTypeId: flightData.flightTypeId || null, flightClassId: flightData.flightClassId || null,
+      flightDate: flightData.flightDate || null, flightDeparture: flightData.flightDeparture, flightArrival: flightData.flightArrival,
     } : bookType === 1 ? {
       ...base, bookingType: 'hotel',
-      hotelCheckIn: hotelData.checkIn, hotelCheckOut: hotelData.checkOut, roomType: hotelData.roomType,
-      // NOTE: hotelData.hotel is just a display name — the backend expects a
-      // real HotelId and there's no hotel lookup/endpoint yet, so it isn't sent.
+      hotelId: hotelData.hotelId || null, roomType,
+      hotelCheckIn: hotelData.hotelCheckIn || null, hotelCheckOut: hotelData.hotelCheckOut || null,
     } : {
       ...base, bookingType: 'byRoad',
-      vehicleType: transferData.vehicle, driverName: transferData.driver,
+      vehicleType, driverName: transferData.driverName,
       pickupLocationId: transferData.pickup?.id || null,
       dropoffLocationId: transferData.dropoff?.id || null,
+      pickupTime: transferData.pickupTime || null, estimatedArrival: transferData.estimatedArrival || null,
     };
 
     setSavingBooking(true);
     try {
       await createBooking(payload);
+
+      // Arrival/Departure live on the Guest entity, not Travel_logistics — a
+      // partial PUT would null out every other guest field, so send the full
+      // guest object back with just these two overridden.
+      if (bookType === 0 && (flightData.arrivalDate || flightData.departureDate)) {
+        const g = guests.find(x => x.id === bookGuestId);
+        if (g) {
+          try {
+            await updateGuest(g.id, {
+              firstName: g.firstName, lastName: g.lastName, email: g.email || null,
+              guestType: g.guestType, organization: g.organization || null,
+              nationalityId: g.nationalityId || null, tier: g.tier,
+              invitationStatus: g.invitationStatus,
+              arrivalDate: flightData.arrivalDate || g.arrivalDate || null,
+              departureDate: flightData.departureDate || g.departureDate || null,
+              flightNumber: g.flightNumber || null, hotel: g.hotel || null,
+              accreditationStatus: g.accreditationStatus,
+              invitationTemplateId: g.invitationTemplateId || null,
+              sessionIds: g.sessionIds || [],
+            });
+          } catch {
+            toast.error(isAr ? 'تم إنشاء الحجز لكن تعذّر تحديث تواريخ الضيف' : 'Booking created, but the guest’s dates failed to update');
+          }
+        }
+      }
+
       setBookings(prev => [...prev, { guest: bookGuest, type: STR.bookingTypes[bookType] }]);
       setShowNewBooking(false); setBookStep(1); setBookGuest(''); setBookGuestId(''); setGuestSearch('');
       toast.success(isAr ? 'تم إنشاء الحجز بنجاح' : 'Booking created successfully');
@@ -810,7 +873,10 @@ export default function TravelView({ lang, activeEventId }) {
                         const fullName = guestFullName(g);
                         const selected = bookGuestId === g.id;
                         return (
-                          <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}
+                          <div key={g.id} onClick={() => {
+                            setBookGuestId(g.id); setBookGuest(fullName);
+                            setFlightData(d => ({ ...d, arrivalDate: g.arrivalDate || '', departureDate: g.departureDate || '' }));
+                          }}
                             style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
                               border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
                               background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
@@ -836,41 +902,64 @@ export default function TravelView({ lang, activeEventId }) {
               {bookStep === 2 && bookType === 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.flightNum}</label><input style={iSt} value={flightData.flightNum} onChange={e => setFlightData(d=>({...d,flightNum:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.cols.date}</label><input type="date" style={iSt} value={flightData.date} onChange={e => setFlightData(d=>({...d,date:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.from}</label><input style={iSt} value={flightData.from} onChange={e => setFlightData(d=>({...d,from:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.to}</label><input style={iSt} value={flightData.to} onChange={e => setFlightData(d=>({...d,to:e.target.value}))}/></div>
+                    <div><label style={lSt}>{isAr ? 'تاريخ الوصول' : 'Arrival Date'}</label>
+                      <DateField value={flightData.arrivalDate} onChange={v => setFlightData(d=>({...d,arrivalDate:v||'',departureDate:d.departureDate && v && d.departureDate<v ? '' : d.departureDate}))}
+                        minDate={dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                    </div>
+                    <div><label style={lSt}>{isAr ? 'تاريخ المغادرة' : 'Departure Date'}</label>
+                      <DateField value={flightData.departureDate} onChange={v => setFlightData(d=>({...d,departureDate:v||''}))}
+                        minDate={flightData.arrivalDate || dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                    </div>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'}</label>
+                      <Select value={flightData.flightTypeId} onChange={v => setFlightData(d=>({...d,flightTypeId:v}))}
+                        options={(travelLookups.flightTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
+                    </div>
+                    <div><label style={lSt}>{isAr ? 'الدرجة' : 'Flight Class'}</label>
+                      <Select value={flightData.flightClassId} onChange={v => setFlightData(d=>({...d,flightClassId:v}))}
+                        options={(travelLookups.flightClasses||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                    </div>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{STR.flightNum}</label><input style={iSt} value={flightData.flightNumber} onChange={e => setFlightData(d=>({...d,flightNumber:e.target.value}))}/></div>
+                    <div><label style={lSt}>{STR.cols.date}</label><DateField value={flightData.flightDate} onChange={v => setFlightData(d=>({...d,flightDate:v||''}))} minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD"/></div>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{STR.from}</label><input style={iSt} value={flightData.flightDeparture} onChange={e => setFlightData(d=>({...d,flightDeparture:e.target.value}))}/></div>
+                    <div><label style={lSt}>{STR.to}</label><input style={iSt} value={flightData.flightArrival} onChange={e => setFlightData(d=>({...d,flightArrival:e.target.value}))}/></div>
                   </div>
                 </div>
               )}
 
               {bookStep === 2 && bookType === 1 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div><label style={lSt}>{STR.hotel}</label>
-                    <select style={selSt} value={hotelData.hotel} onChange={e => setHotelData(d=>({...d,hotel:e.target.value}))}>
-                      {HOTEL_LIST.map(h=><option key={h}>{h}</option>)}
-                    </select>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{STR.hotel}</label>
+                      <Select value={hotelData.hotelId} onChange={v => setHotelData(d=>({...d,hotelId:v}))}
+                        options={(travelLookups.hotels||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
+                    </div>
+                    <div><label style={lSt}>{STR.roomType}</label>
+                      <Select value={hotelData.roomTypeId} onChange={v => setHotelData(d=>({...d,roomTypeId:v}))}
+                        options={(travelLookups.roomTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                    </div>
                   </div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.cols.checkIn}</label><input type="date" style={iSt} value={hotelData.checkIn} onChange={e => setHotelData(d=>({...d,checkIn:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.cols.checkOut}</label><input type="date" style={iSt} value={hotelData.checkOut} onChange={e => setHotelData(d=>({...d,checkOut:e.target.value}))}/></div>
-                  </div>
-                  <div><label style={lSt}>{STR.roomType}</label>
-                    <select style={selSt} value={hotelData.roomType} onChange={e => setHotelData(d=>({...d,roomType:e.target.value}))}>
-                      {ROOM_TYPES.map(r=><option key={r}>{r}</option>)}
-                    </select>
+                    <div><label style={lSt}>{STR.cols.checkIn}</label><DateField value={hotelData.hotelCheckIn} onChange={v => setHotelData(d=>({...d,hotelCheckIn:v||''}))} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                    <div><label style={lSt}>{STR.cols.checkOut}</label><DateField value={hotelData.hotelCheckOut} onChange={v => setHotelData(d=>({...d,hotelCheckOut:v||''}))} minDate={hotelData.hotelCheckIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
                   </div>
                 </div>
               )}
 
               {bookStep === 2 && bookType === 2 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div><label style={lSt}>{STR.vehicle}</label>
-                    <select style={selSt} value={transferData.vehicle} onChange={e => setTransferData(d=>({...d,vehicle:e.target.value}))}>
-                      {VEHICLES.map(v=><option key={v}>{v}</option>)}
-                    </select>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{STR.vehicle}</label>
+                      <Select value={transferData.vehicleTypeId} onChange={v => setTransferData(d=>({...d,vehicleTypeId:v}))}
+                        options={(travelLookups.vehicleTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
+                    </div>
+                    <div><label style={lSt}>{STR.driver}</label><input style={iSt} value={transferData.driverName} onChange={e => setTransferData(d=>({...d,driverName:e.target.value}))}/></div>
                   </div>
-                  <div><label style={lSt}>{STR.driver}</label><input style={iSt} value={transferData.driver} onChange={e => setTransferData(d=>({...d,driver:e.target.value}))}/></div>
                   <div>
                     <label style={lSt}>{STR.pickupLoc}</label>
                     <button type="button" onClick={() => setShowLocationPicker('pickup')}
@@ -886,6 +975,10 @@ export default function TravelView({ lang, activeEventId }) {
                       <Icon name="venue" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
                       {transferData.dropoff?.label || (isAr ? 'اختر على الخريطة…' : 'Pick on map…')}
                     </button>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                    <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'}</label><DateField value={transferData.pickupTime} onChange={v => setTransferData(d=>({...d,pickupTime:v||''}))} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                    <div><label style={lSt}>{isAr ? 'الوصول المتوقع' : 'Est. Arrival'}</label><DateField value={transferData.estimatedArrival} onChange={v => setTransferData(d=>({...d,estimatedArrival:v||''}))} showTime minDate={transferData.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
                   </div>
                 </div>
               )}

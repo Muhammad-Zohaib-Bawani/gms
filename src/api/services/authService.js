@@ -23,9 +23,3 @@ export async function logout() {
 }
 
 export const forgotPassword = (email) => apiClient.post(ENDPOINTS.auth.forgotPassword, { email });
-
-// Self-service account request (pending admin approval).
-export const requestAccount = (payload) => apiClient.post(ENDPOINTS.auth.register, payload);
-
-// Public — roles a person may request at sign-up (no auth required).
-export const getRequestableRoles = () => apiClient.get(ENDPOINTS.auth.requestableRoles);
