@@ -80,6 +80,13 @@ export const ENDPOINTS = {
   // dedicated tables (travel + venue endpoints).
   lookups: {
     guestEnums: '/v1/lookups/enums/guest',
+    flightTypes: '/v1/lookups/flight-types',
+    flightClasses: '/v1/lookups/flight-classes',
+    roomTypes: '/v1/lookups/room-types',
+    vehicleTypes: '/v1/lookups/vehicle-types',
+    hotels: '/v1/lookups/hotels',
+    locations: '/v1/lookups/locations',
+    airports: '/v1/lookups/airports',
   },
 
   venues: {
@@ -100,24 +107,19 @@ export const ENDPOINTS = {
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
   },
 
-  travelLogistics: {
-    createBooking: '/v1/TravelLogistics',
-  },
-
-  // Guest travel: flight / accommodation / transport sections.
-  // Each lookup path serves GET (list) and POST (create).
+  // Guest travel: flight / accommodation / transport sections. A guest can
+  // hold more than one of each — save targets a specific booking by id (in
+  // the body) when editing one, or adds a new one when no id is given.
   travel: {
     guest: (id) => `/v1/travel/guest/${id}`,
     // Per-event booking lists — one per travel tab.
     eventFlights: (eventId) => `/v1/travel/event/${eventId}/flights`,
     eventAccommodation: (eventId) => `/v1/travel/event/${eventId}/accommodation`,
     eventTransport: (eventId) => `/v1/travel/event/${eventId}/transport`,
-    flightTypes: '/v1/travel/lookups/flight-types',
-    flightClasses: '/v1/travel/lookups/flight-classes',
-    roomTypes: '/v1/travel/lookups/room-types',
-    vehicleTypes: '/v1/travel/lookups/vehicle-types',
-    hotels: '/v1/travel/lookups/hotels',
-    locations: '/v1/travel/lookups/locations',
+    // Remove one specific booking.
+    deleteFlight: (id) => `/v1/travel/flight/${id}`,
+    deleteAccommodation: (id) => `/v1/travel/accommodation/${id}`,
+    deleteTransport: (id) => `/v1/travel/transport/${id}`,
   },
 
   locations: {

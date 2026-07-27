@@ -188,7 +188,12 @@ export default function GuestModal({
       const errs = {};
       if (!form.firstName.trim()) errs.firstName = true;
       if (!form.lastName.trim()) errs.lastName = true;
+      if (!form.email.trim()) errs.email = true;
       if (Object.keys(errs).length) { setStep1Errors(errs); return; }
+    }
+    if (step === 3) {
+      const travelErr = validateTravel(travel, isAr);
+      if (travelErr) { toast.error(travelErr); return; }
     }
     setStep((s) => s + 1);
   }
@@ -378,8 +383,15 @@ export default function GuestModal({
                   ))}
                 </div>
                 <div>
-                  <FieldLabel>{isAr ? 'البريد الإلكتروني' : 'Email'}</FieldLabel>
-                  <input type="email" placeholder="name@organization.com" value={form.email} onChange={(e) => setF('email', e.target.value)} style={inputStyle} />
+                  <FieldLabel>{isAr ? 'البريد الإلكتروني' : 'Email'} *</FieldLabel>
+                  <input
+                    type="email"
+                    placeholder="name@organization.com"
+                    value={form.email}
+                    onChange={(e) => { setF('email', e.target.value); setStep1Errors((p) => ({ ...p, email: false })); }}
+                    style={step1Errors.email ? errorBorder : inputStyle}
+                  />
+                  {step1Errors.email && <div style={errMsg}>{isAr ? 'مطلوب' : 'Required'}</div>}
                 </div>
                 <div>
                   <FieldLabel>{isAr ? 'نوع الضيف' : 'Guest Type'}</FieldLabel>

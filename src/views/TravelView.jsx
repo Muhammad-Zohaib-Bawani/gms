@@ -5,7 +5,7 @@ import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { listGuests, updateGuest } from '../api/services/guestService.js';
 import { getEvent } from '../api/services/eventService.js';
-import { getEventFlights, getEventAccommodation, getEventTransport, getGuestTravel, saveGuestTravel, getTravelLookups } from '../api/services/travelService.js';
+import { getEventFlights, getEventAccommodation, getEventTransport, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
@@ -42,9 +42,11 @@ function dateLabelFor(dateStr) {
 }
 
 // ─── API row → table row mappers (data comes from the travel tables) ─────────
+// `bookingId` is that specific Flight/Accommodation/Transport's own id — a
+// guest can have more than one, so it's never the same as guestId.
 function mapFlight(r) {
   return {
-    id: r.guestId,
+    bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
@@ -63,7 +65,7 @@ function mapFlight(r) {
 
 function mapHotel(r) {
   return {
-    id: r.guestId,
+    bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
@@ -78,7 +80,7 @@ function mapHotel(r) {
 
 function mapTransfer(r) {
   return {
-    id: r.guestId + '-T',
+    bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
@@ -92,6 +94,21 @@ function mapTransfer(r) {
     time: r.pickupTime ? r.pickupTime.slice(11, 16) : '—',
     transferStatus: (r.tripStatus || '').toLowerCase(),
   };
+}
+
+// A guest can have more than one booking of the same kind — group the flat
+// per-booking rows into one entry per guest so the table shows one row per
+// guest, with every booking stacked inside that guest's (widened) details
+// column instead of a duplicate row.
+function groupByGuest(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r.guestId)) {
+      map.set(r.guestId, { guestId: r.guestId, name: r.name, initials: r.initials, tier: r.tier, org: r.org, bookings: [] });
+    }
+    map.get(r.guestId).bookings.push(r);
+  }
+  return Array.from(map.values());
 }
 
 const STATUS_COLOR = {
@@ -290,15 +307,34 @@ export default function TravelView({ lang, activeEventId }) {
     }
   }
   function closeEdit() { setEditModal(null); }
+
+  const DELETE_FN = { flight: deleteFlight, hotel: deleteAccommodation, transfer: deleteTransport };
+  const [removingId, setRemovingId] = useState(null);
+
+  async function removeBooking(type, bookingId) {
+    setRemovingId(bookingId);
+    try {
+      await DELETE_FN[type](bookingId);
+      await refetchTab({ flight: 0, hotel: 1, transfer: 2 }[type]);
+      toast.success(isAr ? 'تمت الإزالة' : 'Removed');
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّرت الإزالة' : 'Failed to remove');
+    } finally {
+      setRemovingId(null);
+    }
+  }
   function setEditField(patch) {
     setEditModal(m => ({ ...m, form: { ...m.form, ...(typeof patch === 'function' ? patch(m.form) : patch) } }));
   }
   async function saveEdit() {
     const { type, guestId, form } = editModal;
     const section = TYPE_TO_SECTION[type];
+    const travelObj = { ...EMPTY_TRAVEL, [section]: { ...form, enabled: true } };
+    const travelErr = validateTravel(travelObj, isAr);
+    if (travelErr) { toast.error(travelErr); return; }
+
     setSavingEdit(true);
     try {
-      const travelObj = { ...EMPTY_TRAVEL, [section]: { ...form, enabled: true } };
       await saveGuestTravel(guestId, buildTravelPayload(travelObj));
       await refetchTab({ flight: 0, hotel: 1, transfer: 2 }[type]);
       closeEdit();
@@ -388,23 +424,26 @@ export default function TravelView({ lang, activeEventId }) {
   }
 
   // ── Filtered data ───────────────────────────────────────────────────────────
-  const filteredFlights = useMemo(() => flightRows.filter(r => {
+  // Filter at the booking level first, then group what's left by guest — a
+  // guest only shows up if at least one of their bookings matches, and only
+  // the matching bookings appear in their stacked cell.
+  const filteredFlights = useMemo(() => groupByGuest(flightRows.filter(r => {
     const s = !fSearch || r.name.toLowerCase().includes(fSearch.toLowerCase()) || r.flight.toLowerCase().includes(fSearch.toLowerCase());
     const f = fFlight === 'All' || r.flightStatus === fFlight;
     return s && f;
-  }), [flightRows, fSearch, fFlight]);
+  })), [flightRows, fSearch, fFlight]);
 
-  const filteredHotels = useMemo(() => hotelRows.filter(r => {
+  const filteredHotels = useMemo(() => groupByGuest(hotelRows.filter(r => {
     const s = !hSearch || r.name.toLowerCase().includes(hSearch.toLowerCase()) || r.hotel.toLowerCase().includes(hSearch.toLowerCase());
     const h = hHotel === 'All hotels' || r.hotel === hHotel;
     return s && h;
-  }), [hotelRows, hSearch, hHotel]);
+  })), [hotelRows, hSearch, hHotel]);
 
-  const filteredTransfers = useMemo(() => transferRows.filter(r => {
+  const filteredTransfers = useMemo(() => groupByGuest(transferRows.filter(r => {
     const s = !tSearch || r.name.toLowerCase().includes(tSearch.toLowerCase()) || r.driver.toLowerCase().includes(tSearch.toLowerCase());
     const st = tStatus === 'All' || r.transferStatus === tStatus;
     return s && st;
-  }), [transferRows, tSearch, tStatus]);
+  })), [transferRows, tSearch, tStatus]);
 
   const filteredGuests = guests
     .filter(g => !guestSearch || guestFullName(g).toLowerCase().includes(guestSearch.toLowerCase()))
@@ -415,10 +454,36 @@ export default function TravelView({ lang, activeEventId }) {
   const iSt = { width:'100%', background:'var(--surface-soft-3)', border:'1px solid var(--glass-border)', borderRadius:8, padding:'8px 11px', color:'var(--ink)', fontSize:13, boxSizing:'border-box', outline:'none' };
   const lSt = { display:'block', fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4 };
 
-  const editBtn = (type, row) => (
-    <button className="icon-btn" title={STR.edit} onClick={() => openEdit(type, row)} style={{ opacity:0.6 }}>
-      <Icon name="edit" size={13}/>
-    </button>
+  // A guest's column can hold more than one booking — each column stacks one
+  // row per booking, all sized/spaced identically so they line up across the
+  // guest's whole table row.
+  const stackCell = (bookings, renderFn) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {bookings.map((b, i) => (
+        <div key={b.bookingId ?? i} style={{ minHeight:20, display:'flex', alignItems:'center' }}>{renderFn(b)}</div>
+      ))}
+    </div>
+  );
+
+  // Edit only makes sense when there's exactly one booking of this kind for
+  // the guest (otherwise which one would it edit?) — with more than one,
+  // each gets its own remove button instead.
+  const actionsCell = (type, bookings) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {bookings.map(b => (
+        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center', gap:4 }}>
+          {bookings.length === 1 && (
+            <button className="icon-btn" title={STR.edit} onClick={() => openEdit(type, b)} style={{ opacity:0.6 }}>
+              <Icon name="edit" size={13}/>
+            </button>
+          )}
+          <button className="icon-btn" title={isAr ? 'إزالة' : 'Remove'} disabled={removingId === b.bookingId}
+            onClick={() => removeBooking(type, b.bookingId)} style={{ opacity:0.6, color:'#e08a7e' }}>
+            <Icon name="trash" size={12}/>
+          </button>
+        </div>
+      ))}
+    </div>
   );
 
   const nights = (r) => {
@@ -513,24 +578,24 @@ export default function TravelView({ lang, activeEventId }) {
                 <th>{STR.cols.status}</th><th style={{ width:40 }}/>
               </tr></thead>
               <tbody>
-                {filteredFlights.map(r => (
-                  <tr key={r.id}>
+                {filteredFlights.map(g => (
+                  <tr key={g.guestId}>
                     <td>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={r.initials} size={28} tier={r.tier}/>
+                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
                         <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{r.name}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{r.org}</div>
+                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
+                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
                         </div>
                       </div>
                     </td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>{r.flight}</span></td>
-                    <td><span style={{ fontSize:12 }}>{r.flightType}</span></td>
-                    <td><span style={{ fontSize:12 }}>{r.flightClass}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{r.from} → {r.to}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.dateLabel || r.date}</span></td>
-                    <td><StatusChip status={r.flightStatus} label={STR.statuses[r.flightStatus]}/></td>
-                    <td>{editBtn('flight', r)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>{b.flight}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.flightType}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.flightClass}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{b.from} → {b.to}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.dateLabel || b.date}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <StatusChip status={b.flightStatus} label={STR.statuses[b.flightStatus]}/>)}</td>
+                    <td>{actionsCell('flight', g.bookings)}</td>
                   </tr>
                 ))}
                 {tabLoading[0] && <SkeletonRows cols={8} />}
@@ -562,23 +627,23 @@ export default function TravelView({ lang, activeEventId }) {
                 <th style={{ width:40 }}/>
               </tr></thead>
               <tbody>
-                {filteredHotels.map(r => (
-                  <tr key={r.id}>
+                {filteredHotels.map(g => (
+                  <tr key={g.guestId}>
                     <td>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={r.initials} size={28} tier={r.tier}/>
+                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
                         <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{r.name}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{r.org}</div>
+                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
+                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
                         </div>
                       </div>
                     </td>
-                    <td style={{ fontSize:12, fontWeight:500 }}>{r.hotel}</td>
-                    <td><span style={{ fontSize:12 }}>{r.roomType}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.checkIn}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.checkOut}</span></td>
-                    <td><span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--ink-mute)' }}>{nights(r)}</span></td>
-                    <td>{editBtn('hotel', r)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12, fontWeight:500 }}>{b.hotel}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.roomType}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.checkIn}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.checkOut}</span>)}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--ink-mute)' }}>{nights(b)}</span>)}</td>
+                    <td>{actionsCell('hotel', g.bookings)}</td>
                   </tr>
                 ))}
                 {tabLoading[1] && <SkeletonRows cols={7} />}
@@ -610,33 +675,35 @@ export default function TravelView({ lang, activeEventId }) {
                 <th>{STR.cols.status}</th><th style={{ width:40 }}/>
               </tr></thead>
               <tbody>
-                {filteredTransfers.map(r => (
-                  <tr key={r.id}>
+                {filteredTransfers.map(g => (
+                  <tr key={g.guestId}>
                     <td>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={r.initials} size={28} tier={r.tier}/>
-                        <span style={{ fontSize:12.5, fontWeight:500 }}>{r.name}</span>
+                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
+                        <span style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</span>
                       </div>
                     </td>
-                    <td>
+                    <td>{stackCell(g.bookings, b => (
                       <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                         <Icon name="car" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
-                        <span style={{ fontSize:12 }}>{r.vehicle}</span>
+                        <span style={{ fontSize:12 }}>{b.vehicle}</span>
                       </div>
-                    </td>
-                    <td style={{ fontSize:12 }}>{r.driver}</td>
-                    <td style={{ fontSize:11, color:'var(--ink-mute)', maxWidth:130 }}>
-                      <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.pickup}</div>
-                    </td>
-                    <td style={{ fontSize:11, color:'var(--ink-mute)', maxWidth:130 }}>
-                      <div style={{ whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.dropoff}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontFamily:'var(--mono)', fontSize:11 }}>{r.dateLabel || r.date}</div>
-                      <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{ad(r.time)}</div>
-                    </td>
-                    <td><StatusChip status={r.transferStatus} label={STR.statuses[r.transferStatus]}/></td>
-                    <td>{editBtn('transfer', r)}</td>
+                    ))}</td>
+                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.driver}</span>)}</td>
+                    <td style={{ maxWidth:130 }}>{stackCell(g.bookings, b => (
+                      <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.pickup}</div>
+                    ))}</td>
+                    <td style={{ maxWidth:130 }}>{stackCell(g.bookings, b => (
+                      <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.dropoff}</div>
+                    ))}</td>
+                    <td>{stackCell(g.bookings, b => (
+                      <div>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:11 }}>{b.dateLabel || b.date}</div>
+                        <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{ad(b.time)}</div>
+                      </div>
+                    ))}</td>
+                    <td>{stackCell(g.bookings, b => <StatusChip status={b.transferStatus} label={STR.statuses[b.transferStatus]}/>)}</td>
+                    <td>{actionsCell('transfer', g.bookings)}</td>
                   </tr>
                 ))}
                 {tabLoading[2] && <SkeletonRows cols={8} />}
@@ -675,12 +742,12 @@ export default function TravelView({ lang, activeEventId }) {
                 return (
                   <>
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'رمز المغادرة' : 'Departure Code'}</label><input style={iSt} value={f.departureCode} onChange={e => set('departureCode', e.target.value)}/></div>
-                      <div><label style={lSt}>{isAr ? 'مدينة المغادرة' : 'Departure City'}</label><input style={iSt} value={f.departureCity} onChange={e => set('departureCity', e.target.value)}/></div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'رمز الوصول' : 'Arrival Code'}</label><input style={iSt} value={f.arrivalCode} onChange={e => set('arrivalCode', e.target.value)}/></div>
-                      <div><label style={lSt}>{isAr ? 'مدينة الوصول' : 'Arrival City'}</label><input style={iSt} value={f.arrivalCity} onChange={e => set('arrivalCity', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'مطار المغادرة' : 'Departure Airport'} *</label>
+                        <Select value={f.fromAirportId} onChange={v => set('fromAirportId', v)} options={mapOpts(travelLookups.airports, x=>`${x.code} — ${x.city}${x.country ? `, ${x.country}` : ''}`)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'مطار الوصول' : 'Arrival Airport'} *</label>
+                        <Select value={f.toAirportId} onChange={v => set('toAirportId', v)} options={mapOpts(travelLookups.airports, x=>`${x.code} — ${x.city}${x.country ? `, ${x.country}` : ''}`)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      </div>
                     </>)}
                     {grid2(<>
                       <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'} *</label>
@@ -691,11 +758,11 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'رقم الرحلة' : 'Flight No.'}</label><input style={iSt} value={f.flightNumber} onChange={e => set('flightNumber', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'رقم الرحلة' : 'Flight No.'} *</label><input style={iSt} value={f.flightNumber} onChange={e => set('flightNumber', e.target.value)}/></div>
                       <div><label style={lSt}>{isAr ? 'المقعد' : 'Seat'}</label><input style={iSt} value={f.seat} onChange={e => set('seat', e.target.value)}/></div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'وقت الإقلاع' : 'Departure Time'}</label>
+                      <div><label style={lSt}>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</label>
                         <DateField value={f.startTime} onChange={v => set('startTime', v||'')} showTime minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD HH:mm"/>
                       </div>
                       <div><label style={lSt}>{isAr ? 'وقت الوصول' : 'Arrival Time'}</label>
@@ -723,8 +790,8 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{STR.cols.checkIn}</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
-                      <div><label style={lSt}>{STR.cols.checkOut}</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={f.checkIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={f.checkIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
                     </>)}
                     {grid2(<>
                       <div><label style={lSt}>{isAr ? 'إطلالة الغرفة' : 'Room View'}</label><input style={iSt} value={f.roomView} onChange={e => set('roomView', e.target.value)}/></div>
@@ -744,16 +811,16 @@ export default function TravelView({ lang, activeEventId }) {
                 return (
                   <>
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'موقع الاستلام' : 'Pickup Location'}</label>
-                        <Select value={f.pickupLocationId} onChange={v => set('pickupLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      <div><label style={lSt}>{isAr ? 'موقع الاستلام' : 'Pickup Location'} *</label>
+                        <Select value={f.pickupLocationId} onChange={v => set('pickupLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
-                      <div><label style={lSt}>{isAr ? 'موقع التوصيل' : 'Dropoff Location'}</label>
-                        <Select value={f.dropoffLocationId} onChange={v => set('dropoffLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      <div><label style={lSt}>{isAr ? 'موقع التوصيل' : 'Dropoff Location'} *</label>
+                        <Select value={f.dropoffLocationId} onChange={v => set('dropoffLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'نوع المركبة' : 'Vehicle Type'}</label>
-                        <Select value={f.vehicleTypeId} onChange={v => set('vehicleTypeId', v)} options={mapOpts(travelLookups.vehicleTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      <div><label style={lSt}>{isAr ? 'نوع المركبة' : 'Vehicle Type'} *</label>
+                        <Select value={f.vehicleTypeId} onChange={v => set('vehicleTypeId', v)} options={mapOpts(travelLookups.vehicleTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                       <div><label style={lSt}>{isAr ? 'رقم اللوحة' : 'Plate'}</label><input style={iSt} value={f.plate} onChange={e => set('plate', e.target.value)}/></div>
                     </>)}
@@ -768,7 +835,7 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'}</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
                       <div><label style={lSt}>{isAr ? 'الوصول المتوقع' : 'Est. Arrival'}</label><DateField value={f.estimatedArrival} onChange={v => set('estimatedArrival', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
                     </>)}
                   </>
