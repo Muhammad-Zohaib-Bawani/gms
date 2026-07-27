@@ -169,7 +169,13 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
+  // Falls back to the event's cover image when no logo is set — it's a photo,
+  // not a transparent mark, so it gets cover-cropped instead of letterboxed.
   const logoOf = (e) => (theme === 'dark' ? (e.logoDark || e.logoLight) : (e.logoLight || e.logoDark));
+  const markOf = (e) => {
+    const logo = logoOf(e);
+    return logo ? { src: logo, cover: false } : (e.image ? { src: e.image, cover: true } : null);
+  };
   const LetterMark = ({ e, size }) => (
     <span style={{ fontFamily: 'var(--serif)', fontSize: size, fontStyle: 'italic', color: e.accent }}>
       {(e.title || 'E').trim()[0]}
@@ -191,8 +197,9 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
     <div className="event-switcher" ref={ref}>
       <button className={"event-trigger" + (open ? " open" : "")} onClick={() => setOpen(o => !o)}>
         <span className="event-logo-mark" data-event={ev.key} style={{ background: `${ev.accent}22`, borderColor: `${ev.accent}50` }}>
-          {logoOf(ev)
-            ? <img src={logoOf(ev)} alt="" onError={e => { e.target.style.display = 'none'; }}/>
+          {markOf(ev)
+            ? <img className={markOf(ev).cover ? 'event-cover' : ''} src={markOf(ev).src} alt=""
+                onError={e => { e.target.style.display = 'none'; }}/>
             : <LetterMark e={ev} size={16}/>}
         </span>
         <span className="event-text">
@@ -206,7 +213,7 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
           <div className="event-menu-head">{shell.switchEvent}</div>
           {events.map(e => {
             const isActive = e.key === value;
-            const logo = logoOf(e);
+            const mark = markOf(e);
             return (
               <button key={e.key}
                 className={"event-row" + (isActive ? " active" : "")}
@@ -214,8 +221,9 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
                 onClick={() => { onChange(e); setOpen(false); }}>
                 <span className="event-logo-mark" data-event={e.key}
                   style={{ background: `${e.accent}22`, borderColor: `${e.accent}50`, overflow: 'hidden' }}>
-                  {logo
-                    ? <img src={logo} alt="" onError={err => { err.target.style.display = 'none'; }}/>
+                  {mark
+                    ? <img className={mark.cover ? 'event-cover' : ''} src={mark.src} alt=""
+                        onError={err => { err.target.style.display = 'none'; }}/>
                     : <LetterMark e={e} size={15}/>}
                 </span>
                 <span className="event-text">

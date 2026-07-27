@@ -33,6 +33,7 @@ function normalize(dto) {
     secondary: dto.themeSecondary || '#e0c47e',
     logoDark: dto.logoDarkUrl || '',
     logoLight: dto.logoLightUrl || '',
+    image: dto.imageUrl || '',
   };
 }
 
