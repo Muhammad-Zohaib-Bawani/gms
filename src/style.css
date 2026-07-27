@@ -2320,3 +2320,33 @@ html[data-theme="light"] .modal-solid {
     background: #fff !important; color: #111 !important;
   }
 }
+
+/* ==========================================================================
+   Auth (login) — maroon focus ring on fields + a soft maroon glow on the card
+   ========================================================================== */
+.auth-input {
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.auth-input:focus,
+.auth-input:focus-visible {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(141,1,52,0.22) !important;
+}
+.auth-input::placeholder { color: var(--ink-faint); }
+
+.auth-card {
+  border: 1px solid rgba(141,1,52,0.16) !important;
+  box-shadow:
+    0 30px 70px -24px rgba(141,1,52,0.45),
+    0 0 0 1px rgba(141,1,52,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+/* Thin maroon accent strip across the top of the card */
+.auth-card { position: relative; }
+.auth-card::before {
+  content: "";
+  position: absolute; inset-inline: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, #8d0134, #c21857);
+  z-index: 2;
+}

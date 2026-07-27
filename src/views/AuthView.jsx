@@ -26,6 +26,7 @@ export default function AuthView() {
   const { signIn, enterDemo } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function handleSignIn(e) {
@@ -59,18 +60,19 @@ export default function AuthView() {
       minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 20,
       background: 'var(--bg, #06121a)',
     }}>
-      <div className="card glass" style={{ width: 420, maxWidth: '94vw', padding: 0, overflow: 'hidden' }}>
+      <div className="card glass auth-card" style={{ width: 420, maxWidth: '94vw', padding: 0, overflow: 'hidden' }}>
         {/* Brand header */}
         <div style={{ padding: '26px 28px 20px', borderBottom: '1px solid var(--glass-border)', textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, justifyContent: 'center' }}>
-            <span style={{ fontFamily: 'var(--serif)', fontSize: 30, fontStyle: 'italic', color: 'var(--accent)' }}>GMS</span>
-            <span style={{ fontSize: 11, color: 'var(--ink-mute)', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-              Guest Management
+          <div style={{ display: 'block', alignItems: 'baseline', }}>
+            <img src="/assets/logo.svg" alt='QOC Logo' style={{ width: '90px' }}/>
+            <br/>
+            <span style={{ fontSize: 10, color: 'var(--ink-mute)', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              Guest Management System
             </span>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginTop: 8 }}>
+          {/* <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginTop: 8 }}>
             Sign in to your account
-          </div>
+          </div> */}
         </div>
 
         <form onSubmit={handleSignIn}
@@ -78,14 +80,41 @@ export default function AuthView() {
 
           <div>
             <label style={labelStyle}>Email</label>
-            <input type="email" style={inputStyle} value={email} onChange={e => setEmail(e.target.value)}
+            <input type="email" className="auth-input" style={inputStyle} value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@organisation.gov" autoComplete="email" required />
           </div>
 
           <div>
             <label style={labelStyle}>Password</label>
-            <input type="password" style={inputStyle} value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••" autoComplete="current-password" required />
+            <div style={{ position: 'relative' }}>
+              <input type={showPassword ? 'text' : 'password'}
+                className="auth-input"
+                style={{ ...inputStyle, paddingRight: 42 }}
+                value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" autoComplete="current-password" required />
+              <button type="button"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                style={{
+                  position: 'absolute', top: '50%', insetInlineEnd: 8, transform: 'translateY(-50%)',
+                  display: 'grid', placeItems: 'center', width: 30, height: 30,
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  color: 'var(--ink-mute)',
+                }}>
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button type="submit" className="btn primary" disabled={busy}
