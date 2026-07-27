@@ -87,6 +87,8 @@ export const ENDPOINTS = {
     hotels: '/v1/lookups/hotels',
     locations: '/v1/lookups/locations',
     airports: '/v1/lookups/airports',
+
+    locationById: (id) => `/v1/lookups/locations/${id}`,
   },
 
   venues: {
@@ -124,6 +126,11 @@ export const ENDPOINTS = {
 
   locations: {
     create: '/v1/Location',
+    flightTypes: '/v1/lookups/flight-types',
+    flightClasses: '/v1/lookups/flight-classes',
+    roomTypes: '/v1/lookups/room-types',
+    vehicleTypes: '/v1/lookups/vehicle-types',
+    hotels: '/v1/lookups/hotels',
   },
 
   meetings: {

@@ -196,7 +196,10 @@ export default function TravelAccordion({
   const vehicleTypeOpts = mapOpts(lookups.vehicleTypes, (x) => x.name);
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
-  const airportOpts = mapOpts(lookups.airports, (x) => `${x.code} — ${x.city}${x.country ? `, ${x.country}` : ''}`);
+
+  // Airports (GET /lookups/airports) back the flight From/To dropdowns —
+  // fromAirportId/toAirportId store the airport's own id (not its code).
+  const airportOpts = mapOpts(lookups.airports, (a) => `${a.code} — ${a.city}`);
 
   const flightStatusOpts = [
     { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },

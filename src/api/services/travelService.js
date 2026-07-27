@@ -17,10 +17,12 @@ export const getHotels        = () => apiClient.get(ENDPOINTS.lookups.hotels);
 export const getLocations     = () => apiClient.get(ENDPOINTS.lookups.locations);
 export const getAirports      = () => apiClient.get(ENDPOINTS.lookups.airports);
 
-// Fills every wizard dropdown by calling the endpoints in parallel.
+// Fills every wizard dropdown by calling the lookup endpoints in parallel.
 export const getTravelLookups = async () => {
   const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports] = await Promise.all([
-    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(), getAirports(),
+    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(),
+    // ponytail: airports failing shouldn't blank every other dropdown (Promise.all is all-or-nothing).
+    getAirports().catch(() => []),
   ]);
   return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports };
 };
@@ -49,5 +51,6 @@ export const createFlightClass = (name)          => apiClient.post(ENDPOINTS.loo
 export const createRoomType    = (name)          => apiClient.post(ENDPOINTS.lookups.roomTypes,    { name });
 export const createVehicleType = (name)          => apiClient.post(ENDPOINTS.lookups.vehicleTypes, { name });
 export const createHotel       = (name, address) => apiClient.post(ENDPOINTS.lookups.hotels,       { name, address });
-export const createAirport     = (code, city, country, continent) =>
-  apiClient.post(ENDPOINTS.lookups.airports, { code, city, country, continent });
+
+// Airport: { code, city, country, continent, locationId? }.
+export const createAirport     = (body)          => apiClient.post(ENDPOINTS.lookups.airports, body);

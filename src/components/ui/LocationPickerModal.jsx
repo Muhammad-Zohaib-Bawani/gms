@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -6,7 +6,9 @@ import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import Modal from './Modal.jsx';
-import { createLocation } from '../../api/services/locationService.js';
+import Select from './Select.jsx';
+import { createLocation, updateLocation } from '../../api/services/locationService.js';
+import { LOCATION_TYPE, locationTypeOptions } from '../../enums/locationType.js';
 import toast from '../../lib/toast.js';
 
 // Leaflet's default marker icon references image paths that don't survive a
@@ -37,16 +39,28 @@ async function reverseGeocode(lat, lng, isAr) {
   return data?.name || data?.display_name || null;
 }
 
-export default function LocationPickerModal({ open, onClose, lang, onSelect }) {
+// Pass `location` (an existing row: { id, address, type, latitude, longitude })
+// to edit it — same form, PUT instead of POST.
+export default function LocationPickerModal({ open, onClose, lang, onSelect, defaultType = LOCATION_TYPE.VENUE, location = null }) {
   const isAr = lang === 'ar';
   const [point, setPoint] = useState(null); // [lat, lng] | null
   const [address, setAddress] = useState('');
+  const [type, setType] = useState(defaultType);
   const [resolvingAddress, setResolvingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Prefill on open — the row's coords come back as strings.
+  useEffect(() => {
+    if (!open) return;
+    setPoint(location ? [Number(location.latitude), Number(location.longitude)] : null);
+    setAddress(location?.address || '');
+    setType(location?.type || defaultType);
+  }, [open, location, defaultType]);
 
   function handleClose() {
     setPoint(null);
     setAddress('');
+    setType(defaultType);
     setResolvingAddress(false);
     onClose?.();
   }
@@ -70,13 +84,15 @@ export default function LocationPickerModal({ open, onClose, lang, onSelect }) {
     setSaving(true);
     try {
       const [lat, lng] = point;
-      const res = await createLocation({
+      const body = {
         latitude: String(lat),
         longitude: String(lng),
         address: address.trim() || null,
-      });
+        type,
+      };
+      const res = location ? await updateLocation(location.id, body) : await createLocation(body);
       onSelect?.({
-        id: res.id,
+        id: res?.id || location?.id,
         label: address.trim() || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
       });
       handleClose();
@@ -100,20 +116,28 @@ export default function LocationPickerModal({ open, onClose, lang, onSelect }) {
     <Modal
       open={open}
       onClose={handleClose}
-      title={isAr ? 'اختر موقعاً' : 'Pick a location'}
+      title={location ? (isAr ? 'تعديل الموقع' : 'Edit location') : (isAr ? 'اختر موقعاً' : 'Pick a location')}
       subtitle={isAr ? 'انقر على الخريطة لتحديد الموقع' : 'Click on the map to drop a pin'}
       width={560}
       footer={
         <>
           <button className="btn" onClick={handleClose} disabled={saving}>{isAr ? 'إلغاء' : 'Cancel'}</button>
           <button className="btn primary" onClick={handleConfirm} disabled={!point || saving}>
-            {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'تأكيد' : 'Confirm')}
+            {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…')
+              : location ? (isAr ? 'حفظ' : 'Save')
+              : (isAr ? 'تأكيد' : 'Confirm')}
           </button>
         </>
       }
     >
       <div style={{ height: 320, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--glass-border)' }}>
-        <MapContainer center={DEFAULT_CENTER} zoom={11} style={{ height: '100%', width: '100%' }}>
+        {/* Centered from the `location` prop, not state — Leaflet only reads
+            `center` at mount, and the prefill effect runs after that. */}
+        <MapContainer
+          center={location ? [Number(location.latitude), Number(location.longitude)] : DEFAULT_CENTER}
+          zoom={location ? 15 : 11}
+          style={{ height: '100%', width: '100%' }}
+        >
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -133,6 +157,10 @@ export default function LocationPickerModal({ open, onClose, lang, onSelect }) {
           placeholder={point
             ? (isAr ? 'لم يتم العثور على اسم — أدخله يدوياً' : 'No name found — type one in')
             : (isAr ? 'انقر على الخريطة أولاً' : 'Click the map first')}/>
+      </div>
+      <div>
+        <label style={labelStyle}>{isAr ? 'نوع الموقع' : 'Location type'} *</label>
+        <Select value={type} onChange={setType} options={locationTypeOptions(isAr)} />
       </div>
       {point && (
         <div style={{ fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--mono)' }}>
