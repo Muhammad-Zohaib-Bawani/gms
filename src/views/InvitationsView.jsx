@@ -15,6 +15,10 @@ const LANG_OPTIONS = [
 const LANG_LABELS = { en: 'EN', ar: 'AR', both: 'EN/AR' };
 const TIER_OPTIONS = TIERS.map(t => ({ value: t, label: t }));
 
+// Merge fields the backend interpolates into the body. Clicking one inserts it
+// at the textarea caret (see TemplateForm.insertVariable).
+const TEMPLATE_VARIABLES = ['{{GuestName}}', '{{EventName}}', '{{EventDate}}', '{{Venue}}'];
+
 const BODY_TYPE_OPTIONS_EN = [
   { value: 'text', label: 'Plain text' },
   { value: 'html', label: 'Raw HTML' },
@@ -74,6 +78,24 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
   const showAr = form.language !== 'en';
   const inputStyle = inputStyleBase;
   const errorBorder = { ...inputStyleBase, borderColor: '#e05050' };
+  const bodyRef = React.useRef(null);
+
+  // Insert a variable token where the caret is in the body textarea (replacing
+  // any selection), then restore the caret just after the inserted token.
+  function insertVariable(v) {
+    const el = bodyRef.current;
+    const cur = form.body || '';
+    const start = el ? (el.selectionStart ?? cur.length) : cur.length;
+    const end = el ? (el.selectionEnd ?? cur.length) : cur.length;
+    setField('body', cur.slice(0, start) + v + cur.slice(end));
+    // Wait for the controlled value to commit before moving the caret.
+    setTimeout(() => {
+      if (!el) return;
+      const pos = start + v.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    }, 0);
+  }
 
   return (
     <>
@@ -144,6 +166,7 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
       <div>
         <FieldLabel>{STR.body}</FieldLabel>
         <textarea
+          ref={bodyRef}
           rows={4}
           style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
           value={form.body || ''}
@@ -154,6 +177,29 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
               : (isAr ? 'عزيزي {{GuestName}}،' : 'Dear {{GuestName}},')
           }
         />
+        {/* Variables — insert at the caret in the body above */}
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            {STR.variables}
+            <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--ink-faint)', marginInlineStart: 6 }}>
+              · {isAr ? 'انقر للإدراج عند المؤشر' : 'click to insert at cursor'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TEMPLATE_VARIABLES.map(v => (
+              <span
+                key={v}
+                className="chip"
+                style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }}
+                // onMouseDown + preventDefault keeps the textarea focused so its
+                // caret/selection survives the click.
+                onMouseDown={e => { e.preventDefault(); insertVariable(v); }}
+              >
+                <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
 
       {showAr && (
@@ -543,21 +589,6 @@ export default function InvitationsView({ lang, activeEventId }) {
                     {builder.body || (isAr ? 'نص الرسالة…' : 'Body text…')}
                   </div>
                 )}
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{STR.variables}</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {['{{GuestName}}', '{{EventName}}', '{{EventDate}}', '{{Venue}}'].map(v => (
-                    <span
-                      key={v}
-                      className="chip"
-                      style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }}
-                      onClick={() => setB('body', builder.body + (builder.body && !builder.body.endsWith(' ') ? ' ' : '') + v)}
-                    >
-                      <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
