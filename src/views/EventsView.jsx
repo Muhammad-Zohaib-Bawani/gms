@@ -230,7 +230,7 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
       <LogoInput label={STR.fImage}
         value={form.image} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
       {/* Visual Theme */}
-      <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
+      {/* <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
         <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
           {isAr ? 'السمة المرئية' : 'Visual Theme'}
         </div>
@@ -277,7 +277,7 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
               value={uiTheme.logoLight} onChange={v => setUiTheme(t => ({ ...t, logoLight: v }))} isAr={isAr}/>
           </div>
         )}
-      </div>
+      </div> */}
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
         <button className="btn" onClick={onCancel}>{STR.cancel}</button>

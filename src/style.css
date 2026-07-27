@@ -1200,6 +1200,32 @@ html[data-theme="light"] .event-logo-mark[data-event="doha-forum"] img { mix-ble
 html[data-theme="dark"] .event-menu,
 :root .event-menu { background: #0a2730; backdrop-filter: none; -webkit-backdrop-filter: none; }
 html[data-theme="light"] .event-menu { background: #ffffff; border-color: rgba(4,20,26,0.14); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* Notifications dropdown — anchored under the bell in the topbar. */
+.notif-wrap { position: relative; display: flex; }
+.notif-menu {
+  position: absolute; top: calc(100% + 10px); inset-inline-end: 0;
+  width: 280px;
+  border-radius: 12px;
+  padding: 6px;
+  z-index: 200;
+  background: var(--popover-bg);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7), 0 6px 16px -6px rgba(0,0,0,0.45);
+  color: var(--ink);
+}
+.notif-head {
+  padding: 8px 10px 6px;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--glass-border);
+}
+.notif-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 22px 10px 20px;
+  color: var(--ink-mute);
+  font-size: 12.5px;
+}
 .event-menu-head {
   font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--ink-mute); padding: 8px 10px 6px;

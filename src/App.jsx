@@ -1108,6 +1108,16 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openMenus, setOpenMenus] = useState({});
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = React.useRef(null);
+  useEffect(() => {
+    if (!showNotifications) return;
+    const onDoc = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setShowNotifications(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [showNotifications]);
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
   const { events, activeEvent, setActiveEventId } = useEvents();
@@ -1264,7 +1274,21 @@ export default function App() {
             <button className={"lang-opt" + ((tweaks.lang||"en")==="en" ? " active" : "")} onClick={() => setTweak("lang", "en")} aria-pressed={(tweaks.lang||"en")==="en"}>EN</button>
             <button className={"lang-opt" + ((tweaks.lang||"en")==="ar" ? " active" : "")} onClick={() => setTweak("lang", "ar")} aria-pressed={(tweaks.lang||"en")==="ar"}>عربي</button>
           </div>
-          <button className="icon-btn"><Icon name="bell" size={16}/><span className="dot"/></button>
+          <div className="notif-wrap" ref={notifRef}>
+            <button className="icon-btn" title={lang === 'ar' ? 'الإشعارات' : 'Notifications'}
+              onClick={() => setShowNotifications(o => !o)}>
+              <Icon name="bell" size={16}/><span className="dot"/>
+            </button>
+            {showNotifications && (
+              <div className="notif-menu">
+                <div className="notif-head">{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</div>
+                <div className="notif-empty">
+                  <Icon name="bell" size={22}/>
+                  <span>{lang === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</span>
+                </div>
+              </div>
+            )}
+          </div>
           <button className="icon-btn" title={shell.switchTo((tweaks.theme || "dark") === "dark" ? "light" : "dark")}
             onClick={() => setTweak("theme", (tweaks.theme || "dark") === "dark" ? "light" : "dark")}>
             <Icon name={(tweaks.theme || "dark") === "dark" ? "sun" : "moon"} size={16}/>
