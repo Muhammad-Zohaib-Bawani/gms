@@ -69,7 +69,7 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
         style={{
           border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--glass-border)'}`,
           borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer',
-          background: dragging ? 'rgba(26,174,196,0.08)' : 'var(--surface-soft-2)',
+          background: dragging ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
           transition: 'border-color 0.15s, background 0.15s',
         }}
       >

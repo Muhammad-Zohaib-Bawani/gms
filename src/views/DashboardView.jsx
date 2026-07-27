@@ -162,7 +162,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               { label: STR.confirmed, val: funnel.confirmedGuest, color: 'var(--accent)' },
               { label: STR.awaiting, val: funnel.awaitingGuest, color: '#e0c47e' },
               { label: STR.travel, val: funnel.travelBooked, color: 'var(--accent-2)' },
-              { label: STR.accred, val: funnel.accreditationIssued, color: '#5fd1e0' },
+              { label: STR.accred, val: funnel.accreditationIssued, color: '#c21857' },
             ].map((k, i) => (
               <div key={i} className="card" style={{ padding: '16px 20px' }}>
                 <div style={{ fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: isAr ? '0.04em' : '0.12em', marginBottom: 6 }}>{k.label}</div>
@@ -199,8 +199,8 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {upcomingMeetings.map((m, i) => (
                   <div key={m.id} style={{ display: 'flex', gap: 14, padding: '10px 12px', borderRadius: 10,
-                    background: i === 0 ? 'rgba(26,174,196,0.08)' : 'var(--surface-soft-2)',
-                    border: `1px solid ${i === 0 ? 'rgba(26,174,196,0.3)' : 'var(--glass-border)'}` }}>
+                    background: i === 0 ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+                    border: `1px solid ${i === 0 ? 'rgba(141, 1, 52,0.3)' : 'var(--glass-border)'}` }}>
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: i === 0 ? 'var(--accent)' : 'var(--accent-2)', flexShrink: 0, direction: 'ltr', paddingTop: 1 }}>
                       {(m.startTime || '').slice(0, 5)}
                     </div>
@@ -273,8 +273,8 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {todaySessions.map((s, i) => (
                   <div key={s.id} style={{ display: 'flex', gap: 14, padding: '10px 12px', borderRadius: 10,
-                    background: i === 0 ? 'rgba(26,174,196,0.08)' : 'var(--surface-soft-2)',
-                    border: `1px solid ${i === 0 ? 'rgba(26,174,196,0.3)' : 'var(--glass-border)'}` }}>
+                    background: i === 0 ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+                    border: `1px solid ${i === 0 ? 'rgba(141, 1, 52,0.3)' : 'var(--glass-border)'}` }}>
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: i === 0 ? 'var(--accent)' : 'var(--accent-2)', flexShrink: 0, direction: 'ltr', paddingTop: 1 }}>{s.time}</div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: i === 0 ? 600 : 400, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{s.title}</div>

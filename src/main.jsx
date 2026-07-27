@@ -1,21 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import AuthView from './views/AuthView';
+import { RouterProvider } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { AuthProvider, useAuth } from './auth/AuthContext';
+import { AuthProvider } from './auth/AuthContext';
 import { EventsProvider } from './events/EventsContext';
+import { router } from './router';
 import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
 import InvitationResponseView from './views/InvitationResponseView.jsx';
 import UserInviteAcceptView from './views/UserInviteAcceptView.jsx';
 import './style.css';
-
-// Auth gate: a stored session (real sign-in or "Explore demo") shows the app
-// shell; otherwise the sign-in page.
-function Gate() {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <App /> : <AuthView />;
-}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
@@ -63,7 +56,7 @@ if (screenParams.get('screen') === 'venueView') {
     <React.StrictMode>
       <AuthProvider>
         <EventsProvider>
-          <Gate />
+          <RouterProvider router={router} />
         </EventsProvider>
       </AuthProvider>
       <Toaster position="top-right" richColors closeButton theme="dark" />

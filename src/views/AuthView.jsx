@@ -104,12 +104,12 @@ export default function AuthView() {
         </form>
 
         {/* Demo escape hatch */}
-        {/* <div style={{ padding: '14px 28px', borderTop: '1px solid var(--glass-border)', textAlign: 'center' }}>
+        <div style={{ padding: '14px 28px', borderTop: '1px solid var(--glass-border)', textAlign: 'center' }}>
           <button type="button" onClick={enterDemo}
             style={{ background: 'none', border: 'none', color: 'var(--ink-dim)', fontSize: 12.5, cursor: 'pointer' }}>
             Explore the demo without signing in →
           </button>
-        </div> */}
+        </div>
       </div>
     </div>
   );

@@ -18,11 +18,11 @@ const styles = {
     // zIndex: 3000,
   }),
   singleValue: (base) => ({ ...base, color: 'var(--ink)' }),
-  multiValue: (base) => ({ ...base, background: 'rgba(26,174,196,0.15)', borderRadius: 5 }),
+  multiValue: (base) => ({ ...base, background: 'rgba(141, 1, 52,0.15)', borderRadius: 5 }),
   multiValueLabel: (base) => ({ ...base, color: 'var(--ink)', fontSize: 12 }),
   multiValueRemove: (base) => ({
     ...base, color: 'var(--ink-mute)',
-    ':hover': { background: 'rgba(26,174,196,0.25)', color: 'var(--ink)' },
+    ':hover': { background: 'rgba(141, 1, 52,0.25)', color: 'var(--ink)' },
   }),
   input: (base) => ({ ...base, color: 'var(--ink)' }),
   placeholder: (base) => ({ ...base, color: 'var(--ink-mute)' }),

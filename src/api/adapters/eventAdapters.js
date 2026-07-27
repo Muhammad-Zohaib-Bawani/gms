@@ -29,7 +29,7 @@ export function toViewEvent(dto) {
     status: dto.status || 'planning',
     uiTheme: {
       preset: isCustom ? 'custom' : 'default',
-      accent: dto.themeAccent || '#1aaec4',
+      accent: dto.themeAccent || '#8d0134',
       secondary: dto.themeSecondary || '#e0c47e',
       logoDark: dto.logoDarkUrl || '',
       logoLight: dto.logoLightUrl || '',

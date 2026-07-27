@@ -176,7 +176,7 @@ export default function ConfigPanel({
               }
 
               return (
-                <div style={{ padding: '10px', background: 'rgba(26,174,196,0.07)', border: '1px solid rgba(26,174,196,0.2)', borderRadius: 8 }}>
+                <div style={{ padding: '10px', background: 'rgba(141, 1, 52,0.07)', border: '1px solid rgba(141, 1, 52,0.2)', borderRadius: 8 }}>
                   <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', marginBottom: 8 }}>
                     {t.selectedSeat}:{' '}
                     <strong style={{ color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{code}</strong>

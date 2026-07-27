@@ -141,7 +141,7 @@ export default function FinancialsView({ lang }) {
           { label: STR.totalBudget, val: fmtQAR(totalBudget, lang), delta: isAr ? "الميزانية المعتمدة" : "Approved budget", color: "var(--ink)", spark: [100,100,100,100,100,100,100,100] },
           { label: STR.totalSpent,  val: fmtQAR(totalSpent, lang),  delta: `${ad(spentPct)}% ${STR.spentLabel}`, color: "var(--accent)", spark: sparkData },
           { label: STR.committed,   val: fmtQAR(totalCommit, lang), delta: isAr ? "التزامات معلقة" : "Pending obligations", color: "#e0c47e", spark: [20,22,25,28,30,32,34,35] },
-          { label: STR.remaining,   val: fmtQAR(totalRemain, lang), delta: isAr ? "متاح للصرف" : "Available to spend", color: "#5fd1e0", spark: [80,75,68,60,55,48,42,38] },
+          { label: STR.remaining,   val: fmtQAR(totalRemain, lang), delta: isAr ? "متاح للصرف" : "Available to spend", color: "#c21857", spark: [80,75,68,60,55,48,42,38] },
         ].map((k, i) => (
           <div key={i} className="card" style={{ padding: "16px 20px" }}>
             <div style={{ fontSize: 11, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: isAr ? "0.04em" : "0.12em", marginBottom: 6 }}>{k.label}</div>
@@ -230,7 +230,7 @@ export default function FinancialsView({ lang }) {
             {Object.entries(STR.filters).map(([key, label]) => (
               <button key={key}
                 className={"btn ghost" + (activeFilter === key ? " active" : "")}
-                style={{ padding: "3px 10px", fontSize: 11, background: activeFilter === key ? "rgba(26,174,196,0.15)" : undefined, borderColor: activeFilter === key ? "rgba(26,174,196,0.4)" : undefined }}
+                style={{ padding: "3px 10px", fontSize: 11, background: activeFilter === key ? "rgba(141, 1, 52,0.15)" : undefined, borderColor: activeFilter === key ? "rgba(141, 1, 52,0.4)" : undefined }}
                 onClick={() => setActiveFilter(key)}>
                 {label}
               </button>
