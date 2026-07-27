@@ -271,8 +271,8 @@ export default function TravelAccordion({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Section enabled={travel.flight.enabled} onToggle={() => toggle('flight')} icon="flight" title={isAr ? 'الرحلة الجوية' : 'Flight'}>
         {grid(<>
-          {sel('departureCode', 'departureCity', isAr ? 'من' : 'From')}
-          {sel('arrivalCode', 'arrivalCity', isAr ? 'إلى' : 'To')}
+          {sel('flight', 'fromAirportId', isAr ? 'من' : 'From', airportOpts, { required: true })}
+          {sel('flight', 'toAirportId', isAr ? 'إلى' : 'To', airportOpts, { required: true })}
         </>)}
         {grid(<>
           {sel('flight', 'flightTypeId', isAr ? 'نوع الرحلة' : 'Flight Type', flightTypeOpts, { required: true })}
