@@ -217,7 +217,7 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
             return (
               <button key={e.key}
                 className={"event-row" + (isActive ? " active" : "")}
-                style={{ borderLeft: `3px solid ${e.accent}`, background: isActive ? `${e.accent}` : 'rgb(141, 1, 52)' }}
+                style={{ borderLeft: `3px solid ${e.accent}`, background: isActive ? 'rgba(141, 1, 52, 0.10)' : 'transparent' }}
                 onClick={() => { onChange(e); setOpen(false); }}>
                 <span className="event-logo-mark" data-event={e.key}
                   style={{ background: `${e.accent}22`, borderColor: `${e.accent}50`, overflow: 'hidden' }}>

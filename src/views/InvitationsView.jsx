@@ -4,6 +4,7 @@ import DataTable from '../components/ui/DataTable';
 import Select from '../components/ui/Select';
 import toast from '../lib/toast';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../api/services/invitationTemplateService';
+import EmailTemplateBuilder, { EmailPreview } from './invitations/EmailTemplateBuilder';
 
 const TEMPLATE_COLORS = ['#8d0134', '#e0b864', '#a78bda', '#5abf6e', '#e08a7e', '#5e0022'];
 const TIERS = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
@@ -31,7 +32,7 @@ const BODY_TYPE_OPTIONS_AR = [
 const EMPTY_FORM = {
   name: '', nameAr: '', language: 'en',
   subject: '', subjectAr: '', body: '', bodyAr: '',
-  bodyType: 'text',
+  bodyType: 'html', designConfig: '',
   color: TEMPLATE_COLORS[0], targetTiers: [],
 };
 
@@ -78,25 +79,6 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
   const showAr = form.language !== 'en';
   const inputStyle = inputStyleBase;
   const errorBorder = { ...inputStyleBase, borderColor: '#e05050' };
-  const bodyRef = React.useRef(null);
-
-  // Insert a variable token where the caret is in the body textarea (replacing
-  // any selection), then restore the caret just after the inserted token.
-  function insertVariable(v) {
-    const el = bodyRef.current;
-    const cur = form.body || '';
-    const start = el ? (el.selectionStart ?? cur.length) : cur.length;
-    const end = el ? (el.selectionEnd ?? cur.length) : cur.length;
-    setField('body', cur.slice(0, start) + v + cur.slice(end));
-    // Wait for the controlled value to commit before moving the caret.
-    setTimeout(() => {
-      if (!el) return;
-      const pos = start + v.length;
-      el.focus();
-      el.setSelectionRange(pos, pos);
-    }, 0);
-  }
-
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
@@ -154,52 +136,12 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
       )}
 
       <div>
-        <FieldLabel>{STR.bodyType}</FieldLabel>
-        <Select
-          value={form.bodyType || 'text'}
-          onChange={v => setField('bodyType', v)}
-          options={bodyTypeOptions}
-          placeholder={STR.selectPlaceholder}
-        />
-      </div>
-
-      <div>
         <FieldLabel>{STR.body}</FieldLabel>
-        <textarea
-          ref={bodyRef}
-          rows={4}
-          style={{ ...inputStyle, resize: 'vertical', fontFamily: form.bodyType === 'html' ? 'var(--mono)' : 'inherit' }}
-          value={form.body || ''}
-          onChange={e => setField('body', e.target.value)}
-          placeholder={
-            form.bodyType === 'html'
-              ? '<p>Dear {{GuestName}},</p>'
-              : (isAr ? 'عزيزي {{GuestName}}،' : 'Dear {{GuestName}},')
-          }
+        <EmailTemplateBuilder
+          value={{ body: form.body, designConfig: form.designConfig }}
+          onChange={({ body, designConfig }) => { setField('body', body); setField('designConfig', designConfig); }}
+          isAr={isAr}
         />
-        {/* Variables — insert at the caret in the body above */}
-        <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            {STR.variables}
-            <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--ink-faint)', marginInlineStart: 6 }}>
-              · {isAr ? 'انقر للإدراج عند المؤشر' : 'click to insert at cursor'}
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TEMPLATE_VARIABLES.map(v => (
-              <span
-                key={v}
-                className="chip"
-                style={{ cursor: 'pointer', fontFamily: 'var(--mono)', fontSize: 11 }}
-                // onMouseDown + preventDefault keeps the textarea focused so its
-                // caret/selection survives the click.
-                onMouseDown={e => { e.preventDefault(); insertVariable(v); }}
-              >
-                <span className="dot" style={{ background: 'var(--accent)' }}/>{v}
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
 
       {showAr && (
@@ -307,6 +249,7 @@ export default function InvitationsView({ lang, activeEventId }) {
   const [builder, setBuilder] = useState(EMPTY_FORM);
   const [builderErrors, setBuilderErrors] = useState({});
   const [building, setBuilding] = useState(false);
+  const [builderKey, setBuilderKey] = useState(0); // bump to remount the editor (reset) after create
 
   const [editTmpl, setEditTmpl] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -346,13 +289,14 @@ export default function InvitationsView({ lang, activeEventId }) {
         subjectAr:  builder.subjectAr.trim() || null,
         body:       builder.body.trim() || null,
         bodyAr:     builder.bodyAr.trim() || null,
-        bodyType:   builder.bodyType,
+        designConfig: builder.designConfig || null,
         color:      builder.color,
         targetTiers: builder.targetTiers,
       });
       loadTemplates();
       setBuilder(EMPTY_FORM);
       setBuilderErrors({});
+      setBuilderKey(k => k + 1);
       setTab('templates');
       toast.success(STR.builderSaved);
     } catch {
@@ -372,7 +316,7 @@ export default function InvitationsView({ lang, activeEventId }) {
       subjectAr:   tmpl.subjectAr || '',
       body:        tmpl.body || '',
       bodyAr:      tmpl.bodyAr || '',
-      bodyType:    tmpl.bodyType || 'text',
+      designConfig: tmpl.designConfig || '',
       color:       tmpl.color || TEMPLATE_COLORS[0],
       targetTiers: tmpl.targetTiers || [],
     });
@@ -395,7 +339,7 @@ export default function InvitationsView({ lang, activeEventId }) {
         subjectAr:   editForm.subjectAr.trim() || null,
         body:        editForm.body.trim() || null,
         bodyAr:      editForm.bodyAr.trim() || null,
-        bodyType:    editForm.bodyType,
+        designConfig: editForm.designConfig || null,
         color:       editForm.color,
         targetTiers: editForm.targetTiers,
       });
@@ -541,6 +485,7 @@ export default function InvitationsView({ lang, activeEventId }) {
             </div>
             <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <TemplateForm
+                key={builderKey}
                 form={builder}
                 setField={(k, v) => { setB(k, v); setBuilderErrors(e => ({ ...e, [k]: false })); }}
                 errors={builderErrors}
@@ -561,35 +506,13 @@ export default function InvitationsView({ lang, activeEventId }) {
               <h3>{STR.livePreview}</h3>
               <div style={{ display: 'flex', gap: 6 }}>
                 <span className="chip">
-                  <span className="dot" style={{ background: builder.bodyType === 'html' ? 'var(--accent-2)' : 'var(--accent)' }}/>
-                  {BODY_TYPE_OPTIONS.find(o => o.value === builder.bodyType)?.label}
-                </span>
-                <span className="chip">
                   <span className="dot" style={{ background: builder.color }}/>
                   {LANG_LABELS[builder.language] || builder.language}
                 </span>
               </div>
             </div>
             <div className="card-body">
-              <div style={{ background: 'var(--bg-2)', borderRadius: 10, padding: '20px 18px', fontSize: 13, borderInlineStart: `4px solid ${builder.color}` }}>
-                {builder.name && (
-                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    {builder.name}
-                  </div>
-                )}
-                <div style={{ fontWeight: 600, marginBottom: 10 }}>
-                  {builder.subject || (isAr ? 'سطر الموضوع…' : 'Subject line…')}
-                </div>
-                {builder.bodyType === 'html' ? (
-                  builder.body
-                    ? <div style={{ color: 'var(--ink-dim)', lineHeight: 1.7, fontSize: 12 }} dangerouslySetInnerHTML={{ __html: builder.body }} />
-                    : <div style={{ color: 'var(--ink-faint)', fontSize: 12 }}>{isAr ? 'نص HTML…' : 'HTML body…'}</div>
-                ) : (
-                  <div style={{ color: 'var(--ink-dim)', lineHeight: 1.7, fontSize: 12, whiteSpace: 'pre-wrap' }}>
-                    {builder.body || (isAr ? 'نص الرسالة…' : 'Body text…')}
-                  </div>
-                )}
-              </div>
+              <EmailPreview body={builder.body} subject={builder.subject} isAr={isAr} />
             </div>
           </div>
         </div>

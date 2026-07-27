@@ -1180,7 +1180,7 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
 .event-logo-mark img.event-cover { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; }
 .event-logo-mark[data-event="doha-forum"] img { max-width: 26px; max-height: 26px; }
 .event-logo-mark[data-event="qabf"] img { max-width: 26px; max-height: 18px; }
-html[data-theme="light"] .event-logo-mark { background: #04141a; border-color: #04141a; }
+html[data-theme="light"] .event-logo-mark { background: var(--surface-soft-3); border-color: var(--glass-border); }
 /* Doha Forum: transparent container + blend-mode to strip baked-in PNG background */
 .event-logo-mark[data-event="doha-forum"] { background: transparent; border-color: transparent; }
 html[data-theme="light"] .event-logo-mark[data-event="doha-forum"] { background: transparent; border-color: transparent; }
@@ -1205,7 +1205,7 @@ html[data-theme="light"] .event-logo-mark[data-event="doha-forum"] img { mix-ble
   box-shadow: 0 24px 50px -16px rgba(0,0,0,0.7), 0 6px 16px -6px rgba(0,0,0,0.45);
 }
 html[data-theme="dark"] .event-menu,
-:root .event-menu { background: #0a2730; backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root .event-menu { background: #2a0011; backdrop-filter: none; -webkit-backdrop-filter: none; }
 html[data-theme="light"] .event-menu { background: #ffffff; border-color: rgba(4,20,26,0.14); backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 /* Notifications dropdown — anchored under the bell in the topbar. */
@@ -2254,10 +2254,12 @@ html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
 }
 .topbar .event-trigger:hover { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.32) !important; }
 .topbar .event-trigger.open { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.5) !important; }
-.topbar .event-name { color: #fff !important; }
-.topbar .event-sub { color: rgba(255,255,255,0.72) !important; }
-.topbar .event-caret, .topbar .event-trigger.open .event-caret { color: rgba(255,255,255,0.9) !important; }
-.topbar .event-logo-mark { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.28) !important; }
+/* Scope the maroon-topbar overrides to the TRIGGER only — the dropdown menu
+   (.event-menu) also lives inside .topbar and must keep its normal theme colors. */
+.topbar .event-trigger .event-name { color: #fff !important; }
+.topbar .event-trigger .event-sub { color: rgba(255,255,255,0.72) !important; }
+.topbar .event-trigger .event-caret { color: rgba(255,255,255,0.9) !important; }
+.topbar .event-trigger .event-logo-mark { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.28) !important; }
 
 /* Avatar pill: white chip, maroon monogram */
 .topbar .avatar {
@@ -2350,3 +2352,35 @@ html[data-theme="light"] .modal-solid {
   background: linear-gradient(90deg, #8d0134, #c21857);
   z-index: 2;
 }
+
+/* ==========================================================================
+   Event switcher dropdown — always a LIGHT panel with dark, readable text,
+   independent of the app theme (requested). Overrides earlier .event-menu rules.
+   ========================================================================== */
+.event-menu {
+  background: #ffffff !important;
+  border: 1px solid rgba(15, 15, 20, 0.12) !important;
+  box-shadow: 0 24px 50px -16px rgba(94,0,34,0.28), 0 6px 16px -6px rgba(0,0,0,0.18) !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+}
+.event-menu .event-row { background: transparent !important; }   /* non-active rows: no solid fill */
+.event-menu .event-menu-head { color: rgba(42,5,18,0.55) !important; }
+.event-menu .event-name { color: #2a0512 !important; }
+.event-menu .event-sub  { color: rgba(42,5,18,0.60) !important; }
+.event-menu .event-caret { color: rgba(42,5,18,0.50) !important; }
+.event-menu .event-row:hover { background: rgba(141,1,52,0.06) !important; }
+.event-menu .event-row.active { background: rgba(141,1,52,0.10) !important; }
+.event-menu .event-row.active .event-name { color: #8d0134 !important; }
+.event-menu .event-check { color: #8d0134 !important; }
+.event-menu .event-logo-mark { background: #f4eef0 !important; border-color: rgba(141,1,52,0.12) !important; }
+
+/* ── TipTap email builder editor surface ── */
+.tt-surface .ProseMirror { outline: none; min-height: 180px; }
+.tt-surface .ProseMirror:focus { outline: none; }
+.tt-surface .ProseMirror p { margin: 0 0 10px; }
+.tt-surface .ProseMirror h2 { font-size: 1.4em; font-weight: 700; margin: 0 0 10px; }
+.tt-surface .ProseMirror ul, .tt-surface .ProseMirror ol { padding-inline-start: 22px; margin: 0 0 10px; }
+.tt-surface .ProseMirror img { max-width: 100%; height: auto; border-radius: 6px; }
+.tt-surface .ProseMirror a { color: #8d0134; text-decoration: underline; }
+.tt-surface .ProseMirror a[data-invite-button] { text-decoration: none; }
+.tt-surface .ProseMirror a[data-invite-button].ProseMirror-selectednode { outline: 2px solid #8d0134; outline-offset: 2px; }
