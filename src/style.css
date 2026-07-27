@@ -912,14 +912,20 @@
   --glass-border-strong: rgba(255, 255, 255, 0.22);
   --glass-shadow: 0 16px 48px rgba(2, 6, 20, 0.45), inset 0 1px 0 rgba(255,255,255,0.08);
 
-  --surface-soft: rgba(255,255,255,0.04);
-  --surface-soft-2: rgba(255,255,255,0.05);
-  --surface-soft-3: rgba(255,255,255,0.06);
-  --surface-soft-4: rgba(255,255,255,0.08);
-  --surface-soft-5: rgba(255,255,255,0.10);
+  --surface-soft: rgba(255,255,255,0.06);
+  --surface-soft-2: rgba(255,255,255,0.08);
+  /* Input/field fill — bumped so fields read as raised on the maroon bg. */
+  --surface-soft-3: rgba(255,255,255,0.12);
+  --surface-soft-4: rgba(255,255,255,0.15);
+  --surface-soft-5: rgba(255,255,255,0.18);
   --hover-tint: rgba(255,255,255,0.12);
   --selected-tint: rgba(141, 1, 52,0.10);
   --row-tint: rgba(255,255,255,0.025);
+
+  /* Opaque surfaces that float over the page (modals, calendar poppers,
+     menus). They can't be translucent or the content behind bleeds through. */
+  --modal-bg: #2a0616;
+  --popover-bg: #33091e;
 }
 
 html[data-theme="light"] {
@@ -954,6 +960,9 @@ html[data-theme="light"] {
   --hover-tint: rgba(12,34,48,0.05);
   --selected-tint: rgba(141, 1, 52,0.14);
   --row-tint: rgba(12,34,48,0.02);
+
+  --modal-bg: #ffffff;
+  --popover-bg: #ffffff;
 }
 
 :root {
@@ -1008,6 +1017,17 @@ html[data-theme="light"] select {
 select option {
   background-color: var(--bg);
   color: var(--ink);
+}
+/* Native date/time widgets: make the browser's own icons + dropdown panel
+   follow the app theme instead of always rendering as light-on-light. */
+input[type="time"], input[type="date"], input[type="datetime-local"], input[type="month"] {
+  color-scheme: dark;
+}
+html[data-theme="light"] input[type="time"],
+html[data-theme="light"] input[type="date"],
+html[data-theme="light"] input[type="datetime-local"],
+html[data-theme="light"] input[type="month"] {
+  color-scheme: light;
 }
 
 /* ===== Background scene ===== */
@@ -2017,6 +2037,27 @@ html[dir="rtl"] .avatar { direction: ltr; }
 .gms-fullcalendar .fc .fc-event { border-radius: 5px; cursor: pointer; }
 .gms-fullcalendar .fc .fc-event-main { padding: 1px 4px; font-size: 11px; }
 .gms-fullcalendar .fc .fc-day-today .fc-daygrid-day-number { color: var(--accent); font-weight: 600; }
+/* FullCalendar's "+N more" popover and list view default to the page bg, which
+   is transparent here — give them an opaque themed surface. */
+.gms-fullcalendar .fc .fc-popover {
+  background: var(--popover-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.gms-fullcalendar .fc .fc-popover-header {
+  background: var(--surface-soft-3);
+  color: var(--ink);
+  font-size: 12px;
+}
+.gms-fullcalendar .fc .fc-popover-body { background: var(--popover-bg); }
+.gms-fullcalendar .fc .fc-list { background: transparent; }
+.gms-fullcalendar .fc .fc-list-day-cushion { background: var(--surface-soft-2); }
+.gms-fullcalendar .fc .fc-list-event-title a,
+.gms-fullcalendar .fc .fc-list-day-text,
+.gms-fullcalendar .fc .fc-list-day-side-text { color: var(--ink); text-decoration: none; }
+.gms-fullcalendar .fc .fc-list-empty { background: transparent; color: var(--ink-mute); }
 
 /* ── Skeleton loading bar (table placeholders) ── */
 .skel-bar {
@@ -2188,17 +2229,19 @@ html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
 .topbar .avatar .name { color: #fff !important; }
 .topbar .avatar .role { color: rgba(255,255,255,0.72) !important; }
 
-/* ===== Solid modal surface — always a plain white card, regardless of the
-   app's current dark/light theme. Add alongside .card/.glass or use on a
-   Dialog.Content root; !important beats both the .glass class background
-   and any inline background the element also carries. The custom-property
-   overrides make every var(--ink)/var(--glass-border)/etc. inside resolve
-   to a fixed light palette too, so text stays legible on the white card
-   without having to touch each modal's own markup. */
+/* ===== Solid modal surface — an opaque card that follows the app theme.
+   Add alongside .card/.glass or use on a Dialog.Content root; !important
+   beats both the .glass class background and any inline background the
+   element also carries. Dark theme keeps the app's own tokens (they're
+   already legible on a dark card); light theme pins the palette so text
+   stays readable on white without touching each modal's markup. */
 .modal-solid {
-  background: #ffffff !important;
+  background: var(--modal-bg) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  color: var(--ink);
+}
+html[data-theme="light"] .modal-solid {
   --ink: #1a1420;
   --ink-dim: rgba(26,20,32,0.74);
   --ink-mute: rgba(26,20,32,0.52);

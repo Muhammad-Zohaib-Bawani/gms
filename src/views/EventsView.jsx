@@ -10,7 +10,7 @@ import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
 import { startOfToday, isPastDate, toDate, toIsoDate } from '../lib/date';
 
-const EVENT_TYPES = ["Conference","Forum","Summit","Gala","Workshop","Exhibition","Bilateral","Ceremony"];
+const EVENT_TYPES = ["Conference","Sports","Exhibition","Food Festival", "Others"];
 const EVENT_TYPE_ICONS = {
   Conference: "meetings", Forum: "globe", Summit: "protocol", Gala: "star",
   Workshop: "edit", Exhibition: "image", Bilateral: "guests", Ceremony: "badge", default: "meetings",

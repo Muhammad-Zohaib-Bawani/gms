@@ -12,17 +12,22 @@
 .gms-datefield-input:focus { outline: none; border-color: var(--accent); }
 /* .gms-datepicker-popper { z-index: 3000 !important; } */
 
-/* Dark-themed calendar */
+/* Calendar popper — follows the app theme. Uses --popover-bg (opaque) rather
+   than --bg-1 so it stays legible both over the page and inside a modal. */
 .react-datepicker {
-  background: var(--bg-1, #0e1c24);
+  background: var(--popover-bg, #33091e);
   border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.45);
   color: var(--ink);
   font-family: inherit;
+  overflow: hidden;
 }
 .react-datepicker__header {
   background: var(--surface-soft-3);
   border-bottom: 1px solid var(--glass-border);
 }
+.react-datepicker__month-container { background: transparent; }
 .react-datepicker__current-month,
 .react-datepicker__day-name,
 .react-datepicker__day,
@@ -32,6 +37,16 @@
 .react-datepicker__day--selected,
 .react-datepicker__day--keyboard-selected { background: var(--accent); color: #fff; border-radius: 6px; }
 .react-datepicker__day--disabled { color: var(--ink-faint); opacity: .4; cursor: not-allowed; }
+/* Dark theme: plain white day numbers — var(--ink) is dimmed inside modals.
+   (App.jsx always sets data-theme, so no bare :root fallback needed.) */
+html[data-theme="dark"] .react-datepicker__day,
+html[data-theme="dark"] .react-datepicker__day-name,
+html[data-theme="dark"] .react-datepicker__current-month,
+html[data-theme="dark"] .react-datepicker__day--outside-month,
+html[data-theme="dark"] .react-datepicker-time__header { color: #fff; }
+html[data-theme="dark"] .react-datepicker__day--outside-month { opacity: .45; }
+html[data-theme="dark"] .react-datepicker__day--disabled { color: rgba(255,255,255,0.45); }
+html[data-theme="dark"] .react-datepicker__day:hover { background: rgba(255,255,255,0.16); }
 .react-datepicker__triangle { display: none; }
 .react-datepicker__navigation-icon::before { border-color: var(--ink-mute); }
 
@@ -42,10 +57,12 @@
 .react-datepicker__header__dropdown {
   display: flex; justify-content: center; gap: 6px; padding: 6px 0 2px;
 }
-.react-datepicker__month-select,
-.react-datepicker__year-select {
-  background: var(--bg-1, #0e1c24);
-  color: var(--ink);
+/* Specificity + !important: style.css has a global `select { background-color:
+   var(--bg) !important }` that would otherwise win here. */
+.react-datepicker select.react-datepicker__month-select,
+.react-datepicker select.react-datepicker__year-select {
+  background-color: var(--popover-bg, #33091e) !important;
+  color: var(--ink) !important;
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 3px 6px;
@@ -72,7 +89,6 @@
   color: var(--ink);
   font-size: 13px;
   font-family: var(--mono, inherit);
-  color-scheme: dark; /* makes the browser's clock icon/stepper legible */
 }
 .react-datepicker__input-time-container input[type='time']:focus {
   outline: none; border-color: var(--accent);
