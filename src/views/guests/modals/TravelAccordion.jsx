@@ -7,8 +7,7 @@
 // State shape (held by the parent modal):
 //   {
 //     flight:        { enabled, flightTypeId, flightClassId, status, seat,
-//                       flightNumber, departureCode, departureCity,
-//                       arrivalCode, arrivalCity, startTime, endTime },
+//                       flightNumber, fromAirportId, toAirportId, startTime, endTime },
 //     accommodation: { enabled, hotelId, roomTypeId, checkIn, checkOut,
 //                       roomView, guestCount, conciergeName, conciergePhone },
 //     transport:     { enabled, pickupLocationId, dropoffLocationId, vehicleTypeId,
@@ -19,15 +18,18 @@ import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
 
+// `id` (a specific booking's public id) is populated only when hydrating an
+// existing booking — see the module doc comment above. Saving with it set
+// updates that exact booking in place; saving with it blank adds a new one.
 export const EMPTY_TRAVEL = {
   flight: {
-    enabled: false,
+    enabled: false, id: '',
     flightTypeId: '', flightClassId: '', status: 'confirmed', seat: '',
-    flightNumber: '', departureCode: '', departureCity: '', arrivalCode: '', arrivalCity: '',
+    flightNumber: '', fromAirportId: '', toAirportId: '',
     startTime: '', endTime: '',
   },
   accommodation: {
-    enabled: false,
+    enabled: false, id: '',
     hotelId: '', roomTypeId: '', checkIn: '', checkOut: '',
     roomView: '', guestCount: '', conciergeName: '', conciergePhone: '',
   },
@@ -69,12 +71,28 @@ export const anyTravelEnabled = (t) =>
   !!(t.flight.enabled || t.accommodation.enabled || t.transport.enabled);
 
 // Returns an error message for the first missing required field, or null if OK.
-// Required = the selects marked `required` in the form (Flight Type, Hotel).
+// A checked-but-empty section is what this guards against: once a section is
+// enabled, its core identifying fields become required — fill them in, or
+// uncheck the section to skip it entirely.
 export function validateTravel(t, isAr = false) {
-  if (t.flight.enabled && !t.flight.flightTypeId)
-    return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
-  if (t.accommodation.enabled && !t.accommodation.hotelId)
-    return isAr ? 'الفندق مطلوب' : 'Hotel is required';
+  if (t.flight.enabled) {
+    if (!t.flight.flightTypeId) return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
+    if (!t.flight.flightNumber?.trim()) return isAr ? 'رقم الرحلة مطلوب' : 'Flight number is required';
+    if (!t.flight.fromAirportId) return isAr ? 'مطار المغادرة مطلوب' : 'Departure airport is required';
+    if (!t.flight.toAirportId) return isAr ? 'مطار الوصول مطلوب' : 'Arrival airport is required';
+    if (!t.flight.startTime) return isAr ? 'وقت الإقلاع مطلوب' : 'Departure time is required';
+  }
+  if (t.accommodation.enabled) {
+    if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
+    if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
+    if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
+  }
+  if (t.transport.enabled) {
+    if (!t.transport.vehicleTypeId) return isAr ? 'نوع المركبة مطلوب' : 'Vehicle type is required';
+    if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
+    if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
+    if (!t.transport.pickupTime) return isAr ? 'وقت الاستلام مطلوب' : 'Pickup time is required';
+  }
   return null;
 }
 
@@ -177,10 +195,9 @@ export default function TravelAccordion({
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
   const driverOpts = mapOpts(lookups.drivers, driverLabel);
 
-  // Airports (GET /lookups/airports) back the flight From/To dropdowns. Field
-  // names/payload are unchanged — picking one fills departure/arrival Code+City.
-  const airports = lookups.airports || [];
-  const airportOpts = airports.map((a) => ({ value: a.code, label: `${a.code} — ${a.city}` }));
+  // Airports (GET /lookups/airports) back the flight From/To dropdowns —
+  // fromAirportId/toAirportId store the airport's own id (not its code).
+  const airportOpts = mapOpts(lookups.airports, (a) => `${a.code} — ${a.city}`);
 
   const flightStatusOpts = [
     { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
@@ -193,9 +210,9 @@ export default function TravelAccordion({
   ];
 
   // ── field renderers (plain functions → stable element types, no focus loss) ──
-  const txt = (section, key, label, { ph = '', type = 'text' } = {}) => (
+  const txt = (section, key, label, { ph = '', type = 'text', required = false } = {}) => (
     <div>
-      <Label>{label}</Label>
+      <Label>{label}{required ? ' *' : ''}</Label>
       <input
         type={type}
         style={inputStyle}
@@ -219,29 +236,9 @@ export default function TravelAccordion({
     </div>
   );
 
-  // One airport pick writes both the code and the city the FlightInput DTO wants.
-  const airportSel = (codeKey, cityKey, label) => (
+  const date = (section, key, label, { minDate, maxDate, required = false } = {}) => (
     <div>
-      <Label>{label}</Label>
-      <Select
-        value={travel.flight[codeKey]}
-        onChange={(v) => {
-          const a = airports.find((x) => x.code === v);
-          onChange((p) => ({
-            ...p,
-            flight: { ...p.flight, [codeKey]: v, [cityKey]: a ? a.city : '' },
-          }));
-        }}
-        options={airportOpts}
-        placeholder={selPlaceholder}
-        isClearable
-      />
-    </div>
-  );
-
-  const date = (section, key, label, { minDate, maxDate } = {}) => (
-    <div>
-      <Label>{label}</Label>
+      <Label>{label}{required ? ' *' : ''}</Label>
       <DateField
         value={travel[section][key]}
         onChange={(v) => setField(section, key, v || '')}
@@ -252,9 +249,9 @@ export default function TravelAccordion({
     </div>
   );
 
-  const dt = (section, key, label, { minDate, maxDate } = {}) => (
+  const dt = (section, key, label, { minDate, maxDate, required = false } = {}) => (
     <div>
-      <Label>{label}</Label>
+      <Label>{label}{required ? ' *' : ''}</Label>
       <DateField
         value={travel[section][key]}
         onChange={(v) => setField(section, key, v || '')}
@@ -282,11 +279,11 @@ export default function TravelAccordion({
           {sel('flight', 'flightClassId', isAr ? 'الدرجة' : 'Flight Class', flightClassOpts)}
         </>)}
         {grid(<>
-          {txt('flight', 'flightNumber', isAr ? 'رقم الرحلة' : 'Flight No.', { ph: 'QR 512' })}
+          {txt('flight', 'flightNumber', isAr ? 'رقم الرحلة' : 'Flight No.', { ph: 'QR 512', required: true })}
           {txt('flight', 'seat', isAr ? 'المقعد' : 'Seat', { ph: '3A' })}
         </>)}
         {grid(<>
-          {dt('flight', 'startTime', isAr ? 'وقت الإقلاع' : 'Departure Time', { minDate: eventMinDate, maxDate: eventMaxDate })}
+          {dt('flight', 'startTime', isAr ? 'وقت الإقلاع' : 'Departure Time', { minDate: eventMinDate, maxDate: eventMaxDate, required: true })}
           {dt('flight', 'endTime', isAr ? 'وقت الوصول' : 'Arrival Time', { minDate: travel.flight.startTime || eventMinDate, maxDate: eventMaxDate })}
         </>)}
         {sel('flight', 'status', isAr ? 'حالة الحجز' : 'Booking Status', flightStatusOpts)}
@@ -298,8 +295,8 @@ export default function TravelAccordion({
           {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts)}
         </>)}
         {grid(<>
-          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', { minDate: dateMinDate, maxDate: dateMaxDate })}
-          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', { minDate: travel.accommodation.checkIn || dateMinDate, maxDate: dateMaxDate })}
+          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
+          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', { minDate: travel.accommodation.checkIn || dateMinDate, maxDate: dateMaxDate, required: true })}
         </>)}
         {/* {grid(<>
           {txt('accommodation', 'roomView', isAr ? 'إطلالة الغرفة' : 'Room View', { ph: isAr ? 'إطلالة بحرية' : 'Sea view' })}
@@ -313,8 +310,8 @@ export default function TravelAccordion({
 
       <Section enabled={travel.transport.enabled} onToggle={() => toggle('transport')} icon="car" title={isAr ? 'النقل' : 'Transport'}>
         {grid(<>
-          {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts)}
-          {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts)}
+          {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true })}
+          {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}
         </>)}
         {grid(<>
           {sel('transport', 'vehicleTypeId', isAr ? 'نوع المركبة' : 'Vehicle Type', vehicleTypeOpts)}
@@ -324,7 +321,7 @@ export default function TravelAccordion({
           {sel('transport', 'tripStatus', isAr ? 'حالة الرحلة' : 'Trip Status', tripStatusOpts)}
         </>)}
         {grid(<>
-          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
           {dt('transport', 'estimatedArrival', isAr ? 'الوصول المتوقع' : 'Est. Arrival', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
         </>)}
       </Section>
