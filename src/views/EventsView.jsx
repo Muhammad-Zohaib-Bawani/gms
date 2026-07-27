@@ -73,7 +73,10 @@ function saveStoredTheme(appKey, theme) {
   localStorage.setItem('gms-event-themes', JSON.stringify(all));
 }
 
-const STATUS_COLORS = { active: "var(--accent)", planning: "#e0c47e", completed: "var(--ink-mute)", cancelled: "#e07e7e" };
+// Values may be CSS vars, so tints are built with color-mix (string concat like
+// `${color}18` only works for hex).
+const STATUS_COLORS = { active: "var(--status-active)", planning: "#e0c47e", completed: "var(--ink-mute)", cancelled: "#e07e7e" };
+const tint = (pct) => `color-mix(in srgb, currentColor ${pct}%, transparent)`;
 
 // Allowed lifecycle transitions (mirrors the backend; the server still enforces).
 const STATUS_TRANSITIONS = {
@@ -154,6 +157,74 @@ function LogoInput({ label, value, onChange, isAr }) {
         <div style={{ marginTop: 6, height: 36, width: 80, borderRadius: 6, border: '1px solid var(--glass-border)', background: 'var(--surface-soft-3)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
           <img src={value} alt="" style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
             onError={e => { e.target.style.display = 'none'; }}/>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Status chip that doubles as the status menu: click it to pick one of the
+// transitions the lifecycle allows from the current status.
+function StatusMenu({ status, labels, onPick, canChange, isAr }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  const nexts = STATUS_TRANSITIONS[status] || [];
+  const interactive = canChange && nexts.length > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const color = STATUS_COLORS[status] || "var(--accent)";
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        type="button"
+        disabled={!interactive}
+        onClick={() => setOpen(o => !o)}
+        title={interactive ? (isAr ? "تغيير الحالة" : "Change status") : undefined}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+          padding: "5px 10px", borderRadius: 20, color,
+          border: `1px solid ${tint(35)}`, background: tint(14),
+          cursor: interactive ? "pointer" : "default",
+        }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }}/>
+        {labels[status]}
+        {interactive && (
+          <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.6"
+            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+            <path d="M3 4.5L6 8 9 4.5"/>
+          </svg>
+        )}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", insetInlineEnd: 0,
+          minWidth: 150, padding: 4, zIndex: 200,
+          background: "var(--popover-bg)", border: "1px solid var(--glass-border-strong)",
+          borderRadius: 10, boxShadow: "0 18px 44px rgba(0,0,0,0.45)",
+        }}>
+          {nexts.map(next => (
+            <button key={next} type="button"
+              onClick={() => { setOpen(false); onPick(next); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, width: "100%",
+                padding: "7px 9px", borderRadius: 7, border: "none", cursor: "pointer",
+                background: "transparent", color: "var(--ink)", fontSize: 12, textAlign: "start",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--hover-tint)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: STATUS_COLORS[next], flexShrink: 0 }}/>
+              {labels[next]}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -684,20 +755,16 @@ export default function EventsView({ lang }) {
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <span className="chip"><span className="dot" style={{ background: EVENT_TYPE_COLORS[selectedEvent.type] || "var(--accent)" }}/>{selectedEvent.type}</span>
                           <span className="chip" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{selectedEvent.startDate} → {selectedEvent.endDate}</span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, padding: "3px 10px", borderRadius: 20, border: `1px solid ${STATUS_COLORS[selectedEvent.status]}40`, background: STATUS_COLORS[selectedEvent.status] + "18", color: STATUS_COLORS[selectedEvent.status] }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }}/>{STR.status[selectedEvent.status]}
-                          </span>
-                          {can('Events.ManageStatus') && (STATUS_TRANSITIONS[selectedEvent.status] || []).map(next => (
-                            <button key={next} onClick={() => changeStatus(selectedEvent, next)}
-                              title={isAr ? "تغيير الحالة" : "Change status"}
-                              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "3px 10px", borderRadius: 20, cursor: "pointer",
-                                border: `1px dashed ${STATUS_COLORS[next]}80`, background: "transparent", color: STATUS_COLORS[next] }}>
-                              <Icon name="arrow" size={10}/> {STR.status[next]}
-                            </button>
-                          ))}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                        <StatusMenu
+                          status={selectedEvent.status}
+                          labels={STR.status}
+                          canChange={can('Events.ManageStatus')}
+                          isAr={isAr}
+                          onPick={next => changeStatus(selectedEvent, next)}
+                        />
                         {can('Events.Update') && (
                           <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11 }} onClick={() => setEditEventId(selectedEvent.id)}>
                             <Icon name="edit" size={12}/> {isAr ? "تعديل" : "Edit"}

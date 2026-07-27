@@ -926,6 +926,9 @@
      menus). They can't be translucent or the content behind bleeds through. */
   --modal-bg: #2a0616;
   --popover-bg: #33091e;
+  /* "Active" status: the maroon accent is unreadable on the maroon surfaces,
+     so dark mode uses plain white. */
+  --status-active: #ffffff;
 }
 
 html[data-theme="light"] {
@@ -963,6 +966,7 @@ html[data-theme="light"] {
 
   --modal-bg: #ffffff;
   --popover-bg: #ffffff;
+  --status-active: #8d0134;
 }
 
 :root {
