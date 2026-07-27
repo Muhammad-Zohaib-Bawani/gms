@@ -17,14 +17,17 @@ export const getFlightClasses = () => apiClient.get(ENDPOINTS.travel.flightClass
 export const getRoomTypes     = () => apiClient.get(ENDPOINTS.travel.roomTypes);
 export const getVehicleTypes  = () => apiClient.get(ENDPOINTS.travel.vehicleTypes);
 export const getHotels        = () => apiClient.get(ENDPOINTS.travel.hotels);
-export const getLocations     = () => apiClient.get(ENDPOINTS.travel.locations);
+export const getLocations     = () => apiClient.get(ENDPOINTS.lookups.locations);
+export const getAirports      = () => apiClient.get(ENDPOINTS.lookups.airports);
 
-// Fills every wizard dropdown by calling the six endpoints in parallel.
+// Fills every wizard dropdown by calling the lookup endpoints in parallel.
 export const getTravelLookups = async () => {
-  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations] = await Promise.all([
+  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports] = await Promise.all([
     getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(),
+    // ponytail: airports failing shouldn't blank every other dropdown (Promise.all is all-or-nothing).
+    getAirports().catch(() => []),
   ]);
-  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations };
+  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports };
 };
 
 // Prefill for edit — { flight?, accommodation?, transport? } (sections may be null).
@@ -42,3 +45,6 @@ export const createFlightClass = (name)          => apiClient.post(ENDPOINTS.tra
 export const createRoomType    = (name)          => apiClient.post(ENDPOINTS.travel.roomTypes,    { name });
 export const createVehicleType = (name)          => apiClient.post(ENDPOINTS.travel.vehicleTypes, { name });
 export const createHotel       = (name, address) => apiClient.post(ENDPOINTS.travel.hotels,       { name, address });
+
+// Airport: { code, city, country, continent, locationId? }.
+export const createAirport     = (body)          => apiClient.post(ENDPOINTS.lookups.airports, body);

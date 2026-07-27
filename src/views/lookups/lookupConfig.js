@@ -6,18 +6,22 @@ import {
   getFlightClasses, createFlightClass,
   getRoomTypes, createRoomType,
   getHotels, createHotel,
+  getAirports, createAirport,
   getLocations,
 } from '../../api/services/travelService';
 import {
   getVenueTypes, createVenueType,
   getElementTypes, createElementType,
 } from '../../api/services/venueService';
-import { createLocation } from '../../api/services/locationService';
 
 const NAME = { key: 'name', label: { en: 'Name', ar: 'الاسم' } };
 const NAME_AR = { key: 'nameAr', label: { en: 'Name (Arabic)', ar: 'الاسم بالعربية' } };
 const ADDRESS = { key: 'address', label: { en: 'Address', ar: 'العنوان' } };
 const CODE = { key: 'code', label: { en: 'Code', ar: 'الرمز' } };
+const CITY = { key: 'city', label: { en: 'City', ar: 'المدينة' } };
+const COUNTRY = { key: 'country', label: { en: 'Country', ar: 'الدولة' } };
+const CONTINENT = { key: 'continent', label: { en: 'Continent', ar: 'القارة' } };
+const TYPE = { key: 'type', label: { en: 'Type', ar: 'النوع' } };
 
 export const LOOKUP_DEFS = [
   {
@@ -41,15 +45,33 @@ export const LOOKUP_DEFS = [
     columns: [NAME, ADDRESS], fields: [{ ...NAME, required: true }, ADDRESS],
   },
   {
+    key: 'airports', label: { en: 'Airports', ar: 'المطارات' },
+    list: getAirports,
+    create: (f) => createAirport({
+      code: f.code, city: f.city, country: f.country, continent: f.continent,
+      locationId: f.locationId || null,
+    }),
+    columns: [CODE, CITY, COUNTRY, CONTINENT],
+    fields: [
+      { ...CODE, required: true },
+      { ...CITY, required: true },
+      COUNTRY,
+      CONTINENT,
+      // Optional link to a Location row — dropdown fed by GET /lookups/locations.
+      {
+        key: 'locationId', label: { en: 'Location', ar: 'الموقع' },
+        optionsFrom: getLocations, optionLabel: (x) => x.address,
+      },
+    ],
+  },
+  {
     key: 'locations', label: { en: 'Locations', ar: 'المواقع' },
     list: getLocations,
-    create: (f) => createLocation({ latitude: f.latitude, longitude: f.longitude, address: f.address }),
-    columns: [ADDRESS],
-    fields: [
-      ADDRESS,
-      { key: 'latitude', label: { en: 'Latitude', ar: 'خط العرض' }, required: true },
-      { key: 'longitude', label: { en: 'Longitude', ar: 'خط الطول' }, required: true },
-    ],
+    // Add flow is the Leaflet picker (map click → lat/lng + reverse-geocoded
+    // address), not a text form — so no `create`/`fields` here.
+    customAdd: 'location-picker',
+    columns: [ADDRESS, TYPE],
+    fields: [],
   },
   {
     key: 'venue-types', label: { en: 'Venue Types', ar: 'أنواع القاعات' },

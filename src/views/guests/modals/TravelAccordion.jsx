@@ -179,6 +179,11 @@ export default function TravelAccordion({
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
 
+  // Airports (GET /lookups/airports) back the flight From/To dropdowns. Field
+  // names/payload are unchanged — picking one fills departure/arrival Code+City.
+  const airports = lookups.airports || [];
+  const airportOpts = airports.map((a) => ({ value: a.code, label: `${a.code} — ${a.city}` }));
+
   const flightStatusOpts = [
     { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
     { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
@@ -212,6 +217,26 @@ export default function TravelAccordion({
         options={options}
         placeholder={selPlaceholder}
         isClearable={!required}
+      />
+    </div>
+  );
+
+  // One airport pick writes both the code and the city the FlightInput DTO wants.
+  const airportSel = (codeKey, cityKey, label) => (
+    <div>
+      <Label>{label}</Label>
+      <Select
+        value={travel.flight[codeKey]}
+        onChange={(v) => {
+          const a = airports.find((x) => x.code === v);
+          onChange((p) => ({
+            ...p,
+            flight: { ...p.flight, [codeKey]: v, [cityKey]: a ? a.city : '' },
+          }));
+        }}
+        options={airportOpts}
+        placeholder={selPlaceholder}
+        isClearable
       />
     </div>
   );
@@ -275,12 +300,8 @@ export default function TravelAccordion({
           </div>
         </>)}
         {grid(<>
-          {txt('flight', 'departureCode', isAr ? 'رمز المغادرة' : 'Departure Code', { ph: 'DOH' })}
-          {txt('flight', 'departureCity', isAr ? 'مدينة المغادرة' : 'Departure City', { ph: 'Doha' })}
-        </>)}
-        {grid(<>
-          {txt('flight', 'arrivalCode', isAr ? 'رمز الوصول' : 'Arrival Code', { ph: 'LHR' })}
-          {txt('flight', 'arrivalCity', isAr ? 'مدينة الوصول' : 'Arrival City', { ph: 'London' })}
+          {airportSel('departureCode', 'departureCity', isAr ? 'من' : 'From')}
+          {airportSel('arrivalCode', 'arrivalCity', isAr ? 'إلى' : 'To')}
         </>)}
         {grid(<>
           {sel('flight', 'flightTypeId', isAr ? 'نوع الرحلة' : 'Flight Type', flightTypeOpts, { required: true })}

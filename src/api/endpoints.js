@@ -80,6 +80,10 @@ export const ENDPOINTS = {
   // dedicated tables (travel + venue endpoints).
   lookups: {
     guestEnums: '/v1/lookups/enums/guest',
+    airports: '/v1/lookups/airports',
+    // GET (list) + POST (create) share the path; PUT edits one row.
+    locations: '/v1/lookups/locations',
+    locationById: (id) => `/v1/lookups/locations/${id}`,
   },
 
   venues: {
@@ -112,16 +116,11 @@ export const ENDPOINTS = {
     eventFlights: (eventId) => `/v1/travel/event/${eventId}/flights`,
     eventAccommodation: (eventId) => `/v1/travel/event/${eventId}/accommodation`,
     eventTransport: (eventId) => `/v1/travel/event/${eventId}/transport`,
-    flightTypes: '/v1/travel/lookups/flight-types',
-    flightClasses: '/v1/travel/lookups/flight-classes',
-    roomTypes: '/v1/travel/lookups/room-types',
-    vehicleTypes: '/v1/travel/lookups/vehicle-types',
-    hotels: '/v1/travel/lookups/hotels',
-    locations: '/v1/travel/lookups/locations',
-  },
-
-  locations: {
-    create: '/v1/Location',
+    flightTypes: '/v1/lookups/flight-types',
+    flightClasses: '/v1/lookups/flight-classes',
+    roomTypes: '/v1/lookups/room-types',
+    vehicleTypes: '/v1/lookups/vehicle-types',
+    hotels: '/v1/lookups/hotels',
   },
 
   meetings: {
