@@ -48,7 +48,7 @@ function ModalShell({ title, subtitle, onClose, children, width = 460 }) {
       background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
-      <div className="card glass" style={{ width, maxWidth: '94vw', maxHeight: '88vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="card glass modal-solid" style={{ width, maxWidth: '94vw', maxHeight: '88vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>{title}</div>
@@ -72,7 +72,7 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
       background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
-      <div className="card glass" style={{ width: 400, maxWidth: '94vw', padding: '28px 28px 24px' }}>
+      <div className="card glass modal-solid" style={{ width: 400, maxWidth: '94vw', padding: '28px 28px 24px' }}>
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', marginBottom: 10 }}>
           Delete user?
         </div>

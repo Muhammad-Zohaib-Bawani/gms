@@ -95,8 +95,13 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
       <div style={{ fontSize: 12, color: 'var(--ink-mute)', background: 'var(--surface-soft-2)', borderRadius: 8, padding: '10px 12px' }}>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>{isAr ? 'تنسيق CSV المطلوب:' : 'Expected CSV format:'}</div>
         <code style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>
-          FirstName, LastName, Email, GuestType, Organization, Tier, ArrivalDate, Hotel
+          FirstName, LastName, Email, GuestType, Organization, Nationality, Tier, ArrivalDate, DepartureDate, AccreditationRequired
         </code>
+        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--ink-faint)' }}>
+          {isAr
+            ? 'الاسم الأول والأخير مطلوبان فقط — البقية اختيارية. Nationality تُطابق بالاسم أو الرمز، وAccreditationRequired تقبل true/yes/required.'
+            : 'Only First/Last name are required — everything else is optional. Nationality is matched by name or code; AccreditationRequired accepts true/yes/required.'}
+        </div>
       </div>
     </Modal>
   );

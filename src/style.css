@@ -1598,10 +1598,11 @@ html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradien
   position: fixed; top: 16px; right: 16px; bottom: 16px;
   width: 480px;
   border-radius: var(--radius-lg);
-  background: rgba(20, 24, 50, 0.65);
+  background: var(--glass-bg-strong);
   border: 1px solid var(--glass-border-strong);
   backdrop-filter: blur(34px) saturate(1.4);
-  box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+  box-shadow: var(--glass-shadow);
+  color: var(--ink);
   z-index: 60; overflow: hidden;
   display: flex; flex-direction: column;
   animation: slideIn 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -2186,3 +2187,54 @@ html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
 .topbar .avatar .pic { background: #fff !important; color: #8d0134 !important; }
 .topbar .avatar .name { color: #fff !important; }
 .topbar .avatar .role { color: rgba(255,255,255,0.72) !important; }
+
+/* ===== Solid modal surface — always a plain white card, regardless of the
+   app's current dark/light theme. Add alongside .card/.glass or use on a
+   Dialog.Content root; !important beats both the .glass class background
+   and any inline background the element also carries. The custom-property
+   overrides make every var(--ink)/var(--glass-border)/etc. inside resolve
+   to a fixed light palette too, so text stays legible on the white card
+   without having to touch each modal's own markup. */
+.modal-solid {
+  background: #ffffff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  --ink: #1a1420;
+  --ink-dim: rgba(26,20,32,0.74);
+  --ink-mute: rgba(26,20,32,0.52);
+  --ink-faint: rgba(26,20,32,0.30);
+  --glass-border: rgba(20,10,20,0.10);
+  --glass-border-strong: rgba(20,10,20,0.18);
+  --glass-bg: rgba(20,10,20,0.04);
+  --glass-bg-strong: #ffffff;
+  --surface-soft: rgba(20,10,20,0.03);
+  --surface-soft-2: rgba(20,10,20,0.04);
+  --surface-soft-3: rgba(20,10,20,0.05);
+  --surface-soft-4: rgba(20,10,20,0.07);
+  --surface-soft-5: rgba(20,10,20,0.10);
+  --hover-tint: rgba(20,10,20,0.05);
+  --row-tint: rgba(20,10,20,0.02);
+  color: var(--ink);
+}
+
+/* ===== Scoped print (guest profile export / accreditation badge) =====
+   Toggle one of the two classes on <body> right before window.print() so
+   only that one printable subtree renders — everything else is hidden
+   (visibility, not display, so nesting depth doesn't matter) and the
+   target is stretched to fill the page. */
+@media print {
+  body.printing-profile *,
+  body.printing-badge * {
+    visibility: hidden !important;
+  }
+  body.printing-profile #print-profile-root,
+  body.printing-profile #print-profile-root *,
+  body.printing-badge #print-badge-root,
+  body.printing-badge #print-badge-root * {
+    visibility: visible !important;
+  }
+  #print-profile-root, #print-badge-root {
+    position: fixed !important; inset: 0 !important; overflow: visible !important;
+    background: #fff !important; color: #111 !important;
+  }
+}

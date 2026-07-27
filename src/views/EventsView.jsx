@@ -777,7 +777,7 @@ export default function EventsView({ lang }) {
       {/* New Event Modal */}
       {showNewEvent && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div className="card glass" style={{ width: 540, maxWidth: "92vw", padding: 0, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+          <div className="card glass modal-solid" style={{ width: 540, maxWidth: "92vw", padding: 0, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ margin: 0 }}>{STR.newEvent}</h3>
               <button className="icon-btn" onClick={() => setShowNewEvent(false)}><Icon name="close" size={14}/></button>
@@ -793,7 +793,7 @@ export default function EventsView({ lang }) {
       {/* New Session Modal */}
       {showNewSession && selectedEvent && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div className="card glass" style={{ width: 480, maxWidth: "92vw", padding: 0, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+          <div className="card glass modal-solid" style={{ width: 480, maxWidth: "92vw", padding: 0, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "18px 22px", borderBottom: "1px solid var(--glass-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h3 style={{ margin: 0 }}>{STR.newSession}</h3>
@@ -812,7 +812,7 @@ export default function EventsView({ lang }) {
       {/* Confirm Delete Modal */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}>
-          <div className="card glass" style={{ width: 360, padding: "22px 24px" }}>
+          <div className="card glass modal-solid" style={{ width: 360, padding: "22px 24px" }}>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
               {confirmDelete.type === "session" ? (isAr ? "حذف الجلسة؟" : "Delete session?") : STR.confirmDeleteEvent}
             </div>

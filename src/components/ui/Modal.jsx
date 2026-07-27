@@ -14,8 +14,6 @@ const contentBase = {
   maxWidth: '92vw',
   zIndex: 1001,
   display: 'flex', flexDirection: 'column',
-  background: 'var(--glass-bg, rgba(10,28,36,0.92))',
-  backdropFilter: 'blur(20px)',
   border: '1px solid var(--glass-border)',
   borderRadius: 16,
   boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
@@ -52,6 +50,7 @@ export default function Modal({
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
         <Dialog.Content
+          className="modal-solid"
           style={{ ...contentBase, width, ...(height ? { height, maxHeight } : { maxHeight }) }}
           onInteractOutside={e => e.preventDefault()}
           onFocusOutside={e => e.preventDefault()}

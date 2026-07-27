@@ -7,6 +7,7 @@ import Select from '../../../components/ui/Select';
 import toast from '../../../lib/toast';
 import { createGuest, updateGuest, getGuestEnums } from '../../../api/services/guestService';
 import { getTravelLookups, getGuestTravel, saveGuestTravel } from '../../../api/services/travelService';
+import { uploadImageFile } from '../../../api/services/uploadService';
 import { addDaysIso } from '../../../lib/date';
 import TravelAccordion, {
   EMPTY_TRAVEL,
@@ -39,16 +40,7 @@ function SectionLabel({ children }) {
 const EMPTY_GUEST = {
   firstName: '', lastName: '', email: '', guestType: 'delegate', organization: '',
   nationalityId: '', tier: 'delegate', invitationStatus: 'not_sent',
-  arrivalDate: '', departureDate: '', accreditationStatus: 'not_issued',
-};
-
-// At guest-creation time this tile is really asking "does this guest need
-// accreditation", not reporting on issuance (that happens later, in the
-// Accreditation module) — override the enum's raw "Issued"/"Not Issued"
-// wording accordingly, without touching the underlying status codes sent.
-const ACCRED_LABELS = {
-  not_issued: { en: 'Not Required', ar: 'غير مطلوب' },
-  issued: { en: 'Required', ar: 'مطلوب' },
+  arrivalDate: '', departureDate: '', photoUrl: '', accreditationRequired: false,
 };
 
 function guestToForm(g) {
@@ -64,7 +56,8 @@ function guestToForm(g) {
     invitationStatus: g.invitationStatus || 'not_sent',
     arrivalDate: g.arrivalDate || '',
     departureDate: g.departureDate || '',
-    accreditationStatus: g.accreditationStatus || 'not_issued',
+    photoUrl: g.photoUrl || '',
+    accreditationRequired: !!g.accreditationRequired,
   };
 }
 
@@ -80,7 +73,6 @@ const contentStyle = {
   width: 560, maxWidth: '94vw', height: 680, maxHeight: '92vh',
   zIndex: 1101,
   display: 'flex', flexDirection: 'column',
-  background: 'var(--glass-bg, rgba(10,28,36,0.97))',
   border: '1px solid var(--glass-border)',
   borderRadius: 16,
   boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
@@ -104,6 +96,7 @@ export default function GuestModal({
   const [guestSessions, setGuestSessions] = useState(new Set(guest?.sessionIds || []));
   const [step1Errors, setStep1Errors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [enums, setEnums] = useState({});
   // Raw GET /travel/guest/{id} response; hydrated into `travel` below once
   // travelLookups is available too (it may still be loading when this
@@ -169,6 +162,21 @@ export default function GuestModal({
     }));
   }
 
+  async function handlePhotoSelect(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const url = await uploadImageFile(file);
+      setF('photoUrl', url);
+    } catch (err) {
+      toast.fromError(err, isAr ? 'فشل تحميل الصورة' : 'Failed to upload photo');
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   function handleClose() {
     setStep(1);
     setStep1Errors({});
@@ -203,7 +211,8 @@ export default function GuestModal({
         tier: form.tier,
         arrivalDate: form.arrivalDate || null,
         departureDate: form.departureDate || null,
-        accreditationStatus: form.accreditationStatus,
+        photoUrl: form.photoUrl || null,
+        accreditationRequired: form.accreditationRequired,
         invitationTemplateId: templateId || null,
         sessionIds: Array.from(guestSessions),
       };
@@ -265,6 +274,7 @@ export default function GuestModal({
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
         <Dialog.Content
+          className="modal-solid"
           style={contentStyle}
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
@@ -316,6 +326,40 @@ export default function GuestModal({
             {/* STEP 1 — Personal Info */}
             {step === 1 && (
               <>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <div style={{ position: 'relative' }}>
+                    <div style={{
+                      width: 84, height: 84, borderRadius: '50%', overflow: 'hidden',
+                      background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+                      display: 'grid', placeItems: 'center',
+                    }}>
+                      {form.photoUrl ? (
+                        <img src={form.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Icon name="image" size={26} style={{ color: 'var(--ink-faint)' }} />
+                      )}
+                    </div>
+                    <label style={{
+                      position: 'absolute', bottom: -2, right: -2, width: 26, height: 26, borderRadius: '50%',
+                      background: 'var(--accent)', display: 'grid', placeItems: 'center', cursor: photoUploading ? 'default' : 'pointer',
+                      border: '2px solid var(--bg)', opacity: photoUploading ? 0.6 : 1,
+                    }}>
+                      <Icon name="upload" size={12} style={{ color: '#fff' }} />
+                      <input type="file" accept="image/*" onChange={handlePhotoSelect} disabled={photoUploading} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
+                    {photoUploading
+                      ? (isAr ? 'جارٍ التحميل…' : 'Uploading…')
+                      : (isAr ? 'صورة الوجه (اختياري)' : 'Facial photo')}
+                  </div>
+                  {form.photoUrl && !photoUploading && (
+                    <button onClick={() => setF('photoUrl', '')}
+                      style={{ background: 'none', border: 'none', color: 'var(--ink-mute)', fontSize: 11, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                      {isAr ? 'إزالة الصورة' : 'Remove photo'}
+                    </button>
+                  )}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {[
                     { label: isAr ? 'الاسم الأول' : 'First Name', key: 'firstName', ph: isAr ? 'مثال: خالد' : 'e.g. Khalid' },
@@ -416,15 +460,18 @@ export default function GuestModal({
                 <div>
                   <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 8 }}>{isAr ? 'الاعتماد' : 'Accreditation'}</label>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    {enums?.GuestAccreditationStatus?.filter((s) => s.code !== 'revoked').map((s) => (
-                      <div key={s.code} onClick={() => setF('accreditationStatus', s.code)}
+                    {[
+                      { value: false, en: 'Not Required', ar: 'غير مطلوب' },
+                      { value: true, en: 'Required', ar: 'مطلوب' },
+                    ].map((opt) => (
+                      <div key={String(opt.value)} onClick={() => setF('accreditationRequired', opt.value)}
                         style={{
                           flex: 1, padding: '12px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
-                          border: `1px solid ${form.accreditationStatus === s.code ? 'var(--accent)' : 'var(--glass-border)'}`,
-                          background: form.accreditationStatus === s.code ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
-                          fontSize: 13, textTransform: 'capitalize', fontWeight: form.accreditationStatus === s.code ? 600 : 400,
+                          border: `1px solid ${form.accreditationRequired === opt.value ? 'var(--accent)' : 'var(--glass-border)'}`,
+                          background: form.accreditationRequired === opt.value ? 'rgba(26,174,196,0.12)' : 'var(--surface-soft-2)',
+                          fontSize: 13, fontWeight: form.accreditationRequired === opt.value ? 600 : 400,
                         }}>
-                        {isAr ? (ACCRED_LABELS[s.code]?.ar ?? s.nameAr) : (ACCRED_LABELS[s.code]?.en ?? s.name)}
+                        {isAr ? opt.ar : opt.en}
                       </div>
                     ))}
                   </div>

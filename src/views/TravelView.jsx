@@ -5,22 +5,25 @@ import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { listGuests, updateGuest } from '../api/services/guestService.js';
 import { getEvent } from '../api/services/eventService.js';
-import { createBooking, getEventFlights, getEventAccommodation, getEventTransport, getTravelLookups } from '../api/services/travelService.js';
-import LocationPickerModal from '../components/ui/LocationPickerModal.jsx';
+import { getEventFlights, getEventAccommodation, getEventTransport, getGuestTravel, saveGuestTravel, getTravelLookups } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
+import TravelAccordion, {
+  EMPTY_TRAVEL,
+  hydrateTravel,
+  anyTravelEnabled,
+  buildTravelPayload,
+  validateTravel,
+} from './guests/modals/TravelAccordion.jsx';
 
 // One week of slack around the event's own start/end date — same rule as the
 // guest wizard's Arrival/Departure fields (GuestModal.jsx).
 const DATE_MARGIN_DAYS = 7;
 
-// ─── Static option lists for the edit / new-booking modals ───────────────────
-// ponytail: hardcoded — replace with the room-type/hotel/vehicle lookup APIs
-// when those modals move off placeholder options.
-const ROOM_TYPES = ['Deluxe King','Executive Suite','Premier Room','Junior Suite','Club Room'];
-const VEHICLES   = ['VIP Sedan','SUV','Minivan','Luxury Van'];
-const HOTEL_LIST = ['Sheraton Grand','Mondrian Doha','Mandarin Oriental','St. Regis','Four Seasons'];
+// Edit-modal "type" (flight/hotel/transfer, matches the tab) → the travel
+// state's section key (flight/accommodation/transport, matches the backend).
+const TYPE_TO_SECTION = { flight: 'flight', hotel: 'accommodation', transfer: 'transport' };
 
 function initialsFromName(name) {
   const parts = (name || '').trim().split(/\s+/);
@@ -39,11 +42,10 @@ function dateLabelFor(dateStr) {
 }
 
 // ─── API row → table row mappers (data comes from the travel tables) ─────────
-// Fields the DB doesn't carry (passport, visa/Hayya, room number, booking
-// status for hotels) render as '—'; we don't fabricate them.
 function mapFlight(r) {
   return {
     id: r.guestId,
+    guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
@@ -62,22 +64,22 @@ function mapFlight(r) {
 function mapHotel(r) {
   return {
     id: r.guestId,
+    guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
     hotel: r.hotel || '—',
     roomType: r.roomType || '—',
-    roomNumber: '—',
     checkIn: r.checkIn || '',
     checkOut: r.checkOut || '',
-    hotelStatus: '',
   };
 }
 
 function mapTransfer(r) {
   return {
     id: r.guestId + '-T',
+    guestId: r.guestId,
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
@@ -161,14 +163,8 @@ export default function TravelView({ lang, activeEventId }) {
     noResults:'لا توجد نتائج',filterAll:'الكل',searchPh:'بحث…',
     edit:'تعديل',save:'حفظ',cancel:'إلغاء',editFlight:'تعديل بيانات الرحلة',
     editHotel:'تعديل بيانات الفندق',editTransfer:'تعديل بيانات النقل',
-    from:'من',to:'إلى',flightNum:'رقم الرحلة',passport:'رقم الجواز',
-    hayyaStatus:'حالة التأشيرة',flightStatus:'حالة الرحلة',
-    hotel:'الفندق',roomType:'نوع الغرفة',roomNum:'رقم الغرفة',
-    hotelStatus:'حالة الحجز',vehicle:'المركبة',driver:'السائق',
-    pickupLoc:'موقع الاستلام',dropoffLoc:'موقع التوصيل',transferStatus:'الحالة',
     cancel2:'إلغاء',newBookingTitle:'حجز جديد',
     selectGuest:'اختر الضيف',bookingDetails:'تفاصيل الحجز',
-    bookingTypes:['رحلة جوية','فندق','نقل بري'],
     guestSearch:'بحث عن ضيف…',back:'السابق',next:'التالي',
   } : {
     title:['Services',''],
@@ -194,14 +190,8 @@ export default function TravelView({ lang, activeEventId }) {
     noResults:'No results',filterAll:'All',searchPh:'Search…',
     edit:'Edit',save:'Save',cancel:'Cancel',editFlight:'Edit flight details',
     editHotel:'Edit hotel booking',editTransfer:'Edit ground transfer',
-    from:'From',to:'To',flightNum:'Flight number',passport:'Passport number',
-    hayyaStatus:'Visa / Hayya status',flightStatus:'Booking status',
-    hotel:'Hotel',roomType:'Room type',roomNum:'Room number',
-    hotelStatus:'Booking status',vehicle:'Vehicle type',driver:'Driver',
-    pickupLoc:'Pickup location',dropoffLoc:'Drop-off location',transferStatus:'Status',
     cancel2:'Cancel',newBookingTitle:'New Booking',
     selectGuest:'Select Guest',bookingDetails:'Booking Details',
-    bookingTypes:['Flight','Hotel','Ground Transfer'],
     guestSearch:'Search guest…',back:'Back',next:'Next',
   };
 
@@ -215,7 +205,7 @@ export default function TravelView({ lang, activeEventId }) {
       .catch(() => setGuests([]));
   }, [activeEventId]);
 
-  // ── Active event's own start/end date — bounds every New Booking date field,
+  // ── Active event's own start/end date — bounds every travel date field,
   //    same as the guest wizard's TravelAccordion (event window ± margin for
   //    Arrival/Departure, raw event window for everything else).
   const [activeEvent, setActiveEvent] = useState(null);
@@ -229,12 +219,31 @@ export default function TravelView({ lang, activeEventId }) {
   const dateWindowMax = useMemo(() => addDaysIso(activeEvent?.endDate, DATE_MARGIN_DAYS) || undefined, [activeEvent?.endDate]);
 
   // ── Per-tab booking rows — each tab pulls from its own table via its own
-  //    endpoint, lazily on first open, refetched when the active event changes.
+  //    endpoint, lazily on first open, refetched when the active event changes
+  //    (or explicitly via refetchTab() after a save touches that tab).
   const [flightRows, setFlightRows]     = useState([]);
   const [hotelRows, setHotelRows]       = useState([]);
   const [transferRows, setTransferRows] = useState([]);
   const [tabLoading, setTabLoading]     = useState({ 0: false, 1: false, 2: false });
   const loadedRef = useRef({ 0: null, 1: null, 2: null }); // tab -> eventId already loaded
+
+  const TAB_SVC = [getEventFlights, getEventAccommodation, getEventTransport];
+  const TAB_SET = [setFlightRows, setHotelRows, setTransferRows];
+  const TAB_MAP = [mapFlight, mapHotel, mapTransfer];
+
+  async function refetchTab(idx) {
+    if (!activeEventId) return;
+    setTabLoading(l => ({ ...l, [idx]: true }));
+    try {
+      const res = await TAB_SVC[idx](activeEventId);
+      TAB_SET[idx]((res || []).map(TAB_MAP[idx]));
+      loadedRef.current[idx] = activeEventId;
+    } catch (err) {
+      toast.fromError(err);
+    } finally {
+      setTabLoading(l => ({ ...l, [idx]: false }));
+    }
+  }
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0);
@@ -247,110 +256,101 @@ export default function TravelView({ lang, activeEventId }) {
       return;
     }
     if (loadedRef.current[activeTab] === activeEventId) return; // already loaded
-    const svc     = [getEventFlights, getEventAccommodation, getEventTransport][activeTab];
-    const setRows = [setFlightRows, setHotelRows, setTransferRows][activeTab];
-    const map     = [mapFlight, mapHotel, mapTransfer][activeTab];
-    setTabLoading(l => ({ ...l, [activeTab]: true }));
-    svc(activeEventId)
-      .then(res => { loadedRef.current[activeTab] = activeEventId; setRows((res || []).map(map)); })
-      .catch(err => { toast.fromError(err); setRows([]); })
-      .finally(() => setTabLoading(l => ({ ...l, [activeTab]: false })));
+    refetchTab(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeEventId]);
 
   const [fSearch, setFSearch]         = useState('');
   const [fFlight, setFFlight]         = useState('All');
   const [hSearch, setHSearch]         = useState('');
   const [hHotel, setHHotel]           = useState('All hotels');
-  const [hStatus, setHStatus]         = useState('All');
   const [tSearch, setTSearch]         = useState('');
   const [tStatus, setTStatus]         = useState('All');
 
-  // ── Edit modal ──────────────────────────────────────────────────────────────
-  const [editModal, setEditModal] = useState(null); // { type, id, form }
+  // ── Travel lookups (shared by New Booking + every Edit modal) ──────────────
+  const [travelLookups, setTravelLookups] = useState({});
+  useEffect(() => {
+    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
+  }, []);
 
-  function openEdit(type, row) {
-    setEditModal({ type, id: row.id, form: { ...row } });
+  // ── Edit modal — reuses the exact same field set as New Booking/the guest
+  //    wizard (TravelAccordion's per-section fields), scoped to one section.
+  const [editModal, setEditModal] = useState(null); // { type, guestId, guestName, form } | { type, loading: true }
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  async function openEdit(type, row) {
+    setEditModal({ type, guestId: row.guestId, guestName: row.name, form: null, loading: true });
+    try {
+      const data = await getGuestTravel(row.guestId);
+      const section = hydrateTravel(data)[TYPE_TO_SECTION[type]];
+      setEditModal({ type, guestId: row.guestId, guestName: row.name, form: { ...section, enabled: true }, loading: false });
+    } catch (err) {
+      toast.fromError(err);
+      setEditModal(null);
+    }
   }
   function closeEdit() { setEditModal(null); }
-  function setForm(patch) {
+  function setEditField(patch) {
     setEditModal(m => ({ ...m, form: { ...m.form, ...(typeof patch === 'function' ? patch(m.form) : patch) } }));
   }
-  function saveEdit() {
-    const { type, id, form } = editModal;
-    if (type === 'flight')   setFlightRows(rows   => rows.map(r => r.id === id ? { ...r, ...form } : r));
-    if (type === 'hotel')    setHotelRows(rows    => rows.map(r => r.id === id ? { ...r, ...form } : r));
-    if (type === 'transfer') setTransferRows(rows => rows.map(r => r.id === id ? { ...r, ...form } : r));
-    closeEdit();
+  async function saveEdit() {
+    const { type, guestId, form } = editModal;
+    const section = TYPE_TO_SECTION[type];
+    setSavingEdit(true);
+    try {
+      const travelObj = { ...EMPTY_TRAVEL, [section]: { ...form, enabled: true } };
+      await saveGuestTravel(guestId, buildTravelPayload(travelObj));
+      await refetchTab({ flight: 0, hotel: 1, transfer: 2 }[type]);
+      closeEdit();
+      toast.success(isAr ? 'تم الحفظ بنجاح' : 'Saved successfully');
+    } catch (err) {
+      toast.fromError(err, isAr ? 'حدث خطأ أثناء الحفظ' : 'Error saving changes');
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   // ── New booking modal ───────────────────────────────────────────────────────
   const [showNewBooking, setShowNewBooking] = useState(false);
   const [bookStep, setBookStep] = useState(1);
-  const [bookType, setBookType] = useState(0);
   const [bookGuest, setBookGuest] = useState('');
   const [bookGuestId, setBookGuestId] = useState('');
   const [guestSearch, setGuestSearch] = useState('');
   const [bookings, setBookings] = useState([]);
   const [savingBooking, setSavingBooking] = useState(false);
-  // Same field set as the guest wizard's TravelAccordion (Services step) —
-  // both write to the same Travel_logistics table, so the fields must match.
-  // arrivalDate/departureDate live on the Guest entity, not Travel_logistics —
-  // included here purely so this form matches the wizard's Flight section;
-  // saveBooking() below persists them via a separate guest update.
-  const EMPTY_FLIGHT_DATA = { flightNumber:'', flightTypeId:'', flightClassId:'', flightDate:'', flightDeparture:'', flightArrival:'', arrivalDate:'', departureDate:'' };
-  const EMPTY_HOTEL_DATA  = { hotelId:'', roomTypeId:'', hotelCheckIn:'', hotelCheckOut:'' };
-  // pickup/dropoff hold { id, label } once picked on the map — null until then.
-  const EMPTY_TRANSFER_DATA = { vehicleTypeId:'', driverName:'', pickup:null, dropoff:null, pickupTime:'', estimatedArrival:'' };
+  const [travel, setTravel] = useState(EMPTY_TRAVEL);
+  const [arrivalDate, setArrivalDate] = useState('');
+  const [departureDate, setDepartureDate] = useState('');
 
-  const [flightData, setFlightData] = useState(EMPTY_FLIGHT_DATA);
-  const [hotelData, setHotelData]   = useState(EMPTY_HOTEL_DATA);
-  const [transferData, setTransferData] = useState(EMPTY_TRANSFER_DATA);
-  const [showLocationPicker, setShowLocationPicker] = useState(null); // 'pickup' | 'dropoff' | null
-  const [travelLookups, setTravelLookups] = useState({});
-
-  useEffect(() => {
-    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
-  }, []);
+  function handleArrivalChange(v) {
+    setArrivalDate(v);
+    if (departureDate && v && departureDate < v) setDepartureDate('');
+  }
 
   function openNewBooking() {
-    setShowNewBooking(true); setBookStep(1); setBookType(0);
+    setShowNewBooking(true); setBookStep(1);
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
-    setFlightData(EMPTY_FLIGHT_DATA);
-    setHotelData(EMPTY_HOTEL_DATA);
-    setTransferData(EMPTY_TRANSFER_DATA);
+    setTravel(EMPTY_TRAVEL);
+    setArrivalDate(''); setDepartureDate('');
   }
 
   async function saveBooking() {
     if (!activeEventId || !bookGuestId) return;
-    const base = { eventId: activeEventId, guestId: bookGuestId };
-    // bookType: 0 = Flight, 1 = Hotel, 2 = Ground Transfer — matches the
-    // backend's Core.Constants.BookingTypes string values.
-    const roomType = (travelLookups.roomTypes || []).find(r => r.id === hotelData.roomTypeId)?.name || null;
-    const vehicleType = (travelLookups.vehicleTypes || []).find(v => v.id === transferData.vehicleTypeId)?.name || null;
-    const payload = bookType === 0 ? {
-      ...base, bookingType: 'flight',
-      flightNumber: flightData.flightNumber, flightTypeId: flightData.flightTypeId || null, flightClassId: flightData.flightClassId || null,
-      flightDate: flightData.flightDate || null, flightDeparture: flightData.flightDeparture, flightArrival: flightData.flightArrival,
-    } : bookType === 1 ? {
-      ...base, bookingType: 'hotel',
-      hotelId: hotelData.hotelId || null, roomType,
-      hotelCheckIn: hotelData.hotelCheckIn || null, hotelCheckOut: hotelData.hotelCheckOut || null,
-    } : {
-      ...base, bookingType: 'byRoad',
-      vehicleType, driverName: transferData.driverName,
-      pickupLocationId: transferData.pickup?.id || null,
-      dropoffLocationId: transferData.dropoff?.id || null,
-      pickupTime: transferData.pickupTime || null, estimatedArrival: transferData.estimatedArrival || null,
-    };
+    const travelErr = validateTravel(travel, isAr);
+    if (travelErr) { toast.error(travelErr); return; }
+    if (!anyTravelEnabled(travel)) {
+      toast.error(isAr ? 'فعّل قسمًا واحدًا على الأقل' : 'Enable at least one section');
+      return;
+    }
 
     setSavingBooking(true);
     try {
-      await createBooking(payload);
+      await saveGuestTravel(bookGuestId, buildTravelPayload(travel));
 
-      // Arrival/Departure live on the Guest entity, not Travel_logistics — a
+      // Arrival/Departure live on the Guest entity, not the travel tables — a
       // partial PUT would null out every other guest field, so send the full
       // guest object back with just these two overridden.
-      if (bookType === 0 && (flightData.arrivalDate || flightData.departureDate)) {
+      if (arrivalDate || departureDate) {
         const g = guests.find(x => x.id === bookGuestId);
         if (g) {
           try {
@@ -358,11 +358,10 @@ export default function TravelView({ lang, activeEventId }) {
               firstName: g.firstName, lastName: g.lastName, email: g.email || null,
               guestType: g.guestType, organization: g.organization || null,
               nationalityId: g.nationalityId || null, tier: g.tier,
-              invitationStatus: g.invitationStatus,
-              arrivalDate: flightData.arrivalDate || g.arrivalDate || null,
-              departureDate: flightData.departureDate || g.departureDate || null,
-              flightNumber: g.flightNumber || null, hotel: g.hotel || null,
-              accreditationStatus: g.accreditationStatus,
+              arrivalDate: arrivalDate || g.arrivalDate || null,
+              departureDate: departureDate || g.departureDate || null,
+              photoUrl: g.photoUrl || null,
+              accreditationRequired: !!g.accreditationRequired,
               invitationTemplateId: g.invitationTemplateId || null,
               sessionIds: g.sessionIds || [],
             });
@@ -372,7 +371,13 @@ export default function TravelView({ lang, activeEventId }) {
         }
       }
 
-      setBookings(prev => [...prev, { guest: bookGuest, type: STR.bookingTypes[bookType] }]);
+      // The tabs touched by this save may not be the active one — invalidate
+      // all three so switching tabs picks up fresh data, and refetch the one
+      // that's visible right now.
+      loadedRef.current = { 0: null, 1: null, 2: null };
+      await refetchTab(activeTab);
+
+      setBookings(prev => [...prev, { guest: bookGuest }]);
       setShowNewBooking(false); setBookStep(1); setBookGuest(''); setBookGuestId(''); setGuestSearch('');
       toast.success(isAr ? 'تم إنشاء الحجز بنجاح' : 'Booking created successfully');
     } catch (err) {
@@ -392,9 +397,8 @@ export default function TravelView({ lang, activeEventId }) {
   const filteredHotels = useMemo(() => hotelRows.filter(r => {
     const s = !hSearch || r.name.toLowerCase().includes(hSearch.toLowerCase()) || r.hotel.toLowerCase().includes(hSearch.toLowerCase());
     const h = hHotel === 'All hotels' || r.hotel === hHotel;
-    const st = hStatus === 'All' || r.hotelStatus === hStatus;
-    return s && h && st;
-  }), [hotelRows, hSearch, hHotel, hStatus]);
+    return s && h;
+  }), [hotelRows, hSearch, hHotel]);
 
   const filteredTransfers = useMemo(() => transferRows.filter(r => {
     const s = !tSearch || r.name.toLowerCase().includes(tSearch.toLowerCase()) || r.driver.toLowerCase().includes(tSearch.toLowerCase());
@@ -410,7 +414,6 @@ export default function TravelView({ lang, activeEventId }) {
   // ── Styles ──────────────────────────────────────────────────────────────────
   const iSt = { width:'100%', background:'var(--surface-soft-3)', border:'1px solid var(--glass-border)', borderRadius:8, padding:'8px 11px', color:'var(--ink)', fontSize:13, boxSizing:'border-box', outline:'none' };
   const lSt = { display:'block', fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4 };
-  const selSt = { ...iSt, appearance:'none', backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23718fa3' stroke-width='1.6'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E\")", backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', paddingRight:28 };
 
   const editBtn = (type, row) => (
     <button className="icon-btn" title={STR.edit} onClick={() => openEdit(type, row)} style={{ opacity:0.6 }}>
@@ -425,6 +428,21 @@ export default function TravelView({ lang, activeEventId }) {
       return isNaN(d) ? '—' : ad(d);
     } catch { return '—'; }
   };
+
+  const grid2 = (children) => (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>{children}</div>
+  );
+
+  const flightStatusOpts = [
+    { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
+    { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
+  ];
+  const tripStatusOpts = [
+    { value: 'scheduled', label: isAr ? 'مجدول' : 'Scheduled' },
+    { value: 'completed', label: isAr ? 'مكتمل' : 'Completed' },
+    { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
+  ];
+  const mapOpts = (arr, labelFn) => (arr || []).map((x) => ({ value: x.id, label: labelFn(x) }));
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -452,9 +470,8 @@ export default function TravelView({ lang, activeEventId }) {
       <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
         {[
           { icon:'flight', val:fmtN(flightRows.filter(f=>f.flightStatus==='confirmed').length),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:0 },
-          { icon:'hotel',  val:fmtN(hotelRows.filter(h=>h.hotelStatus==='confirmed').length), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:1 },
+          { icon:'hotel',  val:fmtN(hotelRows.length), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:1 },
           { icon:'car',    val:fmtN(transferRows.length),   label:STR.kpi.transfers,  help:STR.kpi.transfersH, tab:2 },
-          // { icon:'badge',  val:fmtN(hayyaCounts.approved), label:STR.kpi.visas, help:STR.kpi.visasH, tab:1 },
         ].map((k, i) => (
           <div key={i} className="card" style={{ padding:'14px 18px', cursor:'pointer' }}
             onClick={() => setActiveTab(k.tab)}
@@ -533,11 +550,7 @@ export default function TravelView({ lang, activeEventId }) {
             <SearchInput value={hSearch} onChange={setHSearch} placeholder={STR.searchPh}/>
             <select className="select" value={hHotel} onChange={e => setHHotel(e.target.value)}>
               <option value="All hotels">{isAr?'جميع الفنادق':'All hotels'}</option>
-              {HOTEL_LIST.map(h => <option key={h} value={h}>{h}</option>)}
-            </select>
-            <select className="select" value={hStatus} onChange={e => setHStatus(e.target.value)}>
-              <option value="All">{STR.filterAll}</option>
-              {['confirmed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
+              {(travelLookups.hotels||[]).map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
             </select>
           </div>
           <div className="card" style={{ padding:0 }}>
@@ -546,7 +559,7 @@ export default function TravelView({ lang, activeEventId }) {
                 <th>{STR.cols.guest}</th><th>{STR.cols.hotel}</th>
                 <th>{STR.cols.room}</th><th>{STR.cols.checkIn}</th>
                 <th>{STR.cols.checkOut}</th><th>{STR.cols.nights}</th>
-                <th>{STR.cols.status}</th><th style={{ width:40 }}/>
+                <th style={{ width:40 }}/>
               </tr></thead>
               <tbody>
                 {filteredHotels.map(r => (
@@ -561,20 +574,16 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </td>
                     <td style={{ fontSize:12, fontWeight:500 }}>{r.hotel}</td>
-                    <td>
-                      <div style={{ fontSize:12 }}>{r.roomType}</div>
-                      <div style={{ fontSize:11, color:'var(--ink-mute)', fontFamily:'var(--mono)' }}>{isAr?`غرفة ${ad(r.roomNumber)}`:`Room ${r.roomNumber}`}</div>
-                    </td>
+                    <td><span style={{ fontSize:12 }}>{r.roomType}</span></td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.checkIn}</span></td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{r.checkOut}</span></td>
                     <td><span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--ink-mute)' }}>{nights(r)}</span></td>
-                    <td><StatusChip status={r.hotelStatus} label={STR.statuses[r.hotelStatus]}/></td>
                     <td>{editBtn('hotel', r)}</td>
                   </tr>
                 ))}
-                {tabLoading[1] && <SkeletonRows cols={8} />}
+                {tabLoading[1] && <SkeletonRows cols={7} />}
                 {!tabLoading[1] && filteredHotels.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
                 )}
               </tbody>
             </table>
@@ -640,162 +649,148 @@ export default function TravelView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* ── Edit Modal ── */}
+      {/* ── Edit Modal — same field set as New Booking / the guest wizard, ──
+             scoped to just the one section (flight/hotel/transfer) being edited. */}
       {editModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass" style={{ width:440, maxWidth:'92vw', padding:0, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
-            {/* Header */}
+          <div className="card glass modal-solid" style={{ width:460, maxWidth:'92vw', padding:0, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
             <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
                 <div style={{ fontWeight:600, fontSize:14 }}>
                   {editModal.type==='flight' ? STR.editFlight : editModal.type==='hotel' ? STR.editHotel : STR.editTransfer}
                 </div>
-                <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2 }}>{editModal.form.name}</div>
+                <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2 }}>{editModal.guestName}</div>
               </div>
               <button className="icon-btn" onClick={closeEdit}><Icon name="close" size={14}/></button>
             </div>
 
-            {/* Body */}
-            <div style={{ padding:'18px 20px', overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:14 }}>
-
-              {/* Flight edit form */}
-              {editModal.type === 'flight' && (
-                <>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <label style={lSt}>{STR.flightNum}</label>
-                      <input style={iSt} value={editModal.form.flight} onChange={e => setForm({ flight:e.target.value })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.passport}</label>
-                      <input style={iSt} value={editModal.form.passport} onChange={e => setForm({ passport:e.target.value })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.from}</label>
-                      <input style={iSt} value={editModal.form.from} onChange={e => setForm({ from:e.target.value })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.to}</label>
-                      <input style={iSt} value={editModal.form.to} onChange={e => setForm({ to:e.target.value })}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.cols.date}</label>
-                    <input type="date" style={iSt} value={editModal.form.date} onChange={e => setForm({ date:e.target.value, dateLabel: new Date(e.target.value).toLocaleDateString('en-US',{month:'short',day:'numeric'}) })}/>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <label style={lSt}>{STR.hayyaStatus}</label>
-                      <select style={selSt} value={editModal.form.hayyaStatus} onChange={e => setForm({ hayyaStatus:e.target.value })}>
-                        {['approved','submitted','pending','rejected'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.flightStatus}</label>
-                      <select style={selSt} value={editModal.form.flightStatus} onChange={e => setForm({ flightStatus:e.target.value })}>
-                        {['confirmed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </>
+            <div style={{ padding:'18px 20px', overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:12 }}>
+              {editModal.loading && (
+                <div style={{ textAlign:'center', color:'var(--ink-mute)', fontSize:13, padding:'20px 0' }}>…</div>
               )}
 
-              {/* Hotel edit form */}
-              {editModal.type === 'hotel' && (
-                <>
-                  <div>
-                    <label style={lSt}>{STR.hotel}</label>
-                    <select style={selSt} value={editModal.form.hotel} onChange={e => setForm({ hotel:e.target.value })}>
-                      {HOTEL_LIST.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <label style={lSt}>{STR.roomType}</label>
-                      <select style={selSt} value={editModal.form.roomType} onChange={e => setForm({ roomType:e.target.value })}>
-                        {ROOM_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
+              {!editModal.loading && editModal.type === 'flight' && (() => {
+                const f = editModal.form;
+                const set = (k, v) => setEditField({ [k]: v });
+                return (
+                  <>
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'رمز المغادرة' : 'Departure Code'}</label><input style={iSt} value={f.departureCode} onChange={e => set('departureCode', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'مدينة المغادرة' : 'Departure City'}</label><input style={iSt} value={f.departureCity} onChange={e => set('departureCity', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'رمز الوصول' : 'Arrival Code'}</label><input style={iSt} value={f.arrivalCode} onChange={e => set('arrivalCode', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'مدينة الوصول' : 'Arrival City'}</label><input style={iSt} value={f.arrivalCity} onChange={e => set('arrivalCity', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'} *</label>
+                        <Select value={f.flightTypeId} onChange={v => set('flightTypeId', v)} options={mapOpts(travelLookups.flightTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'الدرجة' : 'Flight Class'}</label>
+                        <Select value={f.flightClassId} onChange={v => set('flightClassId', v)} options={mapOpts(travelLookups.flightClasses, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'رقم الرحلة' : 'Flight No.'}</label><input style={iSt} value={f.flightNumber} onChange={e => set('flightNumber', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'المقعد' : 'Seat'}</label><input style={iSt} value={f.seat} onChange={e => set('seat', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'وقت الإقلاع' : 'Departure Time'}</label>
+                        <DateField value={f.startTime} onChange={v => set('startTime', v||'')} showTime minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD HH:mm"/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'وقت الوصول' : 'Arrival Time'}</label>
+                        <DateField value={f.endTime} onChange={v => set('endTime', v||'')} showTime minDate={f.startTime || eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD HH:mm"/>
+                      </div>
+                    </>)}
+                    <div><label style={lSt}>{isAr ? 'حالة الحجز' : 'Booking Status'}</label>
+                      <Select value={f.status} onChange={v => set('status', v)} options={flightStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
                     </div>
-                    <div>
-                      <label style={lSt}>{STR.roomNum}</label>
-                      <input style={iSt} value={editModal.form.roomNumber} onChange={e => setForm({ roomNumber:e.target.value })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.cols.checkIn}</label>
-                      <input type="date" style={iSt} value={editModal.form.checkIn} onChange={e => setForm({ checkIn:e.target.value })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.cols.checkOut}</label>
-                      <input type="date" style={iSt} value={editModal.form.checkOut} onChange={e => setForm({ checkOut:e.target.value })}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.hotelStatus}</label>
-                    <select style={selSt} value={editModal.form.hotelStatus} onChange={e => setForm({ hotelStatus:e.target.value })}>
-                      {['confirmed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
+                  </>
+                );
+              })()}
 
-              {/* Transfer edit form */}
-              {editModal.type === 'transfer' && (
-                <>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <label style={lSt}>{STR.vehicle}</label>
-                      <select style={selSt} value={editModal.form.vehicle} onChange={e => setForm({ vehicle:e.target.value })}>
-                        {VEHICLES.map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.driver}</label>
-                      <input style={iSt} value={editModal.form.driver} onChange={e => setForm({ driver:e.target.value })}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.pickupLoc}</label>
-                    <input style={iSt} value={editModal.form.pickup} onChange={e => setForm({ pickup:e.target.value })}/>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.dropoffLoc}</label>
-                    <input style={iSt} value={editModal.form.dropoff} onChange={e => setForm({ dropoff:e.target.value })}/>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div>
-                      <label style={lSt}>{STR.cols.date}</label>
-                      <input type="date" style={iSt} value={editModal.form.date} onChange={e => setForm({ date:e.target.value, dateLabel: new Date(e.target.value).toLocaleDateString('en-US',{month:'short',day:'numeric'}) })}/>
-                    </div>
-                    <div>
-                      <label style={lSt}>{STR.cols.time}</label>
-                      <input type="time" style={iSt} value={editModal.form.time} onChange={e => setForm({ time:e.target.value })}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.transferStatus}</label>
-                    <select style={selSt} value={editModal.form.transferStatus} onChange={e => setForm({ transferStatus:e.target.value })}>
-                      {['scheduled','completed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
+              {!editModal.loading && editModal.type === 'hotel' && (() => {
+                const f = editModal.form;
+                const set = (k, v) => setEditField({ [k]: v });
+                return (
+                  <>
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'الفندق' : 'Hotel'} *</label>
+                        <Select value={f.hotelId} onChange={v => set('hotelId', v)} options={mapOpts(travelLookups.hotels, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'نوع الغرفة' : 'Room Type'}</label>
+                        <Select value={f.roomTypeId} onChange={v => set('roomTypeId', v)} options={mapOpts(travelLookups.roomTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{STR.cols.checkIn}</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkOut}</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={f.checkIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'إطلالة الغرفة' : 'Room View'}</label><input style={iSt} value={f.roomView} onChange={e => set('roomView', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'عدد النزلاء' : 'Guest Count'}</label><input type="number" style={iSt} value={f.guestCount} onChange={e => set('guestCount', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'اسم الكونسيرج' : 'Concierge Name'}</label><input style={iSt} value={f.conciergeName} onChange={e => set('conciergeName', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'هاتف الكونسيرج' : 'Concierge Phone'}</label><input style={iSt} value={f.conciergePhone} onChange={e => set('conciergePhone', e.target.value)}/></div>
+                    </>)}
+                  </>
+                );
+              })()}
+
+              {!editModal.loading && editModal.type === 'transfer' && (() => {
+                const f = editModal.form;
+                const set = (k, v) => setEditField({ [k]: v });
+                return (
+                  <>
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'موقع الاستلام' : 'Pickup Location'}</label>
+                        <Select value={f.pickupLocationId} onChange={v => set('pickupLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'موقع التوصيل' : 'Dropoff Location'}</label>
+                        <Select value={f.dropoffLocationId} onChange={v => set('dropoffLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'نوع المركبة' : 'Vehicle Type'}</label>
+                        <Select value={f.vehicleTypeId} onChange={v => set('vehicleTypeId', v)} options={mapOpts(travelLookups.vehicleTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
+                      <div><label style={lSt}>{isAr ? 'رقم اللوحة' : 'Plate'}</label><input style={iSt} value={f.plate} onChange={e => set('plate', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'اسم السائق' : 'Driver Name'}</label><input style={iSt} value={f.driverName} onChange={e => set('driverName', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'هاتف السائق' : 'Driver Phone'}</label><input style={iSt} value={f.driverPhone} onChange={e => set('driverPhone', e.target.value)}/></div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'تقييم السائق' : 'Driver Rating'}</label><input type="number" style={iSt} value={f.driverRating} onChange={e => set('driverRating', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'حالة الرحلة' : 'Trip Status'}</label>
+                        <Select value={f.tripStatus} onChange={v => set('tripStatus', v)} options={tripStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      </div>
+                    </>)}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'}</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'الوصول المتوقع' : 'Est. Arrival'}</label><DateField value={f.estimatedArrival} onChange={v => set('estimatedArrival', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                    </>)}
+                  </>
+                );
+              })()}
             </div>
 
-            {/* Footer */}
             <div style={{ padding:'12px 20px', borderTop:'1px solid var(--glass-border)', display:'flex', gap:8, justifyContent:'flex-end' }}>
               <button className="btn" onClick={closeEdit}>{STR.cancel}</button>
-              <button className="btn primary" onClick={saveEdit}>
-                <Icon name="check" size={13}/> {STR.save}
+              <button className="btn primary" onClick={saveEdit} disabled={savingEdit || editModal.loading}>
+                <Icon name="check" size={13}/> {savingEdit ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : STR.save}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── New Booking Modal ── */}
+      {/* ── New Booking Modal — step 1 picks the guest, step 2 is the exact
+             same TravelAccordion as the guest creation wizard. ── */}
       {showNewBooking && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass" style={{ width:500, maxWidth:'90vw', padding:0, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
+          <div className="card glass modal-solid" style={{ width:520, maxWidth:'92vw', padding:0, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
             <div style={{ padding:'18px 22px', borderBottom:'1px solid var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
                 <h3 style={{ margin:0 }}>{STR.newBookingTitle}</h3>
@@ -815,137 +810,55 @@ export default function TravelView({ lang, activeEventId }) {
 
             <div style={{ padding:'20px 22px', overflowY:'auto', flex:1, display:'flex', flexDirection:'column', gap:16 }}>
               {bookStep === 1 && (
-                <>
-                  <div>
-                    <label style={lSt}>{isAr?'نوع الحجز':'Booking type'}</label>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-                      {[{icon:'flight',label:STR.bookingTypes[0]},{icon:'hotel',label:STR.bookingTypes[1]},{icon:'car',label:STR.bookingTypes[2]}].map((bt, i) => (
-                        <div key={i} onClick={() => setBookType(i)}
-                          style={{ padding:'12px 10px', borderRadius:10, cursor:'pointer', textAlign:'center',
-                            border:`1px solid ${bookType===i?'var(--accent)':'var(--glass-border)'}`,
-                            background:bookType===i?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
-                          <Icon name={bt.icon} size={18} style={{ color:bookType===i?'var(--accent)':'var(--ink-mute)', display:'block', margin:'0 auto 6px' }}/>
-                          <div style={{ fontSize:12, fontWeight:bookType===i?600:400 }}>{bt.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{isAr?'الضيف':'Guest'}</label>
-                    <input placeholder={STR.guestSearch} value={guestSearch} onChange={e => setGuestSearch(e.target.value)} style={iSt}/>
-                    <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto', marginTop:8 }}>
-                      {filteredGuests.map(g => {
-                        const fullName = guestFullName(g);
-                        const selected = bookGuestId === g.id;
-                        return (
-                          <div key={g.id} onClick={() => {
-                            setBookGuestId(g.id); setBookGuest(fullName);
-                            setFlightData(d => ({ ...d, arrivalDate: g.arrivalDate || '', departureDate: g.departureDate || '' }));
-                          }}
-                            style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
-                              border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
-                              background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
-                            <Avatar initials={initialsFromName(fullName)} size={28} tier={g.tier}/>
-                            <div>
-                              <div style={{ fontSize:13, fontWeight:500 }}>{fullName}</div>
-                              <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
-                            </div>
-                            {selected && <Icon name="check" size={13} style={{ marginLeft:'auto', color:'var(--accent)' }}/>}
+                <div>
+                  <label style={lSt}>{isAr?'الضيف':'Guest'}</label>
+                  <input placeholder={STR.guestSearch} value={guestSearch} onChange={e => setGuestSearch(e.target.value)} style={iSt}/>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:280, overflowY:'auto', marginTop:8 }}>
+                    {filteredGuests.map(g => {
+                      const fullName = guestFullName(g);
+                      const selected = bookGuestId === g.id;
+                      return (
+                        <div key={g.id} onClick={() => {
+                          setBookGuestId(g.id); setBookGuest(fullName);
+                          setArrivalDate(g.arrivalDate || ''); setDepartureDate(g.departureDate || '');
+                        }}
+                          style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                            border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
+                            background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
+                          <Avatar initials={initialsFromName(fullName)} size={28} tier={g.tier} src={g.photoUrl}/>
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:500 }}>{fullName}</div>
+                            <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
                           </div>
-                        );
-                      })}
-                      {filteredGuests.length === 0 && (
-                        <div style={{ padding:'12px', textAlign:'center', color:'var(--ink-mute)', fontSize:12 }}>
-                          {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
+                          {selected && <Icon name="check" size={13} style={{ marginLeft:'auto', color:'var(--accent)' }}/>}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {bookStep === 2 && bookType === 0 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{isAr ? 'تاريخ الوصول' : 'Arrival Date'}</label>
-                      <DateField value={flightData.arrivalDate} onChange={v => setFlightData(d=>({...d,arrivalDate:v||'',departureDate:d.departureDate && v && d.departureDate<v ? '' : d.departureDate}))}
-                        minDate={dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
-                    </div>
-                    <div><label style={lSt}>{isAr ? 'تاريخ المغادرة' : 'Departure Date'}</label>
-                      <DateField value={flightData.departureDate} onChange={v => setFlightData(d=>({...d,departureDate:v||''}))}
-                        minDate={flightData.arrivalDate || dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
-                    </div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.from}</label><input style={iSt} value={flightData.flightDeparture} onChange={e => setFlightData(d=>({...d,flightDeparture:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.to}</label><input style={iSt} value={flightData.flightArrival} onChange={e => setFlightData(d=>({...d,flightArrival:e.target.value}))}/></div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'}</label>
-                      <Select value={flightData.flightTypeId} onChange={v => setFlightData(d=>({...d,flightTypeId:v}))}
-                        options={(travelLookups.flightTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
-                    </div>
-                    <div><label style={lSt}>{isAr ? 'الدرجة' : 'Flight Class'}</label>
-                      <Select value={flightData.flightClassId} onChange={v => setFlightData(d=>({...d,flightClassId:v}))}
-                        options={(travelLookups.flightClasses||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
-                    </div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.flightNum}</label><input style={iSt} value={flightData.flightNumber} onChange={e => setFlightData(d=>({...d,flightNumber:e.target.value}))}/></div>
-                    <div><label style={lSt}>{STR.cols.date}</label><DateField value={flightData.flightDate} onChange={v => setFlightData(d=>({...d,flightDate:v||''}))} minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD"/></div>
+                      );
+                    })}
+                    {filteredGuests.length === 0 && (
+                      <div style={{ padding:'12px', textAlign:'center', color:'var(--ink-mute)', fontSize:12 }}>
+                        {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {bookStep === 2 && bookType === 1 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.hotel}</label>
-                      <Select value={hotelData.hotelId} onChange={v => setHotelData(d=>({...d,hotelId:v}))}
-                        options={(travelLookups.hotels||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
-                    </div>
-                    <div><label style={lSt}>{STR.roomType}</label>
-                      <Select value={hotelData.roomTypeId} onChange={v => setHotelData(d=>({...d,roomTypeId:v}))}
-                        options={(travelLookups.roomTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
-                    </div>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.cols.checkIn}</label><DateField value={hotelData.hotelCheckIn} onChange={v => setHotelData(d=>({...d,hotelCheckIn:v||''}))} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
-                    <div><label style={lSt}>{STR.cols.checkOut}</label><DateField value={hotelData.hotelCheckOut} onChange={v => setHotelData(d=>({...d,hotelCheckOut:v||''}))} minDate={hotelData.hotelCheckIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
-                  </div>
-                </div>
-              )}
-
-              {bookStep === 2 && bookType === 2 && (
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{STR.vehicle}</label>
-                      <Select value={transferData.vehicleTypeId} onChange={v => setTransferData(d=>({...d,vehicleTypeId:v}))}
-                        options={(travelLookups.vehicleTypes||[]).map(x=>({value:x.id,label:x.name}))} placeholder={isAr?'— اختر —':'— Select —'}/>
-                    </div>
-                    <div><label style={lSt}>{STR.driver}</label><input style={iSt} value={transferData.driverName} onChange={e => setTransferData(d=>({...d,driverName:e.target.value}))}/></div>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.pickupLoc}</label>
-                    <button type="button" onClick={() => setShowLocationPicker('pickup')}
-                      style={{ ...iSt, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: transferData.pickup ? 'var(--ink)' : 'var(--ink-mute)' }}>
-                      <Icon name="venue" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
-                      {transferData.pickup?.label || (isAr ? 'اختر على الخريطة…' : 'Pick on map…')}
-                    </button>
-                  </div>
-                  <div>
-                    <label style={lSt}>{STR.dropoffLoc}</label>
-                    <button type="button" onClick={() => setShowLocationPicker('dropoff')}
-                      style={{ ...iSt, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: transferData.dropoff ? 'var(--ink)' : 'var(--ink-mute)' }}>
-                      <Icon name="venue" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
-                      {transferData.dropoff?.label || (isAr ? 'اختر على الخريطة…' : 'Pick on map…')}
-                    </button>
-                  </div>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                    <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'}</label><DateField value={transferData.pickupTime} onChange={v => setTransferData(d=>({...d,pickupTime:v||''}))} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
-                    <div><label style={lSt}>{isAr ? 'الوصول المتوقع' : 'Est. Arrival'}</label><DateField value={transferData.estimatedArrival} onChange={v => setTransferData(d=>({...d,estimatedArrival:v||''}))} showTime minDate={transferData.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
-                  </div>
-                </div>
+              {bookStep === 2 && (
+                <TravelAccordion
+                  travel={travel}
+                  onChange={setTravel}
+                  lookups={travelLookups}
+                  isAr={isAr}
+                  arrivalDate={arrivalDate}
+                  departureDate={departureDate}
+                  onArrivalDateChange={handleArrivalChange}
+                  onDepartureDateChange={setDepartureDate}
+                  dateMinDate={dateWindowMin}
+                  dateMaxDate={dateWindowMax}
+                  dateOpenTo={eventMinDate}
+                  eventMinDate={eventMinDate}
+                  eventMaxDate={eventMaxDate}
+                />
               )}
             </div>
 
@@ -966,13 +879,6 @@ export default function TravelView({ lang, activeEventId }) {
           </div>
         </div>
       )}
-
-      <LocationPickerModal
-        open={!!showLocationPicker}
-        onClose={() => setShowLocationPicker(null)}
-        lang={lang}
-        onSelect={(loc) => setTransferData(d => ({ ...d, [showLocationPicker]: loc }))}
-      />
     </div>
   );
 }

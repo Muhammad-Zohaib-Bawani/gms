@@ -1,24 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar } from '../components/UI.jsx';
+import { Avatar, TierChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
-import { GUESTS } from '../data/mockData.js';
-
-const TIERS = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
+import toast from '../lib/toast';
+import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
+import { getGuestEnums } from '../api/services/lookupService';
 
 const TIER_COLOR = {
-  VVIP: '#e0b864', VIP: '#a78bda', Speaker: 'var(--accent)',
-  Delegate: '#5abf6e', Press: '#e08a7e', Observer: 'var(--ink-mute)',
+  vvip: '#e0b864', vip: '#a78bda', speaker: 'var(--accent)',
+  delegate: '#5abf6e', press: '#e08a7e', observer: 'var(--ink-mute)',
 };
 
-export default function AccreditationView({ lang }) {
+export default function AccreditationView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
 
   const STR = isAr ? {
-    title: 'الاعتماد', sub: 'إصدار وإدارة بطاقات الاعتماد للضيوف',
-    total: 'إجمالي الضيوف', issued: 'صدر الاعتماد', pending: 'قيد الانتظار',
+    title: 'الاعتماد', sub: 'إصدار وإدارة بطاقات الاعتماد للضيوف الذين يتطلبون اعتمادًا',
+    total: 'يتطلب اعتماد', issued: 'صدر الاعتماد', pending: 'قيد الانتظار',
     rate: 'نسبة الإصدار', searchPlaceholder: 'بحث عن ضيف أو جهة…',
     filterAll: 'الكل', filterIssued: 'صادر', filterPending: 'قيد الانتظار',
     tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', tier: 'الفئة',
@@ -27,13 +27,14 @@ export default function AccreditationView({ lang }) {
     revokeSelected: 'سحب المحدد', selected: 'محدد',
     issueAll: 'إصدار الكل', clearSel: 'إلغاء التحديد',
     badgeIssued: 'صادر', badgePending: 'قيد الانتظار',
-    noResults: 'لا توجد نتائج', country: 'الدولة', role: 'الدور',
+    noResults: 'لا يوجد ضيوف يتطلبون اعتمادًا', country: 'الدولة', role: 'الدور',
     previewTitle: 'معاينة بطاقة الاعتماد',
     close: 'إغلاق', printBadge: 'طباعة البطاقة',
-    badgeNo: 'رقم الاعتماد', forum: 'منتدى الدوحة 23',
+    badgeNo: 'رقم الاعتماد',
+    noEvent: 'يرجى اختيار فعالية أولاً لعرض الاعتماد.',
   } : {
-    title: 'Accreditation', sub: 'Issue and manage accreditation badges for guests',
-    total: 'Total guests', issued: 'Badges issued', pending: 'Pending',
+    title: 'Accreditation', sub: 'Issue and manage accreditation badges for guests who require one',
+    total: 'Require accreditation', issued: 'Badges issued', pending: 'Pending',
     rate: 'Issue rate', searchPlaceholder: 'Search guest or organisation…',
     filterAll: 'All', filterIssued: 'Issued', filterPending: 'Pending',
     tierAll: 'All tiers', guest: 'Guest', org: 'Organisation', tier: 'Tier',
@@ -42,16 +43,17 @@ export default function AccreditationView({ lang }) {
     revokeSelected: 'Revoke selected', selected: 'selected',
     issueAll: 'Issue all pending', clearSel: 'Clear selection',
     badgeIssued: 'Issued', badgePending: 'Pending',
-    noResults: 'No results', country: 'Country', role: 'Role',
+    noResults: 'No guests require accreditation', country: 'Country', role: 'Role',
     previewTitle: 'Accreditation Badge Preview',
     close: 'Close', printBadge: 'Print badge',
-    badgeNo: 'Badge No.', forum: '23rd Doha Forum',
+    badgeNo: 'Badge No.',
+    noEvent: 'Select an active event to view accreditation.',
   };
 
-  // Local accreditation state so user can issue/revoke
-  const [accrMap, setAccrMap] = useState(() =>
-    Object.fromEntries(GUESTS.map(g => [g.id, g.accreditation]))
-  );
+  const [guests, setGuests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [enums, setEnums] = useState({});
+  const [busyIds, setBusyIds] = useState(new Set());
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -60,33 +62,69 @@ export default function AccreditationView({ lang }) {
   const [previewGuest, setPreviewGuest] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'cards'
 
-  const filtered = useMemo(() => GUESTS.filter(g => {
-    const accr = accrMap[g.id];
-    const matchSearch = !search || g.name.toLowerCase().includes(search.toLowerCase()) || g.org.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === 'all' || accr === statusFilter;
+  useEffect(() => { getGuestEnums().then(setEnums).catch(() => {}); }, []);
+
+  const loadGuests = useCallback(async () => {
+    if (!activeEventId) { setGuests([]); return; }
+    setLoading(true);
+    try {
+      const r = await listGuests({ eventId: activeEventId, pageSize: 500 });
+      setGuests((r?.items || []).filter(g => g.accreditationRequired));
+    } catch {
+      // keep previous list
+    } finally {
+      setLoading(false);
+    }
+  }, [activeEventId]);
+
+  useEffect(() => { loadGuests(); }, [loadGuests]);
+
+  const tierOpts = enums?.GuestTier || [];
+
+  const filtered = useMemo(() => guests.filter(g => {
+    const isIssued = g.accreditationStatus === 'issued';
+    const matchSearch = !search
+      || g.fullName?.toLowerCase().includes(search.toLowerCase())
+      || g.organization?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'all' || (statusFilter === 'issued' ? isIssued : !isIssued);
     const matchTier = tierFilter === 'all' || g.tier === tierFilter;
     return matchSearch && matchStatus && matchTier;
-  }), [search, statusFilter, tierFilter, accrMap]);
+  }), [guests, search, statusFilter, tierFilter]);
 
-  const totalIssued = Object.values(accrMap).filter(v => v === 'issued').length;
-  const totalPending = Object.values(accrMap).filter(v => v === 'pending').length;
-  const issueRate = Math.round((totalIssued / GUESTS.length) * 100);
+  const totalIssued = guests.filter(g => g.accreditationStatus === 'issued').length;
+  const totalPending = guests.length - totalIssued;
+  const issueRate = guests.length ? Math.round((totalIssued / guests.length) * 100) : 0;
 
-  function setAccr(id, val) {
-    setAccrMap(prev => ({ ...prev, [id]: val }));
+  function withBusy(id, fn) {
+    setBusyIds(prev => new Set(prev).add(id));
+    return fn().finally(() => setBusyIds(prev => { const n = new Set(prev); n.delete(id); return n; }));
   }
 
-  function bulkSet(val) {
-    setAccrMap(prev => {
-      const next = { ...prev };
-      sel.forEach(id => { next[id] = val; });
-      return next;
-    });
+  function setLocalStatus(id, status) {
+    setGuests(prev => prev.map(g => g.id === id ? { ...g, accreditationStatus: status } : g));
+  }
+
+  async function issue(id) {
+    return withBusy(id, () => issueAccreditation(id))
+      .then(() => { setLocalStatus(id, 'issued'); toast.success(isAr ? 'تم إصدار الاعتماد' : 'Accreditation issued'); })
+      .catch(err => toast.fromError(err, isAr ? 'تعذر إصدار الاعتماد' : 'Failed to issue accreditation'));
+  }
+
+  async function revoke(id) {
+    return withBusy(id, () => revokeAccreditation(id))
+      .then(() => { setLocalStatus(id, 'not_issued'); toast.success(isAr ? 'تم سحب الاعتماد' : 'Accreditation revoked'); })
+      .catch(err => toast.fromError(err, isAr ? 'تعذر سحب الاعتماد' : 'Failed to revoke accreditation'));
+  }
+
+  async function bulkSet(action) {
+    const ids = Array.from(sel);
     setSel(new Set());
+    await Promise.all(ids.map(id => action === 'issue' ? issue(id) : revoke(id)));
   }
 
-  function issueAllPending() {
-    setAccrMap(prev => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, 'issued'])));
+  async function issueAllPending() {
+    const ids = filtered.filter(g => g.accreditationStatus !== 'issued').map(g => g.id);
+    await Promise.all(ids.map(issue));
   }
 
   function toggleSel(id) {
@@ -106,10 +144,10 @@ export default function AccreditationView({ lang }) {
   const someSelected = sel.size > 0;
 
   const kpis = [
-    { label: STR.total,   value: ad(GUESTS.length), icon: 'guests',  color: 'var(--ink)' },
-    { label: STR.issued,  value: ad(totalIssued),   icon: 'badge',   color: 'var(--accent)' },
-    { label: STR.pending, value: ad(totalPending),  icon: 'clock',   color: '#e0b864' },
-    { label: STR.rate,    value: `${ad(issueRate)}%`, icon: 'chart', color: '#5abf6e' },
+    { label: STR.total,   value: ad(guests.length),  icon: 'guests',  color: 'var(--ink)' },
+    { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--accent)' },
+    { label: STR.pending, value: ad(totalPending),   icon: 'clock',   color: '#e0b864' },
+    { label: STR.rate,    value: `${ad(issueRate)}%`, icon: 'reports', color: '#5abf6e' },
   ];
 
   const chipStyle = issued => ({
@@ -134,253 +172,256 @@ export default function AccreditationView({ lang }) {
         </div>
       </div>
 
-      {/* KPI row */}
-      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
-        {kpis.map(k => (
-          <div key={k.label} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--surface-soft-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon name={k.icon} size={18} style={{ color: k.color }}/>
+      {!activeEventId ? (
+        <div style={{ marginBottom: 14, padding: '10px 16px', borderRadius: 10, background: 'rgba(224,196,126,0.1)', border: '1px solid rgba(224,196,126,0.3)', fontSize: 13, color: '#e0c47e' }}>
+          <Icon name="info" size={14}/> {STR.noEvent}
+        </div>
+      ) : (
+        <>
+          {/* KPI row */}
+          <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 18 }}>
+            {kpis.map(k => (
+              <div key={k.label} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--surface-soft-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name={k.icon} size={18} style={{ color: k.color }}/>
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1.1 }}>{k.value}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 2 }}>{k.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress bar */}
+          <div className="card" style={{ padding: '12px 18px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>{isAr ? 'تقدم الإصدار' : 'Issue progress'}</span>
+              <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                {ad(totalIssued)} / {ad(guests.length)} — {ad(issueRate)}%
+              </span>
             </div>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: k.color, lineHeight: 1.1 }}>{k.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 2 }}>{k.label}</div>
+            <div style={{ height: 7, borderRadius: 10, background: 'var(--surface-soft-3)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 10, width: `${issueRate}%`, background: 'linear-gradient(90deg, var(--accent), #5abf6e)', transition: 'width 0.4s ease' }}/>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Progress bar */}
-      <div className="card" style={{ padding: '12px 18px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{isAr ? 'تقدم الإصدار' : 'Issue progress'}</span>
-          <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-            {ad(totalIssued)} / {ad(GUESTS.length)} — {ad(issueRate)}%
-          </span>
-        </div>
-        <div style={{ height: 7, borderRadius: 10, background: 'var(--surface-soft-3)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', borderRadius: 10, width: `${issueRate}%`, background: 'linear-gradient(90deg, var(--accent), #5abf6e)', transition: 'width 0.4s ease' }}/>
-        </div>
-      </div>
+          {/* Tabs */}
+          <div className="tabs" style={{ marginBottom: 14 }}>
+            <button className={`tab${viewMode === 'list' ? ' active' : ''}`} onClick={() => setViewMode('list')}>
+              <Icon name="guests" size={13}/> {isAr ? 'قائمة' : 'List'}
+            </button>
+            <button className={`tab${viewMode === 'cards' ? ' active' : ''}`} onClick={() => setViewMode('cards')}>
+              <Icon name="badge" size={13}/> {isAr ? 'بطاقات' : 'Cards'}
+            </button>
+          </div>
 
-      {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: 14 }}>
-        <button className={`tab${viewMode === 'list' ? ' active' : ''}`} onClick={() => setViewMode('list')}>
-          <Icon name="guests" size={13}/> {isAr ? 'قائمة' : 'List'}
-        </button>
-        <button className={`tab${viewMode === 'cards' ? ' active' : ''}`} onClick={() => setViewMode('cards')}>
-          <Icon name="badge" size={13}/> {isAr ? 'بطاقات' : 'Cards'}
-        </button>
-      </div>
+          {/* Filters */}
+          <div className="filter-bar" style={{ marginBottom: 12 }}>
+            <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
+              <Icon name="search" size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-mute)', pointerEvents: 'none' }}/>
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder={STR.searchPlaceholder}
+                style={{ width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '8px 12px 8px 34px', color: 'var(--ink)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}/>
+            </div>
+            <select className="select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="all">{STR.filterAll}</option>
+              <option value="issued">{STR.filterIssued}</option>
+              <option value="pending">{STR.filterPending}</option>
+            </select>
+            <select className="select" value={tierFilter} onChange={e => setTierFilter(e.target.value)}>
+              <option value="all">{STR.tierAll}</option>
+              {tierOpts.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}
+            </select>
+          </div>
 
-      {/* Filters */}
-      <div className="filter-bar" style={{ marginBottom: 12 }}>
-        <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
-          <Icon name="search" size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-mute)', pointerEvents: 'none' }}/>
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder={STR.searchPlaceholder}
-            style={{ width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '8px 12px 8px 34px', color: 'var(--ink)', fontSize: 13, boxSizing: 'border-box', outline: 'none' }}/>
-        </div>
-        <select className="select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="all">{STR.filterAll}</option>
-          <option value="issued">{STR.filterIssued}</option>
-          <option value="pending">{STR.filterPending}</option>
-        </select>
-        <select className="select" value={tierFilter} onChange={e => setTierFilter(e.target.value)}>
-          <option value="all">{STR.tierAll}</option>
-          {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </div>
+          {/* Bulk action bar */}
+          {someSelected && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}>
+                {ad(sel.size)} {STR.selected}
+              </span>
+              <div style={{ flex: 1 }}/>
+              <button className="btn primary" style={{ fontSize: 12 }} onClick={() => bulkSet('issue')}>
+                <Icon name="badge" size={13}/> {STR.issueSelected}
+              </button>
+              <button className="btn" style={{ fontSize: 12, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={() => bulkSet('revoke')}>
+                <Icon name="x" size={13}/> {STR.revokeSelected}
+              </button>
+              <button className="btn" style={{ fontSize: 12 }} onClick={() => setSel(new Set())}>
+                {STR.clearSel}
+              </button>
+            </div>
+          )}
 
-      {/* Bulk action bar */}
-      {someSelected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}>
-            {ad(sel.size)} {STR.selected}
-          </span>
-          <div style={{ flex: 1 }}/>
-          <button className="btn primary" style={{ fontSize: 12 }} onClick={() => bulkSet('issued')}>
-            <Icon name="badge" size={13}/> {STR.issueSelected}
-          </button>
-          <button className="btn" style={{ fontSize: 12, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={() => bulkSet('pending')}>
-            <Icon name="x" size={13}/> {STR.revokeSelected}
-          </button>
-          <button className="btn" style={{ fontSize: 12 }} onClick={() => setSel(new Set())}>
-            {STR.clearSel}
-          </button>
-        </div>
-      )}
-
-      {/* List view */}
-      {viewMode === 'list' && (
-        <div className="card" style={{ padding: 0 }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 36, paddingRight: 0 }}>
-                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
-                    style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
-                </th>
-                <th>{STR.guest}</th>
-                <th>{STR.org}</th>
-                <th>{STR.tier}</th>
-                <th>{STR.arrival}</th>
-                <th>{STR.status}</th>
-                <th>{STR.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(g => {
-                const accr = accrMap[g.id];
-                const isIssued = accr === 'issued';
-                const isChecked = sel.has(g.id);
-                return (
-                  <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
-                    <td style={{ paddingRight: 0 }}>
-                      <input type="checkbox" checked={isChecked} onChange={() => toggleSel(g.id)}
+          {/* List view */}
+          {viewMode === 'list' && (
+            <div className="card" style={{ padding: 0 }}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 36, paddingRight: 0 }}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll}
                         style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <Avatar initials={g.initials} size={30} tier={g.tier}/>
-                        <div>
-                          <button onClick={() => setPreviewGuest(g)}
-                            style={{ fontSize: 13, fontWeight: 500, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: isAr ? 'right' : 'left' }}>
-                            {g.name}
-                          </button>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.role} · {g.country}</div>
+                    </th>
+                    <th>{STR.guest}</th>
+                    <th>{STR.org}</th>
+                    <th>{STR.tier}</th>
+                    <th>{STR.arrival}</th>
+                    <th>{STR.status}</th>
+                    <th>{STR.actions}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading && (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: '32px', fontSize: 13 }}>…</td></tr>
+                  )}
+                  {!loading && filtered.map(g => {
+                    const isIssued = g.accreditationStatus === 'issued';
+                    const isChecked = sel.has(g.id);
+                    const busy = busyIds.has(g.id);
+                    const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
+                    return (
+                      <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
+                        <td style={{ paddingRight: 0 }}>
+                          <input type="checkbox" checked={isChecked} onChange={() => toggleSel(g.id)}
+                            style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                            <Avatar initials={initials} size={30} tier={g.tier} src={g.photoUrl}/>
+                            <div>
+                              <button onClick={() => setPreviewGuest(g)}
+                                style={{ fontSize: 13, fontWeight: 500, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: isAr ? 'right' : 'left' }}>
+                                {g.fullName}
+                              </button>
+                              <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.guestType} · {g.nationalityName}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
+                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
+                        </td>
+                        <td><TierChip tier={g.tier} lang={lang}/></td>
+                        <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td>
+                        <td>
+                          <span style={chipStyle(isIssued)}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864', flexShrink: 0 }}/>
+                            {isIssued ? STR.badgeIssued : STR.badgePending}
+                          </span>
+                        </td>
+                        <td>
+                          {isIssued ? (
+                            <button className="btn" disabled={busy} style={{ fontSize: 11, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '4px 12px' }}
+                              onClick={() => revoke(g.id)}>
+                              <Icon name="x" size={12}/> {STR.revoke}
+                            </button>
+                          ) : (
+                            <button className="btn primary" disabled={busy} style={{ fontSize: 11, padding: '4px 12px' }}
+                              onClick={() => issue(g.id)}>
+                              <Icon name="badge" size={12}/> {STR.issue}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!loading && filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: '32px', fontSize: 13 }}>
+                        {STR.noResults}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Cards view */}
+          {viewMode === 'cards' && (
+            filtered.length === 0 ? (
+              <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+                {STR.noResults}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
+                {filtered.map(g => {
+                  const isIssued = g.accreditationStatus === 'issued';
+                  const busy = busyIds.has(g.id);
+                  const tierCol = TIER_COLOR[g.tier] || 'var(--ink-mute)';
+                  const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
+                  return (
+                    <div key={g.id} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
+                      onClick={() => setPreviewGuest(g)}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
+                      <div style={{ height: 5, background: tierCol }}/>
+                      <div style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                          <Avatar initials={initials} size={38} tier={g.tier} src={g.photoUrl}/>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.fullName}</div>
+                            <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.guestType}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10 }}>{g.nationalityName} · {g.arrivalDate || '—'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <TierChip tier={g.tier} lang={lang}/>
+                          <span style={chipStyle(isIssued)}>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
+                            {isIssued ? STR.badgeIssued : STR.badgePending}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
-                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.org}</div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: TIER_COLOR[g.tier] || 'var(--ink-mute)' }}>
-                        {g.tier}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrival}</td>
-                    <td>
-                      <span style={chipStyle(isIssued)}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864', flexShrink: 0 }}/>
-                        {isIssued ? STR.badgeIssued : STR.badgePending}
-                      </span>
-                    </td>
-                    <td>
-                      {isIssued ? (
-                        <button className="btn" style={{ fontSize: 11, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '4px 12px' }}
-                          onClick={() => setAccr(g.id, 'pending')}>
-                          <Icon name="x" size={12}/> {STR.revoke}
-                        </button>
-                      ) : (
-                        <button className="btn primary" style={{ fontSize: 11, padding: '4px 12px' }}
-                          onClick={() => setAccr(g.id, 'issued')}>
-                          <Icon name="badge" size={12}/> {STR.issue}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: '32px', fontSize: 13 }}>
-                    {STR.noResults}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Cards view */}
-      {viewMode === 'cards' && (
-        filtered.length === 0 ? (
-          <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
-            {STR.noResults}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
-            {filtered.map(g => {
-              const accr = accrMap[g.id];
-              const isIssued = accr === 'issued';
-              const tierCol = TIER_COLOR[g.tier] || 'var(--ink-mute)';
-              return (
-                <div key={g.id} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                  onClick={() => setPreviewGuest(g)}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
-                  {/* Tier colour strip */}
-                  <div style={{ height: 5, background: tierCol }}/>
-                  {/* Card body */}
-                  <div style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <Avatar initials={g.initials} size={38} tier={g.tier}/>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</div>
-                        <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.role}</div>
+                      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
+                        onClick={e => e.stopPropagation()}>
+                        {isIssued ? (
+                          <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '3px 10px' }}
+                            onClick={() => revoke(g.id)}>
+                            <Icon name="x" size={11}/> {STR.revoke}
+                          </button>
+                        ) : (
+                          <button className="btn primary" disabled={busy} style={{ fontSize: 10.5, padding: '3px 10px' }}
+                            onClick={() => issue(g.id)}>
+                            <Icon name="badge" size={11}/> {STR.issue}
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.org}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10 }}>{g.country} · {g.arrival}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: tierCol }}>{g.tier}</span>
-                      <span style={chipStyle(isIssued)}>
-                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
-                        {isIssued ? STR.badgeIssued : STR.badgePending}
-                      </span>
-                    </div>
-                  </div>
-                  {/* Footer action */}
-                  <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
-                    onClick={e => e.stopPropagation()}>
-                    {isIssued ? (
-                      <button className="btn" style={{ fontSize: 10.5, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '3px 10px' }}
-                        onClick={() => setAccr(g.id, 'pending')}>
-                        <Icon name="x" size={11}/> {STR.revoke}
-                      </button>
-                    ) : (
-                      <button className="btn primary" style={{ fontSize: 10.5, padding: '3px 10px' }}
-                        onClick={() => setAccr(g.id, 'issued')}>
-                        <Icon name="badge" size={11}/> {STR.issue}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )
+                  );
+                })}
+              </div>
+            )
+          )}
+        </>
       )}
 
       {/* Badge preview modal */}
       {previewGuest && (() => {
-        const accr = accrMap[previewGuest.id];
-        const isIssued = accr === 'issued';
+        const isIssued = previewGuest.accreditationStatus === 'issued';
         const tierCol = TIER_COLOR[previewGuest.tier] || 'var(--ink-mute)';
+        const initials = ((previewGuest.firstName?.[0] || '') + (previewGuest.lastName?.[0] || '')).toUpperCase();
+        const busy = busyIds.has(previewGuest.id);
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="card glass" style={{ width: 440, padding: 0, overflow: 'hidden' }}>
-              {/* Modal header */}
+            <div className="card glass modal-solid" style={{ width: 440, padding: 0, overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{STR.previewTitle}</span>
                 <button className="icon-btn" onClick={() => setPreviewGuest(null)}><Icon name="close" size={14}/></button>
               </div>
 
-              {/* Badge card design */}
               <div style={{ padding: '24px 32px' }}>
                 <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}>
-                  {/* Badge top strip */}
                   <div style={{ height: 8, background: tierCol }}/>
-                  {/* Badge body */}
                   <div style={{ padding: '20px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
-                      <Avatar initials={previewGuest.initials} size={56} tier={previewGuest.tier}/>
+                      <Avatar initials={initials} size={56} tier={previewGuest.tier} src={previewGuest.photoUrl}/>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2, marginBottom: 4 }}>{previewGuest.name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 2 }}>{previewGuest.role}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{previewGuest.org}</div>
+                        <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2, marginBottom: 4 }}>{previewGuest.fullName}</div>
+                        <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 2 }}>{previewGuest.guestType}</div>
+                        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{previewGuest.organization}</div>
                       </div>
                     </div>
 
@@ -389,16 +430,14 @@ export default function AccreditationView({ lang }) {
                         {previewGuest.tier}
                       </span>
                       <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)' }}>
-                        {previewGuest.country}
+                        {previewGuest.nationalityName}
                       </span>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 18 }}>
                       {[
-                        [isAr ? 'رقم الاعتماد' : 'Badge No.', previewGuest.id],
-                        [isAr ? 'رقم الرحلة' : 'Flight', previewGuest.flight],
-                        [isAr ? 'تاريخ الوصول' : 'Arrival', previewGuest.arrival],
-                        [isAr ? 'الفندق' : 'Hotel', previewGuest.hotel],
+                        // [STR.badgeNo, previewGuest.id?.slice(0, 8)],
+                        [STR.arrival, previewGuest.arrivalDate],
                       ].map(([lbl, val]) => (
                         <div key={lbl}>
                           <div style={{ fontSize: 9.5, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 1 }}>{lbl}</div>
@@ -409,9 +448,6 @@ export default function AccreditationView({ lang }) {
 
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)', gap: 12 }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: 'var(--ink-faint)', fontStyle: 'italic', marginBottom: 6 }}>
-                          {STR.forum} · Dec 7–9, 2025
-                        </div>
                         <span style={chipStyle(isIssued)}>
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
                           {isIssued ? STR.badgeIssued : STR.badgePending}
@@ -419,7 +455,7 @@ export default function AccreditationView({ lang }) {
                       </div>
                       <div style={{ background: '#fff', padding: 5, borderRadius: 6, border: '1px solid var(--glass-border)', flexShrink: 0 }}>
                         <QRCodeSVG
-                          value={`https://doha-forum.qa/verify/${previewGuest.id}`}
+                          value={`gms://accreditation/${previewGuest.id}`}
                           size={72}
                           bgColor="#ffffff"
                           fgColor="#5e0022"
@@ -431,17 +467,16 @@ export default function AccreditationView({ lang }) {
                 </div>
               </div>
 
-              {/* Modal footer */}
               <div style={{ padding: '12px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button className="btn" onClick={() => setPreviewGuest(null)}>{STR.close}</button>
                 {isIssued ? (
-                  <button className="btn" style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
-                    onClick={() => { setAccr(previewGuest.id, 'pending'); setPreviewGuest(null); }}>
+                  <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
+                    onClick={() => { revoke(previewGuest.id); setPreviewGuest(null); }}>
                     <Icon name="x" size={13}/> {STR.revoke}
                   </button>
                 ) : (
-                  <button className="btn primary"
-                    onClick={() => { setAccr(previewGuest.id, 'issued'); setPreviewGuest(null); }}>
+                  <button className="btn primary" disabled={busy}
+                    onClick={() => { issue(previewGuest.id); setPreviewGuest(null); }}>
                     <Icon name="badge" size={13}/> {STR.issue}
                   </button>
                 )}

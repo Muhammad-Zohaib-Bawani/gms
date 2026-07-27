@@ -574,7 +574,7 @@ export default function InvitationsView({ lang, activeEventId }) {
 
       {editTmpl && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card glass" style={{ width: 560, maxWidth: '92vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="card glass modal-solid" style={{ width: 560, maxWidth: '92vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <h3 style={{ margin: 0 }}>{STR.editTitle}: <em>{editTmpl.name}</em></h3>
               <button className="icon-btn" onClick={() => setEditTmpl(null)}><Icon name="close" size={14}/></button>
@@ -601,7 +601,7 @@ export default function InvitationsView({ lang, activeEventId }) {
 
       {deleteTmpl && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card glass" style={{ width: 420, maxWidth: '90vw', padding: 0 }}>
+          <div className="card glass modal-solid" style={{ width: 420, maxWidth: '90vw', padding: 0 }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0 }}>{STR.deleteTitle}</h3>
               <button className="icon-btn" onClick={() => setDeleteTmpl(null)}><Icon name="close" size={14}/></button>

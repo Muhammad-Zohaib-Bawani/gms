@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Avatar, StatusChip, TierChip, Drawer } from './components/UI';
 import { Icon } from './components/Icons';
+import Select from './components/ui/Select';
+import DateField from './components/ui/DateField';
+import toast from './lib/toast';
 import {
   useTweaks,
   TweaksPanel,
@@ -16,6 +19,12 @@ import { useEvents } from './events/EventsContext';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { pathForKey } from './nav';
 import { LOOKUP_DEFS } from './views/lookups/lookupConfig';
+import { getGuestEnums } from './api/services/lookupService';
+import { getNationalities } from './api/services/nationalityService';
+import { updateGuest, deleteGuest } from './api/services/guestService';
+import { uploadImageFile } from './api/services/uploadService';
+import { getMeetings, editMeeting } from './api/services/meetingService';
+import { addDaysIso } from './lib/date';
 
 const LOOKUP_CHILDREN = LOOKUP_DEFS.map(d => ({
   key: `lookup-${d.key}`,
@@ -201,7 +210,7 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
             return (
               <button key={e.key}
                 className={"event-row" + (isActive ? " active" : "")}
-                style={{ borderLeft: `3px solid ${e.accent}`, background: isActive ? `${e.accent}18` : undefined }}
+                style={{ borderLeft: `3px solid ${e.accent}`, background: isActive ? `${e.accent}` : 'rgb(141, 1, 52)' }}
                 onClick={() => { onChange(e); setOpen(false); }}>
                 <span className="event-logo-mark" data-event={e.key}
                   style={{ background: `${e.accent}22`, borderColor: `${e.accent}50`, overflow: 'hidden' }}>
@@ -224,9 +233,43 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
 }
 
 const HOTELS = ["Sheraton Grand","Mondrian Doha","Mandarin Oriental","St. Regis","Four Seasons","InterContinental","W Doha"];
-const TIER_COLOR = { VVIP:'#e0b864', VIP:'#a78bda', Speaker:'var(--accent)', Delegate:'#5abf6e', Press:'#e08a7e', Observer:'var(--ink-mute)' };
+const TIER_COLOR = {
+  VVIP:'#e0b864', VIP:'#a78bda', Speaker:'var(--accent)', Delegate:'#5abf6e', Press:'#e08a7e', Observer:'var(--ink-mute)',
+  vvip:'#e0b864', vip:'#a78bda', speaker:'var(--accent)', delegate:'#5abf6e', press:'#e08a7e', observer:'var(--ink-mute)',
+};
+const GUEST_TYPES = ['dignitary', 'delegate', 'media', 'staff', 'vip', 'observer'];
+// One week of slack around the event's own start/end date — same rule used
+// everywhere else a guest's Arrival/Departure date is edited.
+const DRAWER_DATE_MARGIN_DAYS = 7;
 
-function GuestDrawer({ guest, onClose, lang }) {
+function guestToProfileForm(g) {
+  return {
+    firstName: g.firstName || '',
+    lastName: g.lastName || '',
+    email: g.email || '',
+    guestType: g.guestType || 'delegate',
+    organization: g.organization || '',
+    nationalityId: g.nationalityId || '',
+    tier: g.tier || 'delegate',
+    arrivalDate: g.arrivalDate || '',
+    departureDate: g.departureDate || '',
+    photoUrl: g.photoUrl || '',
+    accreditationRequired: !!g.accreditationRequired,
+  };
+}
+
+function fmtEventDates(ev) {
+  if (!ev?.startDate) return '';
+  const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+  try {
+    const start = new Date(ev.startDate).toLocaleDateString('en-US', opts);
+    if (!ev.endDate || ev.endDate === ev.startDate) return start;
+    const end = new Date(ev.endDate).toLocaleDateString('en-US', opts);
+    return `${start} – ${end}`;
+  } catch { return ''; }
+}
+
+function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuestUpdated, onGuestDeleted }) {
   const isAr = lang === "ar";
   const [editTravel, setEditTravel] = React.useState(false);
   const [flight, setFlight] = React.useState(guest.flight || "");
@@ -247,7 +290,123 @@ function GuestDrawer({ guest, onClose, lang }) {
   const [showMore, setShowMore] = React.useState(false);
   const [drawerNotice, setDrawerNotice] = React.useState("");
   const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
   const moreRef = React.useRef(null);
+
+  // ── Reference data for the real "Edit profile" modal ───────────────────────
+  const [enums, setEnums] = React.useState({});
+  const [nationalities, setNationalities] = React.useState([]);
+  React.useEffect(() => {
+    getGuestEnums().then(setEnums).catch(() => {});
+    getNationalities().then(setNationalities).catch(() => setNationalities([]));
+  }, []);
+
+  const eventMinDate = activeEvent?.startDate || undefined;
+  const eventMaxDate = activeEvent?.endDate || undefined;
+  const dateWindowMin = React.useMemo(() => addDaysIso(activeEvent?.startDate, -DRAWER_DATE_MARGIN_DAYS) || undefined, [activeEvent?.startDate]);
+  const dateWindowMax = React.useMemo(() => addDaysIso(activeEvent?.endDate, DRAWER_DATE_MARGIN_DAYS) || undefined, [activeEvent?.endDate]);
+
+  // ── Edit profile modal ──────────────────────────────────────────────────────
+  const [editProfile, setEditProfile] = React.useState(false);
+  const [profileForm, setProfileForm] = React.useState(() => guestToProfileForm(guest));
+  const [savingProfile, setSavingProfile] = React.useState(false);
+  const [photoUploading, setPhotoUploading] = React.useState(false);
+  const setProfileField = (k, v) => setProfileForm(p => ({ ...p, [k]: v }));
+
+  function openEditProfile() {
+    setProfileForm(guestToProfileForm(guest));
+    setEditProfile(true);
+  }
+
+  async function handleProfilePhotoSelect(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const url = await uploadImageFile(file);
+      setProfileField('photoUrl', url);
+    } catch (err) {
+      toast.fromError(err, isAr ? 'فشل تحميل الصورة' : 'Failed to upload photo');
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
+  async function saveProfile() {
+    if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) {
+      toast.error(isAr ? 'الاسم الأول والأخير مطلوبان' : 'First and last name are required');
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const updated = await updateGuest(guest.id, {
+        firstName: profileForm.firstName.trim(),
+        lastName: profileForm.lastName.trim(),
+        email: profileForm.email || null,
+        guestType: profileForm.guestType,
+        organization: profileForm.organization || null,
+        nationalityId: profileForm.nationalityId || null,
+        tier: profileForm.tier,
+        arrivalDate: profileForm.arrivalDate || null,
+        departureDate: profileForm.departureDate || null,
+        photoUrl: profileForm.photoUrl || null,
+        accreditationRequired: profileForm.accreditationRequired,
+        invitationTemplateId: guest.invitationTemplateId || null,
+        sessionIds: guest.sessionIds || [],
+      });
+      onGuestUpdated?.(updated);
+      setEditProfile(false);
+      drawerMsg(isAr ? "تم حفظ الملف الشخصي ✓" : "Profile saved ✓");
+    } catch (err) {
+      toast.fromError(err, isAr ? 'حدث خطأ أثناء حفظ الملف الشخصي' : 'Error saving the profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  // ── Add to meeting modal ────────────────────────────────────────────────────
+  const [showMeetingPicker, setShowMeetingPicker] = React.useState(false);
+  const [meetings, setMeetings] = React.useState([]);
+  const [loadingMeetings, setLoadingMeetings] = React.useState(false);
+  const [addingMeetingId, setAddingMeetingId] = React.useState(null);
+
+  function openMeetingPicker() {
+    setShowMeetingPicker(true);
+    if (!activeEventId) return;
+    setLoadingMeetings(true);
+    getMeetings(activeEventId)
+      .then(res => setMeetings(res || []))
+      .catch(() => setMeetings([]))
+      .finally(() => setLoadingMeetings(false));
+  }
+
+  async function addToMeeting(m) {
+    if ((m.guests || []).some(g => g.id === guest.id)) {
+      setShowMeetingPicker(false);
+      drawerMsg(isAr ? "الضيف مُضاف بالفعل إلى هذا الاجتماع" : "Guest is already in this meeting");
+      return;
+    }
+    setAddingMeetingId(m.id);
+    try {
+      const guestIds = [...(m.guests || []).map(g => g.id).filter(Boolean), guest.id];
+      await editMeeting({ meetId: m.id, eventId: activeEventId, guestIds });
+      setShowMeetingPicker(false);
+      drawerMsg(isAr ? D.meetingAdded : D.meetingAdded);
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّرت الإضافة إلى الاجتماع' : 'Failed to add guest to meeting');
+    } finally {
+      setAddingMeetingId(null);
+    }
+  }
+
+  // ── Scoped print (Export PDF / Print Badge) ─────────────────────────────────
+  function printSection(cls) {
+    document.body.classList.add(cls);
+    const cleanup = () => { document.body.classList.remove(cls); window.removeEventListener('afterprint', cleanup); };
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+  }
 
   React.useEffect(() => {
     if (!showMore) return;
@@ -282,6 +441,18 @@ function GuestDrawer({ guest, onClose, lang }) {
     setTimeout(() => setSessionsSaved(false), 2500);
   }
 
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      await deleteGuest(guest.id);
+      setConfirmRemove(false);
+      onGuestDeleted?.();
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر إزالة الضيف' : 'Failed to remove guest');
+      setRemoving(false);
+    }
+  }
+
   const D = isAr ? {
     profile: "ملف الضيف",
     message: "رسالة", badge: "شارة",
@@ -309,6 +480,14 @@ function GuestDrawer({ guest, onClose, lang }) {
     meetingAdded: "تمت الإضافة إلى قائمة الاجتماعات ✓",
     sessionsTitle: "الجلسات", noSessions: "لا جلسات مخصصة", sessionsSaved: "تم حفظ الجلسات ✓",
     selectAll: "تحديد الكل", deselectAll: "إلغاء الكل",
+    badgeNotIssuedTitle: "لم يصدر الاعتماد بعد",
+    badgeNotIssuedMsg: "أصدر الاعتماد من وحدة \"الاعتماد\" لعرض الشارة.",
+    guestType: "نوع الضيف", organization: "المؤسسة", nationality: "الجنسية",
+    tier: "الفئة", accreditation2: "الاعتماد", accredRequired: "مطلوب", accredNotRequired: "غير مطلوب",
+    saveChanges: "حفظ التغييرات", saving: "جارٍ الحفظ…", photoOptional: "صورة الوجه (اختياري)",
+    removePhoto: "إزالة الصورة", uploading: "جارٍ التحميل…",
+    pickMeeting: "اختر اجتماعًا لإضافة هذا الضيف إليه", noMeetings: "لا توجد اجتماعات لهذه الفعالية",
+    add: "إضافة", added: "مُضاف",
   } : {
     profile: "Guest profile",
     message: "Message", badge: "Badge",
@@ -336,6 +515,14 @@ function GuestDrawer({ guest, onClose, lang }) {
     meetingAdded: "Added to meeting list ✓",
     sessionsTitle: "Sessions", noSessions: "No sessions assigned", sessionsSaved: "Sessions saved ✓",
     selectAll: "Select all", deselectAll: "Deselect all",
+    badgeNotIssuedTitle: "Accreditation not issued yet or may not require for this guest",
+    badgeNotIssuedMsg: "Issue accreditation from the Accreditation module to view the badge.",
+    guestType: "Guest Type", organization: "Organization", nationality: "Nationality",
+    tier: "Tier", accreditation2: "Accreditation", accredRequired: "Required", accredNotRequired: "Not Required",
+    saveChanges: "Save Changes", saving: "Saving…", photoOptional: "Facial photo (optional)",
+    removePhoto: "Remove photo", uploading: "Uploading…",
+    pickMeeting: "Pick a meeting to add this guest to", noMeetings: "No meetings for this event",
+    add: "Add", added: "Added",
   };
 
   const iStyle = { width: "100%", background: "var(--surface-soft-3)", border: "1px solid var(--glass-border)", borderRadius: 8, padding: "8px 11px", color: "var(--ink)", fontSize: 13, boxSizing: "border-box" };
@@ -371,8 +558,9 @@ function GuestDrawer({ guest, onClose, lang }) {
         <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)" }}>{D.profile}</div>
         <button className="icon-btn" onClick={onClose}><Icon name="close" size={14}/></button>
       </div>
-      <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
+      <div id="print-profile-root" style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          <Avatar initials={((guest.firstName?.[0] || "") + (guest.lastName?.[0] || "")).toUpperCase() || guest.initials} size={56} tier={guest.tier} src={guest.photoUrl}/>
           <div>
             <h2 style={{ fontFamily: "var(--serif)", fontSize: 26, margin: 0, fontWeight: 400 }}>{guestName}</h2>
             <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.organization}</div>
@@ -401,9 +589,9 @@ function GuestDrawer({ guest, onClose, lang }) {
             {showMore && (
               <div className="card glass" style={{ position:"absolute", right:0, top:"calc(100% + 4px)", width:195, padding:6, zIndex:50, boxShadow:"0 8px 32px rgba(0,0,0,0.35)" }}>
                 {[
-                  { icon:"edit",     label:D.editPro,  action:() => { setShowMore(false); setEditTravel(true); } },
-                  { icon:"meetings", label:D.addMeet,  action:() => { setShowMore(false); setEditSessions(true); } },
-                  { icon:"download", label:D.expPdf,   action:() => { setShowMore(false); window.print(); } },
+                  { icon:"edit",     label:D.editPro,  action:() => { setShowMore(false); openEditProfile(); } },
+                  { icon:"meetings", label:D.addMeet,  action:() => { setShowMore(false); openMeetingPicker(); } },
+                  { icon:"download", label:D.expPdf,   action:() => { setShowMore(false); printSection('printing-profile'); } },
                 ].map(item => (
                   <button key={item.label} onClick={item.action} style={menuBtnStyle}
                     onMouseEnter={e => e.currentTarget.style.background="var(--surface-soft-3)"}
@@ -558,11 +746,11 @@ function GuestDrawer({ guest, onClose, lang }) {
       {/* ── Message modal ── */}
       {showMessage && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
-          <div className="card glass" style={{ width:480, maxWidth:"92vw", padding:0, maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
+          <div className="card glass modal-solid" style={{ width:480, maxWidth:"92vw", padding:0, maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
             <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <div>
                 <h3 style={{ margin:0, fontSize:15 }}>{D.compose}</h3>
-                <div style={{ fontSize:11.5, color:"var(--ink-mute)", marginTop:3 }}>{D.to}: <span style={{ fontFamily:"var(--mono)", fontSize:11 }}>{guest.name} &lt;{guest.email}&gt;</span></div>
+                <div style={{ fontSize:11.5, color:"var(--ink-mute)", marginTop:3 }}>{D.to}: <span style={{ fontFamily:"var(--mono)", fontSize:11 }}>{guestName} &lt;{guest.email}&gt;</span></div>
               </div>
               <button className="icon-btn" onClick={() => { setShowMessage(false); setMsgSent(false); }}><Icon name="close" size={14}/></button>
             </div>
@@ -615,79 +803,269 @@ function GuestDrawer({ guest, onClose, lang }) {
       )}
 
       {/* ── Badge modal ── */}
-      {showBadge && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
-          <div className="card glass" style={{ width:340, maxWidth:"92vw", padding:0 }}>
-            <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <span style={{ fontWeight:600, fontSize:14 }}>{D.badgeTitle}</span>
-              <button className="icon-btn" onClick={() => setShowBadge(false)}><Icon name="close" size={14}/></button>
-            </div>
-            <div style={{ padding:"20px" }}>
-              <div style={{ border:"1px solid var(--glass-border)", borderRadius:12, overflow:"hidden", background:"var(--surface-soft-2)" }}>
-                <div style={{ height:8, background:tierColor }}/>
-                <div style={{ padding:"18px 20px", display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center" }}>
-                  <Avatar initials={guest.initials} size={56} tier={guest.tier}/>
-                  <h2 style={{ fontFamily:"var(--serif)", fontSize:20, margin:"10px 0 4px", fontWeight:400 }}>{guest.name}</h2>
-                  <div style={{ fontSize:12, color:"var(--ink-dim)" }}>{guest.role}</div>
-                  <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:12 }}>{guest.org}</div>
-                  <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:14 }}>
-                    <span className="chip" style={{ fontSize:11, background:tierColor+"20", borderColor:tierColor+"50", color:tierColor }}>{guest.tier}</span>
-                    <span className="chip" style={{ fontSize:11 }}><span className="dot"/> {guest.country}</span>
+      {showBadge && (() => {
+        const isIssued = guest.accreditationStatus === 'issued';
+        const badgeRef = guest.id ? guest.id.replace(/-/g, '').slice(0, 8).toUpperCase() : '';
+        const eventDatesLabel = fmtEventDates(activeEvent);
+        const qrPayload = JSON.stringify({
+          type: 'gms-accreditation',
+          guestId: guest.id,
+          ref: badgeRef,
+          name: guestName,
+          tier: guest.tier,
+          organization: guest.organization || null,
+          nationality: guest.nationalityName || null,
+          eventId: activeEvent?.id || null,
+          event: activeEvent?.title || null,
+        });
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+            <div className="card glass modal-solid" style={{ width:360, maxWidth:"92vw", padding:0 }}>
+              <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ fontWeight:600, fontSize:14 }}>{D.badgeTitle}</span>
+                <button className="icon-btn" onClick={() => setShowBadge(false)}><Icon name="close" size={14}/></button>
+              </div>
+              <div style={{ padding:"20px" }} id="print-badge-root">
+                {!isIssued ? (
+                  <div style={{ textAlign:"center", padding:"30px 12px" }}>
+                    <Icon name="badge" size={32} style={{ color:"var(--ink-faint)", marginBottom:12 }}/>
+                    <div style={{ fontSize:13.5, fontWeight:600, marginBottom:6 }}>{D.badgeNotIssuedTitle}</div>
+                    <div style={{ fontSize:12, color:"var(--ink-mute)", lineHeight:1.5 }}>{D.badgeNotIssuedMsg}</div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, textAlign:"start" }}>
-                    {[
-                      { label:D.badgeNo, value:guest.id, mono:true },
-                      { label:D.flight,  value:flight || guest.flight || "—", mono:true },
-                      { label:D.arrival, value:arrival || guest.arrival || "—" },
-                      { label:D.hotel,   value:hotel || guest.hotel || "—" },
-                    ].map(row => (
-                      <div key={row.label} style={{ padding:"7px 10px", background:"var(--surface-soft-3)", borderRadius:8, border:"1px solid var(--glass-border)" }}>
-                        <div style={{ fontSize:9, color:"var(--ink-faint)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:2 }}>{row.label}</div>
-                        <div style={{ fontSize:11.5, fontFamily:row.mono ? "var(--mono)" : "inherit", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.value}</div>
+                ) : (
+                  <div style={{ border:"1px solid var(--glass-border)", borderRadius:12, overflow:"hidden", background:"var(--surface-soft-2)" }}>
+                    <div style={{ height:8, background:tierColor }}/>
+                    <div style={{ padding:"18px 20px", display:"flex", flexDirection:"column", alignItems:"center", textAlign:"center" }}>
+                      <Avatar initials={((guest.firstName?.[0] || "") + (guest.lastName?.[0] || "")).toUpperCase()} size={56} tier={guest.tier} src={guest.photoUrl}/>
+                      <h2 style={{ fontFamily:"var(--serif)", fontSize:20, margin:"10px 0 4px", fontWeight:400 }}>{guestName}</h2>
+                      {guest.guestType && <div style={{ fontSize:12, color:"var(--ink-dim)", textTransform:"capitalize" }}>{guest.guestType}</div>}
+                      {guest.organization && <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:12 }}>{guest.organization}</div>}
+                      <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:14, flexWrap:"wrap" }}>
+                        <TierChip tier={guest.tier} lang={lang}/>
+                        {guest.nationalityName && (
+                          <span className="chip" style={{ fontSize:11 }}>
+                            <span className="dot"/> {guest.nationalityFlag} {guest.nationalityName}
+                          </span>
+                        )}
                       </div>
-                    ))}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, textAlign:"start", width:"100%" }}>
+                        {[
+                          { label:D.badgeNo, value:badgeRef, mono:true },
+                          { label:D.arrival, value:guest.arrivalDate || "—", mono:true },
+                        ].map(row => (
+                          <div key={row.label} style={{ padding:"7px 10px", background:"var(--surface-soft-3)", borderRadius:8, border:"1px solid var(--glass-border)" }}>
+                            <div style={{ fontSize:9, color:"var(--ink-faint)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:2 }}>{row.label}</div>
+                            <div style={{ fontSize:11.5, fontFamily:row.mono ? "var(--mono)" : "inherit", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{row.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ padding:"12px 18px", borderTop:"1px solid var(--glass-border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+                      <div>
+                        <div style={{ fontSize:10.5, color:"var(--ink-mute)", marginBottom:4, fontWeight:600 }}>{activeEvent?.title || (isAr ? "الفعالية" : "Event")}</div>
+                        {eventDatesLabel && <div style={{ fontSize:10.5, fontFamily:"var(--mono)", color:"var(--ink-mute)" }}>{eventDatesLabel}</div>}
+                      </div>
+                      <div style={{ background:"#fff", padding:5, borderRadius:6, border:"1px solid var(--glass-border)", flexShrink:0 }}>
+                        <QRCodeSVG
+                          value={qrPayload}
+                          size={72}
+                          bgColor="#ffffff"
+                          fgColor="#5e0022"
+                          level="M"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div style={{ padding:"12px 18px", borderTop:"1px solid var(--glass-border)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
-                  <div>
-                    <div style={{ fontSize:10.5, color:"var(--ink-mute)", marginBottom:4 }}>23rd Doha Forum</div>
-                    <div style={{ fontSize:10.5, fontFamily:"var(--mono)", color:"var(--ink-mute)" }}>7–9 Dec 2025</div>
-                  </div>
-                  <div style={{ background:"#fff", padding:5, borderRadius:6, border:"1px solid var(--glass-border)", flexShrink:0 }}>
-                    <QRCodeSVG
-                      value={`https://doha-forum.qa/verify/${guest.id}`}
-                      size={64}
-                      bgColor="#ffffff"
-                      fgColor="#5e0022"
-                      level="M"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
-              <div style={{ display:"flex", gap:8, marginTop:14 }}>
+              <div style={{ display:"flex", gap:8, marginTop:isIssued?0:4, padding: isIssued ? "0 20px 20px" : "0 20px 20px" }}>
                 <button className="btn" style={{ flex:1, justifyContent:"center" }} onClick={() => setShowBadge(false)}>{D.cancel}</button>
-                <button className="btn primary" style={{ flex:1, justifyContent:"center" }} onClick={() => window.print()}>
-                  <Icon name="doc" size={13}/> {D.printBadge}
-                </button>
+                {isIssued && (
+                  <button className="btn primary" style={{ flex:1, justifyContent:"center" }} onClick={() => printSection('printing-badge')}>
+                    <Icon name="doc" size={13}/> {D.printBadge}
+                  </button>
+                )}
               </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Remove confirm ── */}
+      {confirmRemove && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+          <div className="card glass modal-solid" style={{ width:340, padding:"22px 24px" }}>
+            <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>{D.removeG}</div>
+            <div style={{ fontSize:13, color:"var(--ink-dim)", marginBottom:4 }}>{guestName}</div>
+            <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:20 }}>{D.confirmRemoveMsg}</div>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button className="btn" onClick={() => setConfirmRemove(false)} disabled={removing}>{D.cancel}</button>
+              <button className="btn" disabled={removing} style={{ color:"#e08a7e", borderColor:"rgba(224,138,126,0.3)", background:"rgba(224,138,126,0.1)" }}
+                onClick={handleRemove}>
+                <Icon name="trash" size={13}/> {removing ? D.saving : D.removeConfirmBtn}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Remove confirm ── */}
-      {confirmRemove && (
+      {/* ── Edit profile modal ── */}
+      {editProfile && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
-          <div className="card glass" style={{ width:340, padding:"22px 24px" }}>
-            <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>{D.removeG}</div>
-            <div style={{ fontSize:13, color:"var(--ink-dim)", marginBottom:4 }}>{guest.name}</div>
-            <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:20 }}>{D.confirmRemoveMsg}</div>
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-              <button className="btn" onClick={() => setConfirmRemove(false)}>{D.cancel}</button>
-              <button className="btn" style={{ color:"#e08a7e", borderColor:"rgba(224,138,126,0.3)", background:"rgba(224,138,126,0.1)" }}
-                onClick={() => { setConfirmRemove(false); onClose(); }}>
-                <Icon name="trash" size={13}/> {D.removeConfirmBtn}
+          <div className="card glass modal-solid" style={{ width:460, maxWidth:"92vw", padding:0, maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
+            <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <h3 style={{ margin:0, fontSize:15 }}>{D.editPro}</h3>
+              <button className="icon-btn" onClick={() => setEditProfile(false)}><Icon name="close" size={14}/></button>
+            </div>
+            <div style={{ padding:"18px 20px", display:"flex", flexDirection:"column", gap:12, overflowY:"auto", flex:1 }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, marginBottom:4 }}>
+                <div style={{ position:"relative" }}>
+                  <div style={{ width:76, height:76, borderRadius:"50%", overflow:"hidden", background:"var(--surface-soft-3)", border:"1px solid var(--glass-border)", display:"grid", placeItems:"center" }}>
+                    {profileForm.photoUrl ? (
+                      <img src={profileForm.photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                    ) : (
+                      <Icon name="image" size={24} style={{ color:"var(--ink-faint)" }}/>
+                    )}
+                  </div>
+                  <label style={{ position:"absolute", bottom:-2, right:-2, width:24, height:24, borderRadius:"50%", background:"var(--accent)", display:"grid", placeItems:"center", cursor:photoUploading?"default":"pointer", border:"2px solid var(--bg)", opacity:photoUploading?0.6:1 }}>
+                    <Icon name="upload" size={11} style={{ color:"#fff" }}/>
+                    <input type="file" accept="image/*" onChange={handleProfilePhotoSelect} disabled={photoUploading} style={{ display:"none" }}/>
+                  </label>
+                </div>
+                <div style={{ fontSize:11, color:"var(--ink-mute)" }}>{photoUploading ? D.uploading : D.photoOptional}</div>
+                {profileForm.photoUrl && !photoUploading && (
+                  <button onClick={() => setProfileField('photoUrl', '')} style={{ background:"none", border:"none", color:"var(--ink-mute)", fontSize:11, cursor:"pointer", padding:0, textDecoration:"underline" }}>
+                    {D.removePhoto}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{isAr ? "الاسم الأول" : "First Name"} *</label>
+                  <input style={iStyle} value={profileForm.firstName} onChange={e => setProfileField('firstName', e.target.value)}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{isAr ? "الاسم الأخير" : "Last Name"} *</label>
+                  <input style={iStyle} value={profileForm.lastName} onChange={e => setProfileField('lastName', e.target.value)}/>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.email}</label>
+                <input type="email" style={iStyle} value={profileForm.email} onChange={e => setProfileField('email', e.target.value)}/>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.guestType}</label>
+                  <Select value={profileForm.guestType} onChange={v => setProfileField('guestType', v)}
+                    options={GUEST_TYPES.map(gt => ({ value: gt, label: gt.charAt(0).toUpperCase() + gt.slice(1) }))}/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.organization}</label>
+                  <input style={iStyle} value={profileForm.organization} onChange={e => setProfileField('organization', e.target.value)}/>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.nationality}</label>
+                <Select value={profileForm.nationalityId} onChange={v => setProfileField('nationalityId', v)}
+                  options={nationalities.map(n => ({ value:n.id, label:`${n.flag} ${isAr ? n.nameAr : n.name}` }))}
+                  placeholder={isAr ? '— اختر —' : '— Select —'} isClearable/>
+              </div>
+
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>{D.tier}</label>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                  {enums?.GuestTier?.map(t => (
+                    <div key={t.code} onClick={() => setProfileField('tier', t.code)}
+                      style={{ padding:"10px 8px", borderRadius:10, cursor:"pointer", textAlign:"center", fontSize:12.5,
+                        fontWeight: profileForm.tier === t.code ? 600 : 400,
+                        border:`1px solid ${profileForm.tier === t.code ? "var(--accent)" : "var(--glass-border)"}`,
+                        background: profileForm.tier === t.code ? "rgba(141, 1, 52,0.12)" : "var(--surface-soft-2)" }}>
+                      {t.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.arrivalDate}</label>
+                  <DateField value={profileForm.arrivalDate}
+                    onChange={v => setProfileField('arrivalDate', v || '')}
+                    minDate={dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                </div>
+                <div>
+                  <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{isAr ? "تاريخ المغادرة" : "Departure Date"}</label>
+                  <DateField value={profileForm.departureDate}
+                    onChange={v => setProfileField('departureDate', v || '')}
+                    minDate={profileForm.arrivalDate || dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:8 }}>{D.accreditation2}</label>
+                <div style={{ display:"flex", gap:10 }}>
+                  {[{ value:false, label:D.accredNotRequired }, { value:true, label:D.accredRequired }].map(opt => (
+                    <div key={String(opt.value)} onClick={() => setProfileField('accreditationRequired', opt.value)}
+                      style={{ flex:1, padding:"10px 12px", borderRadius:10, cursor:"pointer", textAlign:"center", fontSize:13,
+                        fontWeight: profileForm.accreditationRequired === opt.value ? 600 : 400,
+                        border:`1px solid ${profileForm.accreditationRequired === opt.value ? "var(--accent)" : "var(--glass-border)"}`,
+                        background: profileForm.accreditationRequired === opt.value ? "rgba(141, 1, 52,0.12)" : "var(--surface-soft-2)" }}>
+                      {opt.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ padding:"14px 20px", borderTop:"1px solid var(--glass-border)", display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button className="btn" onClick={() => setEditProfile(false)} disabled={savingProfile}>{D.cancel}</button>
+              <button className="btn primary" onClick={saveProfile} disabled={savingProfile}>
+                <Icon name="check" size={13}/> {savingProfile ? D.saving : D.saveChanges}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add to meeting modal ── */}
+      {showMeetingPicker && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
+          <div className="card glass modal-solid" style={{ width:380, maxWidth:"92vw", padding:0, maxHeight:"80vh", display:"flex", flexDirection:"column" }}>
+            <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <h3 style={{ margin:0, fontSize:15 }}>{D.addMeet}</h3>
+              <button className="icon-btn" onClick={() => setShowMeetingPicker(false)}><Icon name="close" size={14}/></button>
+            </div>
+            <div style={{ padding:"14px 20px", overflowY:"auto", flex:1 }}>
+              <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:10 }}>{D.pickMeeting}</div>
+              {loadingMeetings ? (
+                <div style={{ textAlign:"center", color:"var(--ink-mute)", fontSize:13, padding:"20px 0" }}>…</div>
+              ) : meetings.length === 0 ? (
+                <div style={{ textAlign:"center", color:"var(--ink-mute)", fontSize:13, padding:"20px 0" }}>{D.noMeetings}</div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {meetings.map(m => {
+                    const already = (m.guests || []).some(g => g.id === guest.id);
+                    const busy = addingMeetingId === m.id;
+                    return (
+                      <div key={m.id} style={{ padding:"10px 12px", borderRadius:9, border:"1px solid var(--glass-border)", background:"var(--surface-soft-2)", display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:13, fontWeight:500 }}>{m.name}</div>
+                          <div style={{ fontSize:11, color:"var(--ink-mute)", fontFamily:"var(--mono)" }}>
+                            {m.date} {m.startTime ? `· ${m.startTime}` : ''}{m.location ? ` · ${m.location}` : ''}
+                          </div>
+                        </div>
+                        <button className="btn" disabled={busy || already} style={{ fontSize:11, padding:"4px 10px", flexShrink:0 }}
+                          onClick={() => addToMeeting(m)}>
+                          {already ? D.added : (busy ? D.saving : D.add)}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -931,7 +1309,17 @@ export default function App() {
       </nav>
 
       <Drawer open={!!openGuest} onClose={() => setOpenGuest(null)}>
-        {openGuest && <GuestDrawer guest={openGuest} onClose={() => setOpenGuest(null)} lang={lang}/>}
+        {openGuest && (
+          <GuestDrawer
+            guest={openGuest}
+            onClose={() => setOpenGuest(null)}
+            lang={lang}
+            activeEventId={activeEvent?.id || null}
+            activeEvent={activeEvent}
+            onGuestUpdated={(g) => setOpenGuest(g)}
+            onGuestDeleted={() => setOpenGuest(null)}
+          />
+        )}
       </Drawer>
 
       <Tweaks tweaks={tweaks} setTweak={setTweak}/>

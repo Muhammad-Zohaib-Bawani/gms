@@ -362,7 +362,7 @@ export default function MeetingsView({ lang, activeEventId }) {
       {/* New Meeting modal */}
       {showNew && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card glass" style={{ width: 520, maxWidth: '90vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+          <div className="card glass modal-solid" style={{ width: 520, maxWidth: '90vw', padding: 0, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0 }}>{editingMeetingId ? STR.editTitle : STR.newTitle}</h3>

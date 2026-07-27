@@ -59,6 +59,12 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/guest/${id}`,
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
+    issueAccreditation: (id) => `/v1/guest/${id}/accreditation/issue`,
+    revokeAccreditation: (id) => `/v1/guest/${id}/accreditation/revoke`,
+  },
+
+  upload: {
+    image: '/v1/upload/image',
   },
 
   nationalities: {

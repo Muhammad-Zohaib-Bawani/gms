@@ -111,7 +111,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}
             onClick={e => { e.stopPropagation(); onOpenGuest?.(g); }}>
-            <Avatar initials={initials} size={32} tier={g.tier}/>
+            <Avatar initials={initials} size={32} tier={g.tier} src={g.photoUrl}/>
             <div>
               <div style={{ fontWeight: 500, fontSize: 13 }}>{g.fullName}</div>
               <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.guestType} · {g.organization}</div>
@@ -160,8 +160,16 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       accessorKey: 'accreditationStatus',
       size: 110,
       enableSorting: false,
-      cell: ({ getValue }) => {
-        const issued = getValue() === 'issued';
+      cell: ({ row: { original: g } }) => {
+        if (!g.accreditationRequired) {
+          return (
+            <span className="chip draft">
+              <span className="dot"/>
+              {isAr ? 'غير مطلوب' : 'Not Required'}
+            </span>
+          );
+        }
+        const issued = g.accreditationStatus === 'issued';
         return (
           <span className={`chip ${issued ? 'confirmed' : 'pending'}`}>
             <span className="dot"/>

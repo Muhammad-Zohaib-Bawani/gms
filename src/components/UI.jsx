@@ -36,9 +36,17 @@ export function TierChip({ tier, lang }) {
   );
 }
 
-export function Avatar({ initials, size = 32, tier }) {
+export function Avatar({ initials, size = 32, tier, src }) {
   const ring = tier === "VVIP" ? "0 0 0 2px rgba(194, 24, 87,0.7)"
     : tier === "VIP" ? "0 0 0 2px rgba(141, 1, 52,0.4)" : "none";
+  if (src) {
+    return (
+      <img src={src} alt="" style={{
+        width: size, height: size, borderRadius: "50%", objectFit: "cover",
+        boxShadow: ring, flexShrink: 0,
+      }}/>
+    );
+  }
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
