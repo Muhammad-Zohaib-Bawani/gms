@@ -229,7 +229,7 @@ function StatusMenu({ status, labels, onPick, canChange, isAr }) {
       )}
     </div>
   );
-}
+} 
 
 // Hoisted to module scope (not redefined per EventsView render) so typed-but-
 // unsaved form state survives unrelated parent re-renders — e.g. reload()
