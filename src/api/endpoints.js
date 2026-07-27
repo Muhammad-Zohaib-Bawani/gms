@@ -81,6 +81,7 @@ export const ENDPOINTS = {
   lookups: {
     guestEnums: '/v1/lookups/enums/guest',
     airports: '/v1/lookups/airports',
+    drivers: '/v1/lookups/drivers',
     // GET (list) + POST (create) share the path; PUT edits one row.
     locations: '/v1/lookups/locations',
     locationById: (id) => `/v1/lookups/locations/${id}`,

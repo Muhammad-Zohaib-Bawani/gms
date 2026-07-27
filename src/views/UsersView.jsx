@@ -7,6 +7,7 @@ import { deleteUser, inviteUser, resendInvite, adminSetPassword } from '../api/s
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getVehicleTypes } from '../api/services/travelService';
+import { uploadImageFileAnon } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
 import DataTable from '../components/ui/DataTable';
 import Select from '../components/ui/Select';
@@ -110,12 +111,13 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
 const EMPTY_INVITE = {
   firstName: '', lastName: '', email: '', phone: '', roleId: '',
   driverAge: '', driverLicenseNumber: '', driverLicenseExpiry: '',
-  driverVehicleTypeId: '', driverVehiclePlate: '', driverNationalityId: '', driverPhotoUrl: '',
+  driverVehicleTypeId: '', driverNationalityId: '', driverPhotoUrl: '',
 };
 
 function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, onInvited }) {
   const [form, setForm] = useState(EMPTY_INVITE);
   const [saving, setSaving] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => { if (open) setForm(EMPTY_INVITE); }, [open]);
 
@@ -129,33 +131,52 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
   const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: `${n.flag || ''} ${n.name}`.trim() }));
   const vehicleTypeOpts = vehicleTypes.map((v) => ({ value: v.id, label: v.name }));
 
+  // Upload happens immediately on pick; only the resulting URL is sent with the
+  // invite. Anonymous upload — the image endpoint takes no token.
+  async function handlePhotoSelect(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const url = await uploadImageFileAnon(file);
+      if (!url) throw new Error('Upload returned no URL');
+      setF('driverPhotoUrl', url);
+    } catch (err) {
+      toast.error(err.message || 'Failed to upload photo');
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.roleId) {
       toast.warning('First name, last name, email and role are required');
       return;
     }
-    if (isDriver && (!form.driverLicenseNumber.trim() || !form.driverVehicleTypeId || !form.driverVehiclePlate.trim())) {
-      toast.warning('License number, vehicle type and plate are required for a driver');
+    if (isDriver && (!form.driverLicenseNumber.trim() || !form.driverVehicleTypeId)) {
+      toast.warning('License number and vehicle type are required for a driver');
       return;
     }
     setSaving(true);
     try {
-      const driverVehicleType = vehicleTypes.find((v) => v.id === form.driverVehicleTypeId)?.name || null;
       await inviteUser({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim() || null,
         roleId: form.roleId,
+        // Driver fields go in a nested object; omitted entirely for other roles.
         ...(isDriver ? {
-          driverAge: form.driverAge ? Number(form.driverAge) : null,
-          driverLicenseNumber: form.driverLicenseNumber.trim(),
-          driverLicenseExpiry: form.driverLicenseExpiry || null,
-          driverVehicleType,
-          driverVehiclePlate: form.driverVehiclePlate.trim(),
-          driverNationalityId: form.driverNationalityId || null,
-          driverPhotoUrl: form.driverPhotoUrl.trim() || null,
+          driverProfile: {
+            age: form.driverAge ? Number(form.driverAge) : null,
+            licenseNumber: form.driverLicenseNumber.trim(),
+            licenseExpiry: form.driverLicenseExpiry || null,
+            vehicleTypeId: form.driverVehicleTypeId,
+            nationalityId: form.driverNationalityId || null,
+            photoUrl: form.driverPhotoUrl.trim() || null,
+          },
         } : {}),
       });
       toast.success(`Invite sent to ${form.email.trim()}`);
@@ -222,14 +243,27 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
                 <label style={labelStyle}>Vehicle type *</label>
                 <Select value={form.driverVehicleTypeId} onChange={(v) => setF('driverVehicleTypeId', v)} options={vehicleTypeOpts} placeholder="— Select —" />
               </div>
-              <div>
-                <label style={labelStyle}>Plate number *</label>
-                <input style={inputStyle} value={form.driverVehiclePlate} onChange={(e) => setF('driverVehiclePlate', e.target.value)} />
-              </div>
             </div>
             <div>
-              <label style={labelStyle}>Photo URL</label>
-              <input style={inputStyle} placeholder="https://…" value={form.driverPhotoUrl} onChange={(e) => setF('driverPhotoUrl', e.target.value)} />
+              <label style={labelStyle}>Photo</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
+                  border: '1px solid var(--glass-border)', background: 'var(--surface-soft-3)',
+                  display: 'grid', placeItems: 'center',
+                }}>
+                  {form.driverPhotoUrl
+                    ? <img src={form.driverPhotoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <Icon name="image" size={18} style={{ color: 'var(--ink-faint)' }} />}
+                </div>
+                <label className="btn" style={{ cursor: photoUploading ? 'default' : 'pointer', opacity: photoUploading ? 0.6 : 1 }}>
+                  <Icon name="upload" size={13} /> {photoUploading ? 'Uploading…' : (form.driverPhotoUrl ? 'Replace' : 'Upload')}
+                  <input type="file" accept="image/*" onChange={handlePhotoSelect} disabled={photoUploading} style={{ display: 'none' }} />
+                </label>
+                {form.driverPhotoUrl && !photoUploading && (
+                  <button type="button" className="btn" onClick={() => setF('driverPhotoUrl', '')}>Remove</button>
+                )}
+              </div>
             </div>
           </div>
         )}

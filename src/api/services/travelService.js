@@ -19,15 +19,17 @@ export const getVehicleTypes  = () => apiClient.get(ENDPOINTS.travel.vehicleType
 export const getHotels        = () => apiClient.get(ENDPOINTS.travel.hotels);
 export const getLocations     = () => apiClient.get(ENDPOINTS.lookups.locations);
 export const getAirports      = () => apiClient.get(ENDPOINTS.lookups.airports);
+export const getDrivers       = () => apiClient.get(ENDPOINTS.lookups.drivers);
 
 // Fills every wizard dropdown by calling the lookup endpoints in parallel.
 export const getTravelLookups = async () => {
-  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports] = await Promise.all([
+  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports, drivers] = await Promise.all([
     getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(),
-    // ponytail: airports failing shouldn't blank every other dropdown (Promise.all is all-or-nothing).
+    // ponytail: one failing lookup shouldn't blank every other dropdown (Promise.all is all-or-nothing).
     getAirports().catch(() => []),
+    getDrivers().catch(() => []),
   ]);
-  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports };
+  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports, drivers };
 };
 
 // Prefill for edit — { flight?, accommodation?, transport? } (sections may be null).

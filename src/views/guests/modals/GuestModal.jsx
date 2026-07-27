@@ -154,14 +154,6 @@ export default function GuestModal({
     });
   }, [dateWindowMin, dateWindowMax]);
 
-  function setArrivalDate(v) {
-    setForm((p) => ({
-      ...p,
-      arrivalDate: v,
-      departureDate: p.departureDate && v && p.departureDate < v ? '' : p.departureDate,
-    }));
-  }
-
   async function handlePhotoSelect(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -487,13 +479,8 @@ export default function GuestModal({
                   onChange={setTravel}
                   lookups={travelLookups}
                   isAr={isAr}
-                  arrivalDate={form.arrivalDate}
-                  departureDate={form.departureDate}
-                  onArrivalDateChange={setArrivalDate}
-                  onDepartureDateChange={(v) => setF('departureDate', v)}
                   dateMinDate={dateWindowMin}
                   dateMaxDate={dateWindowMax}
-                  dateOpenTo={eventStartDate}
                   eventMinDate={eventStartDate}
                   eventMaxDate={eventEndDate}
                 />

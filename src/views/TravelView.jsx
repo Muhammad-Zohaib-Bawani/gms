@@ -3,13 +3,14 @@ import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
-import { listGuests, updateGuest } from '../api/services/guestService.js';
+import { listGuests } from '../api/services/guestService.js';
 import { getEvent } from '../api/services/eventService.js';
 import { getEventFlights, getEventAccommodation, getEventTransport, getGuestTravel, saveGuestTravel, getTravelLookups } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
 import TravelAccordion, {
+  driverLabel,
   EMPTY_TRAVEL,
   hydrateTravel,
   anyTravelEnabled,
@@ -319,19 +320,11 @@ export default function TravelView({ lang, activeEventId }) {
   const [bookings, setBookings] = useState([]);
   const [savingBooking, setSavingBooking] = useState(false);
   const [travel, setTravel] = useState(EMPTY_TRAVEL);
-  const [arrivalDate, setArrivalDate] = useState('');
-  const [departureDate, setDepartureDate] = useState('');
-
-  function handleArrivalChange(v) {
-    setArrivalDate(v);
-    if (departureDate && v && departureDate < v) setDepartureDate('');
-  }
 
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1);
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
     setTravel(EMPTY_TRAVEL);
-    setArrivalDate(''); setDepartureDate('');
   }
 
   async function saveBooking() {
@@ -346,30 +339,6 @@ export default function TravelView({ lang, activeEventId }) {
     setSavingBooking(true);
     try {
       await saveGuestTravel(bookGuestId, buildTravelPayload(travel));
-
-      // Arrival/Departure live on the Guest entity, not the travel tables — a
-      // partial PUT would null out every other guest field, so send the full
-      // guest object back with just these two overridden.
-      if (arrivalDate || departureDate) {
-        const g = guests.find(x => x.id === bookGuestId);
-        if (g) {
-          try {
-            await updateGuest(g.id, {
-              firstName: g.firstName, lastName: g.lastName, email: g.email || null,
-              guestType: g.guestType, organization: g.organization || null,
-              nationalityId: g.nationalityId || null, tier: g.tier,
-              arrivalDate: arrivalDate || g.arrivalDate || null,
-              departureDate: departureDate || g.departureDate || null,
-              photoUrl: g.photoUrl || null,
-              accreditationRequired: !!g.accreditationRequired,
-              invitationTemplateId: g.invitationTemplateId || null,
-              sessionIds: g.sessionIds || [],
-            });
-          } catch {
-            toast.error(isAr ? 'تم إنشاء الحجز لكن تعذّر تحديث تواريخ الضيف' : 'Booking created, but the guest’s dates failed to update');
-          }
-        }
-      }
 
       // The tabs touched by this save may not be the active one — invalidate
       // all three so switching tabs picks up fresh data, and refetch the one
@@ -726,14 +695,14 @@ export default function TravelView({ lang, activeEventId }) {
                       <div><label style={lSt}>{STR.cols.checkIn}</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
                       <div><label style={lSt}>{STR.cols.checkOut}</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={f.checkIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
                     </>)}
-                    {grid2(<>
+                    {/* {grid2(<>
                       <div><label style={lSt}>{isAr ? 'إطلالة الغرفة' : 'Room View'}</label><input style={iSt} value={f.roomView} onChange={e => set('roomView', e.target.value)}/></div>
                       <div><label style={lSt}>{isAr ? 'عدد النزلاء' : 'Guest Count'}</label><input type="number" style={iSt} value={f.guestCount} onChange={e => set('guestCount', e.target.value)}/></div>
                     </>)}
                     {grid2(<>
                       <div><label style={lSt}>{isAr ? 'اسم الكونسيرج' : 'Concierge Name'}</label><input style={iSt} value={f.conciergeName} onChange={e => set('conciergeName', e.target.value)}/></div>
                       <div><label style={lSt}>{isAr ? 'هاتف الكونسيرج' : 'Concierge Phone'}</label><input style={iSt} value={f.conciergePhone} onChange={e => set('conciergePhone', e.target.value)}/></div>
-                    </>)}
+                    </>)} */}
                   </>
                 );
               })()}
@@ -755,14 +724,11 @@ export default function TravelView({ lang, activeEventId }) {
                       <div><label style={lSt}>{isAr ? 'نوع المركبة' : 'Vehicle Type'}</label>
                         <Select value={f.vehicleTypeId} onChange={v => set('vehicleTypeId', v)} options={mapOpts(travelLookups.vehicleTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
                       </div>
-                      <div><label style={lSt}>{isAr ? 'رقم اللوحة' : 'Plate'}</label><input style={iSt} value={f.plate} onChange={e => set('plate', e.target.value)}/></div>
+                      <div><label style={lSt}>{isAr ? 'السائق' : 'Driver'}</label>
+                        <Select value={f.driverId} onChange={v => set('driverId', v)} options={mapOpts(travelLookups.drivers, driverLabel)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'اسم السائق' : 'Driver Name'}</label><input style={iSt} value={f.driverName} onChange={e => set('driverName', e.target.value)}/></div>
-                      <div><label style={lSt}>{isAr ? 'هاتف السائق' : 'Driver Phone'}</label><input style={iSt} value={f.driverPhone} onChange={e => set('driverPhone', e.target.value)}/></div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'تقييم السائق' : 'Driver Rating'}</label><input type="number" style={iSt} value={f.driverRating} onChange={e => set('driverRating', e.target.value)}/></div>
                       <div><label style={lSt}>{isAr ? 'حالة الرحلة' : 'Trip Status'}</label>
                         <Select value={f.tripStatus} onChange={v => set('tripStatus', v)} options={tripStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
@@ -818,10 +784,7 @@ export default function TravelView({ lang, activeEventId }) {
                       const fullName = guestFullName(g);
                       const selected = bookGuestId === g.id;
                       return (
-                        <div key={g.id} onClick={() => {
-                          setBookGuestId(g.id); setBookGuest(fullName);
-                          setArrivalDate(g.arrivalDate || ''); setDepartureDate(g.departureDate || '');
-                        }}
+                        <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}
                           style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
                             border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
                             background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
@@ -849,13 +812,8 @@ export default function TravelView({ lang, activeEventId }) {
                   onChange={setTravel}
                   lookups={travelLookups}
                   isAr={isAr}
-                  arrivalDate={arrivalDate}
-                  departureDate={departureDate}
-                  onArrivalDateChange={handleArrivalChange}
-                  onDepartureDateChange={setDepartureDate}
                   dateMinDate={dateWindowMin}
                   dateMaxDate={dateWindowMax}
-                  dateOpenTo={eventMinDate}
                   eventMinDate={eventMinDate}
                   eventMaxDate={eventMaxDate}
                 />

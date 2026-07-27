@@ -5,6 +5,7 @@ import {
   getFlightTypes, createFlightType,
   getFlightClasses, createFlightClass,
   getRoomTypes, createRoomType,
+  getVehicleTypes, createVehicleType,
   getHotels, createHotel,
   getAirports, createAirport,
   getLocations,
@@ -37,6 +38,11 @@ export const LOOKUP_DEFS = [
   {
     key: 'room-types', label: { en: 'Room Types', ar: 'أنواع الغرف' },
     list: getRoomTypes, create: (f) => createRoomType(f.name),
+    columns: [NAME], fields: [{ ...NAME, required: true }],
+  },
+  {
+    key: 'vehicle-types', label: { en: 'Vehicle Types', ar: 'أنواع المركبات' },
+    list: getVehicleTypes, create: (f) => createVehicleType(f.name),
     columns: [NAME], fields: [{ ...NAME, required: true }],
   },
   {
