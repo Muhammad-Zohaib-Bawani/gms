@@ -7,7 +7,7 @@ import Select from '../../../components/ui/Select';
 import toast from '../../../lib/toast';
 import { createGuest, updateGuest, getGuestEnums } from '../../../api/services/guestService';
 import { getTravelLookups, getGuestTravel, saveGuestTravel } from '../../../api/services/travelService';
-import { uploadImageFile } from '../../../api/services/uploadService';
+import { uploadImageFile, stripSasToken } from '../../../api/services/uploadService';
 import { addDaysIso } from '../../../lib/date';
 import TravelAccordion, {
   EMPTY_TRAVEL,
@@ -208,7 +208,7 @@ export default function GuestModal({
         tier: form.tier,
         arrivalDate: form.arrivalDate || null,
         departureDate: form.departureDate || null,
-        photoUrl: form.photoUrl || null,
+        photoUrl: stripSasToken(form.photoUrl) || null,
         accreditationRequired: form.accreditationRequired,
         invitationTemplateId: templateId || null,
         sessionIds: Array.from(guestSessions),

@@ -1,7 +1,13 @@
 import axios from 'axios';
-import { apiClient } from '../apiClient';
+import { apiClient, CLIENT_APP, CLIENT_APP_HEADER } from '../apiClient';
 import { API_BASE_URL, API_TIMEOUT } from '../../config/env';
 import { ENDPOINTS } from '../endpoints';
+
+// The upload endpoint returns a URL with a short-lived SAS token, which is what
+// makes the local preview loadable. Never persist that token: strip it before
+// sending the URL to the API — the backend re-signs blob URLs on every read
+// (Core/Middlewares/BlobSasMiddleware.cs).
+export const stripSasToken = (url) => (url ? String(url).split('?')[0] : url);
 
 // Backend expects raw base64 — strip the "data:image/png;base64," prefix.
 async function toUploadBody(file) {
@@ -27,7 +33,7 @@ export async function uploadImageFileAnon(file) {
   const res = await axios.post(
     `${API_BASE_URL}${ENDPOINTS.upload.image}`,
     await toUploadBody(file),
-    { timeout: API_TIMEOUT, headers: { 'Content-Type': 'application/json' } },
+    { timeout: API_TIMEOUT, headers: { 'Content-Type': 'application/json', [CLIENT_APP_HEADER]: CLIENT_APP } },
   );
   return res.data?.data?.imageUrl ?? res.data?.imageUrl;
 }

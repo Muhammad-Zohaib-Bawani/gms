@@ -1,5 +1,6 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
+import { getVehicles } from './vehicleService';
 
 // ── Admin travel tabs: per-event booking lists (one call per active tab) ─────
 // Paged like GET /guest — returns { items, totalCount, pageNumber, pageSize }.
@@ -45,15 +46,19 @@ export const getLocations     = () => apiClient.get(ENDPOINTS.lookups.locations)
 export const getAirports      = () => apiClient.get(ENDPOINTS.lookups.airports);
 export const getDrivers       = () => apiClient.get(ENDPOINTS.lookups.drivers);
 
+// Transport is assigned a concrete vehicle (not just a category) — the fleet
+// list comes from the vehicles module.
+export { getVehicles };
+
 // Fills every wizard dropdown by calling the lookup endpoints in parallel.
 export const getTravelLookups = async () => {
-  const [flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports, drivers] = await Promise.all([
-    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicleTypes(), getHotels(), getLocations(),
+  const [flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers] = await Promise.all([
+    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicles(), getHotels(), getLocations(),
     // ponytail: one failing lookup shouldn't blank every other dropdown (Promise.all is all-or-nothing).
     getAirports().catch(() => []),
     getDrivers().catch(() => []),
   ]);
-  return { flightTypes, flightClasses, roomTypes, vehicleTypes, hotels, locations, airports, drivers };
+  return { flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers };
 };
 
 // Prefill for edit — { flight?, accommodation?, transport? } (sections may be

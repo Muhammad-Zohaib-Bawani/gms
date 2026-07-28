@@ -57,6 +57,8 @@ export const ENDPOINTS = {
   guests: {
     base: '/v1/guest',
     byId: (id) => `/v1/guest/${id}`,
+    // Slim feed for guest pickers — name/org/tier/photo, searched + paged server-side.
+    picker: '/v1/guest/picker',
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
     issueAccreditation: (id) => `/v1/guest/${id}/accreditation/issue`,
@@ -78,6 +80,12 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/organizations/${id}`,
   },
 
+  // Fleet vehicles. Reads open to any signed-in user; writes need Travel.Manage.
+  vehicles: {
+    base: '/v1/vehicles',
+    byId: (id) => `/v1/vehicles/${id}`,
+  },
+
   invitationTemplates: {
     base: '/v1/invitation-templates',
     byId: (id) => `/v1/invitation-templates/${id}`,
@@ -87,6 +95,7 @@ export const ENDPOINTS = {
   // dedicated tables (travel + venue endpoints).
   lookups: {
     guestEnums: '/v1/lookups/enums/guest',
+    driverTypes: '/v1/lookups/enums/driver-types',
     flightTypes: '/v1/lookups/flight-types',
     flightClasses: '/v1/lookups/flight-classes',
     roomTypes: '/v1/lookups/room-types',

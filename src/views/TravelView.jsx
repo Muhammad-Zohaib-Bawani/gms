@@ -1,9 +1,9 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
-import { listGuests } from '../api/services/guestService.js';
+import { getGuestPicker } from '../api/services/guestService.js';
 import { getEvent } from '../api/services/eventService.js';
 import { getEventFlights, getEventAccommodation, getEventTransport, getEventArrivalsDepartures, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
@@ -12,6 +12,7 @@ import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
 import TravelAccordion, {
   driverLabel,
+  vehicleLabel,
   EMPTY_TRAVEL,
   hydrateTravel,
   anyTravelEnabled,
@@ -35,6 +36,9 @@ function initialsFromName(name) {
 function guestFullName(g) {
   return g.fullName || `${g.firstName || ''} ${g.lastName || ''}`.trim() || '—';
 }
+
+// Guest picker page size — one screenful plus a bit, so the first page paints fast.
+const GUEST_PAGE_SIZE = 20;
 
 // "09:15 → 14:30 · 5h 15m" under a route. Each part is dropped independently
 // when the data can't support it, so a leg missing its arrival still shows the
@@ -112,7 +116,7 @@ function mapTransfer(r) {
     name: r.guestName || '—',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
-    vehicle: r.vehicleType || '—',
+    vehicle: r.vehicle || '—',
     driver: r.driverName || '—',
     pickup: r.pickup || '—',
     dropoff: r.dropoff || '—',
@@ -224,7 +228,8 @@ export default function TravelView({ lang, activeEventId }) {
     direction:{ all:'كل الرحلات',inbound:'الوصول',outbound:'المغادرة' },
     dateFrom:'من تاريخ', dateTo:'إلى تاريخ', clearDates:'مسح التواريخ',
     statuses:{ approved:'موافق',submitted:'قيد المراجعة',pending:'قيد الانتظار',rejected:'مرفوض',
-      confirmed:'مؤكد',scheduled:'مجدول',completed:'مكتمل' },
+      confirmed:'مؤكد',scheduled:'مجدول',completed:'مكتمل',
+      assigned:'مُسند',arrived:'وصل السائق','in-progress':'قيد التنفيذ' },
     noResults:'لا توجد نتائج',filterAll:'الكل',searchPh:'بحث…',
     edit:'تعديل',save:'حفظ',cancel:'إلغاء',editFlight:'تعديل بيانات الرحلة',
     editHotel:'تعديل بيانات الفندق',editTransfer:'تعديل بيانات النقل',
@@ -254,7 +259,8 @@ export default function TravelView({ lang, activeEventId }) {
     direction:{ all:'All flights',inbound:'Inbound',outbound:'Outbound' },
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
-      confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed' },
+      confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed',
+      assigned:'Assigned',arrived:'Driver arrived','in-progress':'In progress' },
     noResults:'No results',filterAll:'All',searchPh:'Search…',
     edit:'Edit',save:'Save',cancel:'Cancel',editFlight:'Edit flight details',
     editHotel:'Edit hotel booking',editTransfer:'Edit ground transfer',
@@ -262,16 +268,6 @@ export default function TravelView({ lang, activeEventId }) {
     selectGuest:'Select Guest',bookingDetails:'Booking Details',
     guestSearch:'Search guest…',back:'Back',next:'Next',
   };
-
-  // ── Guests — only the "new booking" guest picker needs this list ───────────
-  const [guests, setGuests] = useState([]);
-
-  useEffect(() => {
-    if (!activeEventId) { setGuests([]); return; }
-    listGuests({ eventId: activeEventId, pageSize: 500, excludeDeclined: true })
-      .then(res => setGuests(res?.items || []))
-      .catch(() => setGuests([]));
-  }, [activeEventId]);
 
   // ── Active event's own start/end date — bounds every travel date field,
   //    same as the guest wizard's TravelAccordion (event window ± margin for
@@ -454,6 +450,52 @@ export default function TravelView({ lang, activeEventId }) {
   const [savingBooking, setSavingBooking] = useState(false);
   const [travel, setTravel] = useState(EMPTY_TRAVEL);
 
+  // ── Guest picker — slim /guest/picker feed, searched and paged server-side,
+  //    one page at a time as the list is scrolled. Nothing is fetched until the
+  //    modal actually opens.
+  const [guests, setGuests] = useState([]);
+  const [guestPage, setGuestPage] = useState(1);
+  const [guestHasMore, setGuestHasMore] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
+  // Debounced copy of guestSearch — one request per pause, not per keystroke.
+  const [guestQuery, setGuestQuery] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setGuestQuery(guestSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [guestSearch]);
+
+  const loadGuestPage = useCallback(async (page) => {
+    if (!activeEventId) { setGuests([]); return; }
+    setGuestLoading(true);
+    try {
+      const res = await getGuestPicker({
+        eventId: activeEventId, search: guestQuery, pageNumber: page, pageSize: GUEST_PAGE_SIZE,
+      });
+      const items = res?.items || [];
+      setGuests(prev => (page === 1 ? items : [...prev, ...items]));
+      setGuestPage(page);
+      setGuestHasMore(page * GUEST_PAGE_SIZE < (res?.totalCount ?? 0));
+    } catch {
+      if (page === 1) { setGuests([]); setGuestHasMore(false); }
+    } finally {
+      setGuestLoading(false);
+    }
+  }, [activeEventId, guestQuery]);
+
+  // Page 1 on open, on event change, and whenever the search term settles.
+  useEffect(() => {
+    if (!showNewBooking) return;
+    loadGuestPage(1);
+  }, [showNewBooking, loadGuestPage]);
+
+  // Near the bottom → pull the next page.
+  const onGuestListScroll = (e) => {
+    if (guestLoading || !guestHasMore) return;
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) loadGuestPage(guestPage + 1);
+  };
+
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1);
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
@@ -511,9 +553,6 @@ export default function TravelView({ lang, activeEventId }) {
     return s && st;
   })), [transferRows, tSearch, tStatus]);
 
-  const filteredGuests = guests
-    .filter(g => !guestSearch || guestFullName(g).toLowerCase().includes(guestSearch.toLowerCase()))
-    .slice(0, 6);
 
 
   // ── Styles ──────────────────────────────────────────────────────────────────
@@ -732,7 +771,8 @@ export default function TravelView({ lang, activeEventId }) {
 
   const transferFilterOpts = useMemo(() => [
     { value: 'All', label: STR.filterAll },
-    ...['scheduled', 'completed', 'pending'].map(s => ({ value: s, label: STR.statuses[s] })),
+    // Transport lifecycle (Core/Constants/TransportStatuses.cs).
+    ...['pending', 'assigned', 'arrived', 'in-progress', 'completed'].map(s => ({ value: s, label: STR.statuses[s] })),
   ], [STR]);
 
   const grid2 = (children) => (
@@ -741,11 +781,6 @@ export default function TravelView({ lang, activeEventId }) {
 
   const flightStatusOpts = [
     { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
-    { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
-  ];
-  const tripStatusOpts = [
-    { value: 'scheduled', label: isAr ? 'مجدول' : 'Scheduled' },
-    { value: 'completed', label: isAr ? 'مكتمل' : 'Completed' },
     { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
   ];
   const mapOpts = (arr, labelFn) => (arr || []).map((x) => ({ value: x.id, label: labelFn(x) }));
@@ -1021,21 +1056,16 @@ export default function TravelView({ lang, activeEventId }) {
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'نوع المركبة' : 'Vehicle Type'} *</label>
-                        <Select value={f.vehicleTypeId} onChange={v => set('vehicleTypeId', v)} options={mapOpts(travelLookups.vehicleTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                      <div><label style={lSt}>{isAr ? 'المركبة' : 'Vehicle'} *</label>
+                        <Select value={f.vehicleId} onChange={v => set('vehicleId', v)} options={mapOpts(travelLookups.vehicles, vehicleLabel)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                       <div><label style={lSt}>{isAr ? 'السائق' : 'Driver'}</label>
                         <Select value={f.driverId} onChange={v => set('driverId', v)} options={mapOpts(travelLookups.drivers, driverLabel)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
                       </div>
                     </>)}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'حالة الرحلة' : 'Trip Status'}</label>
-                        <Select value={f.tripStatus} onChange={v => set('tripStatus', v)} options={tripStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
-                      </div>
-                    </>)}
-                    {grid2(<>
                       <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
-                      <div><label style={lSt}>{isAr ? 'الوصول المتوقع' : 'Est. Arrival'}</label><DateField value={f.estimatedArrival} onChange={v => set('estimatedArrival', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'وقت التوصيل' : 'Dropoff Time'}</label><DateField value={f.dropoffTime} onChange={v => set('dropoffTime', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
                     </>)}
                   </>
                 );
@@ -1079,9 +1109,10 @@ export default function TravelView({ lang, activeEventId }) {
                 <div>
                   <label style={lSt}>{isAr?'الضيف':'Guest'}</label>
                   <input placeholder={STR.guestSearch} value={guestSearch} onChange={e => setGuestSearch(e.target.value)} style={iSt}/>
-                  <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:280, overflowY:'auto', marginTop:8 }}>
-                    {filteredGuests.map(g => {
-                      const fullName = guestFullName(g);
+                  <div onScroll={onGuestListScroll}
+                    style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:280, overflowY:'auto', marginTop:8 }}>
+                    {guests.map(g => {
+                      const fullName = g.fullName || guestFullName(g);
                       const selected = bookGuestId === g.id;
                       return (
                         <div key={g.id} onClick={() => { setBookGuestId(g.id); setBookGuest(fullName); }}
@@ -1097,7 +1128,12 @@ export default function TravelView({ lang, activeEventId }) {
                         </div>
                       );
                     })}
-                    {filteredGuests.length === 0 && (
+                    {guestLoading && (
+                      <div style={{ padding:'10px', textAlign:'center', color:'var(--ink-mute)', fontSize:12 }}>
+                        {isAr ? 'جارٍ التحميل…' : 'Loading…'}
+                      </div>
+                    )}
+                    {!guestLoading && guests.length === 0 && (
                       <div style={{ padding:'12px', textAlign:'center', color:'var(--ink-mute)', fontSize:12 }}>
                         {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
                       </div>

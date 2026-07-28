@@ -22,11 +22,13 @@ import { LOOKUP_DEFS } from './views/lookups/lookupConfig';
 import { getGuestEnums } from './api/services/lookupService';
 import { getNationalities } from './api/services/nationalityService';
 import { updateGuest, deleteGuest } from './api/services/guestService';
-import { uploadImageFile } from './api/services/uploadService';
+import { uploadImageFile, stripSasToken } from './api/services/uploadService';
 import { getMeetings, editMeeting } from './api/services/meetingService';
 import { addDaysIso } from './lib/date';
 
-const LOOKUP_CHILDREN = LOOKUP_DEFS.map(d => ({
+// Vehicle types live under the Vehicles module (its own tab), so they're left
+// out of the Lookups submenu to avoid two links to the same screen.
+const LOOKUP_CHILDREN = LOOKUP_DEFS.filter(d => d.key !== 'vehicle-types').map(d => ({
   key: `lookup-${d.key}`,
   lookupKey: d.key,
   label: d.label,
@@ -50,6 +52,7 @@ const NAV = [
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
+  { key: "vehicles",       icon: "travel",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
 
@@ -359,7 +362,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
         tier: profileForm.tier,
         arrivalDate: profileForm.arrivalDate || null,
         departureDate: profileForm.departureDate || null,
-        photoUrl: profileForm.photoUrl || null,
+        photoUrl: stripSasToken(profileForm.photoUrl) || null,
         accreditationRequired: profileForm.accreditationRequired,
         invitationTemplateId: guest.invitationTemplateId || null,
         sessionIds: guest.sessionIds || [],
@@ -1119,6 +1122,14 @@ export default function App() {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = React.useRef(null);
+
+  // New screen starts at the top. Desktop scrolls the window; on mobile .main is
+  // its own scroller, so both need resetting.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [pathname]);
+
   useEffect(() => {
     if (!showNotifications) return;
     const onDoc = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifications(false); };

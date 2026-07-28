@@ -1,7 +1,7 @@
 // Shared travel step for the guest create/edit wizards, and reused by
 // TravelView's "New Booking" + per-row Edit modals — one field set, wired
 // straight to the real backend DTOs (Core/ViewModel/Travel/TravelModels.cs):
-// FlightInput, AccommodationInput, TransportInput. roomTypeId/vehicleTypeId
+// FlightInput, AccommodationInput, TransportInput. roomTypeId/vehicleId
 // are real lookup-table ids end to end (no more name-string resolution).
 //
 // State shape (held by the parent modal):
@@ -10,8 +10,10 @@
 //                       flightNumber, fromAirportId, toAirportId, startTime, endTime },
 //     accommodation: { enabled, hotelId, roomTypeId, checkIn, checkOut,
 //                       roomView, guestCount, conciergeName, conciergePhone },
-//     transport:     { enabled, pickupLocationId, dropoffLocationId, vehicleTypeId,
-//                       driverId, tripStatus, pickupTime, estimatedArrival },
+//     transport:     { enabled, pickupLocationId, dropoffLocationId, vehicleId,
+//                       driverId, pickupTime, dropoffTime },
+// Trip status and the actual pickup/dropoff times are dispatch-side only — the
+// backend owns them, this form neither shows nor sends them.
 //   }
 import React from 'react';
 import { Icon } from '../../../components/Icons';
@@ -35,8 +37,8 @@ export const EMPTY_TRAVEL = {
   },
   transport: {
     enabled: false,
-    pickupLocationId: '', dropoffLocationId: '', vehicleTypeId: '', driverId: '',
-    tripStatus: 'scheduled', pickupTime: '', estimatedArrival: '',
+    pickupLocationId: '', dropoffLocationId: '', vehicleId: '', driverId: '',
+    pickupTime: '', dropoffTime: '',
   },
 };
 
@@ -57,7 +59,7 @@ function hydrateSection(defaults, data) {
 }
 
 // Build state from GET /travel/guest/{id} → { flight?, accommodation?, transport? }.
-// roomTypeId/vehicleTypeId/hotelId/flightTypeId/flightClassId/pickupLocationId/
+// roomTypeId/vehicleId/hotelId/flightTypeId/flightClassId/pickupLocationId/
 // dropoffLocationId all come back as real lookup-table public ids already.
 export function hydrateTravel(data) {
   return {
@@ -88,7 +90,7 @@ export function validateTravel(t, isAr = false) {
     if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
   }
   if (t.transport.enabled) {
-    if (!t.transport.vehicleTypeId) return isAr ? 'نوع المركبة مطلوب' : 'Vehicle type is required';
+    if (!t.transport.vehicleId) return isAr ? 'المركبة مطلوبة' : 'Vehicle is required';
     if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
     if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
     if (!t.transport.pickupTime) return isAr ? 'وقت الاستلام مطلوب' : 'Pickup time is required';
@@ -126,6 +128,10 @@ const mapOpts = (arr, labelFn) => (arr || []).map((x) => ({ value: x.id, label: 
 // Driver rows come from GET /lookups/drivers (users with the driver role).
 export const driverLabel = (d) =>
   d.fullName || [d.firstName, d.lastName].filter(Boolean).join(' ') || d.name || d.email || '—';
+
+// Fleet rows come from GET /v1/vehicles — plate first, it's what dispatch uses.
+export const vehicleLabel = (v) =>
+  [v.vehicleNumber, v.vehicleModel].filter(Boolean).join(' · ') || '—';
 
 function Label({ children }) {
   return (
@@ -190,7 +196,7 @@ export default function TravelAccordion({
   const flightTypeOpts = mapOpts(lookups.flightTypes, (x) => x.name);
   const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
   const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
-  const vehicleTypeOpts = mapOpts(lookups.vehicleTypes, (x) => x.name);
+  const vehicleOpts = mapOpts(lookups.vehicles, vehicleLabel);
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
   const driverOpts = mapOpts(lookups.drivers, driverLabel);
@@ -201,11 +207,6 @@ export default function TravelAccordion({
 
   const flightStatusOpts = [
     { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
-    { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
-  ];
-  const tripStatusOpts = [
-    { value: 'scheduled', label: isAr ? 'مجدول' : 'Scheduled' },
-    { value: 'completed', label: isAr ? 'مكتمل' : 'Completed' },
     { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
   ];
 
@@ -314,15 +315,12 @@ export default function TravelAccordion({
           {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}
         </>)}
         {grid(<>
-          {sel('transport', 'vehicleTypeId', isAr ? 'نوع المركبة' : 'Vehicle Type', vehicleTypeOpts)}
+          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts)}
           {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
         </>)}
         {grid(<>
-          {sel('transport', 'tripStatus', isAr ? 'حالة الرحلة' : 'Trip Status', tripStatusOpts)}
-        </>)}
-        {grid(<>
           {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {dt('transport', 'estimatedArrival', isAr ? 'الوصول المتوقع' : 'Est. Arrival', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
         </>)}
       </Section>
     </div>

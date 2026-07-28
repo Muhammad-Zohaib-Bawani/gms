@@ -18,16 +18,27 @@ export class ApiError extends Error {
   }
 }
 
+// Tells the backend which client is calling. Login rejects a role without
+// portal access (Roles.PortalAccess), and it's stamped into the token as the
+// "client" claim. The driver app sends 'driver-app'.
+export const CLIENT_APP_HEADER = 'X-Client-App';
+export const CLIENT_APP = 'portal';
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: API_TIMEOUT,
-  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    [CLIENT_APP_HEADER]: CLIENT_APP,
+  },
 });
 
 // ── Request interceptor: attach the access token ─────────────────────────────
 apiClient.interceptors.request.use((config) => {
   const token = tokenStore.accessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  config.headers[CLIENT_APP_HEADER] = CLIENT_APP;
   return config;
 });
 
@@ -41,7 +52,10 @@ function refreshTokens() {
   if (!refreshPromise) {
     // Bare axios call (not apiClient) so it skips these interceptors.
     refreshPromise = axios
-      .post(`${API_BASE_URL}${ENDPOINTS.auth.refresh}`, { refreshToken: refresh }, { timeout: API_TIMEOUT })
+      .post(`${API_BASE_URL}${ENDPOINTS.auth.refresh}`, { refreshToken: refresh }, {
+        timeout: API_TIMEOUT,
+        headers: { [CLIENT_APP_HEADER]: CLIENT_APP },
+      })
       .then((res) => {
         const data = res.data?.data;
         if (!res.data?.success || !data) throw new ApiError('Session expired', { status: 401 });

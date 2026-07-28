@@ -16,6 +16,7 @@ export const KEY_PATH = {
   userAccess:      '/user-access',
   users:           '/users',
   organizations:   '/organizations',
+  vehicles:        '/vehicles',
 };
 
 // NAV leaf key → URL. Lookup children use keys like "lookup-airline" and map to

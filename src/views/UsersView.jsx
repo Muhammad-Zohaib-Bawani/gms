@@ -6,8 +6,8 @@ import { ENDPOINTS } from '../api/endpoints';
 import { deleteUser, inviteUser, resendInvite, adminSetPassword } from '../api/services/userAccessService';
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
-import { getVehicleTypes } from '../api/services/travelService';
-import { uploadImageFileAnon } from '../api/services/uploadService';
+import { getDriverTypes } from '../api/services/lookupService';
+import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
 import DataTable from '../components/ui/DataTable';
 import Select from '../components/ui/Select';
@@ -110,11 +110,11 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
 
 const EMPTY_INVITE = {
   firstName: '', lastName: '', email: '', phone: '', roleId: '',
-  driverAge: '', driverLicenseNumber: '', driverLicenseExpiry: '',
-  driverVehicleTypeId: '', driverNationalityId: '', driverPhotoUrl: '',
+  driverType: '', driverLicenseNumber: '', driverLicenseExpiry: '',
+  driverNationalityId: '', driverPhotoUrl: '',
 };
 
-function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, onInvited }) {
+function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onInvited }) {
   const [form, setForm] = useState(EMPTY_INVITE);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -129,7 +129,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
 
   const roleOpts = roles.map((r) => ({ value: r.id, label: r.name }));
   const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: `${n.flag || ''} ${n.name}`.trim() }));
-  const vehicleTypeOpts = vehicleTypes.map((v) => ({ value: v.id, label: v.name }));
+  const driverTypeOpts = driverTypes.map((d) => ({ value: d.value, label: d.name }));
 
   // Upload happens immediately on pick; only the resulting URL is sent with the
   // invite. Anonymous upload — the image endpoint takes no token.
@@ -155,8 +155,8 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
       toast.warning('First name, last name, email and role are required');
       return;
     }
-    if (isDriver && (!form.driverLicenseNumber.trim() || !form.driverVehicleTypeId)) {
-      toast.warning('License number and vehicle type are required for a driver');
+    if (isDriver && (!form.driverLicenseNumber.trim() || !form.driverType)) {
+      toast.warning('License number and driver type are required for a driver');
       return;
     }
     setSaving(true);
@@ -170,12 +170,11 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
         // Driver fields go in a nested object; omitted entirely for other roles.
         ...(isDriver ? {
           driverProfile: {
-            age: form.driverAge ? Number(form.driverAge) : null,
+            driverType: Number(form.driverType),
             licenseNumber: form.driverLicenseNumber.trim(),
             licenseExpiry: form.driverLicenseExpiry || null,
-            vehicleTypeId: form.driverVehicleTypeId,
             nationalityId: form.driverNationalityId || null,
-            photoUrl: form.driverPhotoUrl.trim() || null,
+            photoUrl: stripSasToken(form.driverPhotoUrl.trim()) || null,
           },
         } : {}),
       });
@@ -220,8 +219,8 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
             <div style={{ fontSize: 11, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Driver details</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={labelStyle}>Age</label>
-                <input type="number" min="18" style={inputStyle} value={form.driverAge} onChange={(e) => setF('driverAge', e.target.value)} />
+                <label style={labelStyle}>Driver type *</label>
+                <Select value={form.driverType} onChange={(v) => setF('driverType', v)} options={driverTypeOpts} placeholder="— Select —" />
               </div>
               <div>
                 <label style={labelStyle}>Nationality</label>
@@ -238,32 +237,48 @@ function InviteUserModal({ open, onClose, roles, nationalities, vehicleTypes, on
                 <DateField value={form.driverLicenseExpiry} onChange={(v) => setF('driverLicenseExpiry', v || '')} placeholder="YYYY-MM-DD" />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={labelStyle}>Vehicle type *</label>
-                <Select value={form.driverVehicleTypeId} onChange={(v) => setF('driverVehicleTypeId', v)} options={vehicleTypeOpts} placeholder="— Select —" />
-              </div>
-            </div>
             <div>
               <label style={labelStyle}>Photo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Same single-field dropzone as the vehicle image: the whole block
+                  is the label, so a click anywhere opens the picker. */}
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', boxSizing: 'border-box', padding: 10,
+                background: 'var(--surface-soft-3)', borderRadius: 10,
+                border: `1px ${form.driverPhotoUrl ? 'solid' : 'dashed'} var(--glass-border)`,
+                cursor: photoUploading ? 'default' : 'pointer', opacity: photoUploading ? 0.6 : 1,
+              }}>
                 <div style={{
-                  width: 52, height: 52, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
-                  border: '1px solid var(--glass-border)', background: 'var(--surface-soft-3)',
-                  display: 'grid', placeItems: 'center',
+                  width: 52, height: 52, borderRadius: 8, flexShrink: 0, overflow: 'hidden',
+                  background: 'var(--surface-soft-2)', display: 'grid', placeItems: 'center',
                 }}>
                   {form.driverPhotoUrl
                     ? <img src={form.driverPhotoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <Icon name="image" size={18} style={{ color: 'var(--ink-faint)' }} />}
                 </div>
-                <label className="btn" style={{ cursor: photoUploading ? 'default' : 'pointer', opacity: photoUploading ? 0.6 : 1 }}>
-                  <Icon name="upload" size={13} /> {photoUploading ? 'Uploading…' : (form.driverPhotoUrl ? 'Replace' : 'Upload')}
-                  <input type="file" accept="image/*" onChange={handlePhotoSelect} disabled={photoUploading} style={{ display: 'none' }} />
-                </label>
+
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)' }} />
+                    {photoUploading
+                      ? 'Uploading…'
+                      : form.driverPhotoUrl ? 'Click to change photo' : 'Click to upload driver photo'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>Optional — PNG or JPG</div>
+                </div>
+
                 {form.driverPhotoUrl && !photoUploading && (
-                  <button type="button" className="btn" onClick={() => setF('driverPhotoUrl', '')}>Remove</button>
+                  <button
+                    type="button" className="icon-btn" title="Remove"
+                    // Inside a label, so stop the click from re-opening the picker.
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setF('driverPhotoUrl', ''); }}
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
                 )}
-              </div>
+
+                <input type="file" accept="image/*" onChange={handlePhotoSelect} disabled={photoUploading} style={{ display: 'none' }} />
+              </label>
             </div>
           </div>
         )}
@@ -337,7 +352,7 @@ export default function UsersView() {
   const [users, setUsers]         = useState([]);
   const [roles, setRoles]         = useState([]);
   const [nationalities, setNationalities] = useState([]);
-  const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [driverTypes, setDriverTypes] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [tab, setTab]             = useState('all');
   const [toDelete, setToDelete]   = useState(null);
@@ -368,7 +383,7 @@ export default function UsersView() {
     if (isDemo || !canCreate) return;
     listRoles().then((r) => setRoles(Array.isArray(r) ? r : (r?.items || []))).catch(() => {});
     getNationalities().then((r) => setNationalities(Array.isArray(r) ? r : [])).catch(() => {});
-    getVehicleTypes().then((r) => setVehicleTypes(Array.isArray(r) ? r : [])).catch(() => {});
+    getDriverTypes().then((r) => setDriverTypes(Array.isArray(r) ? r : [])).catch(() => {});
   }, [isDemo, canCreate]);
 
   async function handleDelete() {
@@ -446,9 +461,9 @@ export default function UsersView() {
                 border: '1px solid rgba(26,174,196,0.25)', whiteSpace: 'nowrap',
               }}>{role}</span>
             ) : <span style={{ color: 'var(--ink-faint)' }}>—</span>}
-            {u.driverProfile && (
+            {u.driverProfile?.licenseNumber && (
               <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', fontFamily: 'var(--mono)' }}>
-                {u.driverProfile.vehicleType} · {u.driverProfile.vehiclePlate}
+                {u.driverProfile.licenseNumber}
               </span>
             )}
           </div>
@@ -594,7 +609,7 @@ export default function UsersView() {
         onClose={() => setShowInvite(false)}
         roles={roles}
         nationalities={nationalities}
-        vehicleTypes={vehicleTypes}
+        driverTypes={driverTypes}
         onInvited={load}
       />
 
