@@ -5,8 +5,9 @@ import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { listGuests } from '../api/services/guestService.js';
 import { getEvent } from '../api/services/eventService.js';
-import { getEventFlights, getEventAccommodation, getEventTransport, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
+import { getEventFlights, getEventAccommodation, getEventTransport, getEventArrivalsDepartures, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
+import DataTable from '../components/ui/DataTable.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
 import TravelAccordion, {
@@ -33,6 +34,31 @@ function initialsFromName(name) {
 
 function guestFullName(g) {
   return g.fullName || `${g.firstName || ''} ${g.lastName || ''}`.trim() || '—';
+}
+
+// "09:15 → 14:30 · 5h 15m" under a route. Each part is dropped independently
+// when the data can't support it, so a leg missing its arrival still shows the
+// departure rather than a dash.
+function timeRange(start, end) {
+  const hhmm = (v) => (v ? String(v).slice(11, 16) : null);
+  const a = hhmm(start);
+  const b = hhmm(end);
+  const span = flightDuration(start, end);
+  const clock = a && b ? `${a} → ${b}` : (a || b);
+  if (clock && span) return `${clock} · ${span}`;
+  return clock || span || '—';
+}
+
+// Elapsed time between the two ends of an itinerary, as "5h 15m" / "45m".
+// Returns null when either end is missing or the pair is nonsensical.
+function flightDuration(start, end) {
+  if (!start || !end) return null;
+  const ms = new Date(end) - new Date(start);
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
 }
 
 function dateLabelFor(dateStr) {
@@ -131,23 +157,41 @@ function StatusChip({ status, label }) {
   );
 }
 
-// Shimmer placeholder rows shown while a tab's API call is in flight.
-function SkeletonRows({ cols, rows = 6 }) {
-  return Array.from({ length: rows }).map((_, r) => (
-    <tr key={r}>
-      {Array.from({ length: cols }).map((_, c) => (
-        <td key={c}><div className="skel-bar" style={{ width: c === 0 ? 150 : `${45 + ((r + c) % 4) * 14}%` }}/></td>
-      ))}
-    </tr>
-  ));
+// Search + one dropdown + a result count, laid out exactly like the Guests
+// filter bar so the two modules read the same.
+function FilterBar({ search, onSearch, searchPlaceholder, filter, onFilter, filterOptions, filterPlaceholder, shown, total, countLabel, extra }) {
+  return (
+    <div className="filter-bar">
+      <div className="search" style={{ flex:1, maxWidth:320 }}>
+        <Icon name="search" size={14}/>
+        <input value={search} onChange={e => onSearch(e.target.value)} placeholder={searchPlaceholder}/>
+      </div>
+      <div style={{ minWidth:170 }}>
+        <Select value={filter} onChange={onFilter} options={filterOptions} placeholder={filterPlaceholder}/>
+      </div>
+      {/* Slot for tab-specific controls (e.g. the arrivals date range). */}
+      {extra}
+      <span style={{ fontSize:12, color:'var(--ink-mute)', whiteSpace:'nowrap' }}>
+        {shown} {countLabel} {total}
+      </span>
+    </div>
+  );
 }
 
-function SearchInput({ value, onChange, placeholder }) {
+// Guest identity cell — shared by all three tabs; the transfers tab omits the
+// organisation line to keep its wider row readable.
+function GuestCell({ g, withOrg = true }) {
   return (
-    <div style={{ position:'relative', flex:1, minWidth:160 }}>
-      <Icon name="search" size={13} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--ink-mute)', pointerEvents:'none' }}/>
-      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={{ width:'100%', background:'var(--surface-soft-3)', border:'1px solid var(--glass-border)', borderRadius:10, padding:'8px 12px 8px 32px', color:'var(--ink)', fontSize:13, boxSizing:'border-box', outline:'none' }}/>
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      <Avatar initials={g.initials} size={28} tier={g.tier}/>
+      {withOrg ? (
+        <div>
+          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
+          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
+        </div>
+      ) : (
+        <span style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</span>
+      )}
     </div>
   );
 }
@@ -162,7 +206,7 @@ export default function TravelView({ lang, activeEventId }) {
   const STR = isAr ? {
     title:['الخدمات',''],
     sub:'الرحلات والتأشيرات والفنادق والنقل البري',
-    tabs:['نظرة عامة','الرحلات والتأشيرات','الفنادق','النقل البري'],
+    tabs:['الرحلات والتأشيرات','الفنادق','النقل البري','الوصول والمغادرة'],
     newBooking:'حجز جديد',
     kpi:{ flights:'رحلات مؤكدة',flightsH:'٧٤٪ تغطية · أسعار شريك القطرية',
       rooms:'غرف محجوزة',roomsH:'٥ فنادق · ٩٢٪ موزعة',
@@ -175,7 +219,10 @@ export default function TravelView({ lang, activeEventId }) {
     cols:{ guest:'الضيف',flight:'الرحلة',flightType:'نوع الرحلة',flightClass:'الدرجة',route:'المسار',date:'التاريخ',
       status:'الحالة',hotel:'الفندق',room:'الغرفة',
       checkIn:'الوصول',checkOut:'المغادرة',nights:'الليالي',
-      vehicle:'المركبة',driver:'السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت' },
+      vehicle:'المركبة',driver:'السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت',
+      inboundRoute:'مسار الوصول',outboundRoute:'مسار المغادرة',organization:'المؤسسة' },
+    direction:{ all:'كل الرحلات',inbound:'الوصول',outbound:'المغادرة' },
+    dateFrom:'من تاريخ', dateTo:'إلى تاريخ', clearDates:'مسح التواريخ',
     statuses:{ approved:'موافق',submitted:'قيد المراجعة',pending:'قيد الانتظار',rejected:'مرفوض',
       confirmed:'مؤكد',scheduled:'مجدول',completed:'مكتمل' },
     noResults:'لا توجد نتائج',filterAll:'الكل',searchPh:'بحث…',
@@ -189,7 +236,7 @@ export default function TravelView({ lang, activeEventId }) {
     sub:'Flights, visa applications, hotels and ground transfers',
     tabs:[
       // 'Overview',
-      'Flights','Hotel','Ground Transfers'],
+      'Flights','Hotel','Ground Transfers','Arrivals & Departures'],
     newBooking:'New booking',
     kpi:{ flights:'Flights confirmed',flightsH:'74% coverage · QR partner fares',
       rooms:'Hotel rooms blocked',roomsH:'5 properties · 92% allocated',
@@ -202,7 +249,10 @@ export default function TravelView({ lang, activeEventId }) {
     cols:{ guest:'Guest',flight:'Flight',flightType:'Flight Type',flightClass:'Class',route:'Route',date:'Date',
       status:'Status',hotel:'Hotel',room:'Room',
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
-      vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time' },
+      vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
+      inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization' },
+    direction:{ all:'All flights',inbound:'Inbound',outbound:'Outbound' },
+    dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
       confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed' },
     noResults:'No results',filterAll:'All',searchPh:'Search…',
@@ -250,11 +300,13 @@ export default function TravelView({ lang, activeEventId }) {
   const TAB_MAP = [mapFlight, mapHotel, mapTransfer];
 
   async function refetchTab(idx) {
-    if (!activeEventId) return;
+    // Arrivals & departures (tab 3) loads itself — it has no TAB_SVC entry.
+    if (!activeEventId || !TAB_SVC[idx]) return;
     setTabLoading(l => ({ ...l, [idx]: true }));
     try {
+      // Paged endpoint → { items, totalCount, … }.
       const res = await TAB_SVC[idx](activeEventId);
-      TAB_SET[idx]((res || []).map(TAB_MAP[idx]));
+      TAB_SET[idx]((res?.items || []).map(TAB_MAP[idx]));
       loadedRef.current[idx] = activeEventId;
     } catch (err) {
       toast.fromError(err);
@@ -277,6 +329,51 @@ export default function TravelView({ lang, activeEventId }) {
     refetchTab(activeTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeEventId]);
+
+  // ── Arrivals & departures tab (read-only) ──────────────────────────────────
+  // Unlike the other tabs this pages server-side: the endpoint pages by guest,
+  // so a page can never split a guest's flights. Search and direction therefore
+  // have to go to the server too — filtering locally would only ever see the
+  // rows already on screen.
+  const [adRows, setAdRows]           = useState([]);
+  const [adTotal, setAdTotal]         = useState(0);
+  const [adLoading, setAdLoading]     = useState(false);
+  const [adSearchInput, setAdSearchInput] = useState('');
+  const [adSearch, setAdSearch]       = useState('');
+  const [adDirection, setAdDirection] = useState('all');
+  const [adFrom, setAdFrom]           = useState('');
+  const [adTo, setAdTo]               = useState('');
+  const [adPageIndex, setAdPageIndex] = useState(0);
+  const [adPageSize, setAdPageSize]   = useState(10);
+
+  // Debounce typing so each keystroke doesn't fire a request.
+  useEffect(() => {
+    const t = setTimeout(() => setAdSearch(adSearchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [adSearchInput]);
+
+  // Anything that reshapes the result set returns to page 1.
+  useEffect(() => {
+    setAdPageIndex(0);
+  }, [activeEventId, adSearch, adDirection, adFrom, adTo, adPageSize]);
+
+  useEffect(() => {
+    if (activeTab !== 3 || !activeEventId) return undefined;
+    let cancelled = false;
+    setAdLoading(true);
+    getEventArrivalsDepartures(activeEventId, {
+      pageNumber: adPageIndex + 1, // API pages are 1-based
+      pageSize: adPageSize,
+      search: adSearch || undefined,
+      direction: adDirection,
+      fromDate: adFrom || undefined,
+      toDate: adTo || undefined,
+    })
+      .then(r => { if (!cancelled) { setAdRows(r?.items || []); setAdTotal(r?.totalCount ?? 0); } })
+      .catch(err => { if (!cancelled) { setAdRows([]); setAdTotal(0); toast.fromError(err); } })
+      .finally(() => { if (!cancelled) setAdLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, activeEventId, adPageIndex, adPageSize, adSearch, adDirection, adFrom, adTo]);
 
   const [fSearch, setFSearch]         = useState('');
   const [fFlight, setFFlight]         = useState('All');
@@ -463,6 +560,181 @@ export default function TravelView({ lang, activeEventId }) {
     } catch { return '—'; }
   };
 
+  // ── Table columns ─────────────────────────────────────────────────────────
+  // Rows are grouped per guest (see groupByGuest), so each cell stacks one line
+  // per booking of that kind. Sorting is off throughout: a cell can hold several
+  // values, so there is no single value to sort a column on. Each tab renders
+  // its own FilterBar above the table, hence showSearch={false} on the DataTable.
+  const columns = useMemo(() => {
+    const guest = (withOrg = true) => ({
+      id: 'guest', header: STR.cols.guest, enableSorting: false,
+      cell: ({ row }) => <GuestCell g={row.original} withOrg={withOrg} />,
+    });
+    // One stacked column; `render` receives a single booking.
+    const col = (id, header, render) => ({
+      id, header, enableSorting: false,
+      cell: ({ row }) => stackCell(row.original.bookings, render),
+    });
+    const actions = (type) => ({
+      id: 'actions', header: '', size: 40, enableSorting: false,
+      cell: ({ row }) => actionsCell(type, row.original.bookings),
+    });
+
+    const mono = { fontFamily: 'var(--mono)', fontSize: 12 };
+    const muted = { fontSize: 11, color: 'var(--ink-mute)' };
+    const ellipsis = { ...muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 130 };
+    const text = { fontSize: 12 };
+
+    return {
+      flights: [
+        guest(),
+        col('flight',      STR.cols.flight,      b => <span style={{ ...mono, fontWeight: 600 }}>{b.flight}</span>),
+        col('flightType',  STR.cols.flightType,  b => <span style={text}>{b.flightType}</span>),
+        col('flightClass', STR.cols.flightClass, b => <span style={text}>{b.flightClass}</span>),
+        col('route',       STR.cols.route,       b => <span style={{ ...muted, fontFamily: 'var(--mono)' }}>{b.from} → {b.to}</span>),
+        col('date',        STR.cols.date,        b => <span style={mono}>{b.dateLabel || b.date}</span>),
+        col('status',      STR.cols.status,      b => <StatusChip status={b.flightStatus} label={STR.statuses[b.flightStatus]} />),
+        actions('flight'),
+      ],
+      hotels: [
+        guest(),
+        col('hotel',    STR.cols.hotel,    b => <span style={{ ...text, fontWeight: 500 }}>{b.hotel}</span>),
+        col('room',     STR.cols.room,     b => <span style={text}>{b.roomType}</span>),
+        col('checkIn',  STR.cols.checkIn,  b => <span style={mono}>{b.checkIn}</span>),
+        col('checkOut', STR.cols.checkOut, b => <span style={mono}>{b.checkOut}</span>),
+        col('nights',   STR.cols.nights,   b => <span style={{ ...mono, color: 'var(--ink-mute)' }}>{nights(b)}</span>),
+        actions('hotel'),
+      ],
+      transfers: [
+        guest(false),
+        col('vehicle', STR.cols.vehicle, b => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="car" size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <span style={text}>{b.vehicle}</span>
+          </div>
+        )),
+        col('driver',  STR.cols.driver,  b => <span style={text}>{b.driver}</span>),
+        col('pickup',  STR.cols.pickup,  b => <div style={ellipsis}>{b.pickup}</div>),
+        col('dropoff', STR.cols.dropoff, b => <div style={ellipsis}>{b.dropoff}</div>),
+        col('date',    STR.cols.date,    b => (
+          <div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{b.dateLabel || b.date}</div>
+            <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(b.time)}</div>
+          </div>
+        )),
+        col('status',  STR.cols.status,  b => <StatusChip status={b.transferStatus} label={STR.statuses[b.transferStatus]} />),
+        actions('transfer'),
+      ],
+    };
+    // stackCell/actionsCell/nights/ad are re-created every render but only read
+    // values covered below, so re-memoising on them would defeat the memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [STR, isAr, removingId]);
+
+  // ── Arrivals & departures columns ─────────────────────────────────────────
+  // One row per guest: their inbound flights in one column, outbound in the
+  // other. Whichever direction is filtered out is dropped from the table
+  // entirely rather than left as a column of dashes.
+  const adColumns = useMemo(() => {
+    const showInbound  = adDirection !== 'outbound';
+    const showOutbound = adDirection !== 'inbound';
+
+    const routeColumn = (id, header, pick, inbound) => ({
+      id, header, enableSorting: false,
+      cell: ({ row }) => {
+        const flights = pick(row.original);
+        if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {flights.map(f => (
+              <div key={f.id}>
+                <div style={{ display:'flex', alignItems:'center', gap:7, fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
+                  <span>{f.departureCode || '—'}</span>
+                  <Icon
+  name={inbound ? 'planeLanding' : 'planeTakeoff'}
+  size={15}
+  style={{
+    color: 'var(--accent)',
+    flexShrink: 0,
+    ...(inbound && { strokeWidth: 0, borderBottom: '1px solid var(--accent)'}),
+  }}
+/>
+                  <span>{f.arrivalCode || '—'}</span>
+                </div>
+                <div style={{ fontSize:11, color:'var(--ink-mute)', fontFamily:'var(--mono)', marginTop:2 }}>
+                  {timeRange(f.departureTime, f.arrivalTime)}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      },
+    });
+
+    return [
+      {
+        id: 'guest', header: STR.cols.guest, enableSorting: false,
+        cell: ({ row }) => {
+          const g = row.original;
+          return (
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <Avatar initials={initialsFromName(g.guestName)} size={28} tier={g.tier}/>
+              <div>
+                <div style={{ fontSize:12.5, fontWeight:500 }}>{g.guestName || '—'}</div>
+                <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.email || '—'}</div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'organization', header: STR.cols.organization, enableSorting: false,
+        cell: ({ row }) => <span style={{ fontSize:12 }}>{row.original.organization || '—'}</span>,
+      },
+      {
+        id: 'flightNo', header: STR.cols.flight, enableSorting: false,
+        cell: ({ row }) => {
+          // Only the directions actually on screen, so a filtered view never
+          // shows a number whose route column is hidden.
+          const visible = [
+            ...(showInbound ? row.original.inbound : []),
+            ...(showOutbound ? row.original.outbound : []),
+          ];
+          const numbers = visible.map(f => f.flightNumber).filter(Boolean);
+          return (
+            <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
+              {numbers.length ? numbers.join(' / ') : '—'}
+            </span>
+          );
+        },
+      },
+      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true)]  : []),
+      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false)] : []),
+    ];
+  }, [STR, adDirection]);
+
+  const adDirectionOpts = useMemo(() => [
+    { value: 'all',      label: STR.direction.all },
+    { value: 'inbound',  label: STR.direction.inbound },
+    { value: 'outbound', label: STR.direction.outbound },
+  ], [STR]);
+
+  // ── Filter dropdown options ───────────────────────────────────────────────
+  const flightFilterOpts = useMemo(() => [
+    { value: 'All', label: isAr ? 'كل الرحلات' : 'All flights' },
+    ...['confirmed', 'pending'].map(s => ({ value: s, label: STR.statuses[s] })),
+  ], [STR, isAr]);
+
+  const hotelFilterOpts = useMemo(() => [
+    { value: 'All hotels', label: isAr ? 'جميع الفنادق' : 'All hotels' },
+    ...(travelLookups.hotels || []).map(h => ({ value: h.name, label: h.name })),
+  ], [travelLookups.hotels, isAr]);
+
+  const transferFilterOpts = useMemo(() => [
+    { value: 'All', label: STR.filterAll },
+    ...['scheduled', 'completed', 'pending'].map(s => ({ value: s, label: STR.statuses[s] })),
+  ], [STR]);
+
   const grid2 = (children) => (
     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>{children}</div>
   );
@@ -531,48 +803,22 @@ export default function TravelView({ lang, activeEventId }) {
       {/* ── Tab 1: Flights ── */}
       {activeTab === 0 && (
         <div>
-          <div className="filter-bar" style={{ marginBottom:12 }}>
-            <SearchInput value={fSearch} onChange={setFSearch} placeholder={STR.searchPh}/>
-            <select className="select" value={fFlight} onChange={e => setFFlight(e.target.value)}>
-              <option value="All">{isAr?'كل الرحلات':'All flights'}</option>
-              {['confirmed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-            </select>
-          </div>
+          <FilterBar
+            search={fSearch} onSearch={setFSearch} searchPlaceholder={STR.searchPh}
+            filter={fFlight} onFilter={v => setFFlight(v || 'All')}
+            filterOptions={flightFilterOpts} filterPlaceholder={STR.cols.status}
+            shown={fmtN(filteredFlights.length)} total={fmtN(groupByGuest(flightRows).length)}
+            countLabel={isAr ? 'من' : 'of'}
+          />
           <div className="card" style={{ padding:0 }}>
-            <table className="table">
-              <thead><tr>
-                <th>{STR.cols.guest}</th><th>{STR.cols.flight}</th>
-                <th>{STR.cols.flightType}</th><th>{STR.cols.flightClass}</th>
-                <th>{STR.cols.route}</th><th>{STR.cols.date}</th>
-                <th>{STR.cols.status}</th><th style={{ width:40 }}/>
-              </tr></thead>
-              <tbody>
-                {filteredFlights.map(g => (
-                  <tr key={g.guestId}>
-                    <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
-                        <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>{b.flight}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.flightType}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.flightClass}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{b.from} → {b.to}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.dateLabel || b.date}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <StatusChip status={b.flightStatus} label={STR.statuses[b.flightStatus]}/>)}</td>
-                    <td>{actionsCell('flight', g.bookings)}</td>
-                  </tr>
-                ))}
-                {tabLoading[0] && <SkeletonRows cols={8} />}
-                {!tabLoading[0] && filteredFlights.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              columns={columns.flights}
+              data={filteredFlights}
+              loading={tabLoading[0]}
+              emptyText={STR.noResults}
+              showSearch={false}
+              pageSize={10}
+            />
           </div>
         </div>
       )}
@@ -580,47 +826,22 @@ export default function TravelView({ lang, activeEventId }) {
       {/* ── Tab 2: Hotel ── */}
       {activeTab === 1 && (
         <div>
-          <div className="filter-bar" style={{ marginBottom:12 }}>
-            <SearchInput value={hSearch} onChange={setHSearch} placeholder={STR.searchPh}/>
-            <select className="select" value={hHotel} onChange={e => setHHotel(e.target.value)}>
-              <option value="All hotels">{isAr?'جميع الفنادق':'All hotels'}</option>
-              {(travelLookups.hotels||[]).map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
-            </select>
-          </div>
+          <FilterBar
+            search={hSearch} onSearch={setHSearch} searchPlaceholder={STR.searchPh}
+            filter={hHotel} onFilter={v => setHHotel(v || 'All hotels')}
+            filterOptions={hotelFilterOpts} filterPlaceholder={STR.cols.hotel}
+            shown={fmtN(filteredHotels.length)} total={fmtN(groupByGuest(hotelRows).length)}
+            countLabel={isAr ? 'من' : 'of'}
+          />
           <div className="card" style={{ padding:0 }}>
-            <table className="table">
-              <thead><tr>
-                <th>{STR.cols.guest}</th><th>{STR.cols.hotel}</th>
-                <th>{STR.cols.room}</th><th>{STR.cols.checkIn}</th>
-                <th>{STR.cols.checkOut}</th><th>{STR.cols.nights}</th>
-                <th style={{ width:40 }}/>
-              </tr></thead>
-              <tbody>
-                {filteredHotels.map(g => (
-                  <tr key={g.guestId}>
-                    <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
-                        <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12, fontWeight:500 }}>{b.hotel}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.roomType}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.checkIn}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12 }}>{b.checkOut}</span>)}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--ink-mute)' }}>{nights(b)}</span>)}</td>
-                    <td>{actionsCell('hotel', g.bookings)}</td>
-                  </tr>
-                ))}
-                {tabLoading[1] && <SkeletonRows cols={7} />}
-                {!tabLoading[1] && filteredHotels.length === 0 && (
-                  <tr><td colSpan={7} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
-                )}
-              </tbody>
-            </table>
+            <DataTable
+              columns={columns.hotels}
+              data={filteredHotels}
+              loading={tabLoading[1]}
+              emptyText={STR.noResults}
+              showSearch={false}
+              pageSize={10}
+            />
           </div>
         </div>
       )}
@@ -628,59 +849,71 @@ export default function TravelView({ lang, activeEventId }) {
       {/* ── Tab 3: Ground Transfers ── */}
       {activeTab === 2 && (
         <div>
-          <div className="filter-bar" style={{ marginBottom:12 }}>
-            <SearchInput value={tSearch} onChange={setTSearch} placeholder={STR.searchPh}/>
-            <select className="select" value={tStatus} onChange={e => setTStatus(e.target.value)}>
-              <option value="All">{STR.filterAll}</option>
-              {['scheduled','completed','pending'].map(s => <option key={s} value={s}>{STR.statuses[s]}</option>)}
-            </select>
-          </div>
+          <FilterBar
+            search={tSearch} onSearch={setTSearch} searchPlaceholder={STR.searchPh}
+            filter={tStatus} onFilter={v => setTStatus(v || 'All')}
+            filterOptions={transferFilterOpts} filterPlaceholder={STR.cols.status}
+            shown={fmtN(filteredTransfers.length)} total={fmtN(groupByGuest(transferRows).length)}
+            countLabel={isAr ? 'من' : 'of'}
+          />
           <div className="card" style={{ padding:0 }}>
-            <table className="table">
-              <thead><tr>
-                <th>{STR.cols.guest}</th><th>{STR.cols.vehicle}</th>
-                <th>{STR.cols.driver}</th><th>{STR.cols.pickup}</th>
-                <th>{STR.cols.dropoff}</th><th>{STR.cols.date}</th>
-                <th>{STR.cols.status}</th><th style={{ width:40 }}/>
-              </tr></thead>
-              <tbody>
-                {filteredTransfers.map(g => (
-                  <tr key={g.guestId}>
-                    <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={g.initials} size={28} tier={g.tier}/>
-                        <span style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</span>
-                      </div>
-                    </td>
-                    <td>{stackCell(g.bookings, b => (
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <Icon name="car" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
-                        <span style={{ fontSize:12 }}>{b.vehicle}</span>
-                      </div>
-                    ))}</td>
-                    <td>{stackCell(g.bookings, b => <span style={{ fontSize:12 }}>{b.driver}</span>)}</td>
-                    <td style={{ maxWidth:130 }}>{stackCell(g.bookings, b => (
-                      <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.pickup}</div>
-                    ))}</td>
-                    <td style={{ maxWidth:130 }}>{stackCell(g.bookings, b => (
-                      <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.dropoff}</div>
-                    ))}</td>
-                    <td>{stackCell(g.bookings, b => (
-                      <div>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:11 }}>{b.dateLabel || b.date}</div>
-                        <div style={{ fontFamily:'var(--mono)', fontSize:11, color:'var(--ink-mute)' }}>{ad(b.time)}</div>
-                      </div>
-                    ))}</td>
-                    <td>{stackCell(g.bookings, b => <StatusChip status={b.transferStatus} label={STR.statuses[b.transferStatus]}/>)}</td>
-                    <td>{actionsCell('transfer', g.bookings)}</td>
-                  </tr>
-                ))}
-                {tabLoading[2] && <SkeletonRows cols={8} />}
-                {!tabLoading[2] && filteredTransfers.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign:'center', color:'var(--ink-faint)', padding:'32px', fontSize:13 }}>{STR.noResults}</td></tr>
+            <DataTable
+              columns={columns.transfers}
+              data={filteredTransfers}
+              loading={tabLoading[2]}
+              emptyText={STR.noResults}
+              showSearch={false}
+              pageSize={10}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab 4: Arrivals & Departures (read-only) ── */}
+      {activeTab === 3 && (
+        <div>
+          <FilterBar
+            search={adSearchInput} onSearch={setAdSearchInput} searchPlaceholder={STR.searchPh}
+            filter={adDirection} onFilter={v => setAdDirection(v || 'all')}
+            filterOptions={adDirectionOpts} filterPlaceholder={STR.direction.all}
+            shown={fmtN(adRows.length)} total={fmtN(adTotal)}
+            countLabel={isAr ? 'من' : 'of'}
+            extra={
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <div style={{ minWidth:140 }}>
+                  <DateField value={adFrom} onChange={v => setAdFrom(v || '')} placeholder={STR.dateFrom}/>
+                </div>
+                <span style={{ color:'var(--ink-faint)', fontSize:12 }}>–</span>
+                <div style={{ minWidth:140 }}>
+                  <DateField value={adTo} onChange={v => setAdTo(v || '')} minDate={adFrom || undefined} placeholder={STR.dateTo}/>
+                </div>
+                {(adFrom || adTo) && (
+                  <button
+                    className="icon-btn"
+                    title={STR.clearDates}
+                    onClick={() => { setAdFrom(''); setAdTo(''); }}
+                    style={{ opacity:0.6 }}
+                  >
+                    <Icon name="close" size={13}/>
+                  </button>
                 )}
-              </tbody>
-            </table>
+              </div>
+            }
+          />
+          <div className="card" style={{ padding:0 }}>
+            <DataTable
+              columns={adColumns}
+              data={adRows}
+              loading={adLoading}
+              emptyText={STR.noResults}
+              showSearch={false}
+              manualPagination
+              pageSize={adPageSize}
+              pageIndex={adPageIndex}
+              totalRows={adTotal}
+              onPageChange={setAdPageIndex}
+              onPageSizeChange={setAdPageSize}
+            />
           </div>
         </div>
       )}

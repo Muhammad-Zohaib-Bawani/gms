@@ -2,9 +2,36 @@ import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
 // ── Admin travel tabs: per-event booking lists (one call per active tab) ─────
-export const getEventFlights       = (eventId) => apiClient.get(ENDPOINTS.travel.eventFlights(eventId));
-export const getEventAccommodation = (eventId) => apiClient.get(ENDPOINTS.travel.eventAccommodation(eventId));
-export const getEventTransport     = (eventId) => apiClient.get(ENDPOINTS.travel.eventTransport(eventId));
+// Paged like GET /guest — returns { items, totalCount, pageNumber, pageSize }.
+// The tabs group bookings by guest client-side, so they pull one large page
+// rather than paging server-side (a guest's bookings must not straddle pages);
+// DataTable then paginates what's on screen.
+const TAB_PAGE_SIZE = 200;
+
+const pagedParams = ({ pageNumber = 1, pageSize = TAB_PAGE_SIZE, search } = {}) =>
+  ({ params: { pageNumber, pageSize, searchTerm: search || undefined } });
+
+export const getEventFlights       = (eventId, opts) => apiClient.get(ENDPOINTS.travel.eventFlights(eventId), pagedParams(opts));
+export const getEventAccommodation = (eventId, opts) => apiClient.get(ENDPOINTS.travel.eventAccommodation(eventId), pagedParams(opts));
+export const getEventTransport     = (eventId, opts) => apiClient.get(ENDPOINTS.travel.eventTransport(eventId), pagedParams(opts));
+
+// Arrivals & departures — one row per guest, pairing their inbound and outbound
+// flights. Unlike the tabs above this pages by GUEST server-side, so a page can
+// never split a guest's flights and true server pagination is safe.
+// direction: 'all' | 'inbound' | 'outbound'.
+// fromDate/toDate are inclusive 'YYYY-MM-DD' bounds on the flight's legs.
+export const getEventArrivalsDepartures = (
+  eventId,
+  { pageNumber = 1, pageSize = 10, search, direction = 'all', fromDate, toDate } = {},
+) =>
+  apiClient.get(ENDPOINTS.travel.eventArrivalsDepartures(eventId), {
+    params: {
+      pageNumber, pageSize, direction,
+      searchTerm: search || undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    },
+  });
 
 // ── Guest travel (flight / accommodation / transport) ────────────────────────
 

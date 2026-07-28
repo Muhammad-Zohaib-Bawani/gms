@@ -126,6 +126,9 @@ export const ENDPOINTS = {
     eventFlights: (eventId) => `/v1/travel/event/${eventId}/flights`,
     eventAccommodation: (eventId) => `/v1/travel/event/${eventId}/accommodation`,
     eventTransport: (eventId) => `/v1/travel/event/${eventId}/transport`,
+    // Read-only arrivals/departures board — its own endpoint so it can be
+    // permission-gated separately from the flights list later.
+    eventArrivalsDepartures: (eventId) => `/v1/travel/event/${eventId}/arrivals-departures`,
     // Remove one specific booking.
     deleteFlight: (id) => `/v1/travel/flight/${id}`,
     deleteAccommodation: (id) => `/v1/travel/accommodation/${id}`,

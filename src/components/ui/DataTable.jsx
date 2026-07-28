@@ -52,7 +52,14 @@ const S = {
   },
   pageBtnDisabled: { opacity: 0.35, cursor: 'not-allowed' },
   checkbox: { cursor: 'pointer', accentColor: 'var(--accent)', width: 15, height: 15 },
+  sizeSelect: {
+    background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+    borderRadius: 6, padding: '4px 8px', fontSize: 12, color: 'var(--ink)',
+    cursor: 'pointer', outline: 'none',
+  },
 };
+
+export const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 
 export default function DataTable({
   columns,
@@ -62,6 +69,15 @@ export default function DataTable({
   searchPlaceholder = 'Search…',
   showSearch = true,
   pageSize: initialPageSize = 15,
+  // Server-driven paging. Pass `manualPagination` together with the current
+  // page/size and the server's total row count; the table then renders exactly
+  // the rows it's given and reports navigation back instead of slicing locally.
+  manualPagination = false,
+  pageIndex: controlledPageIndex = 0,
+  totalRows: controlledTotalRows = 0,
+  onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
   toolbar,
   onRowClick,
   // row selection
@@ -137,14 +153,25 @@ export default function DataTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // In manual mode the server already sliced the page — running the local
+    // pagination model on top would slice the slice.
+    ...(manualPagination
+      ? { manualPagination: true, pageCount: Math.ceil(controlledTotalRows / initialPageSize) || 1 }
+      : { getPaginationRowModel: getPaginationRowModel() }),
     initialState: { pagination: { pageSize: initialPageSize } },
   });
 
-  const { pageIndex, pageSize } = table.getState().pagination;
-  const totalRows = table?.getFilteredRowModel()?.rows?.length;
+  const localPagination = table.getState().pagination;
+  const pageSize = manualPagination ? initialPageSize : localPagination.pageSize;
+  const pageIndex = manualPagination ? controlledPageIndex : localPagination.pageIndex;
+  const totalRows = manualPagination ? controlledTotalRows : table?.getFilteredRowModel()?.rows?.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / pageSize));
   const from = totalRows === 0 ? 0 : pageIndex * pageSize + 1;
   const to = Math.min((pageIndex + 1) * pageSize, totalRows);
+
+  const canPrev = manualPagination ? pageIndex > 0 : table.getCanPreviousPage();
+  const canNext = manualPagination ? pageIndex + 1 < pageCount : table.getCanNextPage();
+  const goToPage = (i) => (manualPagination ? onPageChange?.(i) : table.setPageIndex(i));
 
   return (
     <div style={S.wrap}>
@@ -224,30 +251,44 @@ export default function DataTable({
         </table>
       </div>
 
-      {!loading && totalRows > pageSize && (
+      {/* Shown whenever paging is server-driven (the size picker must stay
+          reachable even on a single page) or there's more than one local page. */}
+      {!loading && (manualPagination || totalRows > pageSize) && (
         <div style={S.footer}>
-          <span>{from}–{to} of {totalRows}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {from}–{to} of {totalRows}
+            {onPageSizeChange && (
+              <select
+                style={S.sizeSelect}
+                value={pageSize}
+                onChange={e => onPageSizeChange(Number(e.target.value))}
+                aria-label="Rows per page"
+              >
+                {pageSizeOptions.map(n => <option key={n} value={n}>{n} / page</option>)}
+              </select>
+            )}
+          </span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <button
-              style={{ ...S.pageBtn, ...(table.getCanPreviousPage() ? {} : S.pageBtnDisabled) }}
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
+              style={{ ...S.pageBtn, ...(canPrev ? {} : S.pageBtnDisabled) }}
+              onClick={() => goToPage(pageIndex - 1)}
+              disabled={!canPrev}
             >‹ Prev</button>
 
-            {Array.from({ length: table.getPageCount() }, (_, i) => i)
+            {Array.from({ length: pageCount }, (_, i) => i)
               .filter(i => Math.abs(i - pageIndex) <= 2)
               .map(i => (
                 <button
                   key={i}
                   style={{ ...S.pageBtn, ...(i === pageIndex ? S.pageBtnActive : {}) }}
-                  onClick={() => table.setPageIndex(i)}
+                  onClick={() => goToPage(i)}
                 >{i + 1}</button>
               ))}
 
             <button
-              style={{ ...S.pageBtn, ...(table.getCanNextPage() ? {} : S.pageBtnDisabled) }}
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
+              style={{ ...S.pageBtn, ...(canNext ? {} : S.pageBtnDisabled) }}
+              onClick={() => goToPage(pageIndex + 1)}
+              disabled={!canNext}
             >Next ›</button>
           </div>
         </div>

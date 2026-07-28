@@ -35,7 +35,7 @@ const STRINGS = {
       more: "More",
     },
     guests: {
-      title: ["Guest", "directory"],
+      title: ["Guests", ""],
       sub: (n, total) => `${n} of ${total} guests · Doha Forum 2025`,
       cols: { guest: "Guest", tier: "Tier", country: "Country", status: "Status", arrival: "Arrival", hotel: "Hotel", accreditation: "Accreditation" },
       tier: "Tier", status: "Status",

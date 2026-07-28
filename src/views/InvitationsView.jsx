@@ -211,7 +211,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     variables: 'متغيرات',
     selectPlaceholder: '— اختر —',
   } : {
-    pageTitle: ['Invitation', 'lifecycle'],
+    pageTitle: ['Invitations', ''],
     pageSub: 'Design · automate · track delivery across channels',
     newTemplate: 'New template',
     tabs: { templates: 'Templates', builder: 'Builder' },

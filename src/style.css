@@ -1109,6 +1109,9 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
   padding: 0 22px;
   border-radius: var(--radius);
   position: relative; z-index: 50;
+  background: linear-gradient(180deg, rgba(141,1,52,0.15) 0%, rgba(106,0,37,0.45) 100%),
+    url("/assets/qoc-bg-pattern.png") top center / 300px repeat,
+    linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
 }
 .topbar .crumbs {
   display: flex; align-items: center; gap: 10px;
@@ -2202,7 +2205,7 @@ html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
    to read on maroon. Overrides the earlier maroon-underline rule.
    ========================================================================== */
 .topbar {
-  background: linear-gradient(90deg, #8d0134 0%, #7a012c 100%) !important;
+  /* background: linear-gradient(90deg, #8d0134 0%, #7a012c 100%) !important; */
   border: 0 !important;
   border-bottom: 1px solid rgba(0,0,0,0.18) !important;
   box-shadow: 0 2px 22px rgba(94,0,34,0.22) !important;

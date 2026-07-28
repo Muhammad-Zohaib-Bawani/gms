@@ -1,12 +1,16 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
-export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search, excludeDeclined } = {}) {
+// tier / invitationStatus are filtered server-side because the list is paged —
+// filtering them in the browser would only ever filter the current page.
+export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search, excludeDeclined, tier, invitationStatus } = {}) {
   return apiClient.get(ENDPOINTS.guests.base, {
     params: {
       eventId, pageNumber, pageSize,
       searchTerm: search || undefined,
       excludeDeclined: excludeDeclined || undefined,
+      tier: tier || undefined,
+      invitationStatus: invitationStatus || undefined,
     },
   });
 }

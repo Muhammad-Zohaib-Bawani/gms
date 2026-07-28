@@ -26,6 +26,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
   // ── data ──────────────────────────────────────────────────────────────────
   const [guests, setGuests] = useState([]);
+  // Server-side paging: the table shows exactly the page the API returned, so
+  // search + tier/status filters have to be sent along (filtering locally would
+  // only ever filter the rows currently on screen).
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
   const [nationalities, setNationalities] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [sessions, setSessions] = useState([]);
@@ -82,32 +88,37 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     try {
       const r = await listGuests({
         eventId: activeEventId,
-        pageSize: 200,
+        pageNumber: pageIndex + 1, // API pages are 1-based
+        pageSize,
         search: query || undefined,
+        tier: tierFilter !== "All" ? tierFilter : undefined,
+        invitationStatus: statusFilter !== "All" ? statusFilter : undefined,
       });
       setGuests(r?.items || []);
+      setTotalCount(r?.totalCount ?? 0);
     } catch {
       // keep previous list
     } finally {
       setLoading(false);
     }
-  }, [activeEventId, query]);
+  }, [activeEventId, query, pageIndex, pageSize, tierFilter, statusFilter]);
 
   useEffect(() => {
     loadGuests();
   }, [loadGuests]);
 
-  // ── client-side filters ───────────────────────────────────────────────────
-  const filtered = useMemo(
-    () =>
-      guests.filter((g) => {
-        if (tierFilter !== "All" && g.tier !== tierFilter) return false;
-        if (statusFilter !== "All" && g.invitationStatus !== statusFilter)
-          return false;
-        return true;
-      }),
-    [guests, tierFilter, statusFilter],
-  );
+  // Any change that reshapes the result set has to send us back to page 1 —
+  // otherwise a filter that narrows to 3 rows leaves us stranded on page 5.
+  useEffect(() => {
+    setPageIndex(0);
+  }, [activeEventId, query, tierFilter, statusFilter, pageSize]);
+
+  // Selection can't span pages: only the current page's rows are in memory, so
+  // a selection made on page 1 would silently vanish from the bulk actions on
+  // page 2. Clearing on navigation makes that visible instead of surprising.
+  useEffect(() => {
+    clearSelection();
+  }, [pageIndex, pageSize, query, tierFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── select options ────────────────────────────────────────────────────────
   const tierFilterOpts = useMemo(
@@ -160,7 +171,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                   {g.fullName}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>
-                  {g.guestType} · {g.organization}
+                  {g.email} { g.organization && ` - ${g.organization}`}
                 </div>
               </div>
             </div>
@@ -254,7 +265,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   );
 
   // ── bulk action callbacks ─────────────────────────────────────────────────
-  function handleExport() {
+  // Exports every guest matching the current filters, not just the page on
+  // screen — so it re-queries with the filters and a page big enough to hold
+  // the whole result set.
+  async function handleExport() {
     const cols = [
       "Name",
       "Email",
@@ -264,7 +278,27 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       "Hotel",
       "Accreditation",
     ];
-    const rows = filtered.map((g) =>
+
+    let all = guests;
+    try {
+      const r = await listGuests({
+        eventId: activeEventId,
+        pageNumber: 1,
+        pageSize: Math.max(totalCount, 1),
+        search: query || undefined,
+        tier: tierFilter !== "All" ? tierFilter : undefined,
+        invitationStatus: statusFilter !== "All" ? statusFilter : undefined,
+      });
+      if (r?.items?.length) all = r.items;
+    } catch {
+      toast.error(
+        isAr
+          ? "تعذّر تحميل كل الضيوف — سيتم تصدير الصفحة الحالية فقط"
+          : "Could not load all guests — exporting the current page only",
+      );
+    }
+
+    const rows = all.map((g) =>
       [
         g.fullName,
         g.email,
@@ -292,10 +326,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         <div>
           <h1 className="page-title">
             {t.guests?.title?.[0] || "Guest"}{" "}
-            <em>{t.guests?.title?.[1] || "Management"}</em>
+            <em>{t.guests?.title?.[1]}</em>
           </h1>
           <div className="page-sub">
-            {fmtN(filtered.length)} guest{filtered.length !== 1 ? "s" : ""}
+            {fmtN(totalCount)} guest{totalCount !== 1 ? "s" : ""}
           </div>
         </div>
         <div className="page-actions">
@@ -393,7 +427,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             whiteSpace: "nowrap",
           }}
         >
-          {fmtN(filtered.length)} {isAr ? "من" : "of"} {fmtN(guests.length)}
+          {fmtN(guests.length)} {isAr ? "من" : "of"} {fmtN(totalCount)}
         </span>
         {selCount > 0 && (
           <span style={{ fontSize: 12, color: "var(--accent)" }}>
@@ -406,7 +440,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       <div className="card" style={{ padding: 0 }}>
         <DataTable
           columns={columns}
-          data={filtered}
+          data={guests}
           loading={loading}
           emptyText={
             activeEventId
@@ -418,7 +452,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 : "Select an event first"
           }
           showSearch={false}
-          pageSize={20}
+          manualPagination
+          pageSize={pageSize}
+          pageIndex={pageIndex}
+          totalRows={totalCount}
+          onPageChange={setPageIndex}
+          onPageSizeChange={setPageSize}
           enableRowSelection
           onSelectionChange={setSelectedGuests}
           selectionResetKey={selResetKey}
