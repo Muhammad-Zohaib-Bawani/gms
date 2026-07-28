@@ -72,7 +72,7 @@ export function Donut({ value, max = 100, size = 140, color = "var(--accent)", l
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}>
         <div>
-          <div style={{ fontFamily: "var(--serif)", fontSize: size * 0.27, lineHeight: 1 }}>{label}</div>
+          <div style={{ fontFamily: "var(--serif)", fontSize: size * 0.18, lineHeight: 1 }}>{label}</div>
           {sub && <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 4 }}>{sub}</div>}
         </div>
       </div>

@@ -49,6 +49,7 @@ const NAV = [
   { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
+  { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
 

@@ -71,6 +71,13 @@ export const ENDPOINTS = {
     base: '/v1/nationality',
   },
 
+  // Reads are open to any signed-in user (so any module can fill an org
+  // dropdown); writes require Organizations.Manage.
+  organizations: {
+    base: '/v1/organizations',
+    byId: (id) => `/v1/organizations/${id}`,
+  },
+
   invitationTemplates: {
     base: '/v1/invitation-templates',
     byId: (id) => `/v1/invitation-templates/${id}`,
@@ -87,6 +94,7 @@ export const ENDPOINTS = {
     hotels: '/v1/lookups/hotels',
     locations: '/v1/lookups/locations',
     airports: '/v1/lookups/airports',
+    drivers: '/v1/lookups/drivers',
 
     locationById: (id) => `/v1/lookups/locations/${id}`,
   },

@@ -3,6 +3,9 @@ export const LOCATION_TYPE = {
   AIRPORT: 'airport',
   HOTEL: 'hotel',
   VENUE: 'venue',
+  // Written by the Organizations module, which owns its own pin — deliberately
+  // absent from LOCATION_TYPE_OPTIONS so it isn't hand-pickable elsewhere.
+  ORGANIZATION: 'organization',
 };
 
 // Dropdown options, bilingual labels.

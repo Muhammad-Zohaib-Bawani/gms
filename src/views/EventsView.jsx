@@ -361,7 +361,7 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
 }
 
 // Hoisted to module scope — see EventForm's comment above for why.
-function SessionForm({ session, evId, event, onSave, onCancel, isAr, STR }) {
+function SessionForm({ session, evId, event, onSave, onCancel, isAr, STR, venues, venuesLoading }) {
   const [form, setForm] = useState({ ...session });
 
   function trySave() {
@@ -396,7 +396,17 @@ function SessionForm({ session, evId, event, onSave, onCancel, isAr, STR }) {
         </div>
         <div>
           <label style={lStyle}>{STR.sVenue}</label>
-          <input style={iStyle} value={form.venue || ""} onChange={e => setForm(f => ({ ...f, venue: e.target.value }))} placeholder={isAr ? "مثال: شيراتون الكبرى" : "e.g. Sheraton Grand, Doha"}/>
+          {venuesLoading ? (
+            <div style={{ fontSize: 12, color: "var(--ink-mute)" }}>{isAr ? "جارٍ التحميل…" : "Loading…"}</div>
+          ) : (
+            <Select
+              value={form.venueId || ""}
+              onChange={v => setForm(f => ({ ...f, venueId: v || "" }))}
+              placeholder={isAr ? "— اختر مكاناً —" : "— Select venue —"}
+              options={(venues || []).map(v => ({ value: v.id, label: v.name }))}
+              isClearable
+            />
+          )}
         </div>
         <div>
           <label style={lStyle}>{STR.sRoom}</label>
@@ -486,7 +496,7 @@ export default function EventsView({ lang }) {
   });
 
   const [newEvent, setNewEvent] = useState({ title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" });
-  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", room: "", speaker: "", capacity: 200 });
+  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 });
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
 
@@ -498,7 +508,7 @@ export default function EventsView({ lang }) {
   function showMsg(msg) { toast.success(msg); }
 
   const blankEvent = { title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" };
-  const blankSession = { title: "", date: "", time: "09:00", venue: "", room: "", speaker: "", capacity: 200 };
+  const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 };
 
   async function saveNewEvent(ev) {
     if (!ev.title) return;
@@ -809,7 +819,7 @@ export default function EventsView({ lang }) {
                       {editSessionId === s.id ? (
                         <div style={{ padding: "4px 0" }}>
                           <SessionForm session={s} evId={selectedEvent.id} event={selectedEvent} onSave={saveEditSession} onCancel={() => setEditSessionId(null)}
-                            isAr={isAr} STR={STR}/>
+                            isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -870,7 +880,7 @@ export default function EventsView({ lang }) {
             </div>
             <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
               <SessionForm session={newSession} evId={selectedEvent.id} event={selectedEvent} onSave={(evId, s) => saveNewSession(s)} onCancel={() => setShowNewSession(false)}
-                isAr={isAr} STR={STR}/>
+                isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
             </div>
           </div>
         </div>
