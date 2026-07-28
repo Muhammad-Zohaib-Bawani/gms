@@ -35,6 +35,7 @@ const S = {
     verticalAlign: 'middle',
   },
   trHover: { background: 'rgba(255,255,255,0.02)' },
+  trSelected: { background: 'rgba(141, 1, 52,0.1)', boxShadow: 'inset 3px 0 0 var(--accent)' },
   empty: { padding: '36px 16px', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 },
   footer: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -85,6 +86,10 @@ export default function DataTable({
   onSelectionChange,
   getRowId = (row) => row.id,
   selectionResetKey,
+  // Opt-in "active row" highlight (e.g. the open conversation in a chat inbox)
+  // — distinct from enableRowSelection's checkboxes, which is a bulk-actions
+  // concept. Compared against getRowId(row.original).
+  selectedRowId,
 }) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState([]);
@@ -233,6 +238,7 @@ export default function DataTable({
                   key={row.id}
                   style={{
                     ...(hoveredRow === row.id ? S.trHover : {}),
+                    ...(selectedRowId != null && getRowId(row.original) === selectedRowId ? S.trSelected : {}),
                     ...(onRowClick ? { cursor: 'pointer' } : {}),
                   }}
                   onMouseEnter={() => setHoveredRow(row.id)}

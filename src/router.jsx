@@ -19,6 +19,7 @@ import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
 import OrganizationsView from './views/OrganizationsView';
 import VehiclesView from './views/VehiclesView';
+import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
 
 // Each routed module + the permission that gates it. Paths come from KEY_PATH
@@ -38,6 +39,7 @@ const MODULE_ROUTES = [
   { key: 'users',           Component: UsersView,           permission: 'Users.View' },
   { key: 'organizations',   Component: OrganizationsView,   permission: 'Organizations.View' },
   { key: 'vehicles',        Component: VehiclesView,        permission: 'Travel.View' },
+  { key: 'supportChat',     Component: SupportChatView,     permission: 'SupportChat.View' },
 ];
 
 // Views read lang / activeEventId / onOpenGuest / gotoView from the layout via

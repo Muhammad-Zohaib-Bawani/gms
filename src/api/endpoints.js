@@ -169,4 +169,15 @@ export const ENDPOINTS = {
     byToken: (token) => `/v1/invitation/${token}`,
     respond: (token) => `/v1/invitation/${token}/respond`,
   },
+
+  // Admin side of guest ↔ support chat. Read needs SupportChat.View; reply/read/
+  // close/reopen need SupportChat.Manage. (The guest app's own /my/* side of this
+  // API is a separate concern and has no admin-portal caller.)
+  supportChat: {
+    conversations: '/v1/support-chat/conversations',
+    messages: (conversationId) => `/v1/support-chat/conversations/${conversationId}/messages`,
+    read: (conversationId) => `/v1/support-chat/conversations/${conversationId}/read`,
+    close: (conversationId) => `/v1/support-chat/conversations/${conversationId}/close`,
+    reopen: (conversationId) => `/v1/support-chat/conversations/${conversationId}/reopen`,
+  },
 };

@@ -40,6 +40,7 @@ const NAV = [
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
   { key: "travel",         icon: "travel",     label: { en: "Services",            ar: "الخدمات"                }, section: "EVENT",    permission: "Travel.View"            },
+  { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
   { key: "meetings",       icon: "meetings",   label: { en: "Meetings",            ar: "الاجتماعات"            }, section: "ONSITE",   permission: "Meetings.View"          },
@@ -52,7 +53,7 @@ const NAV = [
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
-  { key: "vehicles",       icon: "travel",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
+  { key: "vehicles",       icon: "car",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
 

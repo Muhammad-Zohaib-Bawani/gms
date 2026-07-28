@@ -35,6 +35,10 @@ export const ICON_PATHS = {
   car: <><path d="M5 17h14M5 17l1.5-5h11L19 17M5 17v3h2v-3M19 17v3h-2v-3M7 12h10"/><circle cx="8" cy="17" r="0.8"/><circle cx="16" cy="17" r="0.8"/></>,
   qr: <><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M20 14v7M14 20h3"/></>,
   message: <><path d="M21 12c0 4.4-4 8-9 8-1.6 0-3-0.3-4.3-0.9L3 20l1.2-3.7C3.4 15 3 13.5 3 12c0-4.4 4-8 9-8s9 3.6 9 8z"/></>,
+  // Chat composer send button.
+  send: <><path d="M22 2 11 13"/><path d="M22 2 15 22 11 13 2 9z"/></>,
+  // Read-receipt indicator (double check) — one message sent, one message read.
+  checkDouble: <><path d="M2 12l4 4 8-8"/><path d="M8 12l4 4 8-8"/></>,
   star: <><path d="M12 3l2.6 5.5 6 0.9-4.3 4.3 1 6L12 17l-5.3 2.7 1-6L3.4 9.4l6-0.9z"/></>,
   shield: <><path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-0.5-8-4-8-9V7z"/></>,
   power: <><path d="M12 3v9M6 7a8 8 0 1012 0"/></>,
