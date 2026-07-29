@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
+import FlagIcon from '../components/FlagIcon.jsx';
 import { Icon } from '../components/Icons.jsx';
 import Select from '../components/ui/Select.jsx';
 import toast from '../lib/toast.js';
@@ -487,8 +488,8 @@ export default function SeatingView({ lang, activeEventId }) {
                     <div>
                       <div style={{ fontWeight:600 }}>{assignedGuest.fullName}</div>
                       <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{assignedGuest.guestType} · {assignedGuest.organization}</div>
-                      <div style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2 }}>
-                        {assignedGuest.tier} · {assignedGuest.nationalityName}
+                      <div style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
+                        {assignedGuest.tier} · <FlagIcon code={assignedGuest.nationalityCode} size={12} /> {assignedGuest.nationalityName}
                       </div>
                     </div>
                   </div>

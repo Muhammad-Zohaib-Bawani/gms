@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar, TierChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
+import FlagIcon from '../components/FlagIcon.jsx';
 import toast from '../lib/toast';
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getGuestEnums } from '../api/services/lookupService';
@@ -323,7 +324,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                                 style={{ fontSize: 13, fontWeight: 500, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: isAr ? 'right' : 'left' }}>
                                 {g.fullName}
                               </button>
-                              <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{g.guestType} · {g.nationalityName}</div>
+                              <div style={{ fontSize: 11, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                {g.guestType} · <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -396,7 +399,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                           </div>
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
-                        <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10 }}>{g.nationalityName} · {g.arrivalDate || '—'}</div>
+                        <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName} · {g.arrivalDate || '—'}
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <TierChip tier={g.tier} lang={lang}/>
                           <span style={chipStyle(isIssued)}>
@@ -461,8 +466,8 @@ export default function AccreditationView({ lang, activeEventId }) {
                       <span style={{ fontSize: 12, fontWeight: 700, color: tierCol, background: `${tierCol}18`, border: `1px solid ${tierCol}44`, borderRadius: 20, padding: '3px 12px' }}>
                         {previewGuest.tier}
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)' }}>
-                        {previewGuest.nationalityName}
+                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <FlagIcon code={previewGuest.nationalityCode} /> {previewGuest.nationalityName}
                       </span>
                     </div>
 

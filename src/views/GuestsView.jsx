@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
 import { Avatar, StatusChip, TierChip } from "../components/UI";
 import { Icon } from "../components/Icons";
+import FlagIcon from "../components/FlagIcon";
 import DataTable from "../components/ui/DataTable";
 import ActionMenu from "../components/ui/ActionMenu";
 import Select from "../components/ui/Select";
 import toast from "../lib/toast";
 import { listGuests } from "../api/services/guestService";
 import { getNationalities } from "../api/services/nationalityService";
+import { getOrganizations } from "../api/services/organizationService";
 import { getTemplates } from "../api/services/invitationTemplateService";
 import { listSessions, getEvent } from "../api/services/eventService";
 
@@ -38,10 +40,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // ensureGuestFormData) since a plain guest-list visit never needs any of
   // this, and it used to fire unconditionally on every mount/event switch.
   const [nationalities, setNationalities] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
   const [nationalitiesLoaded, setNationalitiesLoaded] = useState(false);
+  const [organizationsLoaded, setOrganizationsLoaded] = useState(false);
   const [refDataLoadedForEvent, setRefDataLoadedForEvent] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -76,6 +80,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         getNationalities().then((r) => setNationalities(r || [])).catch(() => setNationalitiesLoaded(false)),
       );
     }
+    if (!organizationsLoaded) {
+      setOrganizationsLoaded(true);
+      tasks.push(
+        getOrganizations().then((r) => setOrganizations(r || [])).catch(() => setOrganizationsLoaded(false)),
+      );
+    }
     if (activeEventId && refDataLoadedForEvent !== activeEventId) {
       setRefDataLoadedForEvent(activeEventId);
       tasks.push(getTemplates(activeEventId).then((r) => setTemplates(r || [])).catch(() => {}));
@@ -83,7 +93,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       tasks.push(getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null)));
     }
     return Promise.all(tasks);
-  }, [activeEventId, nationalitiesLoaded, refDataLoadedForEvent]);
+  }, [activeEventId, nationalitiesLoaded, organizationsLoaded, refDataLoadedForEvent]);
 
   // Opens the Add/Edit Guest wizard directly on a given step — used by the
   // row actions menu's "Send Invite" to jump straight to the Invitation step.
@@ -165,7 +175,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           ).toUpperCase();
           return (
             <div
-              style={{ display: "flex", alignItems: "center", gap: 10 }}
+              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenGuest?.(g);
@@ -202,7 +212,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         accessorKey: "nationalityName",
         size: 130,
         cell: ({ row: { original: g } }) => (
-          <span style={{ fontSize: 12 }}> {g.nationalityName}</span>
+          <span style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <FlagIcon code={g.nationalityCode} />
+            {g.nationalityName}
+          </span>
         ),
       },
       {
@@ -482,34 +495,44 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
-      <GuestModal
-        open={showAddGuest}
-        onClose={() => setShowAddGuest(false)}
-        guest={null}
-        activeEventId={activeEventId}
-        eventStartDate={activeEvent?.startDate}
-        eventEndDate={activeEvent?.endDate}
-        nationalities={nationalities}
-        templates={templates}
-        sessions={sessions}
-        lang={lang}
-        onSaved={loadGuests}
-      />
+      {/* Mounted only while open — GuestModal fetches enums/travel lookups
+          (9+ requests) on mount, so leaving these always-mounted fired that
+          fan-out on every Guests page visit regardless of whether either
+          dialog was ever opened. */}
+      {showAddGuest && (
+        <GuestModal
+          open={showAddGuest}
+          onClose={() => setShowAddGuest(false)}
+          guest={null}
+          activeEventId={activeEventId}
+          eventStartDate={activeEvent?.startDate}
+          eventEndDate={activeEvent?.endDate}
+          nationalities={nationalities}
+          organizations={organizations}
+          templates={templates}
+          sessions={sessions}
+          lang={lang}
+          onSaved={loadGuests}
+        />
+      )}
 
-      <GuestModal
-        open={!!editGuest}
-        onClose={() => { setEditGuest(null); setEditGuestStep(1); }}
-        guest={editGuest}
-        initialStep={editGuestStep}
-        activeEventId={activeEventId}
-        eventStartDate={activeEvent?.startDate}
-        eventEndDate={activeEvent?.endDate}
-        nationalities={nationalities}
-        templates={templates}
-        sessions={sessions}
-        lang={lang}
-        onSaved={loadGuests}
-      />
+      {!!editGuest && (
+        <GuestModal
+          open={!!editGuest}
+          onClose={() => { setEditGuest(null); setEditGuestStep(1); }}
+          guest={editGuest}
+          initialStep={editGuestStep}
+          activeEventId={activeEventId}
+          eventStartDate={activeEvent?.startDate}
+          eventEndDate={activeEvent?.endDate}
+          nationalities={nationalities}
+          organizations={organizations}
+          templates={templates}
+          sessions={sessions}
+          lang={lang}
+          onSaved={loadGuests}
+        />
+      )}
 
       <MessageModal
         open={showMessage}
