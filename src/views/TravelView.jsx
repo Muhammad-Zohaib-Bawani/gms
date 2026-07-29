@@ -90,6 +90,9 @@ function mapFlight(r) {
     to: r.arrivalCode || '—',
     date: r.date ? r.date.slice(0, 10) : '',
     dateLabel: r.date ? dateLabelFor(r.date) : '—',
+    // Booking-level times off the Flights row (backend falls back to the legs).
+    departureTime: r.departureTime || '',
+    arrivalTime: r.arrivalTime || '',
     flightStatus: (r.status || '').toLowerCase(),
   };
 }
@@ -631,7 +634,12 @@ export default function TravelView({ lang, activeEventId }) {
         col('flightType',  STR.cols.flightType,  b => <span style={text}>{b.flightType}</span>),
         col('flightClass', STR.cols.flightClass, b => <span style={text}>{b.flightClass}</span>),
         col('route',       STR.cols.route,       b => <span style={{ ...muted, fontFamily: 'var(--mono)' }}>{b.from} → {b.to}</span>),
-        col('date',        STR.cols.date,        b => <span style={mono}>{b.dateLabel || b.date}</span>),
+        col('date',        STR.cols.date,        b => (
+          <div>
+            <div style={mono}>{b.dateLabel || b.date}</div>
+            <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(timeRange(b.departureTime, b.arrivalTime))}</div>
+          </div>
+        )),
         col('status',      STR.cols.status,      b => <StatusChip status={b.flightStatus} label={STR.statuses[b.flightStatus]} />),
         actions('flight'),
       ],
