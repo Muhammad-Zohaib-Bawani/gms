@@ -1110,7 +1110,7 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
   border-radius: var(--radius);
   position: relative; z-index: 50;
   background: linear-gradient(180deg, rgba(141,1,52,0.15) 0%, rgba(106,0,37,0.45) 100%),
-    url("/assets/qoc-bg-pattern.png") top center / 300px repeat,
+    url("/assets/qoc-bg-pattern.png") top center / 400px repeat,
     linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
 }
 .topbar .crumbs {
@@ -2160,7 +2160,7 @@ html[data-theme="light"] .sidebar {
      so its box shades are actually visible, not washed out. */
   background:
     linear-gradient(180deg, rgba(141,1,52,0.15) 0%, rgba(106,0,37,0.45) 100%),
-    url("/assets/qoc-bg-pattern.png") top center / 300px repeat,
+    url("/assets/qoc-bg-pattern.png") top center / 400px repeat,
     linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
   border: 0 !important;
   border-right: 1px solid rgba(0,0,0,0.18) !important;
@@ -2387,3 +2387,28 @@ html[data-theme="light"] .modal-solid {
 .tt-surface .ProseMirror a { color: #8d0134; text-decoration: underline; }
 .tt-surface .ProseMirror a[data-invite-button] { text-decoration: none; }
 .tt-surface .ProseMirror a[data-invite-button].ProseMirror-selectednode { outline: 2px solid #8d0134; outline-offset: 2px; }
+
+/* ── TipTap support-chat composer (RichComposer.jsx) — compact chat editor, ── */
+/* separate from .tt-surface above since that one is sized for an email body. */
+.chat-composer-editor .ProseMirror { outline: none; min-height: 22px; }
+.chat-composer-editor .ProseMirror p { margin: 0 0 6px; }
+.chat-composer-editor .ProseMirror p:last-child { margin-bottom: 0; }
+.chat-composer-editor .ProseMirror ul, .chat-composer-editor .ProseMirror ol { padding-inline-start: 20px; margin: 0 0 6px; }
+.chat-composer-editor .ProseMirror a { color: var(--accent); text-decoration: underline; }
+.chat-composer-editor .ProseMirror mark { background: #ffe066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+.chat-composer-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--ink-faint);
+  float: inline-start;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Rendered admin messages (SupportChatView message bubbles) reuse the same
+   node styles as the composer so a sent reply looks identical to how it was
+   composed. */
+.chat-message-body p { margin: 0 0 6px; }
+.chat-message-body p:last-child { margin-bottom: 0; }
+.chat-message-body ul, .chat-message-body ol { padding-inline-start: 20px; margin: 0 0 6px; }
+.chat-message-body a { color: inherit; text-decoration: underline; }
+.chat-message-body mark { background: #ffe066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }

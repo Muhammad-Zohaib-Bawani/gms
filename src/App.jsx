@@ -1221,8 +1221,9 @@ export default function App() {
           <img className="logo-white" src={logoWhiteSrc} alt={activeEv?.title || ''}
             onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${(activeEv?.title || 'GMS').split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div> */}
-        <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex", alignItems: "baseline", gap: 8 , justifyContent: "center" }}>
-          <div style={{ fontFamily: "var(--serif)", fontSize: 33, letterSpacing: "0.01em" }}>GMS</div>
+        <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex",flexDirection: "column", alignItems: "center", gap: 8 , justifyContent: "center" }}>
+          <img src="/assets/side-logo.png" alt="GMS" width="100"/>
+                    <div style={{ fontSize: 10, letterSpacing: "0.01em" }}>GUEST MANAGEMENT SYSTEM</div>
           {/* <div style={{ fontSize: 10.5, color: "var(--ink-mute)", letterSpacing: lang === "ar" ? "0.04em" : "0.18em", textTransform: "uppercase" }}>{shell.guestMgmt}</div> */}
         </div>
 

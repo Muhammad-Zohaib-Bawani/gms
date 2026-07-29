@@ -26,9 +26,18 @@ export const getMessages = (conversationId, { pageSize = 50 } = {}) =>
     params: { pageNumber: 1, pageSize },
   });
 
-// Returns the created SupportMessageResponse.
-export const replyToConversation = (conversationId, body) =>
-  apiClient.post(ENDPOINTS.supportChat.messages(conversationId), { body });
+// `message` = { body, attachmentUrl?, attachmentType? } — body may be empty
+// HTML/string when an attachment is present, but not both empty (backend
+// rejects that). Returns the created SupportMessageResponse, which now also
+// carries `conversationId`.
+export const replyToConversation = (conversationId, message) =>
+  apiClient.post(ENDPOINTS.supportChat.messages(conversationId), message);
+
+// Admin-initiated: no conversation needs to exist for this guest yet. Safe to
+// call even if one already does (e.g. the admin's local list was stale) — the
+// backend just continues that thread instead of erroring or duplicating it.
+export const startConversationWithGuest = (guestId, message) =>
+  apiClient.post(ENDPOINTS.supportChat.startByGuest(guestId), message);
 
 // Marks every unread *guest* message in this conversation read (admin's side).
 export const markConversationRead = (conversationId) =>

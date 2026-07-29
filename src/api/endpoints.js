@@ -176,6 +176,9 @@ export const ENDPOINTS = {
   supportChat: {
     conversations: '/v1/support-chat/conversations',
     messages: (conversationId) => `/v1/support-chat/conversations/${conversationId}/messages`,
+    // Starts (or continues) a conversation by guest id — no prior conversation
+    // needs to exist yet.
+    startByGuest: (guestId) => `/v1/support-chat/conversations/by-guest/${guestId}/messages`,
     read: (conversationId) => `/v1/support-chat/conversations/${conversationId}/read`,
     close: (conversationId) => `/v1/support-chat/conversations/${conversationId}/close`,
     reopen: (conversationId) => `/v1/support-chat/conversations/${conversationId}/reopen`,
