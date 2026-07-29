@@ -232,7 +232,8 @@ export default function TravelView({ lang, activeEventId }) {
     dateFrom:'من تاريخ', dateTo:'إلى تاريخ', clearDates:'مسح التواريخ',
     statuses:{ approved:'موافق',submitted:'قيد المراجعة',pending:'قيد الانتظار',rejected:'مرفوض',
       confirmed:'مؤكد',scheduled:'مجدول',completed:'مكتمل',
-      assigned:'مُسند',arrived:'وصل السائق','in-progress':'قيد التنفيذ' },
+      new:'جديد',assigned:'مُسند','in-progress':'قيد التنفيذ',arrived:'وصل السائق',
+      'in-transit':'في الطريق',cancelled:'ملغي' },
     noResults:'لا توجد نتائج',filterAll:'الكل',searchPh:'بحث…',
     edit:'تعديل',save:'حفظ',cancel:'إلغاء',editFlight:'تعديل بيانات الرحلة',
     editHotel:'تعديل بيانات الفندق',editTransfer:'تعديل بيانات النقل',
@@ -263,7 +264,8 @@ export default function TravelView({ lang, activeEventId }) {
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
       confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed',
-      assigned:'Assigned',arrived:'Driver arrived','in-progress':'In progress' },
+      new:'New',assigned:'Assigned','in-progress':'En route',arrived:'Driver arrived',
+      'in-transit':'In transit',cancelled:'Cancelled' },
     noResults:'No results',filterAll:'All',searchPh:'Search…',
     edit:'Edit',save:'Save',cancel:'Cancel',editFlight:'Edit flight details',
     editHotel:'Edit hotel booking',editTransfer:'Edit ground transfer',
@@ -779,8 +781,9 @@ export default function TravelView({ lang, activeEventId }) {
 
   const transferFilterOpts = useMemo(() => [
     { value: 'All', label: STR.filterAll },
-    // Transport lifecycle (Core/Constants/TransportStatuses.cs).
-    ...['pending', 'assigned', 'arrived', 'in-progress', 'completed'].map(s => ({ value: s, label: STR.statuses[s] })),
+    // Full transport lifecycle, in order (Core/Constants/TransportStatuses.All).
+    ...['new', 'pending', 'assigned', 'in-progress', 'arrived', 'in-transit', 'completed', 'cancelled']
+      .map(s => ({ value: s, label: STR.statuses[s] })),
   ], [STR]);
 
   const grid2 = (children) => (
