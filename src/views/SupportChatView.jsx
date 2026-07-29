@@ -171,7 +171,7 @@ export default function SupportChatView({ lang, activeEventId }) {
   const navigate = useNavigate();
 
   const STR = {
-    title: isAr ? 'الدعم الفني' : 'Support Chat',
+    title: isAr ? 'الدعم الفني' : 'Guests Chat',
     sub: "",
     tabChats: isAr ? 'المحادثات' : 'Chats',
     tabNew: isAr ? 'محادثة جديدة' : 'New Chat',

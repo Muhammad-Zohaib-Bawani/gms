@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
 import { Avatar, StatusChip, TierChip } from "../components/UI";
 import { Icon } from "../components/Icons";
@@ -23,6 +24,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const t = getTranslations(lang);
   const isAr = lang === "ar";
   const fmtN = (n) => fmtNum(n, lang);
+  const navigate = useNavigate();
 
   // ── data ──────────────────────────────────────────────────────────────────
   const [guests, setGuests] = useState([]);
@@ -53,6 +55,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // ── modal open states ─────────────────────────────────────────────────────
   const [showAddGuest, setShowAddGuest] = useState(false);
   const [editGuest, setEditGuest] = useState(null);
+  const [editGuestStep, setEditGuestStep] = useState(1);
   const [showMessage, setShowMessage] = useState(false);
   const [showAccred, setShowAccred] = useState(false);
   const [showDeleteGuests, setShowDeleteGuests] = useState(false);
@@ -81,6 +84,14 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     }
     return Promise.all(tasks);
   }, [activeEventId, nationalitiesLoaded, refDataLoadedForEvent]);
+
+  // Opens the Add/Edit Guest wizard directly on a given step — used by the
+  // row actions menu's "Send Invite" to jump straight to the Invitation step.
+  const openEditGuest = useCallback((g, step = 1) => {
+    ensureGuestFormData();
+    setEditGuestStep(step);
+    setEditGuest(g);
+  }, [ensureGuestFormData]);
 
   const loadGuests = useCallback(async () => {
     if (!activeEventId) return;
@@ -234,9 +245,26 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           <ActionMenu
             items={[
               {
+                label: isAr ? "عرض" : "View",
+                icon: "guests",
+                onClick: () => navigate(`/guests/${g.id}`),
+              },
+              {
+                label: isAr ? "رسالة" : "Message",
+                icon: "message",
+                onClick: () => navigate('/support-chat', {
+                  state: { guestId: g.id, guestName: g.fullName, guestOrganization: g.organization || '' },
+                }),
+              },
+              !["accepted", "declined"].includes(g.invitationStatus) && {
+                label: isAr ? "إرسال الدعوة" : "Send Invite",
+                icon: "invitation",
+                onClick: () => openEditGuest(g, 4),
+              },
+              {
                 label: isAr ? "تعديل" : "Edit",
                 icon: "edit",
-                onClick: () => { ensureGuestFormData(); setEditGuest(g); },
+                onClick: () => openEditGuest(g),
               },
               {
                 label: isAr ? "حذف" : "Delete",
@@ -249,7 +277,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         ),
       },
     ],
-    [isAr, lang, onOpenGuest],
+    [isAr, lang, onOpenGuest, navigate, openEditGuest],
   );
 
   // ── bulk action callbacks ─────────────────────────────────────────────────
@@ -470,8 +498,9 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
       <GuestModal
         open={!!editGuest}
-        onClose={() => setEditGuest(null)}
+        onClose={() => { setEditGuest(null); setEditGuestStep(1); }}
         guest={editGuest}
+        initialStep={editGuestStep}
         activeEventId={activeEventId}
         eventStartDate={activeEvent?.startDate}
         eventEndDate={activeEvent?.endDate}

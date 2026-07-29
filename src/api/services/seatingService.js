@@ -15,3 +15,9 @@ export const getSeatAssignments = (venueBoxId, { eventId, sessionId }) =>
   apiClient.get(ENDPOINTS.seating.byBox(venueBoxId), {
     params: { eventId, sessionId: sessionId || undefined },
   });
+
+// Every seat a guest currently holds (across sessions/scopes) — row shape:
+// { eventTitle, sessionTitle (nullable), seatCode }. Used to warn before
+// deleting a seated guest (see DeleteGuestsModal).
+export const getGuestSeatAssignments = (guestId) =>
+  apiClient.get(ENDPOINTS.seating.byGuest(guestId));

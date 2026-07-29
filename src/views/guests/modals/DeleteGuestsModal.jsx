@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from '../../../components/ui/Modal';
 import { Icon } from '../../../components/Icons';
 import toast from '../../../lib/toast';
 import { deleteSelectedGuests } from '../../../api/services/guestService';
+import { getGuestSeatAssignments } from '../../../api/services/seatingService';
 import { fmtNum } from '../../../i18n/translations';
 
 export default function DeleteGuestsModal({ open, onClose, selectedGuests, activeEventId, lang, onDeleted }) {
   const isAr = lang === 'ar';
   const count = selectedGuests.length;
   const [deleting, setDeleting] = useState(false);
+  // guestId -> [{ eventTitle, sessionTitle, seatCode }]
+  const [seatsByGuest, setSeatsByGuest] = useState({});
+
+  // Checked every time the modal opens for a (possibly different) selection —
+  // purely informational: the backend already frees a guest's seat(s)
+  // automatically when the guest is deleted (see Guest.DeleteGuestByIdAsync),
+  // this just lets the admin know before confirming.
+  useEffect(() => {
+    if (!open) { setSeatsByGuest({}); return; }
+    let cancelled = false;
+    Promise.all(selectedGuests.map(g =>
+      getGuestSeatAssignments(g.id).then(rows => [g.id, rows || []]).catch(() => [g.id, []]),
+    )).then(pairs => {
+      if (cancelled) return;
+      const map = {};
+      pairs.forEach(([id, rows]) => { if (rows.length) map[id] = rows; });
+      setSeatsByGuest(map);
+    });
+    return () => { cancelled = true; };
+  }, [open, selectedGuests]);
+
+  const seatedGuests = selectedGuests.filter(g => seatsByGuest[g.id]?.length);
 
   async function handleDelete() {
     setDeleting(true);
@@ -51,15 +74,63 @@ export default function DeleteGuestsModal({ open, onClose, selectedGuests, activ
     >
       <p style={{ color: 'var(--ink-dim)', marginBottom: 12 }}>
         {isAr
-          ? `هل أنت متأكد من حذف ${fmtNum(count, lang)} ضيف؟ لا يمكن التراجع.`
-          : `Are you sure you want to delete ${count} selected guest${count !== 1 ? 's' : ''}? This cannot be undone.`
+          ? `هل أنت متأكد من حذف ${fmtNum(count, lang)} ضيف؟ سيتم أيضًا حذف الخدمات المرتبطة به (الطيران، الإقامة، النقل). لا يمكن التراجع عن هذا الإجراء.`
+          : `Are you sure you want to delete ${count} selected guest${count !== 1 ? 's' : ''}? This will also delete their associated services (flight, accommodation, transport). This cannot be undone.`
         }
       </p>
+
+      {seatedGuests.length > 0 && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12,
+          padding: '10px 12px', borderRadius: 10,
+          background: 'rgba(224,192,126,0.12)', border: '1px solid rgba(224,192,126,0.4)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#e0c47e', fontWeight: 600, fontSize: 12.5 }}>
+            <Icon name="alert" size={14}/>
+            {isAr ? 'تنبيه: مقعد مخصص' : 'Heads up: seat assigned'}
+          </div>
+          {seatedGuests.map(g => (
+            <div key={g.id} style={{ fontSize: 12.5, color: 'var(--ink-dim)' }}>
+              {isAr ? (
+                <>
+                  <b>{g.fullName}</b> مُخصَّص له/لها مقعد بالفعل
+                  {' — '}
+                  {seatsByGuest[g.id].map((s, i) => (
+                    <span key={i}>
+                      {i > 0 && '، '}
+                      {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · {isAr ? 'مقعد' : 'Seat'} {s.seatCode}
+                    </span>
+                  ))}
+                  . هل أنت متأكد أنك تريد حذف هذا الضيف؟ بحذف هذا الضيف سيصبح المقعد متاحًا تلقائيًا لتخصيصه لضيف آخر.
+                </>
+              ) : (
+                <>
+                  <b>{g.fullName}</b> is already assigned to a seat
+                  {' — '}
+                  {seatsByGuest[g.id].map((s, i) => (
+                    <span key={i}>
+                      {i > 0 && ', '}
+                      {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · Seat {s.seatCode}
+                    </span>
+                  ))}
+                  . Are you sure you want to delete this guest? By deleting this guest, the seat will automatically become available to assign to another guest.
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto' }}>
         {selectedGuests.slice(0, 8).map(g => (
           <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--surface-soft-2)', fontSize: 13 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e05050', flexShrink: 0 }}/>
             <span style={{ fontWeight: 500 }}>{g.fullName}</span>
+            {seatsByGuest[g.id]?.length > 0 && (
+              <span className="chip pending" style={{ fontSize: 10 }}>
+                <Icon name="seating" size={10}/> {isAr ? 'مقعد' : 'Seated'}
+              </span>
+            )}
             {g.tier && <span className="chip" style={{ fontSize: 10.5, marginLeft: 'auto' }}>{g.tier}</span>}
           </div>
         ))}

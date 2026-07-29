@@ -32,6 +32,9 @@ export default function AccreditationView({ lang, activeEventId }) {
     close: 'إغلاق', printBadge: 'طباعة البطاقة',
     badgeNo: 'رقم الاعتماد',
     noEvent: 'يرجى اختيار فعالية أولاً لعرض الاعتماد.',
+    notAccepted: 'يجب أن يقبل الضيف الدعوة أولاً قبل إصدار الاعتماد',
+    notAcceptedToast: 'لا يمكن إصدار الاعتماد قبل قبول الضيف للدعوة',
+    skippedNotAccepted: (n) => `تم تخطي ${ad(n)} ضيف لم يقبلوا الدعوة بعد`,
   } : {
     title: 'Accreditation', sub: 'Issue and manage accreditation badges for guests who require one',
     total: 'Require accreditation', issued: 'Badges issued', pending: 'Pending',
@@ -48,6 +51,9 @@ export default function AccreditationView({ lang, activeEventId }) {
     close: 'Close', printBadge: 'Print badge',
     badgeNo: 'Badge No.',
     noEvent: 'Select an active event to view accreditation.',
+    notAccepted: 'Guest must accept the invitation before accreditation can be issued',
+    notAcceptedToast: 'Cannot issue accreditation until the guest has accepted their invitation',
+    skippedNotAccepted: (n) => `Skipped ${n} guest${n !== 1 ? 's' : ''} who haven't accepted their invitation yet`,
   };
 
   const [guests, setGuests] = useState([]);
@@ -104,7 +110,17 @@ export default function AccreditationView({ lang, activeEventId }) {
     setGuests(prev => prev.map(g => g.id === id ? { ...g, accreditationStatus: status } : g));
   }
 
+  // Accreditation can't be issued until the guest has actually accepted their
+  // invitation — issuing it earlier would badge someone who never confirmed
+  // they're attending.
+  const canIssue = g => g.invitationStatus === 'accepted';
+
   async function issue(id) {
+    const g = guests.find(x => x.id === id);
+    if (g && !canIssue(g)) {
+      toast.error(STR.notAcceptedToast);
+      return;
+    }
     return withBusy(id, () => issueAccreditation(id))
       .then(() => { setLocalStatus(id, 'issued'); toast.success(isAr ? 'تم إصدار الاعتماد' : 'Accreditation issued'); })
       .catch(err => toast.fromError(err, isAr ? 'تعذر إصدار الاعتماد' : 'Failed to issue accreditation'));
@@ -119,12 +135,24 @@ export default function AccreditationView({ lang, activeEventId }) {
   async function bulkSet(action) {
     const ids = Array.from(sel);
     setSel(new Set());
-    await Promise.all(ids.map(id => action === 'issue' ? issue(id) : revoke(id)));
+    if (action !== 'issue') {
+      await Promise.all(ids.map(id => revoke(id)));
+      return;
+    }
+    const idSet = new Set(ids);
+    const targeted = guests.filter(g => idSet.has(g.id));
+    const eligible = targeted.filter(canIssue);
+    const skipped = targeted.length - eligible.length;
+    await Promise.all(eligible.map(g => issue(g.id)));
+    if (skipped > 0) toast.error(STR.skippedNotAccepted(skipped));
   }
 
   async function issueAllPending() {
-    const ids = filtered.filter(g => g.accreditationStatus !== 'issued').map(g => g.id);
-    await Promise.all(ids.map(issue));
+    const pending = filtered.filter(g => g.accreditationStatus !== 'issued');
+    const eligible = pending.filter(canIssue);
+    const skipped = pending.length - eligible.length;
+    await Promise.all(eligible.map(g => issue(g.id)));
+    if (skipped > 0) toast.error(STR.skippedNotAccepted(skipped));
   }
 
   function toggleSel(id) {
@@ -317,7 +345,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                               <Icon name="x" size={12}/> {STR.revoke}
                             </button>
                           ) : (
-                            <button className="btn primary" disabled={busy} style={{ fontSize: 11, padding: '4px 12px' }}
+                            <button className="btn primary" disabled={busy || !canIssue(g)}
+                              title={!canIssue(g) ? STR.notAccepted : undefined}
+                              style={{ fontSize: 11, padding: '4px 12px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
                               onClick={() => issue(g.id)}>
                               <Icon name="badge" size={12}/> {STR.issue}
                             </button>
@@ -383,7 +413,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                             <Icon name="x" size={11}/> {STR.revoke}
                           </button>
                         ) : (
-                          <button className="btn primary" disabled={busy} style={{ fontSize: 10.5, padding: '3px 10px' }}
+                          <button className="btn primary" disabled={busy || !canIssue(g)}
+                            title={!canIssue(g) ? STR.notAccepted : undefined}
+                            style={{ fontSize: 10.5, padding: '3px 10px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
                             onClick={() => issue(g.id)}>
                             <Icon name="badge" size={11}/> {STR.issue}
                           </button>
@@ -453,15 +485,26 @@ export default function AccreditationView({ lang, activeEventId }) {
                           {isIssued ? STR.badgeIssued : STR.badgePending}
                         </span>
                       </div>
-                      <div style={{ background: '#fff', padding: 5, borderRadius: 6, border: '1px solid var(--glass-border)', flexShrink: 0 }}>
-                        <QRCodeSVG
-                          value={`gms://accreditation/${previewGuest.id}`}
-                          size={72}
-                          bgColor="#ffffff"
-                          fgColor="#5e0022"
-                          level="M"
-                        />
-                      </div>
+                      {isIssued ? (
+                        <div style={{ background: '#fff', padding: 5, borderRadius: 6, border: '1px solid var(--glass-border)', flexShrink: 0 }}>
+                          <QRCodeSVG
+                            value={`gms://accreditation/${previewGuest.id}`}
+                            size={72}
+                            bgColor="#ffffff"
+                            fgColor="#5e0022"
+                            level="M"
+                          />
+                        </div>
+                      ) : (
+                        <div style={{
+                          width: 82, height: 82, borderRadius: 6, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                          background: 'var(--surface-soft-2)', border: '1px dashed var(--glass-border)',
+                          fontSize: 9.5, color: 'var(--ink-faint)', padding: 4, lineHeight: 1.3,
+                        }}>
+                          {isAr ? 'يظهر رمز QR بعد إصدار الاعتماد' : 'QR appears once issued'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -475,7 +518,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                     <Icon name="x" size={13}/> {STR.revoke}
                   </button>
                 ) : (
-                  <button className="btn primary" disabled={busy}
+                  <button className="btn primary" disabled={busy || !canIssue(previewGuest)}
+                    title={!canIssue(previewGuest) ? STR.notAccepted : undefined}
+                    style={canIssue(previewGuest) ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}
                     onClick={() => { issue(previewGuest.id); setPreviewGuest(null); }}>
                     <Icon name="badge" size={13}/> {STR.issue}
                   </button>

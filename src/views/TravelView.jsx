@@ -257,7 +257,7 @@ export default function TravelView({ lang, activeEventId }) {
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
       vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
       inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization' },
-    direction:{ all:'All flights',inbound:'Inbound',outbound:'Outbound' },
+    direction:{ all:'All flights',inbound:'Arrivals',outbound:'Departures' },
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
       confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed',

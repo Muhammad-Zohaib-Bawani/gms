@@ -124,6 +124,7 @@ export const ENDPOINTS = {
     assign: '/v1/seating',
     unassign: (seatId) => `/v1/seating/${seatId}`,
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
+    byGuest: (guestId) => `/v1/seating/guest/${guestId}`,
   },
 
   // Guest travel: flight / accommodation / transport sections. A guest can
