@@ -120,6 +120,7 @@ export default function LookupsView({ lookupKey, lang }) {
           data={rows}
           loading={loading}
           showSearch={false}
+          pageSize={10}
           getRowId={(r, i) => r.id || i}
           emptyText={isAr ? 'لا توجد عناصر بعد' : 'No items yet'}
         />

@@ -211,6 +211,7 @@ export default function VehiclesView({ lang }) {
             data={rows}
             loading={loading}
             showSearch
+            pageSize={10}
             searchPlaceholder={isAr ? 'بحث…' : 'Search vehicles…'}
             emptyText={isAr ? 'لا توجد مركبات بعد' : 'No vehicles yet'}
           />

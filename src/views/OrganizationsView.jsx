@@ -193,6 +193,7 @@ export default function OrganizationsView({ lang }) {
           data={rows}
           loading={loading}
           showSearch
+          pageSize={10}
           searchPlaceholder={isAr ? 'بحث…' : 'Search organizations…'}
           emptyText={isAr ? 'لا توجد مؤسسات بعد' : 'No organizations yet'}
         />
