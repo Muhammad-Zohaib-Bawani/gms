@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false, // accept the backend's self-signed dev certificate
         },
+        '/realtimehub': {
+          target: BACKEND_ORIGIN,
+          changeOrigin: true,
+          secure: false,
+          ws: true, // SignalR needs the WebSocket upgrade proxied too
+        },
       },
     },
   };

@@ -13,6 +13,7 @@
     "@fullcalendar/interaction": "^6.1.21",
     "@fullcalendar/react": "^6.1.21",
     "@fullcalendar/timegrid": "^6.1.21",
+    "@microsoft/signalr": "^10.0.0",
     "@radix-ui/react-dialog": "^1.1.18",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/extension-color": "^2.11.7",

@@ -183,4 +183,13 @@ export const ENDPOINTS = {
     close: (conversationId) => `/v1/support-chat/conversations/${conversationId}/close`,
     reopen: (conversationId) => `/v1/support-chat/conversations/${conversationId}/reopen`,
   },
+
+  notifications: {
+    base: '/v1/notifications',
+    count: '/v1/notifications/count',
+    markAllRead: '/v1/notifications/mark-all-read',
+    markRead: (id) => `/v1/notifications/${id}/mark-read`,
+    markUnread: (id) => `/v1/notifications/${id}/mark-unread`,
+    byId: (id) => `/v1/notifications/${id}`,
+  },
 };

@@ -3,13 +3,13 @@ import { getTranslations, fmtNum } from "../i18n/translations";
 import { Avatar, StatusChip, TierChip } from "../components/UI";
 import { Icon } from "../components/Icons";
 import DataTable from "../components/ui/DataTable";
+import ActionMenu from "../components/ui/ActionMenu";
 import Select from "../components/ui/Select";
 import toast from "../lib/toast";
 import { listGuests } from "../api/services/guestService";
 import { getNationalities } from "../api/services/nationalityService";
 import { getTemplates } from "../api/services/invitationTemplateService";
 import { listSessions, getEvent } from "../api/services/eventService";
-import { getGuestEnums } from "../api/services/lookupService";
 
 import GuestModal from "./guests/modals/GuestModal";
 import MessageModal from "./guests/modals/MessageModal";
@@ -32,11 +32,15 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
+  // Reference data for the Add/Edit Guest modal only — fetched lazily (see
+  // ensureGuestFormData) since a plain guest-list visit never needs any of
+  // this, and it used to fire unconditionally on every mount/event switch.
   const [nationalities, setNationalities] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
-  const [guestEnums, setGuestEnums] = useState({});
+  const [nationalitiesLoaded, setNationalitiesLoaded] = useState(false);
+  const [refDataLoadedForEvent, setRefDataLoadedForEvent] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // ── filter / selection ────────────────────────────────────────────────────
@@ -57,30 +61,26 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const selCount = selectedGuests.length;
   const clearSelection = () => setSelResetKey((k) => k + 1);
 
-  // ── load reference data ───────────────────────────────────────────────────
-  useEffect(() => {
-    getNationalities()
-      .then((r) => setNationalities(r || []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!activeEventId) {
-      setTemplates([]);
-      setSessions([]);
-      setActiveEvent(null);
-      return;
+  // ── load reference data, on demand ────────────────────────────────────────
+  // Called right before opening Add/Edit Guest — the only consumer of any of
+  // this. Nationalities are fetched once ever; templates/sessions/event are
+  // per-event, so they refetch when activeEventId changes since the last load.
+  const ensureGuestFormData = useCallback(() => {
+    const tasks = [];
+    if (!nationalitiesLoaded) {
+      setNationalitiesLoaded(true);
+      tasks.push(
+        getNationalities().then((r) => setNationalities(r || [])).catch(() => setNationalitiesLoaded(false)),
+      );
     }
-    getTemplates(activeEventId)
-      .then((r) => setTemplates(r || []))
-      .catch(() => {});
-    listSessions(activeEventId)
-      .then((r) => setSessions(r || []))
-      .catch(() => {});
-    getEvent(activeEventId)
-      .then(setActiveEvent)
-      .catch(() => setActiveEvent(null));
-  }, [activeEventId]);
+    if (activeEventId && refDataLoadedForEvent !== activeEventId) {
+      setRefDataLoadedForEvent(activeEventId);
+      tasks.push(getTemplates(activeEventId).then((r) => setTemplates(r || [])).catch(() => {}));
+      tasks.push(listSessions(activeEventId).then((r) => setSessions(r || [])).catch(() => {}));
+      tasks.push(getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null)));
+    }
+    return Promise.all(tasks);
+  }, [activeEventId, nationalitiesLoaded, refDataLoadedForEvent]);
 
   const loadGuests = useCallback(async () => {
     if (!activeEventId) return;
@@ -227,37 +227,25 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         },
       },
       {
-        id: "edit",
-        size: 40,
+        id: "actions",
+        size: 44,
         enableSorting: false,
         cell: ({ row: { original: g } }) => (
-          <button
-            className="btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditGuest(g);
-            }}
-          >
-            <Icon name="edit" size={14} />
-          </button>
-        ),
-      },
-      {
-        id: "delete",
-        size: 40,
-        enableSorting: false,
-        cell: ({ row: { original: g } }) => (
-          <button
-            className="btn"
-            style={{ color: "#e05050", borderColor: "rgba(224,80,80,0.4)" }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedGuests([g]);
-              setShowDeleteGuests(true);
-            }}
-          >
-            <Icon name="trash" size={12} />
-          </button>
+          <ActionMenu
+            items={[
+              {
+                label: isAr ? "تعديل" : "Edit",
+                icon: "edit",
+                onClick: () => { ensureGuestFormData(); setEditGuest(g); },
+              },
+              {
+                label: isAr ? "حذف" : "Delete",
+                icon: "trash",
+                danger: true,
+                onClick: () => { setSelectedGuests([g]); setShowDeleteGuests(true); },
+              },
+            ]}
+          />
         ),
       },
     ],
@@ -366,7 +354,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           </button>
           <button
             className="btn primary"
-            onClick={() => setShowAddGuest(true)}
+            onClick={() => { ensureGuestFormData(); setShowAddGuest(true); }}
             disabled={!activeEventId}
           >
             <Icon name="plus" size={14} /> {isAr ? "ضيف جديد" : "Add Guest"}

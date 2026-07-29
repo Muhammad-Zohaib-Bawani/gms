@@ -8,6 +8,7 @@ import { getEvent } from '../api/services/eventService.js';
 import { getEventFlights, getEventAccommodation, getEventTransport, getEventArrivalsDepartures, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
 import DataTable from '../components/ui/DataTable.jsx';
+import ActionMenu from '../components/ui/ActionMenu.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
 import TravelAccordion, {
@@ -212,8 +213,8 @@ export default function TravelView({ lang, activeEventId }) {
     sub:'الرحلات والتأشيرات والفنادق والنقل البري',
     tabs:['الرحلات والتأشيرات','الفنادق','النقل البري','الوصول والمغادرة'],
     newBooking:'حجز جديد',
-    kpi:{ flights:'رحلات مؤكدة',flightsH:'٧٤٪ تغطية · أسعار شريك القطرية',
-      rooms:'غرف محجوزة',roomsH:'٥ فنادق · ٩٢٪ موزعة',
+    kpi:{ flights:'رحلات مؤكدة',flightsH:'',
+      rooms:'غرف محجوزة',roomsH:'',
       transfers:'نقل بري',transfersH:'أسطول VIP · ٢٤ مركبة',
       visas:'تأشيرات موافق عليها',visasH:'٨٨٫٦٪ موافقة · مزامنة الداخلية' },
     hayya:{ title:'طلبات تأشيرة هيّا',sub:'مزامنة مباشرة · آخر تحديث قبل دقيقتين',
@@ -243,9 +244,9 @@ export default function TravelView({ lang, activeEventId }) {
       // 'Overview',
       'Flights','Hotel','Ground Transfers','Arrivals & Departures'],
     newBooking:'New booking',
-    kpi:{ flights:'Flights confirmed',flightsH:'74% coverage · QR partner fares',
-      rooms:'Hotel rooms blocked',roomsH:'5 properties · 92% allocated',
-      transfers:'Ground transfers',transfersH:'VIP fleet · 24 vehicles on standby',
+    kpi:{ flights:'Flights confirmed',flightsH:'',
+      rooms:'Hotel rooms blocked',roomsH:'',
+      transfers:'Ground transfers',transfersH:'',
       visas:'Visas approved',visasH:'88.6% approved · MOI Qatar live sync' },
     hayya:{ title:'Hayya visa applications',sub:'Permit-to-Enter synced via Hayya gateway · Last refresh 2m ago',
       connected:'Connected · MOI Qatar',syncNow:'Sync now',synced:'Synced ✓' },
@@ -576,16 +577,17 @@ export default function TravelView({ lang, activeEventId }) {
   const actionsCell = (type, bookings) => (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {bookings.map(b => (
-        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center', gap:4 }}>
-          {bookings.length === 1 && (
-            <button className="icon-btn" title={STR.edit} onClick={() => openEdit(type, b)} style={{ opacity:0.6 }}>
-              <Icon name="edit" size={13}/>
-            </button>
-          )}
-          <button className="icon-btn" title={isAr ? 'إزالة' : 'Remove'} disabled={removingId === b.bookingId}
-            onClick={() => removeBooking(type, b.bookingId)} style={{ opacity:0.6, color:'#e08a7e' }}>
-            <Icon name="trash" size={12}/>
-          </button>
+        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center' }}>
+          <ActionMenu
+            items={[
+              bookings.length === 1 && { label: STR.edit, icon: 'edit', onClick: () => openEdit(type, b) },
+              {
+                label: isAr ? 'إزالة' : 'Remove', icon: 'trash', danger: true,
+                disabled: removingId === b.bookingId,
+                onClick: () => removeBooking(type, b.bookingId),
+              },
+            ]}
+          />
         </div>
       ))}
     </div>

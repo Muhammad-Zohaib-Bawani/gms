@@ -10,6 +10,7 @@ import { getDriverTypes } from '../api/services/lookupService';
 import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
 import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
 import { Icon } from '../components/Icons';
@@ -510,50 +511,36 @@ export default function UsersView() {
     // Actions column
     col.display({
       id: 'actions',
-      size: 140,
+      size: 60,
       enableSorting: false,
       header: '',
       cell: ({ row: { original: u } }) => {
-        const isSelf    = u.id === me?.id;
-        const isAdmin   = u.roleName?.toLowerCase() === 'administrator';
+        const isSelf  = u.id === me?.id;
+        const isAdmin = u.roleName?.toLowerCase() === 'administrator';
 
         return (
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
-            {u.isPending && canCreate && (
-              <button
-                onClick={() => handleResend(u)}
-                disabled={resendingId === u.id}
-                title="Resend invite email"
-                style={{ background: 'none', border: '1px solid var(--glass-border)', borderRadius: 6, padding: '5px 9px', cursor: 'pointer', fontSize: 11, color: 'var(--accent)' }}>
-                {resendingId === u.id ? 'Sending…' : 'Resend'}
-              </button>
-            )}
-            {!u.isPending && canUpdate && (
-              <button
-                onClick={() => setPasswordTarget(u)}
-                title="Set password"
-                style={{ background: 'none', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--ink-mute)' }}>
-                <Icon name="shield" size={14} />
-              </button>
-            )}
-            {canDelete && (
-              <button
-                disabled={isSelf || isAdmin}
-                onClick={() => setToDelete(u)}
-                title={isSelf ? 'Cannot delete yourself' : isAdmin ? 'Cannot delete the admin account' : 'Delete user'}
-                style={{
-                  background: 'none', border: '1px solid transparent', borderRadius: 6,
-                  padding: '5px 8px', cursor: (isSelf || isAdmin) ? 'not-allowed' : 'pointer',
-                  color: (isSelf || isAdmin) ? 'var(--ink-faint)' : '#e08a7e',
-                  opacity: (isSelf || isAdmin) ? 0.35 : 1,
-                }}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
-                  <polyline points="2,4 14,4" /><path d="M5,4V2h6v2"/><path d="M3,4l1,10h8l1-10"/>
-                  <line x1="6" y1="7" x2="6" y2="11"/><line x1="10" y1="7" x2="10" y2="11"/>
-                </svg>
-              </button>
-            )}
-          </div>
+          <ActionMenu
+            items={[
+              u.isPending && canCreate && {
+                label: resendingId === u.id ? 'Sending…' : 'Resend invite',
+                icon: 'refresh',
+                disabled: resendingId === u.id,
+                onClick: () => handleResend(u),
+              },
+              !u.isPending && canUpdate && {
+                label: 'Set password',
+                icon: 'shield',
+                onClick: () => setPasswordTarget(u),
+              },
+              canDelete && {
+                label: isSelf ? 'Cannot delete yourself' : isAdmin ? 'Cannot delete the admin account' : 'Delete',
+                icon: 'trash',
+                danger: true,
+                disabled: isSelf || isAdmin,
+                onClick: () => setToDelete(u),
+              },
+            ]}
+          />
         );
       },
     }),
