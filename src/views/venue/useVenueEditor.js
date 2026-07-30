@@ -206,8 +206,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       setSaved(true); setTimeout(() => setSaved(false), 2200);
       toast.success(isAr ? 'تم حفظ المخطط' : 'Layout saved');
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      toast.error(msg || (isAr ? 'تعذّر حفظ المخطط' : 'Could not save layout'));
+      toast.error(err?.message || (isAr ? 'تعذّر حفظ المخطط' : 'Could not save layout'));
     } finally {
       setSavingLayout(false);
     }
@@ -229,8 +228,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       setActiveBoxId(null);
       toast.success(isAr ? 'تم حذف المخطط' : 'Layout cleared');
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      toast.error(err.message || msg || (isAr ? 'تعذّر حذف المخطط' : 'Could not clear layout'));
+      toast.error(err?.message || (isAr ? 'تعذّر حذف المخطط' : 'Could not clear layout'));
     } finally {
       setClearingLayout(false);
       setShowClearConfirm(false);
@@ -256,8 +254,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       setSelectedSeat(null);
       toast.success(isAr ? 'تم تطبيق المخطط الافتراضي — اضغط حفظ لتثبيته' : 'Default layout applied — click Save to keep it');
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      toast.error(msg || (isAr ? 'تعذّر تطبيق المخطط الافتراضي' : 'Could not apply default layout'));
+      toast.error(err?.message || (isAr ? 'تعذّر تطبيق المخطط الافتراضي' : 'Could not apply default layout'));
     } finally {
       setApplyingDefault(false);
     }
@@ -282,37 +279,44 @@ export default function useVenueEditor({ lang, activeEventId }) {
     }
     setAddingBlock(true);
     try {
-      // Walk the same stacking sequence blocks fall back to (see boxToTables)
-      // and take the first slot no existing block already occupies — the
-      // backend rejects an exact (X, Y) clash, so this avoids handing back a
-      // position that's already taken (e.g. after a block was moved/removed).
+      // Walk the same stacking sequence blocks fall back to (see boxToTables),
+      // starting past whatever slot our own (possibly stale) local `tables`
+      // snapshot thinks is occupied.
       const taken = new Set(tables.filter(t => t.type === 'stadium').map(t => `${t.x}:${t.y}`));
-      let i = 0, x, y;
-      do {
-        x = 10 + (i % 4) * 320;
-        y = 10 + Math.floor(i / 4) * 200;
-        i++;
-      } while (taken.has(`${x}:${y}`));
+      let i = 0;
+      while (taken.has(`${10 + (i % 4) * 320}:${10 + Math.floor(i / 4) * 200}`)) i++;
 
-      const result = await addVenueBlockApi(activeEventId, selectedSessionId || null, activeVenue.id, {
-        label,
-        category: category || null,
-        x, y,
-        rotation: 0,
-        rows,
-        seatsPerRow,
-      });
-      const box = pickBox(result?.venueBoxes, activeEventId, selectedSessionId || null);
-      if (box) {
-        setTables(boxToTables(box));
-        setVenues(prev => prev.map(v => v.id === activeVenueId ? { ...v, hasAnyLayout: true } : v));
+      // The backend is the actual source of truth for which positions are taken
+      // (our local snapshot can be stale — e.g. another tab added a block, or a
+      // save hasn't round-tripped yet), so on its "position already exists"
+      // conflict just try the next slot instead of surfacing that error — the
+      // position is an implementation detail the user never chose.
+      const MAX_ATTEMPTS = 16;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++, i++) {
+        const x = 10 + (i % 4) * 320, y = 10 + Math.floor(i / 4) * 200;
+        try {
+          const result = await addVenueBlockApi(activeEventId, selectedSessionId || null, activeVenue.id, {
+            label, category: category || null, x, y, rotation: 0, rows, seatsPerRow,
+          });
+          const box = pickBox(result?.venueBoxes, activeEventId, selectedSessionId || null);
+          if (box) {
+            setTables(boxToTables(box));
+            setVenues(prev => prev.map(v => v.id === activeVenueId ? { ...v, hasAnyLayout: true } : v));
+          }
+          toast.success(isAr ? 'تمت إضافة القسم' : 'Block added');
+          setShowAddBlock(false);
+          return true;
+        } catch (err) {
+          const msg = err?.message || '';
+          const isPositionConflict = err?.status === 409 && /position/i.test(msg);
+          if (!isPositionConflict) {
+            toast.error(msg || (isAr ? 'تعذّر إضافة القسم' : 'Could not add block'));
+            return false;
+          }
+          // else: loop around and try the next candidate slot.
+        }
       }
-      toast.success(isAr ? 'تمت إضافة القسم' : 'Block added');
-      setShowAddBlock(false);
-      return true;
-    } catch (err) {
-      const msg = err?.response?.data?.message;
-      toast.error(msg || (isAr ? 'تعذّر إضافة القسم' : 'Could not add block'));
+      toast.error(isAr ? 'تعذّر إيجاد موضع فارغ للقسم' : 'Could not find a free position for the block');
       return false;
     } finally {
       setAddingBlock(false);
@@ -355,8 +359,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
       toast.success(isAr ? 'تم حذف المكان' : 'Venue deleted');
       setPendingDeleteVenueId(null);
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      toast.error(err.message || msg || (isAr ? 'تعذّر حذف المكان' : 'Could not delete venue'));
+      toast.error(err?.message || (isAr ? 'تعذّر حذف المكان' : 'Could not delete venue'));
     } finally {
       setDeletingVenue(false);
     }
