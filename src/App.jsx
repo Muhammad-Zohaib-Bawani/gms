@@ -5,6 +5,7 @@ import { Icon } from './components/Icons';
 import Select from './components/ui/Select';
 import DateField from './components/ui/DateField';
 import toast from './lib/toast';
+import { onHub, REALTIME_TOPICS } from './lib/realtimeHub';
 import {
   useTweaks,
   TweaksPanel,
@@ -13,7 +14,7 @@ import {
   TweakSlider,
   TweakRadio,
 } from './components/TweaksPanel';
-import { INVITATION_TEMPLATES, SESSIONS } from './data/mockData';
+import { SESSIONS } from './data/mockData';
 import { useAuth } from './auth/AuthContext';
 import { useEvents } from './events/EventsContext';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -24,6 +25,7 @@ import { getNationalities } from './api/services/nationalityService';
 import { updateGuest, deleteGuest } from './api/services/guestService';
 import { uploadImageFile, stripSasToken } from './api/services/uploadService';
 import { getMeetings, editMeeting } from './api/services/meetingService';
+import { getNotifications, getUnreadCount, markAllNotificationsRead, markNotificationRead } from './api/services/notificationService';
 import { addDaysIso } from './lib/date';
 
 // Vehicle types live under the Vehicles module (its own tab), so they're left
@@ -290,11 +292,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
   const [hotel, setHotel] = React.useState(guest.hotel || "");
   const [saved, setSaved] = React.useState(false);
 
-  const [showMessage, setShowMessage] = React.useState(false);
-  const [msgSubject, setMsgSubject] = React.useState(`Invitation — ${guest.fullName || guest.name || ''}`);
-  const [msgBody, setMsgBody] = React.useState("");
-  const [msgSent, setMsgSent] = React.useState(false);
-  const [inviteTemplateId, setInviteTemplateId] = React.useState(null);
+  const navigate = useNavigate();
   const [guestSessions, setGuestSessions] = React.useState(new Set(guest.sessions || []));
   const [editSessions, setEditSessions] = React.useState(false);
   const [sessionsSaved, setSessionsSaved] = React.useState(false);
@@ -428,15 +426,6 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
     return () => document.removeEventListener("mousedown", h);
   }, [showMore]);
 
-  function sendMessage() {
-    setMsgSent(true);
-    setTimeout(() => {
-      setShowMessage(false); setMsgSent(false); setMsgBody("");
-      setDrawerNotice(isAr ? "تم إرسال الرسالة ✓" : "Message sent ✓");
-      setTimeout(() => setDrawerNotice(""), 2500);
-    }, 900);
-  }
-
   function saveTravel() {
     setSaved(true); setEditTravel(false);
     setTimeout(() => setSaved(false), 2500);
@@ -482,9 +471,6 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
     line2: "تأكيد حجز الفندق ·",
     line3: "قبول الدعوة عبر البريد الإلكتروني",
     arrivalDate: "تاريخ الوصول",
-    compose: "كتابة رسالة", send: "إرسال", msgPh: "اكتب رسالتك…",
-    subj: "الموضوع", to: "إلى", sentMsg: "تم الإرسال ✓",
-    templateLabel: "قالب الدعوة (اختياري)", noTemplate: "رسالة مخصصة",
     badgeTitle: "شارة الاعتماد", printBadge: "طباعة",
     editPro: "تعديل الملف الشخصي", addMeet: "إضافة إلى اجتماع",
     expPdf: "تصدير PDF", removeG: "إزالة الضيف",
@@ -517,9 +503,6 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
     line2: "Hotel block confirmed ·",
     line3: "Invitation accepted via email",
     arrivalDate: "Arrival date",
-    compose: "Compose message", send: "Send", msgPh: "Write your message…",
-    subj: "Subject", to: "To", sentMsg: "Sent ✓",
-    templateLabel: "Invitation template (optional)", noTemplate: "Custom message",
     badgeTitle: "Accreditation Badge", printBadge: "Print Badge",
     editPro: "Edit profile", addMeet: "Add to meeting",
     expPdf: "Export PDF", removeG: "Remove guest",
@@ -591,7 +574,9 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
         </div>
 
         <div style={{ display: "flex", gap: 6, marginTop: 18 }}>
-          <button className="btn primary" style={{ flex: 1 }} onClick={() => { setShowMessage(true); setInviteTemplateId(null); setMsgSubject(`Invitation — ${guestName}`); }}>
+          <button className="btn primary" style={{ flex: 1 }} onClick={() => navigate('/support-chat', {
+            state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
+          })}>
             <Icon name="message" size={14}/> {D.message}
           </button>
           <button className="btn" style={{ flex: 1 }} onClick={() => setShowBadge(true)}>
@@ -755,65 +740,6 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
           <div className="timeline-item"><div style={{ fontSize: 11.5, color: "var(--accent-2)", fontFamily: "var(--mono)", direction: "ltr" }}>{guest.invited}</div><div style={{ fontSize: 12.5 }}>{D.line3}</div></div>
         </div> */}
       </div>
-
-      {/* ── Message modal ── */}
-      {showMessage && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1200 }}>
-          <div className="card glass modal-solid" style={{ width:480, maxWidth:"92vw", padding:0, maxHeight:"88vh", display:"flex", flexDirection:"column" }}>
-            <div style={{ padding:"16px 20px", borderBottom:"1px solid var(--glass-border)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-              <div>
-                <h3 style={{ margin:0, fontSize:15 }}>{D.compose}</h3>
-                <div style={{ fontSize:11.5, color:"var(--ink-mute)", marginTop:3 }}>{D.to}: <span style={{ fontFamily:"var(--mono)", fontSize:11 }}>{guestName} &lt;{guest.email}&gt;</span></div>
-              </div>
-              <button className="icon-btn" onClick={() => { setShowMessage(false); setMsgSent(false); }}><Icon name="close" size={14}/></button>
-            </div>
-            <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:12, overflowY:"auto", flex:1 }}>
-              <div>
-                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>{D.templateLabel}</label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                  <div onClick={() => setInviteTemplateId(null)}
-                    style={{ padding:"5px 11px", borderRadius:8, cursor:"pointer", fontSize:11.5, whiteSpace:"nowrap",
-                      border:`1px solid ${!inviteTemplateId ? "var(--accent)" : "var(--glass-border)"}`,
-                      background:!inviteTemplateId ? "rgba(141, 1, 52,0.1)" : "var(--surface-soft-3)" }}>
-                    {D.noTemplate}
-                  </div>
-                  {INVITATION_TEMPLATES.map(t => (
-                    <div key={t.id}
-                      onClick={() => { setInviteTemplateId(t.id); setMsgSubject(isAr ? t.subjectAr : t.subject); setMsgBody(isAr ? t.bodyAr : t.body); }}
-                      style={{ padding:"5px 11px", borderRadius:8, cursor:"pointer", fontSize:11.5, display:"flex", alignItems:"center", gap:5, whiteSpace:"nowrap",
-                        border:`1px solid ${inviteTemplateId === t.id ? t.color : "var(--glass-border)"}`,
-                        background:inviteTemplateId === t.id ? t.color+"18" : "var(--surface-soft-3)" }}>
-                      <span style={{ width:7, height:7, borderRadius:"50%", background:t.color, flexShrink:0 }}/>
-                      {isAr ? t.nameAr : t.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>{D.subj}</label>
-                <input style={iStyle} value={msgSubject} onChange={e => setMsgSubject(e.target.value)}/>
-              </div>
-              <div>
-                <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:5 }}>{isAr ? "الرسالة" : "Message"}</label>
-                <textarea style={{ ...iStyle, resize:"vertical", minHeight:130, lineHeight:1.6 }}
-                  value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder={D.msgPh}/>
-              </div>
-              {msgSent ? (
-                <div style={{ padding:"10px 14px", borderRadius:8, background:"rgba(141, 1, 52,0.1)", border:"1px solid rgba(141, 1, 52,0.25)", fontSize:13, color:"var(--accent)", display:"flex", alignItems:"center", gap:8 }}>
-                  <Icon name="check" size={14}/> {D.sentMsg}
-                </div>
-              ) : (
-                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-                  <button className="btn" onClick={() => setShowMessage(false)}>{D.cancel}</button>
-                  <button className="btn primary" onClick={sendMessage} disabled={!msgBody.trim()}>
-                    <Icon name="message" size={13}/> {D.send}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Badge modal ── */}
       {showBadge && (() => {
@@ -1114,6 +1040,18 @@ function Tweaks({ tweaks, setTweak }) {
   );
 }
 
+function notifRelativeTime(iso, isAr) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const mins = Math.floor((new Date() - d) / 60000);
+  if (mins < 1) return isAr ? 'الآن' : 'now';
+  if (mins < 60) return isAr ? `${mins} د` : `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return isAr ? `${hours} س` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return isAr ? `${days} ي` : `${days}d`;
+}
+
 export default function App() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -1122,6 +1060,8 @@ export default function App() {
   const [openMenus, setOpenMenus] = useState({});
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = React.useRef(null);
 
   // New screen starts at the top. Desktop scrolls the window; on mobile .main is
@@ -1130,6 +1070,13 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.querySelector('.main')?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [pathname]);
+
+  // Minimal generic push: any Notification/GuestNotification row pushes here
+  // regardless of feature (see NotificationManagerService) — surfaced as a
+  // toast for now. The bell UI itself is still a static stub, unwired.
+  useEffect(() => onHub(REALTIME_TOPICS.NOTIFICATION_NEW, (title, message) => {
+    toast.message(title || message, { description: title ? message : undefined });
+  }), []);
 
   useEffect(() => {
     if (!showNotifications) return;
@@ -1142,6 +1089,47 @@ export default function App() {
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
   const { events, activeEvent, setActiveEventId } = useEvents();
+
+  const refreshUnreadCount = React.useCallback(() => {
+    if (isDemo) return;
+    getUnreadCount().then((n) => setUnreadCount(n || 0)).catch(() => {});
+  }, [isDemo]);
+
+  useEffect(() => { refreshUnreadCount(); }, [refreshUnreadCount]);
+
+  useEffect(() => onHub(REALTIME_TOPICS.NOTIFICATION_COUNT_CHANGED, refreshUnreadCount), [refreshUnreadCount]);
+
+  // Prepend the just-pushed notification so an open dropdown updates live too.
+  useEffect(() => onHub(REALTIME_TOPICS.NOTIFICATION_NEW, (title, message, data) => {
+    setUnreadCount((c) => c + 1);
+    setNotifications((list) => [
+      { id: data?.id || `live-${Date.now()}`, title, message, redirectUrl: data?.redirectUrl, createdAt: new Date().toISOString(), read: false },
+      ...list,
+    ].slice(0, 20));
+  }), []);
+
+  useEffect(() => {
+    if (!showNotifications || isDemo) return;
+    getNotifications({ pageNumber: 1, pageSize: 20 })
+      .then((r) => setNotifications(r?.items || r || []))
+      .catch(() => {});
+  }, [showNotifications, isDemo]);
+
+  const openNotification = (n) => {
+    if (!n.read) {
+      markNotificationRead(n.id).catch(() => {});
+      setNotifications((list) => list.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    setShowNotifications(false);
+    if (n.redirectUrl) navigate(n.redirectUrl);
+  };
+
+  const markAllRead = () => {
+    markAllNotificationsRead().catch(() => {});
+    setNotifications((list) => list.map((x) => ({ ...x, read: true })));
+    setUnreadCount(0);
+  };
 
   // Navigate by NAV key (URL comes from the shared path map) and close the
   // mobile sidebar. Passed to views as `gotoView` for backward compatibility.
@@ -1222,7 +1210,7 @@ export default function App() {
             onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${(activeEv?.title || 'GMS').split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
         </div> */}
         <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex",flexDirection: "column", alignItems: "center", gap: 8 , justifyContent: "center" }}>
-          <img src="/assets/side-logo.png" alt="GMS" width="100"/>
+          <img src="/assets/side-logo.png" alt="GMS" width="80"/>
                     <div style={{ fontSize: 10, letterSpacing: "0.01em" }}>GUEST MANAGEMENT SYSTEM</div>
           {/* <div style={{ fontSize: 10.5, color: "var(--ink-mute)", letterSpacing: lang === "ar" ? "0.04em" : "0.18em", textTransform: "uppercase" }}>{shell.guestMgmt}</div> */}
         </div>
@@ -1299,15 +1287,34 @@ export default function App() {
           <div className="notif-wrap" ref={notifRef}>
             <button className="icon-btn" title={lang === 'ar' ? 'الإشعارات' : 'Notifications'}
               onClick={() => setShowNotifications(o => !o)}>
-              <Icon name="bell" size={16}/><span className="dot"/>
+              <Icon name="bell" size={16}/>{unreadCount > 0 && <span className="dot"/>}
             </button>
             {showNotifications && (
               <div className="notif-menu">
-                <div className="notif-head">{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</div>
-                <div className="notif-empty">
-                  <Icon name="bell" size={22}/>
-                  <span>{lang === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</span>
+                <div className="notif-head">
+                  <span>{lang === 'ar' ? 'الإشعارات' : 'Notifications'}</span>
+                  {unreadCount > 0 && (
+                    <button className="notif-mark-all" onClick={markAllRead}>
+                      {lang === 'ar' ? 'تعليم الكل كمقروء' : 'Mark all read'}
+                    </button>
+                  )}
                 </div>
+                {notifications.length === 0 ? (
+                  <div className="notif-empty">
+                    <Icon name="bell" size={22}/>
+                    <span>{lang === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}</span>
+                  </div>
+                ) : (
+                  <div className="notif-list">
+                    {notifications.map((n) => (
+                      <div key={n.id} className={"notif-item" + (n.read ? "" : " unread")} onClick={() => openNotification(n)}>
+                        <div className="notif-item-title">{n.title || n.message}</div>
+                        {n.title && n.message && <div className="notif-item-body">{n.message}</div>}
+                        <div className="notif-item-time">{notifRelativeTime(n.createdAt, lang === 'ar')}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

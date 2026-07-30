@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Icon } from '../components/Icons';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { listAccountRequests, approveAccountRequest, rejectAccountRequest } from '../api/services/accountRequestService';
 import { listRoles } from '../api/services/roleService';
 import { toast } from '../lib/toast';
 import Select from '../components/ui/Select';
+import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 
 const TABS = ['pending', 'approved', 'rejected'];
 const STATUS_COLOR = { pending: '#e0c47e', approved: '#5abf6e', rejected: '#e08a7e' };
@@ -51,6 +52,48 @@ export default function AccountRequestsView() {
     catch (err) { toast.error(err.message || 'Reject failed'); }
   }
 
+  const showAction = tab === 'pending' && canManage;
+  const columns = useMemo(() => {
+    const cols = [
+      { id: 'name', header: 'Name', enableSorting: false,
+        cell: ({ row: { original: r } }) => (
+          <span style={{ fontSize: 13 }}>{[r.firstName, r.lastName].filter(Boolean).join(' ') || '—'}</span>
+        ) },
+      { id: 'email', header: 'Email', accessorKey: 'email',
+        cell: ({ getValue }) => <span style={{ fontSize: 12.5, fontFamily: 'var(--mono)' }}>{getValue()}</span> },
+      { id: 'requestedRoleName', header: 'Requested role', accessorKey: 'requestedRoleName', enableSorting: false,
+        cell: ({ getValue }) => getValue() || <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>—</span> },
+      { id: 'status', header: 'Status', accessorKey: 'status',
+        cell: ({ getValue }) => {
+          const s = getValue();
+          const c = STATUS_COLOR[s] || '#888';
+          return (
+            <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 20, textTransform: 'capitalize', color: c, background: c + '18', border: `1px solid ${c}40` }}>{s}</span>
+          );
+        } },
+    ];
+    if (showAction) {
+      cols.push({
+        id: 'actions', header: 'Action', size: 220, enableSorting: false, enableGlobalFilter: false,
+        cell: ({ row: { original: r } }) => (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ minWidth: 160 }}>
+              <Select value={pick[r.id] ?? r.requestedRoleId ?? ''}
+                onChange={(v) => setPick((p) => ({ ...p, [r.id]: v }))}
+                placeholder="Role…"
+                options={roles.map((role) => ({ value: role.id, label: role.name || role.code }))} />
+            </div>
+            <ActionMenu items={[
+              { label: 'Approve', icon: 'check', onClick: () => approve(r.id) },
+              { label: 'Reject', icon: 'trash', danger: true, onClick: () => reject(r.id) },
+            ]} />
+          </div>
+        ),
+      });
+    }
+    return cols;
+  }, [showAction, pick, roles]);
+
   return (
     <div>
       <div className="page-header">
@@ -77,39 +120,7 @@ export default function AccountRequestsView() {
         ) : rows.length === 0 ? (
           <div style={{ padding: 28, textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>No {tab} requests</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr><th>Name</th><th>Email</th><th>Requested role</th><th>Status</th>{tab === 'pending' && canManage && <th style={{ width: 280 }}>Action</th>}</tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ fontSize: 13 }}>{[r.firstName, r.lastName].filter(Boolean).join(' ') || '—'}</td>
-                  <td style={{ fontSize: 12.5, fontFamily: 'var(--mono)' }}>{r.email}</td>
-                  <td style={{ fontSize: 12 }}>{r.requestedRoleName || <span style={{ color: 'var(--ink-faint)' }}>—</span>}</td>
-                  <td>
-                    <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 20, textTransform: 'capitalize', color: STATUS_COLOR[r.status], background: (STATUS_COLOR[r.status] || '#888') + '18', border: `1px solid ${(STATUS_COLOR[r.status] || '#888')}40` }}>{r.status}</span>
-                  </td>
-                  {tab === 'pending' && canManage && (
-                    <td>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <div style={{ minWidth: 160 }}>
-                          <Select value={pick[r.id] ?? r.requestedRoleId ?? ''}
-                            onChange={(v) => setPick((p) => ({ ...p, [r.id]: v }))}
-                            placeholder="Role…"
-                            options={roles.map((role) => ({ value: role.id, label: role.name || role.code }))} />
-                        </div>
-                        <button className="btn primary" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => approve(r.id)}>
-                          <Icon name="check" size={12} /> Approve
-                        </button>
-                        <button className="btn" style={{ padding: '4px 10px', fontSize: 11, color: '#e08a7e' }} onClick={() => reject(r.id)}>Reject</button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable columns={columns} data={rows} showSearch={false} emptyText={`No ${tab} requests`} />
         )}
       </div>
     </div>

@@ -177,6 +177,13 @@ export default function DataTable({
   const canPrev = manualPagination ? pageIndex > 0 : table.getCanPreviousPage();
   const canNext = manualPagination ? pageIndex + 1 < pageCount : table.getCanNextPage();
   const goToPage = (i) => (manualPagination ? onPageChange?.(i) : table.setPageIndex(i));
+  // In manual mode the parent owns pageSize entirely; in local mode the table's
+  // own state drives it, so flip it directly here as well as notifying the parent.
+  const changePageSize = (n) => {
+    if (!manualPagination) table.setPageSize(n);
+    onPageSizeChange?.(n);
+  };
+  const showSizeSelector = manualPagination ? !!onPageSizeChange : true;
 
   return (
     <div style={S.wrap}>
@@ -263,11 +270,11 @@ export default function DataTable({
         <div style={S.footer}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {from}–{to} of {totalRows}
-            {onPageSizeChange && (
+            {showSizeSelector && (
               <select
                 style={S.sizeSelect}
                 value={pageSize}
-                onChange={e => onPageSizeChange(Number(e.target.value))}
+                onChange={e => changePageSize(Number(e.target.value))}
                 aria-label="Rows per page"
               >
                 {pageSizeOptions.map(n => <option key={n} value={n}>{n} / page</option>)}

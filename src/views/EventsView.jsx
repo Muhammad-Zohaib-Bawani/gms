@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { Icon } from '../components/Icons';
+import ActionMenu from '../components/ui/ActionMenu';
 import { useAuth } from '../auth/AuthContext';
 import * as eventsApi from '../api/services/eventService';
 import { getVenues } from '../api/services/venueService';
@@ -835,10 +836,11 @@ export default function EventsView({ lang }) {
                           </div>
                           <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{s.date}</span>
                           {can('Events.ManageSessions') && (
-                            <div style={{ display: "flex", gap: 4 }}>
-                              <button className="icon-btn" style={{ width: 26, height: 26 }} onClick={() => setEditSessionId(s.id)}><Icon name="edit" size={11}/></button>
-                              <button className="icon-btn" style={{ width: 26, height: 26, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "session", id: s.id, evId: selectedEvent.id, name: s.title })}><Icon name="trash" size={11}/></button>
-                            </div>
+                            <ActionMenu items={[
+                              { label: STR.edit || (isAr ? 'تعديل' : 'Edit'), icon: 'edit', onClick: () => setEditSessionId(s.id) },
+                              { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true,
+                                onClick: () => setConfirmDelete({ type: "session", id: s.id, evId: selectedEvent.id, name: s.title }) },
+                            ]}/>
                           )}
                         </div>
                       )}

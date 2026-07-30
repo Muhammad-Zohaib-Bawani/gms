@@ -8,6 +8,7 @@ import { getEvent } from '../api/services/eventService.js';
 import { getEventFlights, getEventAccommodation, getEventTransport, getEventArrivalsDepartures, getGuestTravel, saveGuestTravel, getTravelLookups, deleteFlight, deleteAccommodation, deleteTransport } from '../api/services/travelService.js';
 import Select from '../components/ui/Select.jsx';
 import DataTable from '../components/ui/DataTable.jsx';
+import ActionMenu from '../components/ui/ActionMenu.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
 import TravelAccordion, {
@@ -40,17 +41,15 @@ function guestFullName(g) {
 // Guest picker page size — one screenful plus a bit, so the first page paints fast.
 const GUEST_PAGE_SIZE = 20;
 
-// "09:15 → 14:30 · 5h 15m" under a route. Each part is dropped independently
-// when the data can't support it, so a leg missing its arrival still shows the
-// departure rather than a dash.
+// "09:15 → 14:30" under a route — duration lives in its own column (see
+// `flightDuration` below), not appended here. Either end is dropped
+// independently when the data can't support it, so a leg missing its arrival
+// still shows the departure rather than a dash.
 function timeRange(start, end) {
   const hhmm = (v) => (v ? String(v).slice(11, 16) : null);
   const a = hhmm(start);
   const b = hhmm(end);
-  const span = flightDuration(start, end);
-  const clock = a && b ? `${a} → ${b}` : (a || b);
-  if (clock && span) return `${clock} · ${span}`;
-  return clock || span || '—';
+  return (a && b) ? `${a} → ${b}` : (a || b || '—');
 }
 
 // Elapsed time between the two ends of an itinerary, as "5h 15m" / "45m".
@@ -215,8 +214,8 @@ export default function TravelView({ lang, activeEventId }) {
     sub:'الرحلات والتأشيرات والفنادق والنقل البري',
     tabs:['الرحلات والتأشيرات','الفنادق','النقل البري','الوصول والمغادرة'],
     newBooking:'حجز جديد',
-    kpi:{ flights:'رحلات مؤكدة',flightsH:'٧٤٪ تغطية · أسعار شريك القطرية',
-      rooms:'غرف محجوزة',roomsH:'٥ فنادق · ٩٢٪ موزعة',
+    kpi:{ flights:'رحلات مؤكدة',flightsH:'',
+      rooms:'غرف محجوزة',roomsH:'',
       transfers:'نقل بري',transfersH:'أسطول VIP · ٢٤ مركبة',
       visas:'تأشيرات موافق عليها',visasH:'٨٨٫٦٪ موافقة · مزامنة الداخلية' },
     hayya:{ title:'طلبات تأشيرة هيّا',sub:'مزامنة مباشرة · آخر تحديث قبل دقيقتين',
@@ -227,7 +226,7 @@ export default function TravelView({ lang, activeEventId }) {
       status:'الحالة',hotel:'الفندق',room:'الغرفة',
       checkIn:'الوصول',checkOut:'المغادرة',nights:'الليالي',
       vehicle:'المركبة',driver:'السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت',
-      inboundRoute:'مسار الوصول',outboundRoute:'مسار المغادرة',organization:'المؤسسة' },
+      inboundRoute:'مسار الوصول',outboundRoute:'مسار المغادرة',organization:'المؤسسة',duration:'المدة' },
     direction:{ all:'كل الرحلات',inbound:'الوصول',outbound:'المغادرة' },
     dateFrom:'من تاريخ', dateTo:'إلى تاريخ', clearDates:'مسح التواريخ',
     statuses:{ approved:'موافق',submitted:'قيد المراجعة',pending:'قيد الانتظار',rejected:'مرفوض',
@@ -247,9 +246,9 @@ export default function TravelView({ lang, activeEventId }) {
       // 'Overview',
       'Flights','Hotel','Ground Transfers','Arrivals & Departures'],
     newBooking:'New booking',
-    kpi:{ flights:'Flights confirmed',flightsH:'74% coverage · QR partner fares',
-      rooms:'Hotel rooms blocked',roomsH:'5 properties · 92% allocated',
-      transfers:'Ground transfers',transfersH:'VIP fleet · 24 vehicles on standby',
+    kpi:{ flights:'Flights confirmed',flightsH:'',
+      rooms:'Hotel rooms blocked',roomsH:'',
+      transfers:'Ground transfers',transfersH:'',
       visas:'Visas approved',visasH:'88.6% approved · MOI Qatar live sync' },
     hayya:{ title:'Hayya visa applications',sub:'Permit-to-Enter synced via Hayya gateway · Last refresh 2m ago',
       connected:'Connected · MOI Qatar',syncNow:'Sync now',synced:'Synced ✓' },
@@ -259,8 +258,8 @@ export default function TravelView({ lang, activeEventId }) {
       status:'Status',hotel:'Hotel',room:'Room',
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
       vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
-      inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization' },
-    direction:{ all:'All flights',inbound:'Inbound',outbound:'Outbound' },
+      inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization',duration:'Duration' },
+    direction:{ all:'All flights',inbound:'Arrivals',outbound:'Departures' },
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
       confirmed:'Confirmed',scheduled:'Scheduled',completed:'Completed',
@@ -581,16 +580,17 @@ export default function TravelView({ lang, activeEventId }) {
   const actionsCell = (type, bookings) => (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
       {bookings.map(b => (
-        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center', gap:4 }}>
-          {bookings.length === 1 && (
-            <button className="icon-btn" title={STR.edit} onClick={() => openEdit(type, b)} style={{ opacity:0.6 }}>
-              <Icon name="edit" size={13}/>
-            </button>
-          )}
-          <button className="icon-btn" title={isAr ? 'إزالة' : 'Remove'} disabled={removingId === b.bookingId}
-            onClick={() => removeBooking(type, b.bookingId)} style={{ opacity:0.6, color:'#e08a7e' }}>
-            <Icon name="trash" size={12}/>
-          </button>
+        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center' }}>
+          <ActionMenu
+            items={[
+              bookings.length === 1 && { label: STR.edit, icon: 'edit', onClick: () => openEdit(type, b) },
+              {
+                label: isAr ? 'إزالة' : 'Remove', icon: 'trash', danger: true,
+                disabled: removingId === b.bookingId,
+                onClick: () => removeBooking(type, b.bookingId),
+              },
+            ]}
+          />
         </div>
       ))}
     </div>
@@ -720,6 +720,25 @@ export default function TravelView({ lang, activeEventId }) {
       },
     });
 
+    // Stacked one-per-flight, same row-height rhythm as routeColumn so a
+    // guest's durations line up against their routes above.
+    const durationColumn = (id, pick) => ({
+      id, header: STR.cols.duration, enableSorting: false,
+      cell: ({ row }) => {
+        const flights = pick(row.original);
+        if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {flights.map(f => (
+              <div key={f.id} style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--ink-mute)', minHeight: 20, display:'flex', alignItems:'center' }}>
+                {flightDuration(f.departureTime, f.arrivalTime) || '—'}
+              </div>
+            ))}
+          </div>
+        );
+      },
+    });
+
     return [
       {
         id: 'guest', header: STR.cols.guest, enableSorting: false,
@@ -757,8 +776,8 @@ export default function TravelView({ lang, activeEventId }) {
           );
         },
       },
-      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true)]  : []),
-      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false)] : []),
+      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true), durationColumn('inboundDuration',  r => r.inbound)]  : []),
+      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false), durationColumn('outboundDuration', r => r.outbound)] : []),
     ];
   }, [STR, adDirection]);
 

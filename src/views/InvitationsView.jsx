@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Icon } from '../components/Icons';
 import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
 import toast from '../lib/toast';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../api/services/invitationTemplateService';
@@ -421,24 +422,14 @@ export default function InvitationsView({ lang, activeEventId }) {
       id: 'actions',
       header: '',
       enableSorting: false,
-      size: 140,
+      size: 60,
       cell: ({ row: { original: t } }) => (
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button
-            className="btn ghost"
-            style={{ padding: '4px 10px', fontSize: 12 }}
-            onClick={e => { e.stopPropagation(); openEdit(t); }}
-          >
-            <Icon name="edit" size={12}/> {STR.edit}
-          </button>
-          <button
-            className="btn ghost"
-            style={{ padding: '4px 10px', fontSize: 12, color: '#e05050' }}
-            onClick={e => { e.stopPropagation(); setDeleteTmpl(t); }}
-          >
-            <Icon name="close" size={12}/> {STR.delete}
-          </button>
-        </div>
+        <ActionMenu
+          items={[
+            { label: STR.edit, icon: 'edit', onClick: () => openEdit(t) },
+            { label: STR.delete, icon: 'trash', danger: true, onClick: () => setDeleteTmpl(t) },
+          ]}
+        />
       ),
     },
   ], [isAr, STR, openEdit]);

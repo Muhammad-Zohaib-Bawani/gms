@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import * as authApi from '../api/services/authService';
 import { tokenStore } from './tokenStore';
 import { userFromToken, isTokenExpired } from './jwt';
+import { connectHub, disconnectHub } from '../lib/realtimeHub';
 
 const AuthContext = createContext(null);
 
@@ -49,6 +50,13 @@ export function AuthProvider({ children }) {
   // Authenticated if demo, or we hold an access token that hasn't expired
   // (an expired token still lets the client try a refresh on the next call).
   const isAuthenticated = demo || (!!session?.accessToken && !isTokenExpired(session.accessToken));
+
+  // Real backend, real token required — demo mode has neither.
+  useEffect(() => {
+    if (isAuthenticated && !demo) connectHub();
+    else disconnectHub();
+    return () => disconnectHub();
+  }, [isAuthenticated, demo]);
 
   const value = useMemo(
     () => ({

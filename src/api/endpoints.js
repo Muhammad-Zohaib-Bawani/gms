@@ -124,6 +124,7 @@ export const ENDPOINTS = {
     assign: '/v1/seating',
     unassign: (seatId) => `/v1/seating/${seatId}`,
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
+    byGuest: (guestId) => `/v1/seating/guest/${guestId}`,
   },
 
   // Guest travel: flight / accommodation / transport sections. A guest can
@@ -182,5 +183,14 @@ export const ENDPOINTS = {
     read: (conversationId) => `/v1/support-chat/conversations/${conversationId}/read`,
     close: (conversationId) => `/v1/support-chat/conversations/${conversationId}/close`,
     reopen: (conversationId) => `/v1/support-chat/conversations/${conversationId}/reopen`,
+  },
+
+  notifications: {
+    base: '/v1/notifications',
+    count: '/v1/notifications/count',
+    markAllRead: '/v1/notifications/mark-all-read',
+    markRead: (id) => `/v1/notifications/${id}/mark-read`,
+    markUnread: (id) => `/v1/notifications/${id}/mark-unread`,
+    byId: (id) => `/v1/notifications/${id}`,
   },
 };

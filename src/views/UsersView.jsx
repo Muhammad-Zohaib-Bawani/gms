@@ -10,6 +10,7 @@ import { getDriverTypes } from '../api/services/lookupService';
 import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
 import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
 import { Icon } from '../components/Icons';
@@ -639,12 +640,12 @@ export default function UsersView() {
     // Actions column
     col.display({
       id: 'actions',
-      size: 140,
+      size: 60,
       enableSorting: false,
       header: '',
       cell: ({ row: { original: u } }) => {
-        const isSelf    = u.id === me?.id;
-        const isAdmin   = u.roleName?.toLowerCase() === 'administrator';
+        const isSelf  = u.id === me?.id;
+        const isAdmin = u.roleName?.toLowerCase() === 'administrator';
 
         return (
           <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
@@ -657,16 +658,6 @@ export default function UsersView() {
                 {resendingId === u.id ? 'Sending…' : 'Resend'}
               </button>
             )}
-            {canUpdate && (
-              <button
-                onClick={() => setEditTarget(u)}
-                title="Edit user"
-                style={{ background: 'none', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--ink-mute)' }}>
-                <Icon name="edit" size={14} />
-              </button>
-            )}
-            {/* Set-password action hidden from the listing. SetPasswordModal and
-                its handler are still wired up — flip this back on to restore it.
             {!u.isPending && canUpdate && (
               <button
                 onClick={() => setPasswordTarget(u)}
@@ -674,7 +665,7 @@ export default function UsersView() {
                 style={{ background: 'none', border: '1px solid transparent', borderRadius: 6, padding: '5px 8px', cursor: 'pointer', color: 'var(--ink-mute)' }}>
                 <Icon name="shield" size={14} />
               </button>
-            )} */}
+            )}
             {canDelete && (
               <button
                 disabled={isSelf || isAdmin}

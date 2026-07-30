@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icon } from '../components/Icons';
 import Modal from '../components/ui/Modal';
+import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 import LocationPickerModal from '../components/ui/LocationPickerModal';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
@@ -135,7 +137,37 @@ export default function OrganizationsView({ lang }) {
     }
   }
 
-  const colCount = canManage ? 5 : 4;
+  const columns = useMemo(() => {
+    const cols = [
+      { id: 'name', header: isAr ? 'الاسم' : 'Name', accessorKey: 'name',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      { id: 'nameAr', header: isAr ? 'الاسم بالعربية' : 'Arabic Name', accessorKey: 'nameAr',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }} dir="rtl">{getValue() || '—'}</span> },
+      { id: 'code', header: isAr ? 'الرمز' : 'Code', accessorKey: 'code',
+        cell: ({ getValue }) => <span style={{ fontSize: 13, fontFamily: 'var(--mono)' }}>{getValue() || '—'}</span> },
+      { id: 'location', header: isAr ? 'الموقع' : 'Location', enableSorting: false,
+        cell: ({ row: { original: r } }) => (
+          <span style={{ fontSize: 13 }}>
+            {r.address || (r.latitude && r.longitude
+              ? `${Number(r.latitude).toFixed(5)}, ${Number(r.longitude).toFixed(5)}`
+              : '—')}
+          </span>
+        ) },
+    ];
+    if (canManage) {
+      cols.push({
+        id: 'actions', header: '', size: 50, enableSorting: false, enableGlobalFilter: false,
+        cell: ({ row: { original: r } }) => (
+          <ActionMenu items={[
+            { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => openEdit(r) },
+            { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true,
+              disabled: deletingId === r.id, onClick: () => handleDelete(r) },
+          ]} />
+        ),
+      });
+    }
+    return cols;
+  }, [isAr, canManage, deletingId]);
 
   return (
     <div>
@@ -156,54 +188,15 @@ export default function OrganizationsView({ lang }) {
       </div>
 
       <div className="card" style={{ padding: 0 }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>{isAr ? 'الاسم' : 'Name'}</th>
-              <th>{isAr ? 'الاسم بالعربية' : 'Arabic Name'}</th>
-              <th>{isAr ? 'الرمز' : 'Code'}</th>
-              <th>{isAr ? 'الموقع' : 'Location'}</th>
-              {canManage && <th style={{ width: 90 }} />}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td style={{ fontSize: 13 }}>{r.name || '—'}</td>
-                <td style={{ fontSize: 13 }} dir="rtl">{r.nameAr || '—'}</td>
-                <td style={{ fontSize: 13, fontFamily: 'var(--mono)' }}>{r.code || '—'}</td>
-                <td style={{ fontSize: 13 }}>
-                  {r.address || (r.latitude && r.longitude
-                    ? `${Number(r.latitude).toFixed(5)}, ${Number(r.longitude).toFixed(5)}`
-                    : '—')}
-                </td>
-                {canManage && (
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} onClick={() => openEdit(r)}>
-                        <Icon name="edit" size={13} />
-                      </button>
-                      <button className="icon-btn" title={isAr ? 'حذف' : 'Delete'}
-                        disabled={deletingId === r.id} onClick={() => handleDelete(r)}>
-                        <Icon name="trash" size={13} />
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={colCount} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
-                {isAr ? 'لا توجد مؤسسات بعد' : 'No organizations yet'}
-              </td></tr>
-            )}
-            {loading && (
-              <tr><td colSpan={colCount} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
-                {isAr ? 'جارٍ التحميل…' : 'Loading…'}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          showSearch
+          pageSize={10}
+          searchPlaceholder={isAr ? 'بحث…' : 'Search organizations…'}
+          emptyText={isAr ? 'لا توجد مؤسسات بعد' : 'No organizations yet'}
+        />
       </div>
 
       <Modal

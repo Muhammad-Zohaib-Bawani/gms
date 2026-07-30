@@ -21,6 +21,7 @@ import OrganizationsView from './views/OrganizationsView';
 import VehiclesView from './views/VehiclesView';
 import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
+import GuestDetailView from './views/GuestDetailView';
 
 // Each routed module + the permission that gates it. Paths come from KEY_PATH
 // so the sidebar links and the routes always agree.
@@ -53,6 +54,12 @@ function LookupAdapter() {
   const ctx = useOutletContext();
   const { lookupKey } = useParams();
   return <LookupsView lookupKey={lookupKey} lang={ctx.lang} />;
+}
+
+function GuestDetailAdapter() {
+  const ctx = useOutletContext();
+  const { id } = useParams();
+  return <GuestDetailView guestId={id} lang={ctx.lang} />;
 }
 
 // Redirect helpers ----------------------------------------------------------
@@ -105,6 +112,14 @@ export const router = createBrowserRouter([
         element: (
           <Guard permission="Lookups.View">
             <LookupAdapter />
+          </Guard>
+        ),
+      },
+      {
+        path: 'guests/:id',
+        element: (
+          <Guard permission="Guests.View">
+            <GuestDetailAdapter />
           </Guard>
         ),
       },

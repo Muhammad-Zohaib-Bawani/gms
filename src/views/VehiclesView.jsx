@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icon } from '../components/Icons';
 import Modal from '../components/ui/Modal';
 import Select from '../components/ui/Select';
+import DataTable from '../components/ui/DataTable';
+import ActionMenu from '../components/ui/ActionMenu';
 import LookupsView from './lookups/LookupsView';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
@@ -143,7 +145,37 @@ export default function VehiclesView({ lang }) {
     }
   }
 
-  const colCount = canManage ? 6 : 5;
+  const columns = useMemo(() => {
+    const cols = [
+      { id: 'vehicleImage', header: isAr ? 'الصورة' : 'Image', size: 70, enableSorting: false, enableGlobalFilter: false,
+        cell: ({ row: { original: r } }) => (
+          r.vehicleImage
+            ? <img src={r.vehicleImage} alt={r.vehicleModel || ''} style={{ width: 46, height: 32, objectFit: 'cover', borderRadius: 5 }} />
+            : <span style={{ color: 'var(--ink-faint)', fontSize: 13 }}>—</span>
+        ) },
+      { id: 'vehicleNumber', header: isAr ? 'رقم المركبة' : 'Vehicle Number', accessorKey: 'vehicleNumber',
+        cell: ({ getValue }) => <span style={{ fontSize: 13, fontFamily: 'var(--mono)' }}>{getValue() || '—'}</span> },
+      { id: 'vehicleModel', header: isAr ? 'الطراز' : 'Model', accessorKey: 'vehicleModel',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      { id: 'vehicleTypeName', header: isAr ? 'النوع' : 'Type', accessorKey: 'vehicleTypeName',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      { id: 'capacity', header: isAr ? 'السعة' : 'Capacity', accessorKey: 'capacity',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() ?? '—'}</span> },
+    ];
+    if (canManage) {
+      cols.push({
+        id: 'actions', header: '', size: 50, enableSorting: false, enableGlobalFilter: false,
+        cell: ({ row: { original: r } }) => (
+          <ActionMenu items={[
+            { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => openEdit(r) },
+            { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true,
+              disabled: deletingId === r.id, onClick: () => handleDelete(r) },
+          ]} />
+        ),
+      });
+    }
+    return cols;
+  }, [isAr, canManage, deletingId]);
 
   return (
     <div>
@@ -174,57 +206,15 @@ export default function VehiclesView({ lang }) {
         <LookupsView lookupKey="vehicle-types" lang={lang} />
       ) : (
         <div className="card" style={{ padding: 0 }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 70 }}>{isAr ? 'الصورة' : 'Image'}</th>
-                <th>{isAr ? 'رقم المركبة' : 'Vehicle Number'}</th>
-                <th>{isAr ? 'الطراز' : 'Model'}</th>
-                <th>{isAr ? 'النوع' : 'Type'}</th>
-                <th>{isAr ? 'السعة' : 'Capacity'}</th>
-                {canManage && <th style={{ width: 90 }} />}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    {r.vehicleImage ? (
-                      <img src={r.vehicleImage} alt={r.vehicleModel || ''}
-                        style={{ width: 46, height: 32, objectFit: 'cover', borderRadius: 5 }} />
-                    ) : <span style={{ color: 'var(--ink-faint)', fontSize: 13 }}>—</span>}
-                  </td>
-                  <td style={{ fontSize: 13, fontFamily: 'var(--mono)' }}>{r.vehicleNumber || '—'}</td>
-                  <td style={{ fontSize: 13 }}>{r.vehicleModel || '—'}</td>
-                  <td style={{ fontSize: 13 }}>{r.vehicleTypeName || '—'}</td>
-                  <td style={{ fontSize: 13 }}>{r.capacity ?? '—'}</td>
-                  {canManage && (
-                    <td>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} onClick={() => openEdit(r)}>
-                          <Icon name="edit" size={13} />
-                        </button>
-                        <button className="icon-btn" title={isAr ? 'حذف' : 'Delete'}
-                          disabled={deletingId === r.id} onClick={() => handleDelete(r)}>
-                          <Icon name="trash" size={13} />
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {!loading && rows.length === 0 && (
-                <tr><td colSpan={colCount} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
-                  {isAr ? 'لا توجد مركبات بعد' : 'No vehicles yet'}
-                </td></tr>
-              )}
-              {loading && (
-                <tr><td colSpan={colCount} style={{ textAlign: 'center', padding: 32, color: 'var(--ink-faint)', fontSize: 13 }}>
-                  {isAr ? 'جارٍ التحميل…' : 'Loading…'}
-                </td></tr>
-              )}
-            </tbody>
-          </table>
+          <DataTable
+            columns={columns}
+            data={rows}
+            loading={loading}
+            showSearch
+            pageSize={10}
+            searchPlaceholder={isAr ? 'بحث…' : 'Search vehicles…'}
+            emptyText={isAr ? 'لا توجد مركبات بعد' : 'No vehicles yet'}
+          />
         </div>
       )}
 

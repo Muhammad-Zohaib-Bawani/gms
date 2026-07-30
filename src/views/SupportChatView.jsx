@@ -8,6 +8,7 @@
 // — they can open and read threads, but the composer and close/reopen controls
 // disappear.
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icons';
 import { Avatar } from '../components/UI';
 import Select from '../components/ui/Select';
@@ -19,12 +20,15 @@ import {
 } from '../api/services/supportChatService';
 import { getGuestPicker } from '../api/services/guestService';
 import RichComposer from './supportChat/RichComposer';
+import { onHub, REALTIME_TOPICS } from '../lib/realtimeHub';
 
 // Polling cadence for v1 (no realtime client in this frontend yet). Each poll
 // site is commented as the seam to swap for a SignalR subscription to the
 // already-mapped /realtimehub "SupportMessageNew" event later.
-const CONVERSATIONS_POLL_MS = 15000;
-const MESSAGES_POLL_MS = 5000;
+// Safety-net fallback only — SignalR delivers instantly; this just covers
+// reconnect gaps / backgrounded tabs where a push could be missed.
+const CONVERSATIONS_POLL_MS = 60000;
+const MESSAGES_POLL_MS = 60000;
 const DEFAULT_MESSAGE_PAGE_SIZE = 50;
 const LIST_STEP = 5; // both sidebar lists load/lazy-scroll in batches of 5
 
@@ -163,10 +167,12 @@ export default function SupportChatView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const { can } = useAuth();
   const canManage = can('SupportChat.Manage');
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const STR = {
-    title: isAr ? 'الدعم الفني' : 'Support Chat',
-    sub: isAr ? 'محادثات الضيوف مع فريق الدعم' : "Guests' conversations with the support team",
+    title: isAr ? 'الدعم الفني' : 'Guests Chat',
+    sub: "",
     tabChats: isAr ? 'المحادثات' : 'Chats',
     tabNew: isAr ? 'محادثة جديدة' : 'New Chat',
     searchPh: isAr ? 'ابحث بالاسم أو البريد الإلكتروني…' : 'Search by name or email…',
@@ -213,8 +219,10 @@ export default function SupportChatView({ lang, activeEventId }) {
 
   const chats = useLazyList(fetchChatsPage, [chatSearch, onlyUnread, statusFilter]);
 
-  // TODO(signalR): replace with a subscription to /realtimehub's
-  // "SupportMessageNew" event once the admin portal has a hub client.
+  // Instant refresh on push; the interval below stays as a fallback in case a
+  // hub event is missed (reconnect gap, tab was backgrounded, etc).
+  useEffect(() => onHub(REALTIME_TOPICS.SUPPORT_MESSAGE_NEW, () => chats.refresh()), [chats.refresh]);
+
   useEffect(() => {
     const t = setInterval(() => chats.refresh(), CONVERSATIONS_POLL_MS);
     return () => clearInterval(t);
@@ -263,6 +271,18 @@ export default function SupportChatView({ lang, activeEventId }) {
     setActiveConversation(null);
     setPendingGuest(guest);
   }
+  const incomingGuestId = location.state?.guestId || null;
+  useEffect(() => {
+    if (!incomingGuestId || chats.loading) return;
+    startNewChat({
+      id: incomingGuestId,
+      fullName: location.state.guestName || '',
+      organization: location.state.guestOrganization || '',
+    });
+    setListTab('chats');
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingGuestId, chats.loading]);
 
   // ── Open thread ─────────────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
@@ -302,7 +322,12 @@ export default function SupportChatView({ lang, activeEventId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // TODO(signalR): same seam as the conversations poll above.
+  // Instant refresh of the open thread on push; interval stays as fallback.
+  useEffect(() => {
+    if (!activeId) return undefined;
+    return onHub(REALTIME_TOPICS.SUPPORT_MESSAGE_NEW, () => fetchMessages(activeId, { silent: true }));
+  }, [activeId, fetchMessages]);
+
   useEffect(() => {
     if (!activeId) return undefined;
     const t = setInterval(() => fetchMessages(activeId, { silent: true }), MESSAGES_POLL_MS);
@@ -440,7 +465,7 @@ export default function SupportChatView({ lang, activeEventId }) {
           a scrolling document. */}
       <div className="card" style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}>
         {/* ── Left: two lazy-loaded lists behind a tab switch ── */}
-        <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
+        <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
           {canManage && (
           <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
             {['chats', 'new'].map((tab) => (
