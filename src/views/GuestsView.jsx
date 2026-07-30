@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
 import { Avatar, StatusChip, TierChip } from "../components/UI";
@@ -52,9 +52,29 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // ── filter / selection ────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
   const [tierFilter, setTierFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilters, setStatusFilters] = useState([]); // multi-select, [] = all
+  const [orgFilter, setOrgFilter] = useState("All");
+  const [nationalityFilter, setNationalityFilter] = useState("All");
+  const [accreditationFilter, setAccreditationFilter] = useState("All");
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [selectedGuests, setSelectedGuests] = useState([]);
   const [selResetKey, setSelResetKey] = useState(0);
+
+  const activeFilterCount = [
+    tierFilter !== "All",
+    statusFilters.length > 0,
+    orgFilter !== "All",
+    nationalityFilter !== "All",
+    accreditationFilter !== "All",
+  ].filter(Boolean).length;
+
+  const clearAllFilters = () => {
+    setTierFilter("All");
+    setStatusFilters([]);
+    setOrgFilter("All");
+    setNationalityFilter("All");
+    setAccreditationFilter("All");
+  };
 
   // ── modal open states ─────────────────────────────────────────────────────
   const [showAddGuest, setShowAddGuest] = useState(false);
@@ -103,6 +123,14 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     setEditGuest(g);
   }, [ensureGuestFormData]);
 
+  // The filter panel's Organization/Nationality dropdowns need the same
+  // reference data as the Add/Edit wizard — load it lazily the first time
+  // the panel is opened rather than unconditionally on page visit.
+  const toggleFilterPanel = () => {
+    if (!showFilterPanel) ensureGuestFormData();
+    setShowFilterPanel((o) => !o);
+  };
+
   const loadGuests = useCallback(async () => {
     if (!activeEventId) return;
     setLoading(true);
@@ -113,7 +141,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         pageSize,
         search: query || undefined,
         tier: tierFilter !== "All" ? tierFilter : undefined,
-        invitationStatus: statusFilter !== "All" ? statusFilter : undefined,
+        invitationStatuses: statusFilters.length ? statusFilters : undefined,
+        organizationId: orgFilter !== "All" ? orgFilter : undefined,
+        nationalityId: nationalityFilter !== "All" ? nationalityFilter : undefined,
+        accreditationStatus: accreditationFilter !== "All" ? accreditationFilter : undefined,
       });
       setGuests(r?.items || []);
       setTotalCount(r?.totalCount ?? 0);
@@ -122,7 +153,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     } finally {
       setLoading(false);
     }
-  }, [activeEventId, query, pageIndex, pageSize, tierFilter, statusFilter]);
+  }, [activeEventId, query, pageIndex, pageSize, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]);
 
   useEffect(() => {
     loadGuests();
@@ -132,14 +163,26 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // otherwise a filter that narrows to 3 rows leaves us stranded on page 5.
   useEffect(() => {
     setPageIndex(0);
-  }, [activeEventId, query, tierFilter, statusFilter, pageSize]);
+  }, [activeEventId, query, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter, pageSize]);
 
   // Selection can't span pages: only the current page's rows are in memory, so
   // a selection made on page 1 would silently vanish from the bulk actions on
   // page 2. Clearing on navigation makes that visible instead of surprising.
   useEffect(() => {
     clearSelection();
-  }, [pageIndex, pageSize, query, tierFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pageIndex, pageSize, query, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close the filter panel on an outside click or Escape — same pattern as
+  // the topbar notification dropdown.
+  const filterPanelRef = useRef(null);
+  useEffect(() => {
+    if (!showFilterPanel) return;
+    const onDoc = (e) => { if (filterPanelRef.current && !filterPanelRef.current.contains(e.target)) setShowFilterPanel(false); };
+    const onKey = (e) => { if (e.key === "Escape") setShowFilterPanel(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [showFilterPanel]);
 
   // ── select options ────────────────────────────────────────────────────────
   const tierFilterOpts = useMemo(
@@ -152,12 +195,37 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
   const statusFilterOpts = useMemo(
     () => [
-      { value: "All", label: isAr ? "كل الحالات" : "All Statuses" },
       { value: "not_sent", label: isAr ? "لم يُرسل" : "Not Sent" },
       { value: "sent", label: isAr ? "مُرسل" : "Sent" },
       { value: "opened", label: isAr ? "مفتوح" : "Opened" },
       { value: "accepted", label: isAr ? "مقبول" : "Accepted" },
       { value: "declined", label: isAr ? "مرفوض" : "Declined" },
+    ],
+    [isAr],
+  );
+
+  const orgFilterOpts = useMemo(
+    () => [
+      { value: "All", label: isAr ? "كل المؤسسات" : "All Organizations" },
+      ...organizations.map((o) => ({ value: o.id, label: isAr ? (o.nameAr || o.name) : o.name })),
+    ],
+    [organizations, isAr],
+  );
+
+  const nationalityFilterOpts = useMemo(
+    () => [
+      { value: "All", label: isAr ? "كل الجنسيات" : "All Nationalities" },
+      ...nationalities.map((n) => ({ value: n.id, label: `${n.flag} ${isAr ? n.nameAr : n.name}` })),
+    ],
+    [nationalities, isAr],
+  );
+
+  const accreditationFilterOpts = useMemo(
+    () => [
+      { value: "All", label: isAr ? "كل حالات الاعتماد" : "All Accreditation" },
+      { value: "not_required", label: isAr ? "غير مطلوب" : "Not Required" },
+      { value: "pending", label: isAr ? "قيد الانتظار" : "Pending" },
+      { value: "issued", label: isAr ? "صادر" : "Issued" },
     ],
     [isAr],
   );
@@ -433,22 +501,114 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <div style={{ minWidth: 150 }}>
-          <Select
-            value={tierFilter}
-            onChange={(v) => setTierFilter(v || "All")}
-            options={tierFilterOpts}
-            placeholder={isAr ? "الفئة" : "Tier"}
-          />
+
+        <div style={{ position: "relative" }} ref={filterPanelRef}>
+          <button
+            className="btn"
+            onClick={toggleFilterPanel}
+            style={{ position: "relative" }}
+            title={isAr ? "تصفية" : "Filter"}
+          >
+            <Icon name="filter" size={14} />
+            {isAr ? "تصفية" : "Filter"}
+            {activeFilterCount > 0 && (
+              <span style={{
+                position: "absolute", top: -6, insetInlineEnd: -6,
+                minWidth: 16, height: 16, borderRadius: 8, padding: "0 4px",
+                background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 700,
+                display: "grid", placeItems: "center", lineHeight: 1,
+              }}>
+                {fmtN(activeFilterCount)}
+              </span>
+            )}
+          </button>
+
+          {showFilterPanel && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 8px)", insetInlineStart: 0,
+              width: 320, zIndex: 200, padding: 14, borderRadius: 12,
+              background: "var(--popover-bg)", border: "1px solid var(--glass-border-strong)",
+              boxShadow: "0 24px 50px -16px rgba(0,0,0,0.7), 0 6px 16px -6px rgba(0,0,0,0.45)",
+              display: "flex", flexDirection: "column", gap: 12,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
+                  {isAr ? "تصفية الضيوف" : "Filter Guests"}
+                </span>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={clearAllFilters}
+                    style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11.5, cursor: "pointer", padding: 0 }}
+                  >
+                    {isAr ? "مسح الكل" : "Clear all"}
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                  {isAr ? "الفئة" : "Tier"}
+                </label>
+                <Select
+                  value={tierFilter}
+                  onChange={(v) => setTierFilter(v || "All")}
+                  options={tierFilterOpts}
+                  placeholder={isAr ? "الفئة" : "Tier"}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                  {isAr ? "حالة الدعوة" : "Invitation Status"}
+                </label>
+                <Select
+                  value={statusFilters}
+                  onChange={(v) => setStatusFilters(v || [])}
+                  options={statusFilterOpts}
+                  placeholder={isAr ? "أي حالة" : "Any status"}
+                  isMulti
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                  {isAr ? "المؤسسة" : "Organization"}
+                </label>
+                <Select
+                  value={orgFilter}
+                  onChange={(v) => setOrgFilter(v || "All")}
+                  options={orgFilterOpts}
+                  placeholder={isAr ? "المؤسسة" : "Organization"}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                  {isAr ? "الجنسية" : "Nationality"}
+                </label>
+                <Select
+                  value={nationalityFilter}
+                  onChange={(v) => setNationalityFilter(v || "All")}
+                  options={nationalityFilterOpts}
+                  placeholder={isAr ? "الجنسية" : "Nationality"}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                  {isAr ? "حالة الاعتماد" : "Accreditation"}
+                </label>
+                <Select
+                  value={accreditationFilter}
+                  onChange={(v) => setAccreditationFilter(v || "All")}
+                  options={accreditationFilterOpts}
+                  placeholder={isAr ? "حالة الاعتماد" : "Accreditation"}
+                />
+              </div>
+            </div>
+          )}
         </div>
-        <div style={{ minWidth: 165 }}>
-          <Select
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v || "All")}
-            options={statusFilterOpts}
-            placeholder={isAr ? "الحالة" : "Status"}
-          />
-        </div>
+
         <span
           style={{
             fontSize: 12,

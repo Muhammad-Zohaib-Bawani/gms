@@ -1,9 +1,14 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
-// tier / invitationStatus are filtered server-side because the list is paged —
-// filtering them in the browser would only ever filter the current page.
-export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search, excludeDeclined, tier, invitationStatus } = {}) {
+// tier / invitationStatus / etc. are filtered server-side because the list is
+// paged — filtering them in the browser would only ever filter the current page.
+// `invitationStatuses` is an array (multi-select filter panel); joined into the
+// comma-separated string the backend's GuestPagedRequest.InvitationStatuses expects.
+export function listGuests({
+  eventId, pageNumber = 1, pageSize = 50, search, excludeDeclined, tier, invitationStatus,
+  invitationStatuses, organizationId, nationalityId, accreditationStatus,
+} = {}) {
   return apiClient.get(ENDPOINTS.guests.base, {
     params: {
       eventId, pageNumber, pageSize,
@@ -11,6 +16,10 @@ export function listGuests({ eventId, pageNumber = 1, pageSize = 50, search, exc
       excludeDeclined: excludeDeclined || undefined,
       tier: tier || undefined,
       invitationStatus: invitationStatus || undefined,
+      invitationStatuses: invitationStatuses?.length ? invitationStatuses.join(',') : undefined,
+      organizationId: organizationId || undefined,
+      nationalityId: nationalityId || undefined,
+      accreditationStatus: accreditationStatus || undefined,
     },
   });
 }

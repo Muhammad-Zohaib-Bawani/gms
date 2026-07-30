@@ -27,6 +27,7 @@ import { uploadImageFile, stripSasToken } from './api/services/uploadService';
 import { getMeetings, editMeeting } from './api/services/meetingService';
 import { getNotifications, getUnreadCount, markAllNotificationsRead, markNotificationRead } from './api/services/notificationService';
 import { addDaysIso } from './lib/date';
+import FlagIcon from './components/FlagIcon';
 
 // Vehicle types live under the Vehicles module (its own tab), so they're left
 // out of the Lookups submenu to avoid two links to the same screen.

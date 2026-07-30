@@ -3,7 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/apiClient';
 import { ENDPOINTS } from '../api/endpoints';
-import { deleteUser, inviteUser, resendInvite, adminSetPassword } from '../api/services/userAccessService';
+import { deleteUser, inviteUser, resendInvite } from '../api/services/userAccessService';
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
@@ -162,7 +162,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
     }
     setSaving(true);
     try {
-      await inviteUser({
+      const created = await inviteUser({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
@@ -179,7 +179,11 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
           },
         } : {}),
       });
-      toast.success(`Invite sent to ${form.email.trim()}`);
+      if (created?.inviteEmailSent === false) {
+        toast.warning(`User created, but the invite email to ${form.email.trim()} could not be sent — use Resend Invite to try again.`);
+      } else {
+        toast.success(`Invite sent to ${form.email.trim()}`);
+      }
       onInvited?.();
       onClose();
     } catch (err) {
@@ -295,53 +299,6 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
   );
 }
 
-// ─── SetPasswordModal ────────────────────────────────────────────────────────
-
-function SetPasswordModal({ user, onClose, onDone }) {
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => { if (user) { setPassword(''); setConfirm(''); } }, [user]);
-
-  if (!user) return null;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (password.length < 8) { toast.warning('Password must be at least 8 characters'); return; }
-    if (password !== confirm) { toast.warning('Passwords do not match'); return; }
-    setSaving(true);
-    try {
-      await adminSetPassword(user.id, password);
-      toast.success(`Password updated for ${user.firstName || user.email}`);
-      onDone?.();
-    } catch (err) {
-      toast.error(err.message || 'Could not update the password');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <ModalShell title="Set Password" subtitle={`For ${[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}`} onClose={onClose} width={400}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label style={labelStyle}>New password</label>
-          <input type="password" style={inputStyle} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoFocus />
-        </div>
-        <div>
-          <label style={labelStyle}>Confirm password</label>
-          <input type="password" style={inputStyle} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" />
-        </div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Set Password'}</button>
-        </div>
-      </form>
-    </ModalShell>
-  );
-}
-
 // ─── UsersView ────────────────────────────────────────────────────────────────
 
 const col = createColumnHelper();
@@ -359,11 +316,9 @@ export default function UsersView() {
   const [toDelete, setToDelete]   = useState(null);
   const [deleting, setDeleting]   = useState(false);
   const [showInvite, setShowInvite] = useState(false);
-  const [passwordTarget, setPasswordTarget] = useState(null);
   const [resendingId, setResendingId] = useState(null);
 
   const canCreate = can('Users.Create');
-  const canUpdate = can('Users.Update');
   const canDelete = can('Users.Delete');
 
   const load = useCallback(async () => {
@@ -527,11 +482,6 @@ export default function UsersView() {
                 disabled: resendingId === u.id,
                 onClick: () => handleResend(u),
               },
-              !u.isPending && canUpdate && {
-                label: 'Set password',
-                icon: 'shield',
-                onClick: () => setPasswordTarget(u),
-              },
               canDelete && {
                 label: isSelf ? 'Cannot delete yourself' : isAdmin ? 'Cannot delete the admin account' : 'Delete',
                 icon: 'trash',
@@ -544,7 +494,7 @@ export default function UsersView() {
         );
       },
     }),
-  ], [canCreate, canUpdate, canDelete, me?.id, resendingId]);
+  ], [canCreate, canDelete, me?.id, resendingId]);
 
   return (
     <>
@@ -598,12 +548,6 @@ export default function UsersView() {
         nationalities={nationalities}
         driverTypes={driverTypes}
         onInvited={load}
-      />
-
-      <SetPasswordModal
-        user={passwordTarget}
-        onClose={() => setPasswordTarget(null)}
-        onDone={() => setPasswordTarget(null)}
       />
     </>
   );

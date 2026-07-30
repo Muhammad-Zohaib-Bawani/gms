@@ -19,8 +19,12 @@ import {
   markConversationRead, closeConversation, reopenConversation,
 } from '../api/services/supportChatService';
 import { getGuestPicker } from '../api/services/guestService';
+import { getOrganizations } from '../api/services/organizationService';
+import { getNationalities } from '../api/services/nationalityService';
 import RichComposer from './supportChat/RichComposer';
 import { onHub, REALTIME_TOPICS } from '../lib/realtimeHub';
+
+const TIERS = ['vvip', 'vip', 'Speaker', 'Delegate', 'press', 'Observer'];
 
 // Polling cadence for v1 (no realtime client in this frontend yet). Each poll
 // site is commented as the seam to swap for a SignalR subscription to the
@@ -178,6 +182,13 @@ export default function SupportChatView({ lang, activeEventId }) {
     searchPh: isAr ? 'ابحث بالاسم أو البريد الإلكتروني…' : 'Search by name or email…',
     searchGuestsPh: isAr ? 'ابحث عن ضيف…' : 'Search guests…',
     onlyUnread: isAr ? 'غير مقروءة فقط' : 'Unread only',
+    filter: isAr ? 'تصفية' : 'Filter',
+    filterChats: isAr ? 'تصفية المحادثات' : 'Filter Chats',
+    clearAll: isAr ? 'مسح الكل' : 'Clear all',
+    status: isAr ? 'الحالة' : 'Status',
+    tier: isAr ? 'الفئة' : 'Tier',
+    organization: isAr ? 'المؤسسة' : 'Organization',
+    nationality: isAr ? 'الجنسية' : 'Nationality',
     noConversations: isAr ? 'لا توجد محادثات' : 'No conversations',
     noGuests: isAr ? 'لا يوجد ضيوف' : 'No guests found',
     needEvent: isAr ? 'اختر فعالية أولاً لعرض ضيوفها' : 'Select an active event to see its guests',
@@ -205,19 +216,60 @@ export default function SupportChatView({ lang, activeEventId }) {
   const [chatSearch, setChatSearch] = useState('');
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // all | Open | Closed
+  const [orgFilter, setOrgFilter] = useState('All');
+  const [nationalityFilter, setNationalityFilter] = useState('All');
+  const [tierFilter, setTierFilter] = useState('All');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [organizations, setOrganizations] = useState([]);
+  const [nationalities, setNationalities] = useState([]);
   useEffect(() => {
     const t = setTimeout(() => setChatSearch(chatSearchInput.trim()), 400);
     return () => clearTimeout(t);
   }, [chatSearchInput]);
+
+  // Organization/Nationality options for the filter panel — loaded once,
+  // lazily, the first time the panel is opened (same trigger as Guests).
+  const [refDataLoaded, setRefDataLoaded] = useState(false);
+  const toggleFilterPanel = () => {
+    if (!showFilterPanel && !refDataLoaded) {
+      setRefDataLoaded(true);
+      getOrganizations().then((r) => setOrganizations(r || [])).catch(() => setRefDataLoaded(false));
+      getNationalities().then((r) => setNationalities(r || [])).catch(() => {});
+    }
+    setShowFilterPanel((o) => !o);
+  };
+
+  const activeFilterCount = [
+    statusFilter !== 'all', onlyUnread, orgFilter !== 'All', nationalityFilter !== 'All', tierFilter !== 'All',
+  ].filter(Boolean).length;
+  const clearAllFilters = () => {
+    setStatusFilter('all'); setOnlyUnread(false);
+    setOrgFilter('All'); setNationalityFilter('All'); setTierFilter('All');
+  };
+
+  // Close the filter panel on an outside click or Escape — same pattern as
+  // the Guests page filter panel.
+  const filterPanelRef = useRef(null);
+  useEffect(() => {
+    if (!showFilterPanel) return;
+    const onDoc = (e) => { if (filterPanelRef.current && !filterPanelRef.current.contains(e.target)) setShowFilterPanel(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setShowFilterPanel(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [showFilterPanel]);
 
   const fetchChatsPage = useCallback((pageNumber, pageSize) => getConversations({
     pageNumber, pageSize,
     search: chatSearch || undefined,
     onlyUnread: onlyUnread || undefined,
     status: statusFilter !== 'all' ? statusFilter : undefined,
-  }), [chatSearch, onlyUnread, statusFilter]);
+    organizationId: orgFilter !== 'All' ? orgFilter : undefined,
+    nationalityId: nationalityFilter !== 'All' ? nationalityFilter : undefined,
+    tier: tierFilter !== 'All' ? tierFilter : undefined,
+  }), [chatSearch, onlyUnread, statusFilter, orgFilter, nationalityFilter, tierFilter]);
 
-  const chats = useLazyList(fetchChatsPage, [chatSearch, onlyUnread, statusFilter]);
+  const chats = useLazyList(fetchChatsPage, [chatSearch, onlyUnread, statusFilter, orgFilter, nationalityFilter, tierFilter]);
 
   // Instant refresh on push; the interval below stays as a fallback in case a
   // hub event is missed (reconnect gap, tab was backgrounded, etc).
@@ -445,6 +497,21 @@ export default function SupportChatView({ lang, activeEventId }) {
     { value: 'Closed', label: STR.closed },
   ], [isAr, STR.open, STR.closed]);
 
+  const tierFilterOpts = useMemo(() => [
+    { value: 'All', label: isAr ? 'كل الفئات' : 'All Tiers' },
+    ...TIERS.map((t) => ({ value: t, label: t })),
+  ], [isAr]);
+
+  const orgFilterOpts = useMemo(() => [
+    { value: 'All', label: isAr ? 'كل المؤسسات' : 'All Organizations' },
+    ...organizations.map((o) => ({ value: o.id, label: isAr ? (o.nameAr || o.name) : o.name })),
+  ], [organizations, isAr]);
+
+  const nationalityFilterOpts = useMemo(() => [
+    { value: 'All', label: isAr ? 'كل الجنسيات' : 'All Nationalities' },
+    ...nationalities.map((n) => ({ value: n.id, label: `${n.flag} ${isAr ? n.nameAr : n.name}` })),
+  ], [nationalities, isAr]);
+
   const threadGuest = activeConversation
     ? { name: activeConversation.guestName, email: activeConversation.guestEmail }
     : pendingGuest
@@ -486,19 +553,88 @@ export default function SupportChatView({ lang, activeEventId }) {
 
           {listTab === 'chats' ? (
             <>
-              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, borderBottom: '1px solid var(--glass-border)' }}>
-                <div className="search">
+              <div style={{ padding: 14, display: 'flex', gap: 8, alignItems: 'center', borderBottom: '1px solid var(--glass-border)' }}>
+                <div className="search" style={{ flex: 1, minWidth: 0, padding: '7px 12px' }}>
                   <Icon name="search" size={14} />
                   <input value={chatSearchInput} onChange={(e) => setChatSearchInput(e.target.value)} placeholder={STR.searchPh} />
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <Select value={statusFilter} onChange={(v) => setStatusFilter(v || 'all')} options={statusOpts} />
-                  </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-mute)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
-                    <input type="checkbox" checked={onlyUnread} onChange={(e) => setOnlyUnread(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
-                    {STR.onlyUnread}
-                  </label>
+
+                <div style={{ position: 'relative', flexShrink: 0 }} ref={filterPanelRef}>
+                  <button
+                    className="btn"
+                    onClick={toggleFilterPanel}
+                    style={{ position: 'relative', padding: '7px 10px' }}
+                    title={STR.filter}
+                  >
+                    <Icon name="filter" size={14} />
+                    {activeFilterCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -6, insetInlineEnd: -6,
+                        minWidth: 16, height: 16, borderRadius: 8, padding: '0 4px',
+                        background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700,
+                        display: 'grid', placeItems: 'center', lineHeight: 1,
+                      }}>
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {showFilterPanel && (
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 8px)', insetInlineEnd: 0,
+                      width: 280, zIndex: 200, padding: 14, borderRadius: 12,
+                      background: 'var(--popover-bg)', border: '1px solid var(--glass-border-strong)',
+                      boxShadow: '0 24px 50px -16px rgba(0,0,0,0.7), 0 6px 16px -6px rgba(0,0,0,0.45)',
+                      display: 'flex', flexDirection: 'column', gap: 12,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
+                          {STR.filterChats}
+                        </span>
+                        {activeFilterCount > 0 && (
+                          <button
+                            onClick={clearAllFilters}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 11.5, cursor: 'pointer', padding: 0 }}
+                          >
+                            {STR.clearAll}
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                          {STR.status}
+                        </label>
+                        <Select value={statusFilter} onChange={(v) => setStatusFilter(v || 'all')} options={statusOpts} />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                          {STR.tier}
+                        </label>
+                        <Select value={tierFilter} onChange={(v) => setTierFilter(v || 'All')} options={tierFilterOpts} />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                          {STR.organization}
+                        </label>
+                        <Select value={orgFilter} onChange={(v) => setOrgFilter(v || 'All')} options={orgFilterOpts} />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                          {STR.nationality}
+                        </label>
+                        <Select value={nationalityFilter} onChange={(v) => setNationalityFilter(v || 'All')} options={nationalityFilterOpts} />
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-mute)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }}>
+                        <input type="checkbox" checked={onlyUnread} onChange={(e) => setOnlyUnread(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+                        {STR.onlyUnread}
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 

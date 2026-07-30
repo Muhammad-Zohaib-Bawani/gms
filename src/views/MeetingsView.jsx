@@ -9,6 +9,7 @@ import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
 import { listGuests } from '../api/services/guestService.js';
+import DateField from '../components/ui/DateField.jsx';
 
 const ANCHOR = new Date();
 
@@ -392,8 +393,8 @@ export default function MeetingsView({ lang, activeEventId }) {
                   </div>
                   <div>
                     <label style={labelStyle}>{STR.date}</label>
-                    <input type="date" style={inputStyle} value={newForm.date} disabled={!!editingMeetingId}
-                      onChange={e => setNewForm(f => ({...f, date: e.target.value}))}/>
+                    <DateField value={newForm.date} disabled={!!editingMeetingId} minDate={todayStr()}
+                      onChange={v => setNewForm(f => ({...f, date: v || ''}))}/>
                     {editingMeetingId && (
                       <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', fontStyle: 'italic', marginTop: 4 }}>{STR.dateLocked}</div>
                     )}

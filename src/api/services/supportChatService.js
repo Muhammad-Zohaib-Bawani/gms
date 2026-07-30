@@ -6,13 +6,18 @@ import { ENDPOINTS } from '../endpoints';
 // unread-first, then most-recently-active (SupportChatService.GetConversationsAsync).
 // Row shape: { id, guestId, guestName, guestEmail, status, lastMessagePreview,
 // lastMessageAt, lastMessageFromGuest, unreadCount }.
-export const getConversations = ({ pageNumber = 1, pageSize = 10, search, onlyUnread, status } = {}) =>
+export const getConversations = ({
+  pageNumber = 1, pageSize = 10, search, onlyUnread, status, organizationId, nationalityId, tier,
+} = {}) =>
   apiClient.get(ENDPOINTS.supportChat.conversations, {
     params: {
       pageNumber, pageSize,
       searchTerm: search || undefined,
       onlyUnread: onlyUnread || undefined,
       status: status || undefined,
+      organizationId: organizationId || undefined,
+      nationalityId: nationalityId || undefined,
+      tier: tier || undefined,
     },
   });
 

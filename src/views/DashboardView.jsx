@@ -253,7 +253,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                   <th>{STR.cols.tier}</th>
                   <th>{STR.cols.org}</th>
                   <th>{STR.cols.status}</th>
-                  <th>{STR.cols.arrival}</th>
                 </tr></thead>
                 <tbody>
                   {recentGuests.map(g => (
