@@ -147,7 +147,7 @@ function applyBgVars(root, accent, isDark) {
 const BRAND_THEME = { enabled: true, accent: "#8d0134", secondary: "#c21857" };
 
 const TWEAK_DEFAULTS = {
-  theme: "light",
+  theme: "dark",
   accent: BRAND_THEME.accent,
   secondary: BRAND_THEME.secondary,
   blur: 22,
@@ -562,7 +562,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
             <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.organization}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
               <TierChip tier={guest.tier} lang={lang}/>
-              {guest.nationalityName && <span className="chip"><span className="dot"/>{guest.nationalityName}</span>}
+              {guest.nationalityName && <span className="chip"><FlagIcon code={guest.nationalityCode} size={12}/>{guest.nationalityName}</span>}
             </div>
           </div>
         </div>
@@ -783,7 +783,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                         <TierChip tier={guest.tier} lang={lang}/>
                         {guest.nationalityName && (
                           <span className="chip" style={{ fontSize:11 }}>
-                            <span className="dot"/> {guest.nationalityFlag} {guest.nationalityName}
+                            <FlagIcon code={guest.nationalityCode} size={12}/> {guest.nationalityName}
                           </span>
                         )}
                       </div>
@@ -1200,7 +1200,16 @@ export default function App() {
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 
   return (
-    <div className="app">
+    <>
+      {/* Decorative gradient + glow layer behind the whole shell — fixed, z-index 0,
+          purely visual (see .bg-scene/.bg-orb/.bg-grain in style.css). */}
+      <div className="bg-scene">
+        <div className="bg-orb bg-orb--1" />
+        <div className="bg-orb bg-orb--2" />
+        <div className="bg-orb bg-orb--3" />
+        <div className="bg-grain" />
+      </div>
+      <div className="app">
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
       <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
         {/* <div className="brand-logo" key={activeEvent?.id || 'none'}>
@@ -1371,6 +1380,7 @@ export default function App() {
       </Drawer>
 
       <Tweaks tweaks={tweaks} setTweak={setTweak}/>
-    </div>
+      </div>
+    </>
   );
 }

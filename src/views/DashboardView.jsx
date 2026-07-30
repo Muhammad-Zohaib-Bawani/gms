@@ -31,16 +31,25 @@ function todayStr() {
 }
 const getGreeting = (lang = "en") => {
   const hour = new Date().getHours();
+  // Midnight through early morning isn't "morning" — keep it in the evening/
+  // night bucket instead of falling into `hour < 12`.
+  const isNight = hour < 5;
+  const isMorning = !isNight && hour < 12;
+  const isAfternoon = hour < 17;
 
+  // "Good night" reads like a farewell to someone actively using the portal —
+  // use a neutral welcome for the small hours instead.
   if (lang === "ar") {
-    if (hour < 12) return "صباح الخير";
-    if (hour < 18) return "مساء الخير";
+    if (isNight) return "أهلاً بك";
+    if (isMorning) return "صباح الخير";
+    if (isAfternoon) return "مساء الخير";
     return "مساء الخير";
   }
 
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (isNight) return "Welcome Back";
+  if (isMorning) return "Good Morning";
+  if (isAfternoon) return "Good Afternoon";
+  return "Good Evening";
 };
 
 export default function DashboardView({ onOpenGuest, gotoView, lang, activeEventId }) {

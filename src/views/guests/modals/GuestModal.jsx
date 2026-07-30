@@ -78,7 +78,7 @@ const EMPTY_GUEST = {
   lastName: "",
   email: "",
   guestType: "delegate",
-  organization: "",
+  organizationId: "",
   nationalityId: "",
   tier: "delegate",
   invitationStatus: "not_sent",
@@ -95,7 +95,7 @@ function guestToForm(g) {
     lastName: g.lastName || "",
     email: g.email || "",
     guestType: g.guestType || "delegate",
-    organization: g.organization || "",
+    organizationId: g.organizationId || "",
     nationalityId: g.nationalityId || "",
     tier: g.tier || "delegate",
     invitationStatus: g.invitationStatus || "not_sent",
@@ -143,6 +143,7 @@ export default function GuestModal({
   eventStartDate,
   eventEndDate,
   nationalities,
+  organizations,
   templates,
   sessions,
   lang,
@@ -196,14 +197,20 @@ export default function GuestModal({
     );
   }, [rawTravel, travelLookups]);
 
+  // Guarded on `open` — this component gets mounted once and toggled via the
+  // `open` prop by some callers, so a bare `[]` dep would fire these (and the
+  // 8 parallel requests inside getTravelLookups) on every mount regardless of
+  // whether the dialog is actually visible yet.
   useEffect(() => {
+    if (!open) return;
     getGuestEnums().then(setEnums);
-  }, []);
+  }, [open]);
   useEffect(() => {
+    if (!open) return;
     getTravelLookups()
       .then(setTravelLookups)
       .catch(() => setTravelLookups({}));
-  }, []);
+  }, [open]);
 
   const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -302,7 +309,7 @@ export default function GuestModal({
         lastName: form.lastName.trim(),
         email: form.email || null,
         guestType: form.guestType,
-        organization: form.organization || null,
+        organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
         tier: form.tier,
         arrivalDate: form.arrivalDate || null,
@@ -390,6 +397,15 @@ export default function GuestModal({
         label: `${n.flag} ${isAr ? n.nameAr : n.name}`,
       })),
     [nationalities, isAr],
+  );
+
+  const organizationOpts = useMemo(
+    () =>
+      (organizations || []).map((o) => ({
+        value: o.id,
+        label: isAr ? (o.nameAr || o.name) : o.name,
+      })),
+    [organizations, isAr],
   );
 
   const stepLabels = isAr
@@ -700,15 +716,12 @@ export default function GuestModal({
                 </div>
                 <div>
                   <FieldLabel>{isAr ? "المؤسسة" : "Organization"}</FieldLabel>
-                  <input
-                    placeholder={
-                      isAr
-                        ? "مثال: وزارة الخارجية"
-                        : "e.g. Ministry of Foreign Affairs"
-                    }
-                    value={form.organization}
-                    onChange={(e) => setF("organization", e.target.value)}
-                    style={inputStyle}
+                  <Select
+                    value={form.organizationId}
+                    onChange={(v) => setF("organizationId", v)}
+                    options={organizationOpts}
+                    placeholder={isAr ? "— اختر —" : "— Select —"}
+                    isClearable
                   />
                 </div>
                 <div>

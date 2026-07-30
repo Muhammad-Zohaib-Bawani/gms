@@ -1003,7 +1003,11 @@ html, body {
 }
 html { background: var(--bg-0); }
 body { background: transparent; }
-.bg-scene { z-index: 0; pointer-events: none; }
+/* Negative, not 0 — a fixed-position box with z-index:0 still paints AFTER
+   normal-flow siblings in the same stacking context (it's "positioned"), so it
+   would render on top of .app instead of behind it. -1 guarantees it paints
+   first, underneath everything. */
+.bg-scene { z-index: -1; pointer-events: none; }
 #root { position: relative; z-index: 1; }
 
 button { font: inherit; color: inherit; cursor: pointer; }

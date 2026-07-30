@@ -10,6 +10,7 @@ import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
 import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
+import { getOrganizations } from '../api/services/organizationService';
 import { getTemplates } from '../api/services/invitationTemplateService';
 import { getEvent } from '../api/services/eventService';
 import { getEventFlights, getEventAccommodation, getEventTransport } from '../api/services/travelService';
@@ -92,6 +93,58 @@ function Empty({ children }) {
   );
 }
 
+// One slide visible at a time with prev/next + dot nav — used wherever a guest
+// can hold more than one booking of the same kind (flight/accommodation/
+// transport), so a second or third booking doesn't just pile up under the first.
+function BookingCarousel({ items, renderItem }) {
+  const [idx, setIdx] = useState(0);
+  const count = items.length;
+  const safeIdx = idx < count ? idx : 0;
+
+  if (count === 0) return null;
+
+  return (
+    <div>
+      {count > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ width: 26, height: 26 }}
+            onClick={() => setIdx((i) => (i - 1 + count) % count)}
+          >
+            <Icon name="arrowLeft" size={12} />
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            {items.map((_, i) => (
+              <button
+                type="button"
+                key={i}
+                onClick={() => setIdx(i)}
+                aria-label={`${i + 1}`}
+                style={{
+                  width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, padding: 0, border: 'none',
+                  cursor: 'pointer', background: i === safeIdx ? 'var(--accent)' : 'var(--glass-border)',
+                  transition: 'width 0.15s ease',
+                }}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ width: 26, height: 26 }}
+            onClick={() => setIdx((i) => (i + 1) % count)}
+          >
+            <Icon name="arrow" size={12} />
+          </button>
+        </div>
+      )}
+      {renderItem(items[safeIdx], safeIdx)}
+    </div>
+  );
+}
+
 const fieldGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 };
 
 export default function GuestDetailView({ guestId, lang }) {
@@ -105,6 +158,7 @@ export default function GuestDetailView({ guestId, lang }) {
   const [transports, setTransports] = useState([]);
   const [seats, setSeats] = useState([]);
   const [nationalities, setNationalities] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -119,13 +173,14 @@ export default function GuestDetailView({ guestId, lang }) {
       const g = await getGuest(guestId);
       if (!g) { setNotFound(true); return; }
       setGuest(g);
-      const [ev, fl, acc, tr, st, nats, tmpls] = await Promise.all([
+      const [ev, fl, acc, tr, st, nats, orgs, tmpls] = await Promise.all([
         getEvent(g.eventId).catch(() => null),
         getEventFlights(g.eventId).catch(() => null),
         getEventAccommodation(g.eventId).catch(() => null),
         getEventTransport(g.eventId).catch(() => null),
         getGuestSeatAssignments(g.id).catch(() => []),
         getNationalities().catch(() => []),
+        getOrganizations().catch(() => []),
         getTemplates(g.eventId).catch(() => []),
       ]);
       setEvent(ev);
@@ -134,6 +189,7 @@ export default function GuestDetailView({ guestId, lang }) {
       setTransports(forGuest(tr?.items, g.id));
       setSeats(st || []);
       setNationalities(nats || []);
+      setOrganizations(orgs || []);
       setTemplates(tmpls || []);
     } catch {
       setNotFound(true);
@@ -315,85 +371,55 @@ export default function GuestDetailView({ guestId, lang }) {
           )}
         </Section>
 
-        <Section icon="flight" title={isAr ? 'الطيران' : 'Flight'}
-          action={flights.length > 1 ? <span className="chip" style={{ fontSize: 10.5 }}>{flights.length}</span> : null}>
+        <Section icon="flight" title={isAr ? 'الطيران' : 'Flight'}>
           {flights.length === 0 ? (
             <Empty>{isAr ? 'لا يوجد حجز طيران' : 'No flight booked'}</Empty>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {flights.map((f, i) => (
-                <div key={f.id || i} style={i > 0 ? { paddingTop: 14, borderTop: '1px solid var(--glass-border)' } : undefined}>
-                  {flights.length > 1 && (
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                      {isAr ? `رحلة ${i + 1}` : `Flight ${i + 1}`}
-                    </div>
-                  )}
-                  <div style={fieldGrid}>
-                    <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={f.flightNumber} />
-                    <Field label={isAr ? 'النوع' : 'Type'} value={f.flightType} />
-                    <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
-                    <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
-                    <Field label={isAr ? 'من' : 'From'} value={[f.departureCity, f.departureCode].filter(Boolean).join(' · ')} />
-                    <Field label={isAr ? 'إلى' : 'To'} value={[f.arrivalCity, f.arrivalCode].filter(Boolean).join(' · ')} />
-                    <Field label={isAr ? 'التاريخ' : 'Date'} value={fmtDate(f.date, isAr)} />
-                    <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(f.arrivalTime, isAr)} />
-                    <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <BookingCarousel items={flights} renderItem={(f) => (
+              <div style={fieldGrid}>
+                <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={f.flightNumber} />
+                <Field label={isAr ? 'النوع' : 'Type'} value={f.flightType} />
+                <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
+                <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
+                <Field label={isAr ? 'من' : 'From'} value={[f.departureCity, f.departureCode].filter(Boolean).join(' · ')} />
+                <Field label={isAr ? 'إلى' : 'To'} value={[f.arrivalCity, f.arrivalCode].filter(Boolean).join(' · ')} />
+                <Field label={isAr ? 'التاريخ' : 'Date'} value={fmtDate(f.date, isAr)} />
+                <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(f.arrivalTime, isAr)} />
+                <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
+              </div>
+            )} />
           )}
         </Section>
 
-        <Section icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}
-          action={accommodations.length > 1 ? <span className="chip" style={{ fontSize: 10.5 }}>{accommodations.length}</span> : null}>
+        <Section icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
           {accommodations.length === 0 ? (
             <Empty>{isAr ? 'لا يوجد حجز إقامة' : 'No accommodation booked'}</Empty>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {accommodations.map((a, i) => (
-                <div key={a.id || i} style={i > 0 ? { paddingTop: 14, borderTop: '1px solid var(--glass-border)' } : undefined}>
-                  {accommodations.length > 1 && (
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                      {isAr ? `إقامة ${i + 1}` : `Stay ${i + 1}`}
-                    </div>
-                  )}
-                  <div style={fieldGrid}>
-                    <Field label={isAr ? 'الفندق' : 'Hotel'} value={a.hotel} />
-                    <Field label={isAr ? 'نوع الغرفة' : 'Room Type'} value={a.roomType} />
-                    <Field label={isAr ? 'تسجيل الوصول' : 'Check-in'} value={fmtDate(a.checkIn, isAr)} />
-                    <Field label={isAr ? 'تسجيل المغادرة' : 'Check-out'} value={fmtDate(a.checkOut, isAr)} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <BookingCarousel items={accommodations} renderItem={(a) => (
+              <div style={fieldGrid}>
+                <Field label={isAr ? 'الفندق' : 'Hotel'} value={a.hotel} />
+                <Field label={isAr ? 'نوع الغرفة' : 'Room Type'} value={a.roomType} />
+                <Field label={isAr ? 'تسجيل الوصول' : 'Check-in'} value={fmtDate(a.checkIn, isAr)} />
+                <Field label={isAr ? 'تسجيل المغادرة' : 'Check-out'} value={fmtDate(a.checkOut, isAr)} />
+              </div>
+            )} />
           )}
         </Section>
 
-        <Section icon="car" title={isAr ? 'النقل' : 'Transport'}
-          action={transports.length > 1 ? <span className="chip" style={{ fontSize: 10.5 }}>{transports.length}</span> : null}>
+        <Section icon="car" title={isAr ? 'النقل' : 'Transport'}>
           {transports.length === 0 ? (
             <Empty>{isAr ? 'لا يوجد حجز نقل' : 'No transport booked'}</Empty>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {transports.map((t, i) => (
-                <div key={t.id || i} style={i > 0 ? { paddingTop: 14, borderTop: '1px solid var(--glass-border)' } : undefined}>
-                  {transports.length > 1 && (
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                      {isAr ? `رحلة نقل ${i + 1}` : `Trip ${i + 1}`}
-                    </div>
-                  )}
-                  <div style={fieldGrid}>
-                    <Field label={isAr ? 'المركبة' : 'Vehicle'} value={t.vehicle} />
-                    <Field label={isAr ? 'السائق' : 'Driver'} value={t.driverName} />
-                    <Field label={isAr ? 'الاستلام' : 'Pickup'} value={t.pickup} />
-                    <Field label={isAr ? 'التوصيل' : 'Dropoff'} value={t.dropoff} />
-                    <Field label={isAr ? 'وقت الاستلام' : 'Pickup Time'} value={fmtDateTime(t.pickupTime, isAr)} />
-                    <Field label={isAr ? 'الحالة' : 'Status'} value={t.tripStatus} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <BookingCarousel items={transports} renderItem={(t) => (
+              <div style={fieldGrid}>
+                <Field label={isAr ? 'المركبة' : 'Vehicle'} value={t.vehicle} />
+                <Field label={isAr ? 'السائق' : 'Driver'} value={t.driverName} />
+                <Field label={isAr ? 'الاستلام' : 'Pickup'} value={t.pickup} />
+                <Field label={isAr ? 'التوصيل' : 'Dropoff'} value={t.dropoff} />
+                <Field label={isAr ? 'وقت الاستلام' : 'Pickup Time'} value={fmtDateTime(t.pickupTime, isAr)} />
+                <Field label={isAr ? 'الحالة' : 'Status'} value={t.tripStatus} />
+              </div>
+            )} />
           )}
         </Section>
       </div>
@@ -407,6 +433,7 @@ export default function GuestDetailView({ guestId, lang }) {
           eventStartDate={event?.startDate}
           eventEndDate={event?.endDate}
           nationalities={nationalities}
+          organizations={organizations}
           templates={templates}
           sessions={event?.sessions || []}
           lang={lang}
