@@ -10,7 +10,7 @@ import { listSessions } from '../api/services/eventService.js';
 import { listGuests } from '../api/services/guestService.js';
 import { assignSeat, unassignSeat, getSeatAssignments } from '../api/services/seatingService.js';
 import {
-  pickBox, boxToTables, computeCanvasSize, tableHasSeats, seatCodeForIndex, ASSIGNED_SEAT_COLOR,
+  pickBox, boxToTables, computeCanvasSize, tableHasSeats, seatDisplayCode, ASSIGNED_SEAT_COLOR,
 } from './venue/venueHelpers.js';
 import CanvasElement from './venue/canvas/CanvasElement.jsx';
 
@@ -436,7 +436,7 @@ export default function SeatingView({ lang, activeEventId }) {
                             border:`1px solid ${cc ? `${cc}4d` : 'rgba(141, 1, 52,0.2)'}`,
                           }}>
                             {cc && <span style={{ width:6, height:6, borderRadius:'50%', background:cc, flexShrink:0 }}/>}
-                            {isAr ? `مقعد ${ad(seatCodeForIndex(info.table, info.seatIdx))}` : `Seat ${seatCodeForIndex(info.table, info.seatIdx)}`}
+                            {isAr ? `مقعد ${ad(seatDisplayCode(info.table, info.seatIdx))}` : `Seat ${seatDisplayCode(info.table, info.seatIdx)}`}
                           </span>
                         );
                       })() : (
@@ -460,7 +460,7 @@ export default function SeatingView({ lang, activeEventId }) {
                 <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2, fontFamily:'var(--mono)' }}>
                   <span style={{ color: assignModal.table.color || 'var(--accent)' }}>{assignModal.table.label}</span>
                   {' · '}
-                  <span>{isAr ? `مقعد ` : 'Seat '}{seatCodeForIndex(assignModal.table, assignModal.seatIdx)}</span>
+                  <span>{isAr ? `مقعد ` : 'Seat '}{seatDisplayCode(assignModal.table, assignModal.seatIdx)}</span>
                 </div>
               </div>
               <button className="icon-btn" onClick={() => setAssignModal(null)}><Icon name="close" size={14}/></button>

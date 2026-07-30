@@ -36,7 +36,7 @@ export const EMPTY_TRAVEL = {
     roomView: '', guestCount: '', conciergeName: '', conciergePhone: '',
   },
   transport: {
-    enabled: false,
+    enabled: false, id: '',
     pickupLocationId: '', dropoffLocationId: '', vehicleId: '', driverId: '',
     pickupTime: '', dropoffTime: '',
   },

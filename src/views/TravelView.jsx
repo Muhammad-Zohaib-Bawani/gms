@@ -145,11 +145,26 @@ function groupByGuest(rows) {
   return Array.from(map.values());
 }
 
-// DomainPersistence.Enums.DriverType — 1 = Fixed, 2 = Open.
-const DRIVER_TYPE_LABEL = {
-  1: { en: 'Fixed', ar: 'ثابت' },
-  2: { en: 'Open', ar: 'مفتوح' },
+// DomainPersistence.Enums.DriverType — 1 = Fixed, 2 = Open (shown as "On call").
+// Colors match the green/orange already used for Active/Pending elsewhere (e.g. UsersView).
+const DRIVER_TYPE_INFO = {
+  1: { en: 'Fixed', ar: 'ثابت', color: '#5abf6e' },
+  2: { en: 'On call', ar: 'عند الطلب', color: '#e0a24e' },
 };
+
+// Same markup as the .chip/.dot pattern used for status chips across the app
+// (Guests accreditation chip, Dashboard's "Live" chip) — just with driver-type
+// colors, since there's no green/orange chip modifier class to reuse as-is.
+function DriverTypeChip({ driverType, isAr }) {
+  const info = DRIVER_TYPE_INFO[driverType];
+  if (!info) return <span style={{ color: 'var(--ink-faint)' }}>—</span>;
+  return (
+    <span className="chip" style={{ color: info.color, background: `${info.color}1f`, borderColor: `${info.color}55` }}>
+      <span className="dot" style={{ background: info.color }} />
+      {isAr ? info.ar : info.en}
+    </span>
+  );
+}
 
 const STATUS_COLOR = {
   approved:'var(--accent)', confirmed:'var(--accent)', scheduled:'var(--accent)',
@@ -232,7 +247,7 @@ export default function TravelView({ lang, activeEventId }) {
     cols:{ guest:'الضيف',flight:'الرحلة',flightType:'نوع الرحلة',flightClass:'الدرجة',route:'المسار',date:'التاريخ',
       status:'الحالة',hotel:'الفندق',room:'الغرفة',
       checkIn:'الوصول',checkOut:'المغادرة',nights:'الليالي',
-      vehicle:'المركبة',driver:'السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت',
+      vehicle:'المركبة',driver:'السائق',driverType:'نوع السائق',pickup:'الاستلام',dropoff:'التوصيل',time:'الوقت',
       inboundRoute:'مسار الوصول',outboundRoute:'مسار المغادرة',organization:'المؤسسة',duration:'المدة' },
     direction:{ all:'كل الرحلات',inbound:'الوصول',outbound:'المغادرة' },
     dateFrom:'من تاريخ', dateTo:'إلى تاريخ', clearDates:'مسح التواريخ',
@@ -264,7 +279,7 @@ export default function TravelView({ lang, activeEventId }) {
     cols:{ guest:'Guest',flight:'Flight',flightType:'Flight Type',flightClass:'Class',route:'Route',date:'Date',
       status:'Status',hotel:'Hotel',room:'Room',
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
-      vehicle:'Vehicle',driver:'Driver',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
+      vehicle:'Vehicle',driver:'Driver',driverType:'Driver Type',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
       inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization',duration:'Duration' },
     direction:{ all:'All flights',inbound:'Arrivals',outbound:'Departures' },
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
@@ -669,14 +684,8 @@ export default function TravelView({ lang, activeEventId }) {
             <span style={text}>{b.vehicle}</span>
           </div>
         )),
-        col('driver',  STR.cols.driver,  b => (
-          <div>
-            <div style={text}>{b.driver}</div>
-            {b.driverType != null && DRIVER_TYPE_LABEL[b.driverType] && (
-              <div style={{ ...muted, fontSize: 10.5 }}>{DRIVER_TYPE_LABEL[b.driverType][isAr ? 'ar' : 'en']}</div>
-            )}
-          </div>
-        )),
+        col('driver',  STR.cols.driver,  b => <span style={text}>{b.driver}</span>),
+        col('driverType', STR.cols.driverType, b => <DriverTypeChip driverType={b.driverType} isAr={isAr} />),
         col('pickup',  STR.cols.pickup,  b => <div style={ellipsis}>{b.pickup}</div>),
         col('dropoff', STR.cols.dropoff, b => <div style={ellipsis}>{b.dropoff}</div>),
         col('date',    STR.cols.date,    b => (

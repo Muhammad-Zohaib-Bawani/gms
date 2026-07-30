@@ -117,15 +117,32 @@ export function pickBox(boxes, eventId, sessionId) {
   return boxes.find(b => !b.eventId && !b.sessionId) || null;
 }
 
-// Per-seat overrides (disabled flag + optional info text + manual color),
-// keyed by flat index — shared by both elements and blocks below.
+// Per-seat overrides (disabled flag + optional info text + manual color +
+// display-name placeholder), keyed by flat index — shared by both elements
+// and blocks below.
 function buildSeatMeta(p) {
   const seatMeta = {};
   (p.seats || []).forEach(s => {
     if (s.index == null) return;
-    if (s.isDisabled || s.seatInfo || s.color) seatMeta[s.index] = { isDisabled: !!s.isDisabled, seatInfo: s.seatInfo || '', color: s.color || null };
+    if (s.isDisabled || s.seatInfo || s.color || s.placeholder)
+      seatMeta[s.index] = { isDisabled: !!s.isDisabled, seatInfo: s.seatInfo || '', color: s.color || null, placeholder: s.placeholder || '' };
   });
   return seatMeta;
+}
+
+// Resolve a prop's persisted RemovedSeats (an array of seat *codes*, e.g.
+// "C8" — codes are position-derived and stable regardless of what's been
+// customized) back into the flat indices the editor keys everything else by.
+// Must run against a table object that already has its full shape (type,
+// rows/seatsPerRow or seats/seatsPerSide) since seatCodeForIndex needs it.
+function resolveRemovedSeats(table, codes) {
+  if (!codes || !codes.length) return [];
+  const codeSet = new Set(codes);
+  const out = [];
+  for (let i = 0; i < totalSeatSlots(table); i++) {
+    if (codeSet.has(seatCodeForIndex(table, i))) out.push(i);
+  }
+  return out;
 }
 
 // Real backend SeatProperties.Id per flat index — needed anywhere a seat has
@@ -151,21 +168,22 @@ export function boxToTables(box) {
     const p = (el.props && el.props[0]) || {};
     const seatMeta = buildSeatMeta(p);
     const seatIds = buildSeatIds(p);
-    const base = { id: el.id, type: el.type, x: el.x ?? 0, y: el.y ?? 0, rotation: el.rotation ?? 0, label: p.label || '', color: p.color || null, removedSeats: [], seatMeta, seatIds };
-    if (el.type === 'round')   return { ...base, seats: p.seatsQuantity ?? 8 };
-    if (el.type === 'rect')    return { ...base, seatsPerSide: p.seatsQuantity ?? 4 };
-    if (el.type === 'stadium') return { ...base, rows: p.row ?? 1, seatsPerRow: p.seatsQuantity ?? 1, rowNames: p.rowNames || [], seatNumbers: {} };
-    if (el.type === 'stage')   return { ...base, stageW: p.stageW || 220, stageH: p.stageH || 80 };
+    const base = { id: el.id, type: el.type, x: el.x ?? 0, y: el.y ?? 0, rotation: el.rotation ?? 0, label: p.label || '', color: p.color || null, seatMeta, seatIds };
+    let tbl = base;
+    if (el.type === 'round')   tbl = { ...base, seats: p.seatsQuantity ?? 8 };
+    else if (el.type === 'rect')    tbl = { ...base, seatsPerSide: p.seatsQuantity ?? 4 };
+    else if (el.type === 'stadium') tbl = { ...base, rows: p.row ?? 1, seatsPerRow: p.seatsQuantity ?? 1, rowNames: p.rowNames || [] };
+    else if (el.type === 'stage')   tbl = { ...base, stageW: p.stageW || 220, stageH: p.stageH || 80 };
     // Pitch + any custom/future non-seat type (e.g. a manager-defined "Podium"
     // lookup item) share the same generic area sizing.
-    if (el.type === 'pitch' || !['round', 'rect', 'stadium', 'stage'].includes(el.type))
-      return { ...base, pitchW: p.pitchW || 280, pitchH: p.pitchH || 140 };
-    return base;
+    else if (el.type === 'pitch' || !['round', 'rect', 'stadium', 'stage'].includes(el.type))
+      tbl = { ...base, pitchW: p.pitchW || 280, pitchH: p.pitchH || 140 };
+    return { ...tbl, removedSeats: resolveRemovedSeats(tbl, p.removedSeats) };
   });
   // Blocks carry x/y; fall back to stacking only when unset (0).
   const blocks = (box.blocks || []).map((b, i) => {
     const p = (b.props && b.props[0]) || {};
-    return {
+    const tbl = {
       id: b.id, type: 'stadium',
       x: b.x || (10 + (i % 4) * 320), y: b.y || (10 + Math.floor(i / 4) * 200),
       rotation: b.rotation ?? 0,
@@ -173,10 +191,11 @@ export function boxToTables(box) {
       color: p.color || null,
       rows: b.rows ?? (p.row ?? 1),
       seatsPerRow: b.seatsPerRow ?? (p.seatsQuantity ?? 1),
-      rowNames: p.rowNames || [], seatNumbers: {}, removedSeats: [],
+      rowNames: p.rowNames || [],
       seatMeta: buildSeatMeta(p),
       seatIds: buildSeatIds(p),
     };
+    return { ...tbl, removedSeats: resolveRemovedSeats(tbl, p.removedSeats) };
   });
   return [...elements, ...blocks];
 }
@@ -184,6 +203,12 @@ export function boxToTables(box) {
 // Map a canvas element (table/stage/etc.) to a VenueLayoutDto for the API.
 export function toLayoutDto(t) {
   return {
+    // The layout's own real backend id (echoed back from a previous save via
+    // boxToTables' `id: el.id`) — how the server matches this table to its
+    // existing row and updates it in place instead of deleting and
+    // recreating it. Omitted (null) for a table added this session that's
+    // never been saved — the temp local id ("tu101"…) isn't a real one.
+    id: isGuid(t.id) ? t.id : null,
     type: t.type,
     x: t.x ?? 0,
     y: t.y ?? 0,
@@ -206,24 +231,34 @@ export function toLayoutDto(t) {
       stageH: t.stageH ?? 0,
       color: t.color ?? null,
       seats: buildSeatDtos(t),
+      // Codes (not indices) — stable identifiers the backend stores on the
+      // prop itself, so a removed seat's grid slot renders as blank space on
+      // reload instead of just disappearing from the (index-based) Seats array.
+      removedSeats: buildRemovedSeatCodes(t),
     }],
   };
 }
 
+function buildRemovedSeatCodes(t) {
+  if (!tableHasSeats(t) || !(t.removedSeats || []).length) return [];
+  return t.removedSeats.map(i => seatCodeForIndex(t, i));
+}
+
 // Only send an explicit seat list when the table actually has per-seat
-// customization (disabled flag / info text / manual color) — otherwise keep
-// sending an empty array so the backend auto-generates seats as before
-// (least-surprise default).
+// customization (disabled flag / info text / manual color / placeholder) or
+// removed seats to exclude — otherwise keep sending an empty array so the
+// backend auto-generates seats as before (least-surprise default).
 function buildSeatDtos(t) {
   const meta = t.seatMeta || {};
-  if (!tableHasSeats(t) || Object.keys(meta).length === 0) return [];
   const removed = new Set(t.removedSeats || []);
+  if (!tableHasSeats(t) || (Object.keys(meta).length === 0 && removed.size === 0)) return [];
   const seats = [];
   for (let i = 0; i < totalSeatSlots(t); i++) {
     if (removed.has(i)) continue;
     const m = meta[i] || {};
     seats.push({
       code: seatCodeForIndex(t, i),
+      placeholder: m.placeholder || null,
       index: i,
       color: m.color || null,
       status: null,
@@ -259,7 +294,10 @@ export function tableHasSeats(t) {
   return t && ['round', 'rect', 'stadium'].includes(t.type);
 }
 
-// Resolve a flat seat `index` back to its display code, for any seat-bearing type.
+// Resolve a flat seat `index` back to its ACTUAL code — derived purely from
+// grid position, never from a manager-typed override. This is what's sent to
+// the backend as SeatProperties.Code and what RemovedSeats codes are matched
+// against, so it has to stay stable even after the seat gets a placeholder.
 export function seatCodeForIndex(table, index) {
   if (table.type === 'round') return String(index + 1);
   if (table.type === 'rect') {
@@ -271,10 +309,14 @@ export function seatCodeForIndex(table, index) {
     const row = Math.floor(index / spr), col = index % spr;
     const rns = table.rowNames || [];
     const rowName = rns[row] !== undefined ? rns[row] : String.fromCharCode(65 + row);
-    const seatNums = table.seatNumbers || {};
-    const skey = `${row}-${col}`;
-    const seatNum = seatNums[skey] !== undefined ? seatNums[skey] : String(col + 1);
-    return `${rowName}${seatNum}`;
+    return `${rowName}${col + 1}`;
   }
   return String(index + 1);
+}
+
+// The label to actually show a user — a manager-set placeholder always wins;
+// otherwise falls back to the real position-derived code.
+export function seatDisplayCode(table, index) {
+  const placeholder = (table.seatMeta || {})[index]?.placeholder;
+  return placeholder || seatCodeForIndex(table, index);
 }

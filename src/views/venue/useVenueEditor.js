@@ -123,7 +123,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
     let extra = {};
     if (type === 'round')   extra = { seats: 8, label: `T-${String(n).padStart(2, '0')}`, removedSeats: [] };
     if (type === 'rect')    extra = { seatsPerSide: 4, label: `T-${String(n).padStart(2, '0')}`, removedSeats: [] };
-    if (type === 'stadium') extra = { rows: 3, seatsPerRow: 8, label: `Blk-${String.fromCharCode(64 + (n % 26) + 1)}`, removedSeats: [], rowNames: [], seatNumbers: {} };
+    if (type === 'stadium') extra = { rows: 3, seatsPerRow: 8, label: `Blk-${String.fromCharCode(64 + (n % 26) + 1)}`, removedSeats: [], rowNames: [] };
     if (type === 'stage')   extra = { stageW: 220, stageH: 80, label: isAr ? 'مسرح' : 'Stage' };
     // Pitch + any custom/future non-seat type (e.g. a manager-defined "Podium"
     // lookup item) share the same generic area sizing.
@@ -198,6 +198,11 @@ export default function useVenueEditor({ lang, activeEventId }) {
       });
       const newBox = pickBox(result?.venueBoxes, activeEventId, selectedSessionId || null);
       if (newBox?.id) setActiveBoxId(newBox.id);
+      // Refresh local tables from what was actually persisted — most importantly,
+      // a brand-new table's temp local id gets replaced with its real backend id,
+      // so the *next* save (even without a page reload) can match it by that real
+      // id instead of treating it as a new insert every time.
+      if (newBox) setTables(boxToTables(newBox));
       setSaved(true); setTimeout(() => setSaved(false), 2200);
       toast.success(isAr ? 'تم حفظ المخطط' : 'Layout saved');
     } catch (err) {

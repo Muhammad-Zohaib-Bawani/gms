@@ -495,6 +495,7 @@ export default function UsersView() {
   const [resendingId, setResendingId] = useState(null);
 
   const canCreate = can('Users.Create');
+  const canUpdate = can('Users.Update');
   const canDelete = can('Users.Delete');
 
   const load = useCallback(async () => {

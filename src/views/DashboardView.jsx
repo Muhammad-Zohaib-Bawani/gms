@@ -271,7 +271,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                       <td><TierChip tier={toChipTier(g.tier)} lang={lang}/></td>
                       <td style={{ fontSize: 12 }}>{g.organization || '—'}</td>
                       <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang}/></td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{g.arrivalDate || '—'}</td>
+                      {/* <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{g.arrivalDate || '—'}</td> */}
                     </tr>
                   ))}
                   {recentGuests.length === 0 && (

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   TABLE_R, SEAT_R, SEAT_DIST, ROUND_SIZE, ROW_LABEL_W,
-  hexToRgba, rectTableSize, stadiumSize, seatColor, DISABLED_SEAT_COLOR,
+  hexToRgba, rectTableSize, stadiumSize, seatColor, seatDisplayCode, DISABLED_SEAT_COLOR,
 } from '../venueHelpers.js';
 
 // Diagonal "×" overlay marking a disabled seat, plus a native-tooltip <title>
@@ -52,7 +52,7 @@ export function RoundSVG({ table, selected, onDeleteSeat, onSeatClick, selectedI
               fill={isSeatSel ? 'rgba(141, 1, 52,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
               stroke={isSeatSel ? 'var(--accent)' : (sc || 'var(--glass-border)')}
               strokeWidth={isSeatSel ? 1.5 : 1}/>
-            <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{i + 1}</text>
+            <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{seatDisplayCode(table, i)}</text>
             <SeatOverlay meta={meta} cx={sx} cy={sy} r={SEAT_R}/>
             {onDeleteSeat && (
               <g style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onDeleteSeat(i); }}>
@@ -77,7 +77,7 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
   const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(141, 1, 52,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(141, 1, 52,0.1)');
   const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(141, 1, 52,0.45)');
 
-  function seat(index, sx, sy, code) {
+  function seat(index, sx, sy) {
     if (removed.has(index)) return null;
     const isSeatSel = selectedIndex === index;
     const meta = (table.seatMeta || {})[index] || {};
@@ -91,7 +91,7 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
           fill={isSeatSel ? 'rgba(141, 1, 52,0.35)' : (sc ? hexToRgba(sc, 0.35) : 'var(--surface-soft-3)')}
           stroke={isSeatSel ? 'var(--accent)' : (sc || 'var(--glass-border)')}
           strokeWidth={isSeatSel ? 1.5 : 1}/>
-        <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{code}</text>
+        <text x={sx} y={sy + 2.5} textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">{seatDisplayCode(table, index)}</text>
         <SeatOverlay meta={meta} cx={sx} cy={sy} r={SEAT_R}/>
         {onDeleteSeat && (
           <g style={{ cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onDeleteSeat(index); }}>
@@ -111,8 +111,8 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
         const sx = tblX + (i + 0.5) * 24;
         return (
           <React.Fragment key={i}>
-            {seat(i, sx, seatY1, `A${i + 1}`)}
-            {seat(sps + i, sx, seatY2, `B${i + 1}`)}
+            {seat(i, sx, seatY1)}
+            {seat(sps + i, sx, seatY2)}
           </React.Fragment>
         );
       })}
@@ -124,7 +124,6 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
   const { w, h } = stadiumSize(table.rows, table.seatsPerRow);
   const step = 22, seatW = 16, seatH = 16;
   const removed = new Set(table.removedSeats || []);
-  const seatNums = table.seatNumbers || {};
   const rowNamesArr = table.rowNames || [];
   const c = table.color;
   const fill = selected ? (c ? hexToRgba(c, 0.12) : 'rgba(141, 1, 52,0.12)') : (c ? hexToRgba(c, 0.05) : 'rgba(141, 1, 52,0.05)');
@@ -153,7 +152,7 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
               const bx = 8 + ROW_LABEL_W + col * step;
               const by = by0;
               const skey = `${row}-${col}`;
-              const displayNum = seatNums[skey] !== undefined ? seatNums[skey] : String(col + 1);
+              const displayCode = seatDisplayCode(table, idx);
               const isSeatSel = selectedIndex === idx;
               const meta = (table.seatMeta || {})[idx] || {};
               const sc = seatColor(meta);
@@ -168,7 +167,7 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
                     strokeWidth={isSeatSel ? 1.5 : 0.8}/>
                   <text x={bx + seatW / 2} y={by + seatH / 2 + 3.5}
                     textAnchor="middle" fontSize="7" fill={isSeatSel ? 'var(--accent)' : 'var(--ink)'} fontFamily="var(--mono)">
-                    {displayNum}
+                    {displayCode}
                   </text>
                   <SeatOverlay meta={meta} cx={bx + seatW / 2} cy={by + seatH / 2} r={seatW / 2}/>
                   {onDeleteSeat && (
