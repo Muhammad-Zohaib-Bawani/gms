@@ -1,6 +1,8 @@
 // Maps between the backend EventResponse/SessionResponse DTOs and the shape
 // EventsView already renders (venue/image/uiTheme/sessions[].venue).
 
+import { stripSasToken } from '../services/uploadService';
+
 export function toViewSession(s) {
   return {
     id: s.id,
@@ -49,11 +51,13 @@ export function toEventRequest(v) {
     startDate: v.startDate || null,
     endDate: v.endDate || null,
     status: v.status || 'planning',
-    imageUrl: v.image || null,
+    // SAS tokens are short-lived — persist the bare blob URL, BlobSasMiddleware
+    // re-signs it on read.
+    imageUrl: stripSasToken(v.image) || null,
     themeAccent: custom ? v.uiTheme.accent : null,
     themeSecondary: custom ? v.uiTheme.secondary : null,
-    logoDarkUrl: custom ? v.uiTheme.logoDark : null,
-    logoLightUrl: custom ? v.uiTheme.logoLight : null,
+    logoDarkUrl: custom ? stripSasToken(v.uiTheme.logoDark) : null,
+    logoLightUrl: custom ? stripSasToken(v.uiTheme.logoLight) : null,
   };
 }
 

@@ -36,7 +36,8 @@ export const getEventArrivalsDepartures = (
 
 // ── Guest travel (flight / accommodation / transport) ────────────────────────
 
-// Separate GET per lookup — each reads its own table.
+// Separate GET per lookup — each reads its own table, except flight types which
+// are a code-defined enum: [{ code, name, nameAr }].
 export const getFlightTypes   = () => apiClient.get(ENDPOINTS.lookups.flightTypes);
 export const getFlightClasses = () => apiClient.get(ENDPOINTS.lookups.flightClasses);
 export const getRoomTypes     = () => apiClient.get(ENDPOINTS.lookups.roomTypes);
@@ -80,11 +81,11 @@ export const deleteTransport    = (id) => apiClient.delete(ENDPOINTS.travel.dele
 
 // ── Create wizard-dropdown lookup records ────────────────────────────────────
 // Name-only lookups return { id, name }; hotel returns { id, name, address }.
-export const createFlightType  = (name)          => apiClient.post(ENDPOINTS.lookups.flightTypes,  { name });
 export const createFlightClass = (name)          => apiClient.post(ENDPOINTS.lookups.flightClasses, { name });
 export const createRoomType    = (name)          => apiClient.post(ENDPOINTS.lookups.roomTypes,    { name });
 export const createVehicleType = (name)          => apiClient.post(ENDPOINTS.lookups.vehicleTypes, { name });
-export const createHotel       = (name, address) => apiClient.post(ENDPOINTS.lookups.hotels,       { name, address });
+// { name, address?, imageUrl? } — imageUrl must already have its SAS token stripped.
+export const createHotel       = (body)          => apiClient.post(ENDPOINTS.lookups.hotels, body);
 
 // Airport: { code, city, country, continent, locationId? }.
 export const createAirport     = (body)          => apiClient.post(ENDPOINTS.lookups.airports, body);

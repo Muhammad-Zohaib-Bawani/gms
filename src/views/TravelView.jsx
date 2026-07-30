@@ -19,7 +19,26 @@ import TravelAccordion, {
   anyTravelEnabled,
   buildTravelPayload,
   validateTravel,
+  FlightFields,
+  flightTypeLabel,
 } from './guests/modals/TravelAccordion.jsx';
+
+// A return booking is listed under both directions on the arrivals/departures
+// board, so each column reads its own leg — first for the departure, last for
+// the arrival — instead of the booking-level route spanning both.
+function segment(f, inbound) {
+  const legs = f.legs || [];
+  if (f.flightType !== 'return' || legs.length < 2) return f;
+  const leg = inbound ? legs[legs.length - 1] : legs[0];
+  return {
+    ...f,
+    flightNumber: leg.flightNumber || f.flightNumber,
+    departureCode: leg.departureCode,
+    arrivalCode: leg.arrivalCode,
+    departureTime: leg.startTime,
+    arrivalTime: leg.endTime,
+  };
+}
 
 // One week of slack around the event's own start/end date — same rule as the
 // guest wizard's Arrival/Departure fields (GuestModal.jsx).
@@ -83,7 +102,9 @@ function mapFlight(r) {
     tier: r.tier,
     org: r.organization,
     flight: r.flightNumber || '—',
-    flightType: r.flightType || '—',
+    flightType: r.flightType || '',
+    // Every segment, so a return booking shows both halves of the trip.
+    legs: r.legs || [],
     flightClass: r.flightClass || '—',
     from: r.departureCode || '—',
     to: r.arrivalCode || '—',
@@ -105,6 +126,7 @@ function mapHotel(r) {
     tier: r.tier,
     org: r.organization,
     hotel: r.hotel || '—',
+    hotelImage: r.hotelImageUrl || '',
     roomType: r.roomType || '—',
     checkIn: r.checkIn || '',
     checkOut: r.checkOut || '',
@@ -655,9 +677,15 @@ export default function TravelView({ lang, activeEventId }) {
       flights: [
         guest(),
         col('flight',      STR.cols.flight,      b => <span style={{ ...mono, fontWeight: 600 }}>{b.flight}</span>),
-        col('flightType',  STR.cols.flightType,  b => <span style={text}>{b.flightType}</span>),
+        col('flightType',  STR.cols.flightType,  b => <span style={text}>{flightTypeLabel(b.flightType, isAr)}</span>),
         col('flightClass', STR.cols.flightClass, b => <span style={text}>{b.flightClass}</span>),
-        col('route',       STR.cols.route,       b => <span style={{ ...muted, fontFamily: 'var(--mono)' }}>{b.from} → {b.to}</span>),
+        col('route',       STR.cols.route,       b => (
+          <div style={{ ...muted, fontFamily: 'var(--mono)' }}>
+            {b.legs.length > 1
+              ? b.legs.map(l => <div key={l.id}>{l.departureCode} → {l.arrivalCode}</div>)
+              : <span>{b.from} → {b.to}</span>}
+          </div>
+        )),
         col('date',        STR.cols.date,        b => (
           <div>
             <div style={mono}>{b.dateLabel || b.date}</div>
@@ -669,7 +697,15 @@ export default function TravelView({ lang, activeEventId }) {
       ],
       hotels: [
         guest(),
-        col('hotel',    STR.cols.hotel,    b => <span style={{ ...text, fontWeight: 500 }}>{b.hotel}</span>),
+        col('hotel',    STR.cols.hotel,    b => (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {b.hotelImage && (
+              <img src={b.hotelImage} alt="" style={{ width: 30, height: 24, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
+                onError={e => { e.target.style.display = 'none'; }}/>
+            )}
+            <span style={{ ...text, fontWeight: 500 }}>{b.hotel}</span>
+          </div>
+        )),
         col('room',     STR.cols.room,     b => <span style={text}>{b.roomType}</span>),
         col('checkIn',  STR.cols.checkIn,  b => <span style={mono}>{b.checkIn}</span>),
         col('checkOut', STR.cols.checkOut, b => <span style={mono}>{b.checkOut}</span>),
@@ -718,8 +754,10 @@ export default function TravelView({ lang, activeEventId }) {
         if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {flights.map(f => (
-              <div key={f.id}>
+            {flights.map(f0 => {
+              const f = segment(f0, inbound);
+              return (
+              <div key={f0.id}>
                 <div style={{ display:'flex', alignItems:'center', gap:7, fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
                   <span>{f.departureCode || '—'}</span>
                   <Icon
@@ -737,7 +775,8 @@ export default function TravelView({ lang, activeEventId }) {
                   {timeRange(f.departureTime, f.arrivalTime)}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         );
       },
@@ -745,15 +784,15 @@ export default function TravelView({ lang, activeEventId }) {
 
     // Stacked one-per-flight, same row-height rhythm as routeColumn so a
     // guest's durations line up against their routes above.
-    const durationColumn = (id, pick) => ({
+    const durationColumn = (id, pick, inbound) => ({
       id, header: STR.cols.duration, enableSorting: false,
       cell: ({ row }) => {
         const flights = pick(row.original);
         if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {flights.map(f => (
-              <div key={f.id} style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--ink-mute)', minHeight: 20, display:'flex', alignItems:'center' }}>
+            {flights.map(f0 => segment(f0, inbound)).map((f, i) => (
+              <div key={i} style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--ink-mute)', minHeight: 20, display:'flex', alignItems:'center' }}>
                 {flightDuration(f.departureTime, f.arrivalTime) || '—'}
               </div>
             ))}
@@ -791,7 +830,7 @@ export default function TravelView({ lang, activeEventId }) {
             ...(showInbound ? row.original.inbound : []),
             ...(showOutbound ? row.original.outbound : []),
           ];
-          const numbers = visible.map(f => f.flightNumber).filter(Boolean);
+          const numbers = visible.map(f => f.flightNumber).filter(Boolean);  // booking-level, first leg
           return (
             <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
               {numbers.length ? numbers.join(' / ') : '—'}
@@ -799,8 +838,8 @@ export default function TravelView({ lang, activeEventId }) {
           );
         },
       },
-      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true), durationColumn('inboundDuration',  r => r.inbound)]  : []),
-      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false), durationColumn('outboundDuration', r => r.outbound)] : []),
+      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true), durationColumn('inboundDuration',  r => r.inbound,  true)]  : []),
+      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false), durationColumn('outboundDuration', r => r.outbound, false)] : []),
     ];
   }, [STR, adDirection]);
 
@@ -1026,45 +1065,23 @@ export default function TravelView({ lang, activeEventId }) {
                 <div style={{ textAlign:'center', color:'var(--ink-mute)', fontSize:13, padding:'20px 0' }}>…</div>
               )}
 
-              {!editModal.loading && editModal.type === 'flight' && (() => {
-                const f = editModal.form;
-                const set = (k, v) => setEditField({ [k]: v });
-                return (
-                  <>
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'مطار المغادرة' : 'Departure Airport'} *</label>
-                        <Select value={f.fromAirportId} onChange={v => set('fromAirportId', v)} options={mapOpts(travelLookups.airports, x=>`${x.code} — ${x.city}${x.country ? `, ${x.country}` : ''}`)} placeholder={isAr?'— اختر —':'— Select —'}/>
-                      </div>
-                      <div><label style={lSt}>{isAr ? 'مطار الوصول' : 'Arrival Airport'} *</label>
-                        <Select value={f.toAirportId} onChange={v => set('toAirportId', v)} options={mapOpts(travelLookups.airports, x=>`${x.code} — ${x.city}${x.country ? `, ${x.country}` : ''}`)} placeholder={isAr?'— اختر —':'— Select —'}/>
-                      </div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'نوع الرحلة' : 'Flight Type'} *</label>
-                        <Select value={f.flightTypeId} onChange={v => set('flightTypeId', v)} options={mapOpts(travelLookups.flightTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
-                      </div>
-                      <div><label style={lSt}>{isAr ? 'الدرجة' : 'Flight Class'}</label>
-                        <Select value={f.flightClassId} onChange={v => set('flightClassId', v)} options={mapOpts(travelLookups.flightClasses, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
-                      </div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'رقم الرحلة' : 'Flight No.'} *</label><input style={iSt} value={f.flightNumber} onChange={e => set('flightNumber', e.target.value)}/></div>
-                      <div><label style={lSt}>{isAr ? 'المقعد' : 'Seat'}</label><input style={iSt} value={f.seat} onChange={e => set('seat', e.target.value)}/></div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</label>
-                        <DateField value={f.startTime} onChange={v => set('startTime', v||'')} showTime minDate={eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD HH:mm"/>
-                      </div>
-                      <div><label style={lSt}>{isAr ? 'وقت الوصول' : 'Arrival Time'}</label>
-                        <DateField value={f.endTime} onChange={v => set('endTime', v||'')} showTime minDate={f.startTime || eventMinDate} maxDate={eventMaxDate} placeholder="YYYY-MM-DD HH:mm"/>
-                      </div>
-                    </>)}
-                    <div><label style={lSt}>{isAr ? 'حالة الحجز' : 'Booking Status'}</label>
-                      <Select value={f.status} onChange={v => set('status', v)} options={flightStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
-                    </div>
-                  </>
-                );
-              })()}
+              {/* Same field set as the guest wizard — one shared component, so the
+                  radio group and the per-leg fields can't drift between the two. */}
+              {!editModal.loading && editModal.type === 'flight' && (
+                <>
+                  <FlightFields
+                    flight={editModal.form}
+                    setFlight={setEditField}
+                    lookups={travelLookups}
+                    isAr={isAr}
+                    eventMinDate={eventMinDate}
+                    eventMaxDate={eventMaxDate}
+                  />
+                  <div><label style={lSt}>{isAr ? 'حالة الحجز' : 'Booking Status'}</label>
+                    <Select value={editModal.form.status} onChange={v => setEditField({ status: v })} options={flightStatusOpts} placeholder={isAr?'— اختر —':'— Select —'}/>
+                  </div>
+                </>
+              )}
 
               {!editModal.loading && editModal.type === 'hotel' && (() => {
                 const f = editModal.form;

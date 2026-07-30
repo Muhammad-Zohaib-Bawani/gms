@@ -16,6 +16,7 @@ import { getEvent } from '../api/services/eventService';
 import { getEventFlights, getEventAccommodation, getEventTransport } from '../api/services/travelService';
 import { getGuestSeatAssignments } from '../api/services/seatingService';
 import GuestModal from './guests/modals/GuestModal';
+import { flightTypeLabel, legTitle } from './guests/modals/TravelAccordion';
 import DeleteGuestsModal from './guests/modals/DeleteGuestsModal';
 
 // Each guest's own travel rows out of the event-wide lists — those already
@@ -376,17 +377,31 @@ export default function GuestDetailView({ guestId, lang }) {
             <Empty>{isAr ? 'لا يوجد حجز طيران' : 'No flight booked'}</Empty>
           ) : (
             <BookingCarousel items={flights} renderItem={(f) => (
-              <div style={fieldGrid}>
-                <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={f.flightNumber} />
-                <Field label={isAr ? 'النوع' : 'Type'} value={f.flightType} />
-                <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
-                <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
-                <Field label={isAr ? 'من' : 'From'} value={[f.departureCity, f.departureCode].filter(Boolean).join(' · ')} />
-                <Field label={isAr ? 'إلى' : 'To'} value={[f.arrivalCity, f.arrivalCode].filter(Boolean).join(' · ')} />
-                <Field label={isAr ? 'التاريخ' : 'Date'} value={fmtDate(f.date, isAr)} />
-                <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(f.arrivalTime, isAr)} />
-                <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
-              </div>
+              <>
+                <div style={fieldGrid}>
+                  <Field label={isAr ? 'النوع' : 'Type'} value={flightTypeLabel(f.flightType, isAr)} />
+                  <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
+                  <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
+                  <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
+                </div>
+                {/* One block per leg — a return booking has two. */}
+                {(f.legs || []).map((l, i) => (
+                  <div key={l.id || i} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
+                    {(f.legs.length > 1) && (
+                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent)', marginBottom: 6 }}>
+                        {legTitle(f.flightType, i, isAr)}
+                      </div>
+                    )}
+                    <div style={fieldGrid}>
+                      <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={l.flightNumber} />
+                      <Field label={isAr ? 'من' : 'From'} value={[l.departureCity, l.departureCode].filter(Boolean).join(' · ')} />
+                      <Field label={isAr ? 'إلى' : 'To'} value={[l.arrivalCity, l.arrivalCode].filter(Boolean).join(' · ')} />
+                      <Field label={isAr ? 'الإقلاع' : 'Departure'} value={fmtDateTime(l.startTime, isAr)} />
+                      <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(l.endTime, isAr)} />
+                    </div>
+                  </div>
+                ))}
+              </>
             )} />
           )}
         </Section>
@@ -397,6 +412,10 @@ export default function GuestDetailView({ guestId, lang }) {
           ) : (
             <BookingCarousel items={accommodations} renderItem={(a) => (
               <div style={fieldGrid}>
+                {a.hotelImageUrl && (
+                  <img src={a.hotelImageUrl} alt="" style={{ gridColumn: '1 / -1', width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }}
+                    onError={e => { e.target.style.display = 'none'; }}/>
+                )}
                 <Field label={isAr ? 'الفندق' : 'Hotel'} value={a.hotel} />
                 <Field label={isAr ? 'نوع الغرفة' : 'Room Type'} value={a.roomType} />
                 <Field label={isAr ? 'تسجيل الوصول' : 'Check-in'} value={fmtDate(a.checkIn, isAr)} />
