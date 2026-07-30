@@ -120,6 +120,7 @@ function mapTransfer(r) {
     tier: r.tier,
     vehicle: r.vehicle || '—',
     driver: r.driverName || '—',
+    driverType: r.driverType ?? null, // DriverType enum: 1 = Fixed, 2 = Open
     pickup: r.pickup || '—',
     dropoff: r.dropoff || '—',
     date: r.pickupTime ? r.pickupTime.slice(0, 10) : '',
@@ -143,6 +144,12 @@ function groupByGuest(rows) {
   }
   return Array.from(map.values());
 }
+
+// DomainPersistence.Enums.DriverType — 1 = Fixed, 2 = Open.
+const DRIVER_TYPE_LABEL = {
+  1: { en: 'Fixed', ar: 'ثابت' },
+  2: { en: 'Open', ar: 'مفتوح' },
+};
 
 const STATUS_COLOR = {
   approved:'var(--accent)', confirmed:'var(--accent)', scheduled:'var(--accent)',
@@ -662,7 +669,14 @@ export default function TravelView({ lang, activeEventId }) {
             <span style={text}>{b.vehicle}</span>
           </div>
         )),
-        col('driver',  STR.cols.driver,  b => <span style={text}>{b.driver}</span>),
+        col('driver',  STR.cols.driver,  b => (
+          <div>
+            <div style={text}>{b.driver}</div>
+            {b.driverType != null && DRIVER_TYPE_LABEL[b.driverType] && (
+              <div style={{ ...muted, fontSize: 10.5 }}>{DRIVER_TYPE_LABEL[b.driverType][isAr ? 'ar' : 'en']}</div>
+            )}
+          </div>
+        )),
         col('pickup',  STR.cols.pickup,  b => <div style={ellipsis}>{b.pickup}</div>),
         col('dropoff', STR.cols.dropoff, b => <div style={ellipsis}>{b.dropoff}</div>),
         col('date',    STR.cols.date,    b => (
