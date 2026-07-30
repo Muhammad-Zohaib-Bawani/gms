@@ -37,6 +37,11 @@ export const EMPTY_TRAVEL = {
   },
   transport: {
     enabled: false,
+    // When true, the guest will request their own pickup/dropoff later via the
+    // mobile app — every other transport field stays empty and unvalidated,
+    // but the section is still submitted so a (mostly-null) Transport record
+    // exists for the guest to fill in themselves.
+    onCallRequest: false,
     pickupLocationId: '', dropoffLocationId: '', vehicleId: '', driverId: '',
     pickupTime: '', dropoffTime: '',
   },
@@ -48,7 +53,7 @@ function hydrateSection(defaults, data) {
   if (!data) return { ...defaults };
   const out = { ...defaults, enabled: true };
   for (const k of Object.keys(defaults)) {
-    if (k === 'enabled') continue;
+    if (k === 'enabled' || k === 'onCallRequest') continue;
     const v = data[k];
     // datetime fields want 'YYYY-MM-DDTHH:mm' — trim seconds/zone if present.
     if (v == null) out[k] = '';
@@ -62,10 +67,18 @@ function hydrateSection(defaults, data) {
 // roomTypeId/vehicleId/hotelId/flightTypeId/flightClassId/pickupLocationId/
 // dropoffLocationId all come back as real lookup-table public ids already.
 export function hydrateTravel(data) {
+  const transport = hydrateSection(EMPTY_TRAVEL.transport, data?.transport);
+  // The backend has no "on call request" flag of its own — an enabled
+  // transport booking with every field still empty *is* that state, so infer
+  // it back from the data on load.
+  if (transport.enabled && !transport.pickupLocationId && !transport.dropoffLocationId
+    && !transport.vehicleId && !transport.driverId && !transport.pickupTime && !transport.dropoffTime) {
+    transport.onCallRequest = true;
+  }
   return {
     flight: hydrateSection(EMPTY_TRAVEL.flight, data?.flight),
     accommodation: hydrateSection(EMPTY_TRAVEL.accommodation, data?.accommodation),
-    transport: hydrateSection(EMPTY_TRAVEL.transport, data?.transport),
+    transport,
   };
 }
 
@@ -89,7 +102,7 @@ export function validateTravel(t, isAr = false) {
     if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
     if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
   }
-  if (t.transport.enabled) {
+  if (t.transport.enabled && !t.transport.onCallRequest) {
     if (!t.transport.vehicleId) return isAr ? 'المركبة مطلوبة' : 'Vehicle is required';
     if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
     if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
@@ -101,7 +114,7 @@ export function validateTravel(t, isAr = false) {
 function cleanSection(sec, numericKeys = []) {
   const out = {};
   for (const [k, v] of Object.entries(sec)) {
-    if (k === 'enabled') continue;
+    if (k === 'enabled' || k === 'onCallRequest') continue;
     if (v === '' || v == null) { out[k] = null; continue; }
     out[k] = numericKeys.includes(k) ? Number(v) : v;
   }
@@ -199,6 +212,19 @@ export default function TravelAccordion({
     }));
   };
 
+  // Checking "on call request" clears every other transport field (and
+  // unchecking it just clears the flag back off) — the section stays enabled
+  // either way, so a Transport record still gets created on save.
+  const toggleOnCallRequest = () => {
+    const next = !travel.transport.onCallRequest;
+    onChange((p) => ({
+      ...p,
+      transport: next
+        ? { ...EMPTY_TRAVEL.transport, enabled: true, onCallRequest: true }
+        : { ...p.transport, onCallRequest: false },
+    }));
+  };
+
   const flightTypeOpts = mapOpts(lookups.flightTypes, (x) => x.name);
   const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
   const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
@@ -225,7 +251,7 @@ export default function TravelAccordion({
     </div>
   );
 
-  const sel = (section, key, label, options, { required = false } = {}) => (
+  const sel = (section, key, label, options, { required = false, disabled = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
       <Select
@@ -234,6 +260,7 @@ export default function TravelAccordion({
         options={options}
         placeholder={selPlaceholder}
         isClearable={!required}
+        isDisabled={disabled}
       />
     </div>
   );
@@ -251,7 +278,7 @@ export default function TravelAccordion({
     </div>
   );
 
-  const dt = (section, key, label, { minDate, maxDate, required = false } = {}) => (
+  const dt = (section, key, label, { minDate, maxDate, required = false, disabled = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
       <DateField
@@ -261,6 +288,7 @@ export default function TravelAccordion({
         maxDate={maxDate}
         showTime
         placeholder="YYYY-MM-DD HH:mm"
+        disabled={disabled}
       />
     </div>
   );
@@ -311,17 +339,21 @@ export default function TravelAccordion({
 
       <Section enabled={travel.transport.enabled} onToggle={() => toggle('transport')} icon="car" title={isAr ? 'النقل' : 'Transport'}>
         {grid(<>
-          {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true })}
-          {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}
+          {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true, disabled: travel.transport.onCallRequest })}
+          {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true, disabled: travel.transport.onCallRequest })}
         </>)}
         {grid(<>
-          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts)}
-          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
+          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts, { disabled: travel.transport.onCallRequest })}
+          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts, { disabled: travel.transport.onCallRequest })}
         </>)}
         {grid(<>
-          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true, disabled: travel.transport.onCallRequest })}
+          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate, disabled: travel.transport.onCallRequest })}
         </>)}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--ink-dim)', cursor: 'pointer', userSelect: 'none', marginTop: 2 }}>
+          <input type="checkbox" checked={travel.transport.onCallRequest} onChange={toggleOnCallRequest} style={{ accentColor: 'var(--accent)' }} />
+          {isAr ? 'طلب خدمة عند الطلب' : 'On call request service'}
+        </label>
       </Section>
     </div>
   );
