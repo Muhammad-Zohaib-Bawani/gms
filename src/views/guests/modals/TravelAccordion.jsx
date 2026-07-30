@@ -112,7 +112,13 @@ function cleanSection(sec, numericKeys = []) {
 // stripped. Every id field is sent as-is (already the real lookup public id).
 export function buildTravelPayload(travel) {
   const body = {};
-  if (travel.flight.enabled) body.flight = cleanSection(travel.flight);
+  if (travel.flight.enabled) {
+    body.flight = cleanSection(travel.flight);
+    // Flights.DepartureTime / ArrivalTime — the booking-level copies of the two
+    // times the form already collects, so listings don't have to walk the legs.
+    body.flight.departureTime = body.flight.startTime;
+    body.flight.arrivalTime = body.flight.endTime;
+  }
   if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
   if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
   return body;
@@ -205,11 +211,6 @@ export default function TravelAccordion({
   // fromAirportId/toAirportId store the airport's own id (not its code).
   const airportOpts = mapOpts(lookups.airports, (a) => `${a.code} — ${a.city}`);
 
-  const flightStatusOpts = [
-    { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
-    { value: 'pending', label: isAr ? 'قيد الانتظار' : 'Pending' },
-  ];
-
   // ── field renderers (plain functions → stable element types, no focus loss) ──
   const txt = (section, key, label, { ph = '', type = 'text', required = false } = {}) => (
     <div>
@@ -287,7 +288,6 @@ export default function TravelAccordion({
           {dt('flight', 'startTime', isAr ? 'وقت الإقلاع' : 'Departure Time', { minDate: eventMinDate, maxDate: eventMaxDate, required: true })}
           {dt('flight', 'endTime', isAr ? 'وقت الوصول' : 'Arrival Time', { minDate: travel.flight.startTime || eventMinDate, maxDate: eventMaxDate })}
         </>)}
-        {sel('flight', 'status', isAr ? 'حالة الحجز' : 'Booking Status', flightStatusOpts)}
       </Section>
 
       <Section enabled={travel.accommodation.enabled} onToggle={() => toggle('accommodation')} icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>

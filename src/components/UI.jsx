@@ -12,14 +12,30 @@ const CHIP_I18N = {
 };
 function getLang() { return document.documentElement.getAttribute("lang") === "ar" ? "ar" : "en"; }
 
-export function StatusChip({ status, lang }) {
+// Transport lifecycle statuses have no chip style of their own — they borrow the
+// closest one so a "new" or "in-transit" job doesn't render unstyled.
+const CHIP_CLASS_ALIAS = {
+  completed: "confirmed",
+  cancelled: "declined",
+  new: "pending",
+  assigned: "pending",
+  "in-progress": "pending",
+  arrived: "pending",
+  "in-transit": "pending",
+};
+
+// `label` wins when the caller already localised the text (e.g. TravelView's
+// STR.statuses); otherwise fall back to this component's own map.
+export function StatusChip({ status, lang, label }) {
   const l = lang || getLang();
   const labels = CHIP_I18N.status[l] || CHIP_I18N.status.en;
-  const cls = ["confirmed","pending","declined","draft","VIP","VVIP"].includes(status) ? status : "draft";
+  const cls = ["confirmed","pending","declined","draft","VIP","VVIP"].includes(status)
+    ? status
+    : (CHIP_CLASS_ALIAS[status] || "draft");
   return (
     <span className={`chip ${cls}`}>
       <span className="dot" />
-      {labels[status] || status}
+      {label || labels[status] || status}
     </span>
   );
 }

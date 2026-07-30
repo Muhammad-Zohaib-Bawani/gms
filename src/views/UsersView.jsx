@@ -3,7 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/apiClient';
 import { ENDPOINTS } from '../api/endpoints';
-import { deleteUser, inviteUser, resendInvite } from '../api/services/userAccessService';
+import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser } from '../api/services/userAccessService';
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
@@ -14,6 +14,9 @@ import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
 import { Icon } from '../components/Icons';
+// Country-code picker + validation (libphonenumber-js under the hood).
+import PhoneInput, { isValidPhoneNumber, parsePhoneNumber } from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -109,6 +112,14 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
 
 // ─── InviteUserModal ─────────────────────────────────────────────────────────
 
+// Stored as "+971 501234567" — one column, but the space lets the backend hand
+// the driver app the dial code and the national number as separate fields.
+function splitPhone(e164) {
+  if (!e164) return null;
+  const parsed = parsePhoneNumber(e164);
+  return parsed ? `+${parsed.countryCallingCode} ${parsed.nationalNumber}` : e164;
+}
+
 const EMPTY_INVITE = {
   firstName: '', lastName: '', email: '', phone: '', roleId: '',
   driverType: '', driverLicenseNumber: '', driverLicenseExpiry: '',
@@ -160,13 +171,17 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
       toast.warning('License number and driver type are required for a driver');
       return;
     }
+    if (form.phone && !isValidPhoneNumber(form.phone)) {
+      toast.warning('Enter a valid phone number for the selected country');
+      return;
+    }
     setSaving(true);
     try {
       const created = await inviteUser({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim() || null,
+        phone: splitPhone(form.phone),
         roleId: form.roleId,
         // Driver fields go in a nested object; omitted entirely for other roles.
         ...(isDriver ? {
@@ -212,7 +227,14 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
         </div>
         <div>
           <label style={labelStyle}>Phone</label>
-          <input style={inputStyle} value={form.phone} onChange={(e) => setF('phone', e.target.value)} />
+          <PhoneInput
+            international
+            defaultCountry="SA"
+            value={form.phone}
+            onChange={(v) => setF('phone', v || '')}
+            style={{ ...inputStyle, display: 'flex', gap: 8, padding: '4px 10px' }}
+            numberInputProps={{ style: { background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)', fontSize: 13, width: '100%' } }}
+          />
         </div>
         <div>
           <label style={labelStyle}>Role *</label>
@@ -299,6 +321,158 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
   );
 }
 
+// ─── EditUserModal ───────────────────────────────────────────────────────────
+
+// Only what PUT /v1/users/{id} accepts. Email stays read-only (sign-in identity),
+// and driver details are set at invite time — not editable here yet.
+function EditUserModal({ user, roles, onClose, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setForm(null); return; }
+    // roleId is the reliable source; fall back to matching the role's name or
+    // code so the dropdown still preselects if the list response omits the id.
+    const matched = roles.find((r) => r.id === user.roleId)
+      || roles.find((r) => r.name === user.roleName)
+      || roles.find((r) => r.code && r.code === user.role);
+    setForm({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      // Stored as "+971 501234567"; PhoneInput wants bare E.164.
+      phone: (user.phone || '').replace(/\s+/g, ''),
+      roleId: matched?.id || '',
+      isActive: user.isActive !== false,
+    });
+  }, [user, roles]);
+
+  if (!user || !form) return null;
+
+  const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+  const roleOpts = roles.map((r) => ({ value: r.id, label: r.name }));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      toast.warning('First and last name are required');
+      return;
+    }
+    if (form.phone && !isValidPhoneNumber(form.phone)) {
+      toast.warning('Enter a valid phone number for the selected country');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateUser(user.id, {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: splitPhone(form.phone),
+        roleId: form.roleId || null,
+        isActive: form.isActive,
+      });
+      toast.success('User updated');
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      toast.error(err.message || 'Could not update the user');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell title="Edit User" subtitle={user.email} onClose={onClose} width={520}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={labelStyle}>First name *</label>
+            <input style={inputStyle} value={form.firstName} onChange={(e) => setF('firstName', e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Last name *</label>
+            <input style={inputStyle} value={form.lastName} onChange={(e) => setF('lastName', e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input style={{ ...inputStyle, opacity: 0.6 }} value={user.email || ''} readOnly disabled />
+        </div>
+        <div>
+          <label style={labelStyle}>Phone</label>
+          <PhoneInput
+            international
+            defaultCountry="SA"
+            value={form.phone}
+            onChange={(v) => setF('phone', v || '')}
+            style={{ ...inputStyle, display: 'flex', gap: 8, padding: '4px 10px' }}
+            numberInputProps={{ style: { background: 'transparent', border: 'none', outline: 'none', color: 'var(--ink)', fontSize: 13, width: '100%' } }}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Role</label>
+          <Select value={form.roleId} onChange={(v) => setF('roleId', v)} options={roleOpts} placeholder="— Select —" />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, cursor: 'pointer' }}>
+          <input type="checkbox" checked={form.isActive} onChange={(e) => setF('isActive', e.target.checked)} />
+          Active — an inactive account cannot sign in
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
+// ─── SetPasswordModal ────────────────────────────────────────────────────────
+
+function SetPasswordModal({ user, onClose, onDone }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (user) { setPassword(''); setConfirm(''); } }, [user]);
+
+  if (!user) return null;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password.length < 8) { toast.warning('Password must be at least 8 characters'); return; }
+    if (password !== confirm) { toast.warning('Passwords do not match'); return; }
+    setSaving(true);
+    try {
+      await adminSetPassword(user.id, password);
+      toast.success(`Password updated for ${user.firstName || user.email}`);
+      onDone?.();
+    } catch (err) {
+      toast.error(err.message || 'Could not update the password');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ModalShell title="Set Password" subtitle={`For ${[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}`} onClose={onClose} width={400}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={labelStyle}>New password</label>
+          <input type="password" style={inputStyle} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoFocus />
+        </div>
+        <div>
+          <label style={labelStyle}>Confirm password</label>
+          <input type="password" style={inputStyle} value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button type="button" className="btn" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Set Password'}</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
 // ─── UsersView ────────────────────────────────────────────────────────────────
 
 const col = createColumnHelper();
@@ -316,6 +490,8 @@ export default function UsersView() {
   const [toDelete, setToDelete]   = useState(null);
   const [deleting, setDeleting]   = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
   const [resendingId, setResendingId] = useState(null);
 
   const canCreate = can('Users.Create');
@@ -336,11 +512,12 @@ export default function UsersView() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (isDemo || !canCreate) return;
+    // Roles feed both the invite form and the edit form.
+    if (isDemo || !(canCreate || canUpdate)) return;
     listRoles().then((r) => setRoles(Array.isArray(r) ? r : (r?.items || []))).catch(() => {});
     getNationalities().then((r) => setNationalities(Array.isArray(r) ? r : [])).catch(() => {});
     getDriverTypes().then((r) => setDriverTypes(Array.isArray(r) ? r : [])).catch(() => {});
-  }, [isDemo, canCreate]);
+  }, [isDemo, canCreate, canUpdate]);
 
   async function handleDelete() {
     if (!toDelete) return;
@@ -473,25 +650,36 @@ export default function UsersView() {
         const isSelf  = u.id === me?.id;
         const isAdmin = u.roleName?.toLowerCase() === 'administrator';
 
-        return (
-          <ActionMenu
-            items={[
-              u.isPending && canCreate && {
-                label: resendingId === u.id ? 'Sending…' : 'Resend invite',
-                icon: 'refresh',
-                disabled: resendingId === u.id,
-                onClick: () => handleResend(u),
-              },
-              canDelete && {
-                label: isSelf ? 'Cannot delete yourself' : isAdmin ? 'Cannot delete the admin account' : 'Delete',
-                icon: 'trash',
-                danger: true,
-                disabled: isSelf || isAdmin,
-                onClick: () => setToDelete(u),
-              },
-            ]}
-          />
-        );
+       return (
+  <ActionMenu
+    items={[
+      u.isPending && canCreate && {
+        label: resendingId === u.id ? 'Sending…' : 'Resend invite',
+        icon: 'refresh',
+        disabled: resendingId === u.id,
+        onClick: () => handleResend(u),
+      },
+
+      !u.isPending && canUpdate && {
+        label: 'Set password',
+        icon: 'shield',
+        onClick: () => setPasswordTarget(u),
+      },
+
+      canDelete && {
+        label: isSelf
+          ? 'Cannot delete yourself'
+          : isAdmin
+            ? 'Cannot delete the admin account'
+            : 'Delete',
+        icon: 'trash',
+        danger: true,
+        disabled: isSelf || isAdmin,
+        onClick: () => setToDelete(u),
+      },
+    ]}
+  />
+);
       },
     }),
   ], [canCreate, canDelete, me?.id, resendingId]);
@@ -548,6 +736,19 @@ export default function UsersView() {
         nationalities={nationalities}
         driverTypes={driverTypes}
         onInvited={load}
+      />
+
+      <EditUserModal
+        user={editTarget}
+        roles={roles}
+        onClose={() => setEditTarget(null)}
+        onSaved={load}
+      />
+
+      <SetPasswordModal
+        user={passwordTarget}
+        onClose={() => setPasswordTarget(null)}
+        onDone={() => setPasswordTarget(null)}
       />
     </>
   );

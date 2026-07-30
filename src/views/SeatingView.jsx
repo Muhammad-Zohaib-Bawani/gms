@@ -39,7 +39,6 @@ export default function SeatingView({ lang, activeEventId }) {
     viewFullscreen: 'عرض ملء الشاشة', loadingFloor: 'جارٍ تحميل المخطط…',
     noFloor: 'لا يوجد مخطط لهذا الاختيار', selectEventFirst: 'يرجى اختيار فعالية من الأعلى لتعيين الضيوف',
     noResults: 'لا نتائج', seatDisabled: 'هذا المقعد معطّل ولا يمكن تعيينه',
-    seatEligibilityHint: 'لا يظهر هنا سوى الضيوف الذين قبلوا الدعوة، والذين صدر اعتمادهم إن كان مطلوبًا.',
   } : {
     title: 'Seating', sub: 'Floor plan · assign and unassign seats',
     tabFloor: 'Floor plan', tabGuests: 'Guest list',
@@ -53,7 +52,6 @@ export default function SeatingView({ lang, activeEventId }) {
     viewFullscreen: 'View fullscreen', loadingFloor: 'Loading layout…',
     noFloor: 'No layout for this selection', selectEventFirst: 'Select an event from the top bar to assign guests',
     noResults: 'No results', seatDisabled: 'This seat is disabled and cannot be assigned',
-    seatEligibilityHint: 'Only guests who accepted their invitation, and have accreditation issued if required, show up here.',
   };
 
   // ── Venue / Session selection — event comes from the app's active event,
@@ -223,12 +221,7 @@ export default function SeatingView({ lang, activeEventId }) {
   // can still be unassigned, just not newly assigned to someone else.
   const isSeatDisabled = !!assignModal?.table?.seatMeta?.[assignModal?.seatIdx]?.isDisabled;
   const alreadyAssigned = new Set(Object.values(assignments));
-  // A seat can only go to a guest who has accepted their invitation and,
-  // if their tier requires it, already has accreditation issued — mirrors
-  // the backend guard in SeatingService.AssignSeatToGuestAsync.
-  const canSeat = (g) => g.invitationStatus === 'accepted' && (!g.accreditationRequired || g.accreditationStatus === 'issued');
-  const eligibleGuests = guests.filter(canSeat);
-  const filteredForAssign = eligibleGuests
+  const filteredForAssign = guests
     .filter(g => !alreadyAssigned.has(g.id) && (!assignSearch || g.fullName?.toLowerCase().includes(assignSearch.toLowerCase())))
     .slice(0, 8);
 
@@ -504,7 +497,6 @@ export default function SeatingView({ lang, activeEventId }) {
                 <>
                   <input style={inputStyle} value={assignSearch} onChange={e => setAssignSearch(e.target.value)}
                     placeholder={STR.searchGuest} autoFocus/>
-                  <div style={{ fontSize:10.5, color:'var(--ink-faint)', marginTop:5 }}>{STR.seatEligibilityHint}</div>
                   <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:4, maxHeight:240, overflowY:'auto' }}>
                     {filteredForAssign.map(g => (
                       <div key={g.id} onClick={() => !assigning && doAssign(g.id)}
