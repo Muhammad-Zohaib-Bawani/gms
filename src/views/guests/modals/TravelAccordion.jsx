@@ -6,8 +6,9 @@
 //
 // State shape (held by the parent modal):
 //   {
-//     flight:        { enabled, flightTypeId, flightClassId, status, seat,
-//                       flightNumber, fromAirportId, toAirportId, startTime, endTime },
+//     flight:        { enabled, flightType, flightClassId, status, seat,
+//                       legs: [{ id, flightNumber, fromAirportId, toAirportId,
+//                                startTime, endTime }] },
 //     accommodation: { enabled, hotelId, roomTypeId, checkIn, checkOut,
 //                       roomView, guestCount, conciergeName, conciergePhone },
 //     transport:     { enabled, pickupLocationId, dropoffLocationId, vehicleId,
@@ -23,12 +24,19 @@ import DateField from '../../../components/ui/DateField';
 // `id` (a specific booking's public id) is populated only when hydrating an
 // existing booking — see the module doc comment above. Saving with it set
 // updates that exact booking in place; saving with it blank adds a new one.
+export const EMPTY_LEG = {
+  id: '', flightNumber: '', fromAirportId: '', toAirportId: '', startTime: '', endTime: '',
+};
+
+// A return booking is one flight with two legs (outbound + inbound); inbound and
+// outbound are a single leg. LEG_COUNT is what the radio group enforces.
+export const FLIGHT_LEG_COUNT = { inbound: 1, outbound: 1, return: 2 };
+
 export const EMPTY_TRAVEL = {
   flight: {
     enabled: false, id: '',
-    flightTypeId: '', flightClassId: '', status: 'confirmed', seat: '',
-    flightNumber: '', fromAirportId: '', toAirportId: '',
-    startTime: '', endTime: '',
+    flightType: 'inbound', flightClassId: '', status: 'confirmed', seat: '',
+    legs: [{ ...EMPTY_LEG }],
   },
   accommodation: {
     enabled: false, id: '',
@@ -44,9 +52,11 @@ export const EMPTY_TRAVEL = {
 
 // Merge a backend section into the empty defaults, coercing null → '' so the
 // controlled inputs stay happy. Marks the section enabled if data came back.
+// Also used for a single leg, which has no `enabled` flag of its own — hence
+// the key check rather than always stamping one on.
 function hydrateSection(defaults, data) {
   if (!data) return { ...defaults };
-  const out = { ...defaults, enabled: true };
+  const out = { ...defaults, ...('enabled' in defaults ? { enabled: true } : null) };
   for (const k of Object.keys(defaults)) {
     if (k === 'enabled') continue;
     const v = data[k];
@@ -58,12 +68,31 @@ function hydrateSection(defaults, data) {
   return out;
 }
 
+// Legs come back as an array of objects, so hydrateSection's scalar coercion
+// can't touch them — normalised here instead, padded to the count the flight
+// type needs so the form always has the right number of leg field sets.
+function hydrateFlight(data) {
+  const flight = hydrateSection(EMPTY_TRAVEL.flight, data);
+  const type = (data?.flightType || 'inbound').toLowerCase();
+  const legs = (data?.legs || []).map((l) => hydrateSection(EMPTY_LEG, l));
+  flight.flightType = type;
+  flight.legs = padLegs(legs, FLIGHT_LEG_COUNT[type] ?? 1);
+  return flight;
+}
+
+// Exactly `count` legs: extra ones dropped, missing ones blank.
+export function padLegs(legs, count) {
+  const out = (legs || []).slice(0, count);
+  while (out.length < count) out.push({ ...EMPTY_LEG });
+  return out;
+}
+
 // Build state from GET /travel/guest/{id} → { flight?, accommodation?, transport? }.
-// roomTypeId/vehicleId/hotelId/flightTypeId/flightClassId/pickupLocationId/
-// dropoffLocationId all come back as real lookup-table public ids already.
+// roomTypeId/vehicleId/hotelId/flightClassId/pickupLocationId/dropoffLocationId
+// all come back as real lookup-table public ids already; flightType is an enum code.
 export function hydrateTravel(data) {
   return {
-    flight: hydrateSection(EMPTY_TRAVEL.flight, data?.flight),
+    flight: hydrateFlight(data?.flight),
     accommodation: hydrateSection(EMPTY_TRAVEL.accommodation, data?.accommodation),
     transport: hydrateSection(EMPTY_TRAVEL.transport, data?.transport),
   };
@@ -78,11 +107,18 @@ export const anyTravelEnabled = (t) =>
 // uncheck the section to skip it entirely.
 export function validateTravel(t, isAr = false) {
   if (t.flight.enabled) {
-    if (!t.flight.flightTypeId) return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
-    if (!t.flight.flightNumber?.trim()) return isAr ? 'رقم الرحلة مطلوب' : 'Flight number is required';
-    if (!t.flight.fromAirportId) return isAr ? 'مطار المغادرة مطلوب' : 'Departure airport is required';
-    if (!t.flight.toAirportId) return isAr ? 'مطار الوصول مطلوب' : 'Arrival airport is required';
-    if (!t.flight.startTime) return isAr ? 'وقت الإقلاع مطلوب' : 'Departure time is required';
+    if (!t.flight.flightType) return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
+    // Every leg is required in full — a return booking is only useful with both
+    // halves filled in.
+    const legs = t.flight.legs || [];
+    for (let i = 0; i < legs.length; i++) {
+      const leg = legs[i];
+      const n = legs.length > 1 ? ` (${legTitle(t.flight.flightType, i, isAr)})` : '';
+      if (!leg.flightNumber?.trim()) return (isAr ? 'رقم الرحلة مطلوب' : 'Flight number is required') + n;
+      if (!leg.fromAirportId) return (isAr ? 'مطار المغادرة مطلوب' : 'Departure airport is required') + n;
+      if (!leg.toAirportId) return (isAr ? 'مطار الوصول مطلوب' : 'Arrival airport is required') + n;
+      if (!leg.startTime) return (isAr ? 'وقت الإقلاع مطلوب' : 'Departure time is required') + n;
+    }
   }
   if (t.accommodation.enabled) {
     if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
@@ -96,6 +132,26 @@ export function validateTravel(t, isAr = false) {
     if (!t.transport.pickupTime) return isAr ? 'وقت الاستلام مطلوب' : 'Pickup time is required';
   }
   return null;
+}
+
+// Flights.FlightType enum codes → display label. Falls back to the raw code so
+// a value the UI doesn't know still shows something.
+const FLIGHT_TYPE_LABEL = {
+  inbound: { en: 'Inbound', ar: 'قادمة' },
+  outbound: { en: 'Outbound', ar: 'مغادرة' },
+  return: { en: 'Return', ar: 'ذهاب وعودة' },
+};
+
+export const flightTypeLabel = (code, isAr = false) =>
+  FLIGHT_TYPE_LABEL[code]?.[isAr ? 'ar' : 'en'] || code || '—';
+
+// Which half of the trip a leg is, for labels. Only a return booking has two.
+export function legTitle(type, i, isAr = false) {
+  if (type === 'return') {
+    return i === 0 ? (isAr ? 'مغادرة' : 'Outbound') : (isAr ? 'قادمة' : 'Inbound');
+  }
+  if (type === 'outbound') return isAr ? 'مغادرة' : 'Outbound';
+  return isAr ? 'قادمة' : 'Inbound';
 }
 
 function cleanSection(sec, numericKeys = []) {
@@ -113,11 +169,13 @@ function cleanSection(sec, numericKeys = []) {
 export function buildTravelPayload(travel) {
   const body = {};
   if (travel.flight.enabled) {
-    body.flight = cleanSection(travel.flight);
-    // Flights.DepartureTime / ArrivalTime — the booking-level copies of the two
-    // times the form already collects, so listings don't have to walk the legs.
-    body.flight.departureTime = body.flight.startTime;
-    body.flight.arrivalTime = body.flight.endTime;
+    const { legs, ...rest } = travel.flight;
+    body.flight = cleanSection(rest);
+    body.flight.legs = (legs || []).map((l) => cleanSection(l));
+    // Flights.DepartureTime / ArrivalTime — the booking-level copies of the
+    // itinerary ends, so listings don't have to walk the legs.
+    body.flight.departureTime = body.flight.legs[0]?.startTime ?? null;
+    body.flight.arrivalTime = body.flight.legs.at(-1)?.endTime ?? null;
   }
   if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
   if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
@@ -144,6 +202,115 @@ function Label({ children }) {
     <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5 }}>
       {children}
     </label>
+  );
+}
+
+const grid2 = (children) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>
+);
+
+// The flight field set, shared by the guest wizard's accordion and TravelView's
+// per-booking Edit modal so both stay in step. `setFlight` takes a patch object.
+export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, eventMinDate, eventMaxDate }) {
+  const selPlaceholder = isAr ? '— اختر —' : '— Select —';
+  const flightTypes = lookups.flightTypes?.length
+    ? lookups.flightTypes
+    : [{ code: 'inbound', name: 'Inbound' }, { code: 'outbound', name: 'Outbound' }, { code: 'return', name: 'Return' }];
+  const airportOpts = mapOpts(lookups.airports, (a) => `${a.code} — ${a.city}`);
+  const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
+  const legs = flight.legs || [];
+
+  // Switching type resizes the leg list — return grows to two, one-ways shrink
+  // back to one (the second leg's data is dropped, not hidden).
+  const pickType = (code) =>
+    setFlight({ flightType: code, legs: padLegs(legs, FLIGHT_LEG_COUNT[code] ?? 1) });
+
+  const setLeg = (i, key, value) =>
+    setFlight({ legs: legs.map((l, idx) => (idx === i ? { ...l, [key]: value } : l)) });
+
+  return (
+    <>
+      <div>
+        <Label>{isAr ? 'نوع الرحلة' : 'Flight Type'} *</Label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {flightTypes.map((t) => {
+            const active = flight.flightType === t.code;
+            return (
+              <label key={t.code} style={{
+                display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                padding: '7px 12px', borderRadius: 8, fontSize: 12.5,
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--glass-border)'}`,
+                background: active ? 'rgba(141, 1, 52, 0.12)' : 'var(--surface-soft-3)',
+                color: active ? 'var(--accent)' : 'var(--ink-mute)',
+              }}>
+                <input type="radio" name="flightType" value={t.code} checked={active}
+                  onChange={() => pickType(t.code)} style={{ accentColor: 'var(--accent)' }}/>
+                {isAr ? (t.nameAr || t.name) : t.name}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      {grid2(<>
+        <div>
+          <Label>{isAr ? 'الدرجة' : 'Flight Class'}</Label>
+          <Select value={flight.flightClassId} onChange={(v) => setFlight({ flightClassId: v })}
+            options={flightClassOpts} placeholder={selPlaceholder} isClearable/>
+        </div>
+        <div>
+          <Label>{isAr ? 'المقعد' : 'Seat'}</Label>
+          <input style={inputStyle} placeholder="3A" value={flight.seat}
+            onChange={(e) => setFlight({ seat: e.target.value })}/>
+        </div>
+      </>)}
+
+      {legs.map((leg, i) => (
+        <div key={i} style={{
+          display: 'flex', flexDirection: 'column', gap: 12,
+          ...(legs.length > 1 ? {
+            border: '1px solid var(--glass-border)', borderRadius: 10, padding: 12,
+          } : null),
+        }}>
+          {legs.length > 1 && (
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent)' }}>
+              {legTitle(flight.flightType, i, isAr)}
+            </div>
+          )}
+          {grid2(<>
+            <div>
+              <Label>{isAr ? 'من' : 'From'} *</Label>
+              <Select value={leg.fromAirportId} onChange={(v) => setLeg(i, 'fromAirportId', v)}
+                options={airportOpts} placeholder={selPlaceholder}/>
+            </div>
+            <div>
+              <Label>{isAr ? 'إلى' : 'To'} *</Label>
+              <Select value={leg.toAirportId} onChange={(v) => setLeg(i, 'toAirportId', v)}
+                options={airportOpts} placeholder={selPlaceholder}/>
+            </div>
+          </>)}
+          <div>
+            <Label>{isAr ? 'رقم الرحلة' : 'Flight No.'} *</Label>
+            <input style={inputStyle} placeholder="QR 512" value={leg.flightNumber}
+              onChange={(e) => setLeg(i, 'flightNumber', e.target.value)}/>
+          </div>
+          {grid2(<>
+            <div>
+              <Label>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</Label>
+              <DateField value={leg.startTime} onChange={(v) => setLeg(i, 'startTime', v || '')}
+                minDate={legs[i - 1]?.endTime || legs[i - 1]?.startTime || eventMinDate} maxDate={eventMaxDate}
+                showTime placeholder="YYYY-MM-DD HH:mm"/>
+            </div>
+            <div>
+              <Label>{isAr ? 'وقت الوصول' : 'Arrival Time'}</Label>
+              <DateField value={leg.endTime} onChange={(v) => setLeg(i, 'endTime', v || '')}
+                minDate={leg.startTime || eventMinDate} maxDate={eventMaxDate}
+                showTime placeholder="YYYY-MM-DD HH:mm"/>
+            </div>
+          </>)}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -199,19 +366,14 @@ export default function TravelAccordion({
     }));
   };
 
-  const flightTypeOpts = mapOpts(lookups.flightTypes, (x) => x.name);
-  const flightClassOpts = mapOpts(lookups.flightClasses, (x) => x.name);
   const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
   const vehicleOpts = mapOpts(lookups.vehicles, vehicleLabel);
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
   const driverOpts = mapOpts(lookups.drivers, driverLabel);
 
-  // Airports (GET /lookups/airports) back the flight From/To dropdowns —
-  // fromAirportId/toAirportId store the airport's own id (not its code).
-  const airportOpts = mapOpts(lookups.airports, (a) => `${a.code} — ${a.city}`);
-
   // ── field renderers (plain functions → stable element types, no focus loss) ──
+  // eslint-disable-next-line no-unused-vars
   const txt = (section, key, label, { ph = '', type = 'text', required = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
@@ -272,22 +434,14 @@ export default function TravelAccordion({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Section enabled={travel.flight.enabled} onToggle={() => toggle('flight')} icon="flight" title={isAr ? 'الرحلة الجوية' : 'Flight'}>
-        {grid(<>
-          {sel('flight', 'fromAirportId', isAr ? 'من' : 'From', airportOpts, { required: true })}
-          {sel('flight', 'toAirportId', isAr ? 'إلى' : 'To', airportOpts, { required: true })}
-        </>)}
-        {grid(<>
-          {sel('flight', 'flightTypeId', isAr ? 'نوع الرحلة' : 'Flight Type', flightTypeOpts, { required: true })}
-          {sel('flight', 'flightClassId', isAr ? 'الدرجة' : 'Flight Class', flightClassOpts)}
-        </>)}
-        {grid(<>
-          {txt('flight', 'flightNumber', isAr ? 'رقم الرحلة' : 'Flight No.', { ph: 'QR 512', required: true })}
-          {txt('flight', 'seat', isAr ? 'المقعد' : 'Seat', { ph: '3A' })}
-        </>)}
-        {grid(<>
-          {dt('flight', 'startTime', isAr ? 'وقت الإقلاع' : 'Departure Time', { minDate: eventMinDate, maxDate: eventMaxDate, required: true })}
-          {dt('flight', 'endTime', isAr ? 'وقت الوصول' : 'Arrival Time', { minDate: travel.flight.startTime || eventMinDate, maxDate: eventMaxDate })}
-        </>)}
+        <FlightFields
+          flight={travel.flight}
+          setFlight={(patch) => onChange((p) => ({ ...p, flight: { ...p.flight, ...patch } }))}
+          lookups={lookups}
+          isAr={isAr}
+          eventMinDate={eventMinDate}
+          eventMaxDate={eventMaxDate}
+        />
       </Section>
 
       <Section enabled={travel.accommodation.enabled} onToggle={() => toggle('accommodation')} icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>

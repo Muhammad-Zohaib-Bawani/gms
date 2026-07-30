@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable';
 import ActionMenu from '../../components/ui/ActionMenu';
 import LocationPickerModal from '../../components/ui/LocationPickerModal';
 import toast from '../../lib/toast';
+import { uploadImageFile } from '../../api/services/uploadService';
 import { getLookupDef } from './lookupConfig';
 
 const inputStyle = {
@@ -17,6 +18,50 @@ const labelStyle = {
   display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase',
   letterSpacing: '0.12em', marginBottom: 5,
 };
+
+// A `type: 'image'` field: uploads straight to blob storage and keeps the
+// returned URL in the form. The SAS token rides along for the preview and is
+// stripped by the lookup's create() before the URL is persisted.
+function ImageField({ value, onChange, isAr }) {
+  const [uploading, setUploading] = useState(false);
+
+  async function pick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try { onChange(await uploadImageFile(file)); }
+    catch (err) { toast.error(err?.response?.data?.message || (isAr ? 'فشل تحميل الصورة' : 'Failed to upload image')); }
+    finally { setUploading(false); }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ position: 'relative', flex: 1 }}>
+        <input type="file" accept="image/*" onChange={pick} disabled={uploading}
+          style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }}/>
+        <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+          <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }}/>
+          <span style={{ fontSize: 12, color: value ? 'var(--accent)' : 'var(--ink-mute)' }}>
+            {uploading ? (isAr ? 'جارٍ الرفع…' : 'Uploading…')
+              : value ? (isAr ? 'تم الرفع ✓' : 'Uploaded ✓')
+              : (isAr ? 'اختر صورة…' : 'Choose image…')}
+          </span>
+        </div>
+      </div>
+      {value && (
+        <>
+          <img src={value} alt="" style={{ width: 46, height: 34, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--glass-border)' }}
+            onError={e => { e.target.style.display = 'none'; }}/>
+          <button type="button" onClick={() => onChange('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--ink-mute)' }}>
+            {isAr ? 'إزالة' : 'Remove'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 // Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
 export default function LookupsView({ lookupKey, lang }) {
@@ -67,7 +112,12 @@ export default function LookupsView({ lookupKey, lang }) {
       id: c.key,
       header: isAr ? c.label.ar : c.label.en,
       accessorFn: (r) => r[c.key],
-      cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span>,
+      cell: ({ getValue }) => (c.type === 'image'
+        ? (getValue()
+            ? <img src={getValue()} alt="" style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 5 }}
+                onError={e => { e.target.style.display = 'none'; }}/>
+            : <span style={{ fontSize: 13 }}>—</span>)
+        : <span style={{ fontSize: 13 }}>{getValue() || '—'}</span>),
     }));
     if (canEdit) {
       cols.push({
@@ -161,7 +211,9 @@ export default function LookupsView({ lookupKey, lang }) {
         {def.fields.map(f => (
           <div key={f.key} style={{ marginBottom: 12 }}>
             <label style={labelStyle}>{isAr ? f.label.ar : f.label.en}{f.required ? ' *' : ''}</label>
-            {f.optionsFrom ? (
+            {f.type === 'image' ? (
+              <ImageField value={form[f.key] || ''} onChange={v => setF(f.key, v)} isAr={isAr}/>
+            ) : f.optionsFrom ? (
               <Select
                 value={form[f.key] || ''}
                 onChange={v => setF(f.key, v)}

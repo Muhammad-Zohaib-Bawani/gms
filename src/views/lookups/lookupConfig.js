@@ -2,7 +2,6 @@
 // GET (list) + POST (create) endpoint. `columns` drives the table, `fields`
 // drives the Add form. No edit/delete — the backend exposes create only.
 import {
-  getFlightTypes, createFlightType,
   getFlightClasses, createFlightClass,
   getRoomTypes, createRoomType,
   getVehicleTypes, createVehicleType,
@@ -10,6 +9,7 @@ import {
   getAirports, createAirport,
   getLocations,
 } from '../../api/services/travelService';
+import { stripSasToken } from '../../api/services/uploadService';
 import {
   getVenueTypes, createVenueType,
   getElementTypes, createElementType,
@@ -23,13 +23,12 @@ const CITY = { key: 'city', label: { en: 'City', ar: 'المدينة' } };
 const COUNTRY = { key: 'country', label: { en: 'Country', ar: 'الدولة' } };
 const CONTINENT = { key: 'continent', label: { en: 'Continent', ar: 'القارة' } };
 const TYPE = { key: 'type', label: { en: 'Type', ar: 'النوع' } };
+// Uploads to blob storage and stores the URL — see LookupsView's ImageField.
+const IMAGE = { key: 'imageUrl', label: { en: 'Image', ar: 'الصورة' }, type: 'image' };
 
+// Flight types are not here on purpose: they're the FlightType enum
+// (inbound/outbound/return), not admin-managed rows.
 export const LOOKUP_DEFS = [
-  {
-    key: 'flight-types', label: { en: 'Flight Types', ar: 'أنواع الرحلات' },
-    list: getFlightTypes, create: (f) => createFlightType(f.name),
-    columns: [NAME], fields: [{ ...NAME, required: true }],
-  },
   {
     key: 'flight-classes', label: { en: 'Flight Classes', ar: 'درجات الرحلة' },
     list: getFlightClasses, create: (f) => createFlightClass(f.name),
@@ -47,8 +46,10 @@ export const LOOKUP_DEFS = [
   },
   {
     key: 'hotels', label: { en: 'Hotels', ar: 'الفنادق' },
-    list: getHotels, create: (f) => createHotel(f.name, f.address),
-    columns: [NAME, ADDRESS], fields: [{ ...NAME, required: true }, ADDRESS],
+    list: getHotels,
+    create: (f) => createHotel({ name: f.name, address: f.address, imageUrl: stripSasToken(f.imageUrl) || null }),
+    columns: [IMAGE, NAME, ADDRESS],
+    fields: [{ ...NAME, required: true }, ADDRESS, IMAGE],
   },
   {
     key: 'airports', label: { en: 'Airports', ar: 'المطارات' },

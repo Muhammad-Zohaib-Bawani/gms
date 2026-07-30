@@ -5,6 +5,7 @@ import ActionMenu from '../components/ui/ActionMenu';
 import { useAuth } from '../auth/AuthContext';
 import * as eventsApi from '../api/services/eventService';
 import { getVenues } from '../api/services/venueService';
+import { uploadImageFile } from '../api/services/uploadService';
 import { toViewEvent, toEventRequest, toSessionRequest } from '../api/adapters/eventAdapters';
 import { toast } from '../lib/toast';
 import Select from '../components/ui/Select';
@@ -112,14 +113,27 @@ function EventCover({ type, image, width = 56, height = 56, radius = 10 }) {
 }
 
 function LogoInput({ label, value, onChange, isAr }) {
-  const [mode, setMode] = useState(value && value.startsWith('data:') ? 'upload' : 'url');
+  const [mode, setMode] = useState('url');
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
 
-  function handleFile(e) {
+  // Uploads straight to blob storage and stores the returned URL — the form
+  // never carries base64. The SAS token stays on for the preview and is
+  // stripped in toEventRequest before the URL is persisted.
+  async function handleFile(e) {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { onChange(ev.target.result); setMode('upload'); };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      onChange(await uploadImageFile(file));
+      setUploaded(true);
+      setMode('upload');
+    } catch (err) {
+      toast.fromError(err, isAr ? 'فشل تحميل الصورة' : 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -133,7 +147,7 @@ function LogoInput({ label, value, onChange, isAr }) {
           </button>
         ))}
         {value && (
-          <button type="button" onClick={() => onChange('')}
+          <button type="button" onClick={() => { onChange(''); setUploaded(false); }}
             style={{ marginInlineStart: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--ink-mute)', padding: '3px 6px' }}>
             {isAr ? 'إزالة' : 'Remove'}
           </button>
@@ -141,17 +155,19 @@ function LogoInput({ label, value, onChange, isAr }) {
       </div>
       {mode === 'upload' ? (
         <div style={{ position: 'relative' }}>
-          <input type="file" accept="image/*" onChange={handleFile}
+          <input type="file" accept="image/*" onChange={handleFile} disabled={uploading}
             style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }}/>
           <div style={{ ...iStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', height: 38 }}>
             <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }}/>
-            <span style={{ fontSize: 12, color: value && value.startsWith('data:') ? 'var(--accent)' : 'var(--ink-mute)' }}>
-              {value && value.startsWith('data:') ? (isAr ? 'تم الرفع ✓' : 'File uploaded ✓') : (isAr ? 'اختر ملفاً…' : 'Choose image file…')}
+            <span style={{ fontSize: 12, color: uploaded ? 'var(--accent)' : 'var(--ink-mute)' }}>
+              {uploading ? (isAr ? 'جارٍ الرفع…' : 'Uploading…')
+                : uploaded ? (isAr ? 'تم الرفع ✓' : 'File uploaded ✓')
+                : (isAr ? 'اختر ملفاً…' : 'Choose image file…')}
             </span>
           </div>
         </div>
       ) : (
-        <input type="url" style={iStyle} value={value && !value.startsWith('data:') ? value : ''}
+        <input type="url" style={iStyle} value={value || ''}
           onChange={e => onChange(e.target.value)} placeholder="https://…"/>
       )}
       {value && (
