@@ -83,6 +83,18 @@ function stripHtml(html) {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 }
 
+// New messages are plain text. Rows written before that (admin replies stored as
+// "<p>…</p>" by the old rich-text composer) would otherwise show their tags now
+// that nothing renders HTML — so unwrap only bodies that clearly start with the
+// old editor's own markup, and leave real text containing "<" alone.
+const LEGACY_HTML_BODY = /^\s*<(p|ul|ol|div|br)[\s>/]/i;
+
+function plainBody(body) {
+  if (!body) return '';
+  if (!LEGACY_HTML_BODY.test(body)) return body;
+  return stripHtml(body.replace(/<\/(p|li|div)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')).trim();
+}
+
 function sameDay(a, b) {
   const da = new Date(a); const db = new Date(b);
   return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
@@ -779,7 +791,11 @@ export default function SupportChatView({ lang, activeEventId }) {
                     {messages.map((m, i) => {
                       const prev = messages[i - 1];
                       const showDivider = !prev || !sameDay(prev.sentAt, m.sentAt);
-                      const mine = m.fromGuest === false;
+                      // isMine, not fromGuest: SupportMessageResponse has no
+                      // fromGuest field, so the old `m.fromGuest === false` was
+                      // always false and every message rendered on the left.
+                      // The admin endpoints set isMine = !FromGuest server-side.
+                      const mine = m.isMine === true;
                       return (
                         <React.Fragment key={m.id}>
                           {showDivider && (
@@ -797,13 +813,12 @@ export default function SupportChatView({ lang, activeEventId }) {
                                 background: mine ? 'var(--accent)' : 'var(--surface-soft-3)', color: mine ? '#fff' : 'var(--ink)',
                                 fontSize: 13.5, lineHeight: 1.45, wordBreak: 'break-word',
                               }}>
-                                {/* Admin messages are composed as HTML by RichComposer's fixed
-                                    extension schema (no raw-HTML passthrough), so it's safe to
-                                    trust. Guest messages are always plain text — rendered as a
-                                    bare string, which React escapes automatically — never HTML. */}
-                                {m.body && (mine
-                                  ? <div className="chat-message-body" dangerouslySetInnerHTML={{ __html: m.body }} />
-                                  : <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>)}
+                                {/* Plain text both ways — bodies are no longer HTML (the
+                                    composer sends text), so nothing is ever set as innerHTML.
+                                    React escapes the string; pre-wrap keeps the line breaks. */}
+                                {m.body && (
+                                  <div style={{ whiteSpace: 'pre-wrap' }}>{plainBody(m.body)}</div>
+                                )}
                                 {m.attachmentUrl && (
                                   m.attachmentType?.startsWith('image') ? (
                                     <a href={m.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: m.body ? 8 : 0 }}>

@@ -1,19 +1,14 @@
-// Rich-text reply composer for the support chat thread. Bold/italic/underline/
-// highlight/bullets/links via Tiptap (already used elsewhere in the app for
-// InvitationsView's EmailTemplateBuilder — same extensions, same toolbar idiom),
-// plus one image and one generic-file attachment slot (8 MB cap, matches the
-// single AttachmentUrl/AttachmentType column on SupportMessage).
+// Reply composer for the support chat thread: multi-line text (Enter sends,
+// Shift+Enter newlines) plus one image and one generic-file attachment slot
+// (8 MB cap, matches the single AttachmentUrl/AttachmentType column on
+// SupportMessage).
 //
-// Body is sent as HTML. Only admin-authored messages are ever rendered as HTML
-// by the thread view — guest messages are always plain text — so this editor's
-// restricted, schema-based extension set (no raw-HTML passthrough) is the only
-// thing that can ever produce the markup that gets trusted on render.
+// Body is sent as PLAIN TEXT. The formatting toolbar is gone on purpose — every
+// reader of a message body (portal thread, guest app, driver app, notification
+// preview) renders it as text, so markup only ever showed up as literal tags.
 import React, { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Highlight from '@tiptap/extension-highlight';
-import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Icon } from '../../components/Icons';
 import toast from '../../lib/toast';
@@ -21,62 +16,10 @@ import { uploadImageFile, stripSasToken } from '../../api/services/uploadService
 
 export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MB, per spec
 
-const tbBtnStyle = (active) => ({
-  minWidth: 26, height: 26, padding: '0 6px', borderRadius: 6, cursor: 'pointer',
-  border: '1px solid var(--glass-border)', fontSize: 12, lineHeight: 1,
-  background: active ? 'var(--accent)' : 'var(--surface-soft-2)',
-  color: active ? '#fff' : 'var(--ink-dim)',
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-});
-const sep = () => <span style={{ width: 1, height: 18, background: 'var(--glass-border)', margin: '0 2px' }} />;
-
 function fmtBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function Toolbar({ editor, isAr }) {
-  // Tiptap's active/selection state lives outside React — force a re-render on
-  // every editor transaction so isActive() checks (bold/italic/etc.) stay current.
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!editor) return undefined;
-    const rerender = () => force((n) => n + 1);
-    editor.on('selectionUpdate', rerender);
-    editor.on('transaction', rerender);
-    return () => { editor.off('selectionUpdate', rerender); editor.off('transaction', rerender); };
-  }, [editor]);
-  if (!editor) return null;
-
-  const Btn = ({ on, active, title, children }) => (
-    <button type="button" title={title} style={tbBtnStyle(active)}
-      onMouseDown={(e) => { e.preventDefault(); on(); }}>{children}</button>
-  );
-
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-      <Btn on={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title={isAr ? 'عريض' : 'Bold'}><b>B</b></Btn>
-      <Btn on={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title={isAr ? 'مائل' : 'Italic'}><i>I</i></Btn>
-      <Btn on={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title={isAr ? 'تسطير' : 'Underline'}><u>U</u></Btn>
-      <Btn on={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} title={isAr ? 'تظليل' : 'Highlight'}>
-        <span style={{ background: '#ffe066', color: '#000', padding: '0 3px', borderRadius: 2, fontWeight: 600 }}>H</span>
-      </Btn>
-      {sep()}
-      <Btn on={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title={isAr ? 'قائمة نقطية' : 'Bullet list'}>• ≡</Btn>
-      <Btn
-        active={editor.isActive('link')}
-        title={isAr ? 'رابط' : 'Link'}
-        on={() => {
-          if (editor.isActive('link')) { editor.chain().focus().unsetLink().run(); return; }
-          const url = window.prompt(isAr ? 'الرابط:' : 'Link URL:');
-          if (url) editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-        }}
-      >🔗</Btn>
-      {sep()}
-      <Btn title={isAr ? 'مسح التنسيق' : 'Clear formatting'} on={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>Tx</Btn>
-    </div>
-  );
 }
 
 // `onSend({ body, attachmentUrl, attachmentType })` — return `false` to keep the
@@ -94,10 +37,8 @@ export default function RichComposer({ isAr, placeholder, disabled, sending, onS
 
   const editor = useEditor({
     extensions: [
+      // Text only — no heading/marks worth offering when the body is plain text.
       StarterKit.configure({ heading: false }),
-      Underline,
-      Highlight,
-      Link.configure({ openOnClick: false, autolink: true }),
       Placeholder.configure({ placeholder: placeholder || '' }),
     ],
     content: '',
@@ -151,7 +92,10 @@ export default function RichComposer({ isAr, placeholder, disabled, sending, onS
     if (!canSend) return;
     const current = attachmentRef.current;
     const payload = {
-      body: isEmpty ? '' : editor.getHTML(),
+      // Plain text, not getHTML(): the body is stored and rendered as text
+      // everywhere (portal thread, guest app, driver app, notification preview),
+      // so HTML would just show up as literal <p> tags in the apps.
+      body: isEmpty ? '' : editor.getText({ blockSeparator: '\n' }).trim(),
       attachmentUrl: current?.uploadedUrl || null,
       attachmentType: current ? (current.file.type || 'application/octet-stream') : null,
     };
@@ -190,9 +134,6 @@ export default function RichComposer({ isAr, placeholder, disabled, sending, onS
       )}
 
       <div style={{ border: '1px solid var(--glass-border)', borderRadius: 10, background: 'var(--surface-soft-3)', overflow: 'hidden' }}>
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--glass-border)' }}>
-          <Toolbar editor={editor} isAr={isAr} />
-        </div>
         <div className="chat-composer-editor" style={{ padding: '8px 12px', maxHeight: 140, overflowY: 'auto', fontSize: 13.5, color: 'var(--ink)' }}>
           <EditorContent editor={editor} />
         </div>

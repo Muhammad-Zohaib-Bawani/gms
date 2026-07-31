@@ -2452,11 +2452,5 @@ html[data-theme="light"] .modal-solid {
   pointer-events: none;
 }
 
-/* Rendered admin messages (SupportChatView message bubbles) reuse the same
-   node styles as the composer so a sent reply looks identical to how it was
-   composed. */
-.chat-message-body p { margin: 0 0 6px; }
-.chat-message-body p:last-child { margin-bottom: 0; }
-.chat-message-body ul, .chat-message-body ol { padding-inline-start: 20px; margin: 0 0 6px; }
-.chat-message-body a { color: inherit; text-decoration: underline; }
-.chat-message-body mark { background: #ffe066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+/* .chat-message-body removed with the rich-text chat body — message bubbles are
+   plain text now (white-space: pre-wrap inline in SupportChatView). */
