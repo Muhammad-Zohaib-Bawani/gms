@@ -62,11 +62,12 @@ export const getTravelLookups = async () => {
   return { flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers };
 };
 
-// Prefill for edit — { flight?, accommodation?, transport? } (sections may be
-// null, or may not be the guest's only booking of that kind — each Input's
-// `id` says which specific booking this is, so saving it back updates that
-// one in place instead of duplicating it).
-export const getGuestTravel = (guestId) => apiClient.get(ENDPOINTS.travel.guest(guestId));
+// Prefill for edit — { flight?, accommodation?, transport? }. Pass bookingId to
+// prefill that exact booking (Services' per-row Edit); without it the most
+// recent booking of each kind comes back (the guest wizard's accordion). Each
+// section's `id` says which booking it is, so saving updates it in place.
+export const getGuestTravel = (guestId, bookingId) =>
+  apiClient.get(ENDPOINTS.travel.guest(guestId), bookingId ? { params: { bookingId } } : undefined);
 
 // Save the selected sections — send { flight?, accommodation?, transport? }
 // with the unused sections omitted. Include a section's `id` to update that

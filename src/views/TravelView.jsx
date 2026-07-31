@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
@@ -152,21 +153,6 @@ function mapTransfer(r) {
   };
 }
 
-// A guest can have more than one booking of the same kind — group the flat
-// per-booking rows into one entry per guest so the table shows one row per
-// guest, with every booking stacked inside that guest's (widened) details
-// column instead of a duplicate row.
-function groupByGuest(rows) {
-  const map = new Map();
-  for (const r of rows) {
-    if (!map.has(r.guestId)) {
-      map.set(r.guestId, { guestId: r.guestId, name: r.name, initials: r.initials, tier: r.tier, org: r.org, bookings: [] });
-    }
-    map.get(r.guestId).bookings.push(r);
-  }
-  return Array.from(map.values());
-}
-
 // DomainPersistence.Enums.DriverType — 1 = Fixed, 2 = Open (shown as "On call").
 // Colors match the green/orange already used for Active/Pending elsewhere (e.g. UsersView).
 const DRIVER_TYPE_INFO = {
@@ -229,19 +215,27 @@ function FilterBar({ search, onSearch, searchPlaceholder, filter, onFilter, filt
 }
 
 // Guest identity cell — shared by all three tabs; the transfers tab omits the
-// organisation line to keep its wider row readable.
-function GuestCell({ g, withOrg = true }) {
+// organisation line to keep its wider row readable. The name opens that guest's
+// detail page (/guests/:id), which lists every one of their bookings together.
+function GuestCell({ g, withOrg = true, onOpen }) {
+  const name = (
+    <span
+      onClick={onOpen}
+      style={{ fontSize:12.5, fontWeight:500, cursor:onOpen ? 'pointer' : undefined }}
+      title={onOpen ? g.name : undefined}
+    >
+      {g.name}
+    </span>
+  );
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
       <Avatar initials={g.initials} size={28} tier={g.tier}/>
       {withOrg ? (
         <div>
-          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</div>
+          <div>{name}</div>
           <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
         </div>
-      ) : (
-        <span style={{ fontSize:12.5, fontWeight:500 }}>{g.name}</span>
-      )}
+      ) : name}
     </div>
   );
 }
@@ -250,6 +244,7 @@ function GuestCell({ g, withOrg = true }) {
 
 export default function TravelView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
+  const navigate = useNavigate();
   const fmtN = n => fmtNum(n, lang);
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
 
@@ -440,7 +435,9 @@ export default function TravelView({ lang, activeEventId }) {
   async function openEdit(type, row) {
     setEditModal({ type, guestId: row.guestId, guestName: row.name, form: null, loading: true });
     try {
-      const data = await getGuestTravel(row.guestId);
+      // bookingId — the guest may hold several of this kind, and the row the user
+      // clicked is the one to edit (not just the most recent).
+      const data = await getGuestTravel(row.guestId, row.bookingId);
       const section = hydrateTravel(data)[TYPE_TO_SECTION[type]];
       setEditModal({ type, guestId: row.guestId, guestName: row.name, form: { ...section, enabled: true }, loading: false });
     } catch (err) {
@@ -580,26 +577,26 @@ export default function TravelView({ lang, activeEventId }) {
   }
 
   // ── Filtered data ───────────────────────────────────────────────────────────
-  // Filter at the booking level first, then group what's left by guest — a
-  // guest only shows up if at least one of their bookings matches, and only
-  // the matching bookings appear in their stacked cell.
-  const filteredFlights = useMemo(() => groupByGuest(flightRows.filter(r => {
+  // One row per booking — a guest holding three flights is three rows. No
+  // grouping: every service record stands on its own, so each row has a single
+  // value per column (and its own Edit/Remove).
+  const filteredFlights = useMemo(() => flightRows.filter(r => {
     const s = !fSearch || r.name.toLowerCase().includes(fSearch.toLowerCase()) || r.flight.toLowerCase().includes(fSearch.toLowerCase());
     const f = fFlight === 'All' || r.flightStatus === fFlight;
     return s && f;
-  })), [flightRows, fSearch, fFlight]);
+  }), [flightRows, fSearch, fFlight]);
 
-  const filteredHotels = useMemo(() => groupByGuest(hotelRows.filter(r => {
+  const filteredHotels = useMemo(() => hotelRows.filter(r => {
     const s = !hSearch || r.name.toLowerCase().includes(hSearch.toLowerCase()) || r.hotel.toLowerCase().includes(hSearch.toLowerCase());
     const h = hHotel === 'All hotels' || r.hotel === hHotel;
     return s && h;
-  })), [hotelRows, hSearch, hHotel]);
+  }), [hotelRows, hSearch, hHotel]);
 
-  const filteredTransfers = useMemo(() => groupByGuest(transferRows.filter(r => {
+  const filteredTransfers = useMemo(() => transferRows.filter(r => {
     const s = !tSearch || r.name.toLowerCase().includes(tSearch.toLowerCase()) || r.driver.toLowerCase().includes(tSearch.toLowerCase());
     const st = tStatus === 'All' || r.transferStatus === tStatus;
     return s && st;
-  })), [transferRows, tSearch, tStatus]);
+  }), [transferRows, tSearch, tStatus]);
 
 
 
@@ -607,37 +604,18 @@ export default function TravelView({ lang, activeEventId }) {
   const iSt = { width:'100%', background:'var(--surface-soft-3)', border:'1px solid var(--glass-border)', borderRadius:8, padding:'8px 11px', color:'var(--ink)', fontSize:13, boxSizing:'border-box', outline:'none' };
   const lSt = { display:'block', fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4 };
 
-  // A guest's column can hold more than one booking — each column stacks one
-  // row per booking, all sized/spaced identically so they line up across the
-  // guest's whole table row.
-  const stackCell = (bookings, renderFn) => (
-    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      {bookings.map((b, i) => (
-        <div key={b.bookingId ?? i} style={{ minHeight:20, display:'flex', alignItems:'center' }}>{renderFn(b)}</div>
-      ))}
-    </div>
-  );
-
-  // Edit only makes sense when there's exactly one booking of this kind for
-  // the guest (otherwise which one would it edit?) — with more than one,
-  // each gets its own remove button instead.
-  const actionsCell = (type, bookings) => (
-    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      {bookings.map(b => (
-        <div key={b.bookingId} style={{ minHeight:20, display:'flex', alignItems:'center' }}>
-          <ActionMenu
-            items={[
-              bookings.length === 1 && { label: STR.edit, icon: 'edit', onClick: () => openEdit(type, b) },
-              {
-                label: isAr ? 'إزالة' : 'Remove', icon: 'trash', danger: true,
-                disabled: removingId === b.bookingId,
-                onClick: () => removeBooking(type, b.bookingId),
-              },
-            ]}
-          />
-        </div>
-      ))}
-    </div>
+  // One booking per row, so Edit always knows which record it means.
+  const actionsCell = (type, b) => (
+    <ActionMenu
+      items={[
+        { label: STR.edit, icon: 'edit', onClick: () => openEdit(type, b) },
+        {
+          label: isAr ? 'إزالة' : 'Remove', icon: 'trash', danger: true,
+          disabled: removingId === b.bookingId,
+          onClick: () => removeBooking(type, b.bookingId),
+        },
+      ]}
+    />
   );
 
   const nights = (r) => {
@@ -649,23 +627,23 @@ export default function TravelView({ lang, activeEventId }) {
   };
 
   // ── Table columns ─────────────────────────────────────────────────────────
-  // Rows are grouped per guest (see groupByGuest), so each cell stacks one line
-  // per booking of that kind. Sorting is off throughout: a cell can hold several
-  // values, so there is no single value to sort a column on. Each tab renders
-  // its own FilterBar above the table, hence showSearch={false} on the DataTable.
+  // One row per booking, so every cell holds exactly one value. Sorting stays
+  // off (the columns are render-only, with no accessor for the table to sort on).
+  // Each tab renders its own FilterBar above the table, hence showSearch={false}
+  // on the DataTable.
   const columns = useMemo(() => {
     const guest = (withOrg = true) => ({
       id: 'guest', header: STR.cols.guest, enableSorting: false,
-      cell: ({ row }) => <GuestCell g={row.original} withOrg={withOrg} />,
+      cell: ({ row }) => <GuestCell g={row.original} withOrg={withOrg} onOpen={() => navigate(`/guests/${row.original.guestId}`)} />,
     });
-    // One stacked column; `render` receives a single booking.
+    // `render` receives the booking this row is.
     const col = (id, header, render) => ({
       id, header, enableSorting: false,
-      cell: ({ row }) => stackCell(row.original.bookings, render),
+      cell: ({ row }) => render(row.original),
     });
     const actions = (type) => ({
       id: 'actions', header: '', size: 40, enableSorting: false,
-      cell: ({ row }) => actionsCell(type, row.original.bookings),
+      cell: ({ row }) => actionsCell(type, row.original),
     });
 
     const mono = { fontFamily: 'var(--mono)', fontSize: 12 };
@@ -734,7 +712,7 @@ export default function TravelView({ lang, activeEventId }) {
         actions('transfer'),
       ],
     };
-    // stackCell/actionsCell/nights/ad are re-created every render but only read
+    // actionsCell/nights/ad are re-created every render but only read
     // values covered below, so re-memoising on them would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [STR, isAr, removingId]);
@@ -934,7 +912,7 @@ export default function TravelView({ lang, activeEventId }) {
             search={fSearch} onSearch={setFSearch} searchPlaceholder={STR.searchPh}
             filter={fFlight} onFilter={v => setFFlight(v || 'All')}
             filterOptions={flightFilterOpts} filterPlaceholder={STR.cols.status}
-            shown={fmtN(filteredFlights.length)} total={fmtN(groupByGuest(flightRows).length)}
+            shown={fmtN(filteredFlights.length)} total={fmtN(flightRows.length)}
             countLabel={isAr ? 'من' : 'of'}
           />
           <div className="card" style={{ padding:0 }}>
@@ -957,7 +935,7 @@ export default function TravelView({ lang, activeEventId }) {
             search={hSearch} onSearch={setHSearch} searchPlaceholder={STR.searchPh}
             filter={hHotel} onFilter={v => setHHotel(v || 'All hotels')}
             filterOptions={hotelFilterOpts} filterPlaceholder={STR.cols.hotel}
-            shown={fmtN(filteredHotels.length)} total={fmtN(groupByGuest(hotelRows).length)}
+            shown={fmtN(filteredHotels.length)} total={fmtN(hotelRows.length)}
             countLabel={isAr ? 'من' : 'of'}
           />
           <div className="card" style={{ padding:0 }}>
@@ -980,7 +958,7 @@ export default function TravelView({ lang, activeEventId }) {
             search={tSearch} onSearch={setTSearch} searchPlaceholder={STR.searchPh}
             filter={tStatus} onFilter={v => setTStatus(v || 'All')}
             filterOptions={transferFilterOpts} filterPlaceholder={STR.cols.status}
-            shown={fmtN(filteredTransfers.length)} total={fmtN(groupByGuest(transferRows).length)}
+            shown={fmtN(filteredTransfers.length)} total={fmtN(transferRows.length)}
             countLabel={isAr ? 'من' : 'of'}
           />
           <div className="card" style={{ padding:0 }}>

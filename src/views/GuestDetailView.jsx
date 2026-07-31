@@ -329,6 +329,15 @@ export default function GuestDetailView({ guestId, lang }) {
             <Field label={isAr ? 'الفئة' : 'Tier'} value={guest.tier} />
             <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
             <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
+            {/* GuestServiceType.Transport (3) on the guest's allowed-services
+                list — whether they may book a car from the app themselves,
+                regardless of what's booked for them in the Transport section. */}
+            <Field
+              label={isAr ? 'طلب النقل من التطبيق' : 'Self-book transport'}
+              value={(guest.allowedServices || []).includes(3)
+                ? (isAr ? 'مسموح' : 'Allowed')
+                : (isAr ? 'غير مسموح' : 'Not allowed')}
+            />
           </div>
         </Section>
 

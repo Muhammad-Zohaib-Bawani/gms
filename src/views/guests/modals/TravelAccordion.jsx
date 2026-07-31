@@ -48,6 +48,12 @@ export const EMPTY_TRAVEL = {
     pickupLocationId: '', dropoffLocationId: '', vehicleId: '', driverId: '',
     pickupTime: '', dropoffTime: '',
   },
+  // Guest-level permission, deliberately outside `transport`: it applies with no
+  // booking at all, and toggling a section clears that section's fields.
+  // undefined = untouched → left out of the payload → backend leaves it alone.
+  // That's what keeps TravelView's per-booking Edit modals (which rebuild state
+  // from EMPTY_TRAVEL) from silently revoking it.
+  allowTransportRequest: undefined,
 };
 
 // Merge a backend section into the empty defaults, coercing null → '' so the
@@ -95,11 +101,14 @@ export function hydrateTravel(data) {
     flight: hydrateFlight(data?.flight),
     accommodation: hydrateSection(EMPTY_TRAVEL.accommodation, data?.accommodation),
     transport: hydrateSection(EMPTY_TRAVEL.transport, data?.transport),
+    allowTransportRequest: !!data?.allowTransportRequest,
   };
 }
 
+// Allowing the guest to book their own transport counts as something to save —
+// it's the whole point of the toggle that it needs no booking alongside it.
 export const anyTravelEnabled = (t) =>
-  !!(t.flight.enabled || t.accommodation.enabled || t.transport.enabled);
+  !!(t.flight.enabled || t.accommodation.enabled || t.transport.enabled || t.allowTransportRequest);
 
 // Returns an error message for the first missing required field, or null if OK.
 // A checked-but-empty section is what this guards against: once a section is
@@ -179,6 +188,9 @@ export function buildTravelPayload(travel) {
   }
   if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
   if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
+  // Only when it was actually set — see EMPTY_TRAVEL.allowTransportRequest.
+  if (typeof travel.allowTransportRequest === 'boolean')
+    body.allowTransportRequest = travel.allowTransportRequest;
   return body;
 }
 
@@ -311,6 +323,44 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
         </div>
       ))}
     </>
+  );
+}
+
+// Opt-in row with a two-line label. Same box/check/accent treatment as the
+// Section header's tick, so a checkbox inside a panel reads as the same control
+// as the one on the panel itself — the native input is kept only for keyboard
+// and screen readers (browsers won't style it to match).
+function CheckRow({ checked, onChange, label, hint }) {
+  return (
+    <label style={{
+      display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+      padding: '11px 12px', borderRadius: 8,
+      border: `1px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
+      background: checked ? 'rgba(141, 1, 52, 0.10)' : 'var(--surface-soft-3)',
+      transition: 'border-color 0.15s ease, background 0.15s ease',
+    }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        // Off-screen, not display:none — still focusable and announced.
+        style={{ position: 'absolute', opacity: 0, width: 1, height: 1, margin: 0 }}
+      />
+      <div style={{
+        width: 18, height: 18, borderRadius: 5, flexShrink: 0, marginTop: 1,
+        display: 'grid', placeItems: 'center',
+        border: `2px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
+        background: checked ? 'var(--accent)' : 'transparent',
+      }}>
+        {checked && <Icon name="check" size={10} style={{ color: '#fff' }} />}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: checked ? 600 : 400, color: 'var(--ink)' }}>{label}</div>
+        {hint && (
+          <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginTop: 2, lineHeight: 1.4 }}>{hint}</div>
+        )}
+      </div>
+    </label>
   );
 }
 
@@ -464,6 +514,18 @@ export default function TravelAccordion({
       </Section>
 
       <Section enabled={travel.transport.enabled} onToggle={() => toggle('transport')} icon="car" title={isAr ? 'النقل' : 'Transport'}>
+        {/* Guest-level permission, not part of this booking — kept in `travel`
+            root state (not travel.transport), so unticking the section afterwards
+            clears the booking fields but keeps the permission. */}
+        <CheckRow
+          checked={!!travel.allowTransportRequest}
+          onChange={(v) => onChange((p) => ({ ...p, allowTransportRequest: v }))}
+          label={isAr ? 'السماح للضيف بطلب النقل من التطبيق' : 'Allow guest to book transport themselves'}
+          hint={isAr
+            ? 'يمكن للضيف طلب سيارة من التطبيق حتى بدون حجز نقل هنا'
+            : 'Guest can request a car from the app, even with no transport booked here'}
+        />
+
         {grid(<>
           {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true })}
           {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}

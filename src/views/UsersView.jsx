@@ -195,7 +195,12 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
         } : {}),
       });
       if (created?.inviteEmailSent === false) {
-        toast.warning(`User created, but the invite email to ${form.email.trim()} could not be sent — use Resend Invite to try again.`);
+        // Includes the provider's own reason (quota, rejected recipient, …) —
+        // without it "no email arrived" gives the admin nothing to act on.
+        toast.warning(
+          `User created, but the invite email to ${form.email.trim()} could not be sent — use Resend Invite to try again.`
+          + (created.inviteEmailError ? ` ${created.inviteEmailError}` : ''),
+        );
       } else {
         toast.success(`Invite sent to ${form.email.trim()}`);
       }
