@@ -297,7 +297,7 @@ export default function TravelView({ lang, activeEventId }) {
       status:'Status',hotel:'Hotel',room:'Room',
       checkIn:'Check-in',checkOut:'Check-out',nights:'Nights',
       vehicle:'Vehicle',driver:'Driver',driverType:'Driver Type',pickup:'Pickup',dropoff:'Drop-off',time:'Time',
-      inboundRoute:'Arrivals',outboundRoute:'Outbound Route',organization:'Organization',duration:'Duration' },
+      inboundRoute:'Arrivals',outboundRoute:'Departures',organization:'Organization',duration:'Duration' },
     direction:{ all:'All flights',inbound:'Arrivals',outbound:'Departures' },
     dateFrom:'From date', dateTo:'To date', clearDates:'Clear dates',
     statuses:{ approved:'Approved',submitted:'In review',pending:'Pending',rejected:'Rejected',
@@ -749,7 +749,10 @@ export default function TravelView({ lang, activeEventId }) {
 />
                   <span>{f.arrivalCode || '—'}</span>
                 </div>
-                <div style={{ fontSize:11, color:'var(--ink-mute)', fontFamily:'var(--mono)', marginTop:2 }}>
+                <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2 }}>
+                  {dateLabelFor(f.departureTime || f.arrivalTime)}
+                </div>
+                <div style={{ fontSize:11, color:'var(--ink-mute)', fontFamily:'var(--mono)' }}>
                   {timeRange(f.departureTime, f.arrivalTime)}
                 </div>
               </div>

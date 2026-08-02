@@ -44,7 +44,7 @@ export default function SeatingView({ lang, activeEventId }) {
     tabFloor: 'Floor plan', tabGuests: 'Guest list',
     assignSeat: 'Assign seat', seatAssigned: 'Seat assigned',
     unassign: 'Unassign', searchGuest: 'Search guest…',
-    cancel: 'Cancel', assign: 'Assign', table: 'Table', seat: 'Seat', guest: 'Guest',
+    cancel: 'Cancel', assign: 'Assign', table: 'Table/Block', seat: 'Seat', guest: 'Guest',
     noSeat: '—', assigned: 'Assigned', unassigned: 'Unassigned',
     totalAssigned: 'seats assigned', totalSeats: 'total seats',
     venue: 'Venue', session: 'Session',

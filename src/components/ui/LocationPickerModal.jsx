@@ -319,7 +319,7 @@ export default function LocationPickerModal({ open, onClose, lang, onSelect, def
         {showResults && (
           <div style={{
             position: 'absolute', bottom: 'calc(100% - 2px)', left: 0, right: 0, zIndex: 1200,
-            background: 'var(--surface-solid, #14161c)', border: '1px solid var(--glass-border)',
+            background: 'var(--surface-solid, rgb(20, 22, 28))', border: '1px solid var(--glass-border)',
             borderRadius: 10, boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
             maxHeight: 240, overflowY: 'auto', marginBottom: 6,
           }}>
@@ -335,14 +335,14 @@ export default function LocationPickerModal({ open, onClose, lang, onSelect, def
                 onClick={() => handleChooseResult(r)}
                 style={{
                   display: 'block', width: '100%', textAlign: isAr ? 'right' : 'left',
-                  padding: '9px 12px', border: 0, cursor: 'pointer', color: 'var(--ink)',
-                  background: i === activeIndex ? '#dedede' : 'white',
+                  padding: '9px 12px', border: 0, cursor: 'pointer', color: '#000',
+                  background: i === activeIndex ? '#ececec' : 'white',
                   borderBottom: i < results.length - 1 ? '1px solid var(--glass-border)' : 0,
                 }}
               >
                 <div style={{ fontSize: 13, marginBottom: 2 }}>{r.name}</div>
                 <div style={{
-                  fontSize: 11, color: 'var(--ink-faint)',
+                  fontSize: 11, color: 'gray',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{r.detail}</div>
               </button>
