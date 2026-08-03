@@ -175,7 +175,7 @@ export default function ImportEventsModal({ open, onClose, lang, onImported, ini
           <div style={{ fontSize: 12, color: 'var(--ink-mute)', fontStyle: 'italic' }}>
             {isAr
               ? 'يمكنك إغلاق هذه النافذة والانتقال إلى صفحات أخرى — سيتم إشعارك عند الانتهاء.'
-              : "You can close this and go do other things — we'll notify you when it's done."}
+              : "You can close this - we'll notify you when import is done."}
           </div>
         )}
 
