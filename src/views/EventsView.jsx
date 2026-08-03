@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { Icon } from '../components/Icons';
 import ActionMenu from '../components/ui/ActionMenu';
@@ -459,6 +460,21 @@ export default function EventsView({ lang }) {
 
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [showImportEvents, setShowImportEvents] = useState(false);
+  const [importBatchId, setImportBatchId] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep-link from an "import finished" notification (?importBatch=<id>) —
+  // reopen the modal straight into its results view.
+  useEffect(() => {
+    const batchId = searchParams.get('importBatch');
+    if (!batchId) return;
+    setImportBatchId(batchId);
+    setShowImportEvents(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('importBatch');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const [showNewSession, setShowNewSession] = useState(false);
   const [editEventId, setEditEventId] = useState(null);
   const [editSessionId, setEditSessionId] = useState(null);
@@ -658,9 +674,10 @@ export default function EventsView({ lang }) {
 
       <ImportEventsModal
         open={showImportEvents}
-        onClose={() => setShowImportEvents(false)}
+        onClose={() => { setShowImportEvents(false); setImportBatchId(null); }}
         lang={lang}
         onImported={reload}
+        initialBatchId={importBatchId}
       />
 
 

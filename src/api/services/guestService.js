@@ -40,6 +40,8 @@ export const updateGuest = (id, body) => apiClient.put(ENDPOINTS.guests.byId(id)
 
 export const deleteGuest = (id) => apiClient.delete(ENDPOINTS.guests.byId(id));
 
+// Kicks off a background import job and returns immediately — { batchId, status }.
+// The actual CSV parsing/insert happens in a Hangfire job; poll getGuestImportBatch.
 export const importGuests = (eventId, file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -47,6 +49,8 @@ export const importGuests = (eventId, file) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
+
+export const getGuestImportBatch = (batchId) => apiClient.get(ENDPOINTS.guests.importBatch(batchId));
 
 export const deleteSelectedGuests = (eventId, guestIds) =>
   apiClient.delete(ENDPOINTS.guests.deleteSelected(eventId), {

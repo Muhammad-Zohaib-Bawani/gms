@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
 import { Avatar, StatusChip, TierChip } from "../components/UI";
 import { Icon } from "../components/Icons";
@@ -27,6 +27,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const isAr = lang === "ar";
   const fmtN = (n) => fmtNum(n, lang);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ── data ──────────────────────────────────────────────────────────────────
   const [guests, setGuests] = useState([]);
@@ -84,6 +85,19 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [showAccred, setShowAccred] = useState(false);
   const [showDeleteGuests, setShowDeleteGuests] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [importBatchId, setImportBatchId] = useState(null);
+
+  // Deep-link from an "import finished" notification (?importBatch=<id>) —
+  // reopen the modal straight into its results view.
+  useEffect(() => {
+    const batchId = searchParams.get('importBatch');
+    if (!batchId) return;
+    setImportBatchId(batchId);
+    setShowImport(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('importBatch');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const selCount = selectedGuests.length;
   const clearSelection = () => setSelResetKey((k) => k + 1);
@@ -735,10 +749,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
       <ImportModal
         open={showImport}
-        onClose={() => setShowImport(false)}
+        onClose={() => { setShowImport(false); setImportBatchId(null); }}
         activeEventId={activeEventId}
         lang={lang}
         onImported={loadGuests}
+        initialBatchId={importBatchId}
       />
     </div>
   );

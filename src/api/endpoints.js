@@ -54,6 +54,7 @@ export const ENDPOINTS = {
     session: (id, sessionId) => `/v1/events/${id}/sessions/${sessionId}`,
     importTemplate: '/v1/events/import-template',
     import: '/v1/events/import',
+    importBatch: (batchId) => `/v1/events/import/${batchId}`,
     types: '/v1/events/types',
   },
 
@@ -63,6 +64,7 @@ export const ENDPOINTS = {
     // Slim feed for guest pickers — name/org/tier/photo, searched + paged server-side.
     picker: '/v1/guest/picker',
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
+    importBatch: (batchId) => `/v1/guest/import/${batchId}`,
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
     issueAccreditation: (id) => `/v1/guest/${id}/accreditation/issue`,
     revokeAccreditation: (id) => `/v1/guest/${id}/accreditation/revoke`,

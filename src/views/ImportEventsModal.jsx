@@ -1,8 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Modal from '../components/ui/Modal';
 import { Icon } from '../components/Icons';
+import ImportBatchResults from '../components/ui/ImportBatchResults';
 import toast from '../lib/toast';
-import { getEventImportTemplate, importEvents } from '../api/services/eventService';
+import useImportBatchPoll from '../lib/useImportBatchPoll';
+import { getEventImportTemplate, importEvents, getEventImportBatch } from '../api/services/eventService';
 
 function downloadBlob(blob, fileName) {
   const url = URL.createObjectURL(blob);
@@ -15,27 +17,58 @@ function downloadBlob(blob, fileName) {
 
 const STALE_CATEGORIES = new Set(['stale_venue', 'stale_type']);
 
-// Bulk-import events from the Excel template. Two distinct failure surfaces:
+// Bulk-import events from the Excel template. The upload only kicks off a
+// Hangfire job (StartEventsImportAsync) and returns a batch id — the actual
+// parsing/insert runs in the background, so the user can close this modal
+// and keep working; a notification (bell icon) fires when it's done, deep-
+// linking back here via `?importBatch=` (see EventsView).
+//
+// Two distinct failure surfaces once results come in:
 // 1. A dedicated "your template looks outdated" popup — only for rows that
-//    failed because a Venue/Type value no longer exists (or never did) —
-//    since that's a template problem, not a data problem, and the fix is
-//    always the same: re-export and redo just those rows.
-// 2. The ordinary per-row results table — every row, pass or fail, with the
-//    reason for any failure (including the stale ones, so nothing's hidden).
-export default function ImportEventsModal({ open, onClose, lang, onImported }) {
+//    failed because a Venue/Type value no longer exists (or never did).
+// 2. The ordinary per-row results table — every row, pass or fail.
+export default function ImportEventsModal({ open, onClose, lang, onImported, initialBatchId }) {
   const isAr = lang === 'ar';
   const fileInputRef = useRef(null);
+  const notifiedRef = useRef(false);
 
   const [downloading, setDownloading] = useState(false);
   const [file, setFile] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [batchId, setBatchId] = useState(null);
   const [showStalePopup, setShowStalePopup] = useState(false);
+
+  const status = useImportBatchPoll(batchId, getEventImportBatch);
+
+  // Reopened from a notification deep-link — jump straight to results.
+  useEffect(() => {
+    if (open && initialBatchId) { setBatchId(initialBatchId); notifiedRef.current = true; }
+  }, [open, initialBatchId]);
+
+  useEffect(() => {
+    if (!status || notifiedRef.current) return;
+    if (status.status !== 'completed' && status.status !== 'failed') return;
+    notifiedRef.current = true;
+
+    if (status.rows?.some(r => STALE_CATEGORIES.has(r.errorCategory))) setShowStalePopup(true);
+    if (status.imported > 0) onImported?.();
+
+    if (status.status === 'failed') {
+      toast.error(status.errorMessage || (isAr ? 'فشل الاستيراد' : 'Import failed'));
+    } else if (status.failed === 0) {
+      toast.success(isAr ? `تم استيراد ${status.imported} فعالية` : `Imported ${status.imported} event${status.imported === 1 ? '' : 's'}`);
+    } else {
+      toast.warning(isAr
+        ? `تم استيراد ${status.imported} من ${status.total} — فشل ${status.failed}`
+        : `Imported ${status.imported} of ${status.total} — ${status.failed} failed`);
+    }
+  }, [status, isAr, onImported]);
 
   function reset() {
     setFile(null);
-    setResult(null);
+    setBatchId(null);
     setShowStalePopup(false);
+    notifiedRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -58,34 +91,27 @@ export default function ImportEventsModal({ open, onClose, lang, onImported }) {
 
   function handlePickFile(e) {
     const f = e.target.files?.[0];
-    if (f) { setFile(f); setResult(null); }
+    if (f) { setFile(f); setBatchId(null); notifiedRef.current = false; }
   }
 
-  async function handleImport() {
+  async function handleStartImport() {
     if (!file) return;
-    setImporting(true);
+    setStarting(true);
     try {
       const res = await importEvents(file);
-      setResult(res);
-      if (res.rows?.some(r => STALE_CATEGORIES.has(r.errorCategory))) setShowStalePopup(true);
-      if (res.imported > 0) onImported?.();
-      if (res.failed === 0) {
-        toast.success(isAr ? `تم استيراد ${res.imported} فعالية` : `Imported ${res.imported} event${res.imported === 1 ? '' : 's'}`);
-      } else {
-        toast.warning(isAr
-          ? `تم استيراد ${res.imported} من ${res.total} — فشل ${res.failed}`
-          : `Imported ${res.imported} of ${res.total} — ${res.failed} failed`);
-      }
+      setBatchId(res.batchId);
+      toast.success(isAr ? 'بدأ الاستيراد في الخلفية' : 'Import started in the background');
     } catch (err) {
-      toast.fromError(err, isAr ? 'تعذّر استيراد الملف' : 'Could not import the file');
+      toast.fromError(err, isAr ? 'تعذّر بدء الاستيراد' : 'Could not start the import');
     } finally {
-      setImporting(false);
+      setStarting(false);
     }
   }
 
-  const staleValues = result
-    ? [...new Set(result.rows.filter(r => STALE_CATEGORIES.has(r.errorCategory)).map(r => r.error))]
+  const staleValues = status
+    ? [...new Set((status.rows || []).filter(r => STALE_CATEGORIES.has(r.errorCategory)).map(r => r.error))]
     : [];
+  const isProcessing = batchId && status && status.status !== 'completed' && status.status !== 'failed';
 
   return (
     <>
@@ -98,73 +124,62 @@ export default function ImportEventsModal({ open, onClose, lang, onImported }) {
         footer={
           <>
             <button className="btn" onClick={handleClose}>{isAr ? 'إغلاق' : 'Close'}</button>
-            <button className="btn primary" onClick={handleImport} disabled={!file || importing}>
-              <Icon name="upload" size={13}/>
-              {importing ? (isAr ? 'جارٍ الاستيراد…' : 'Importing…') : (isAr ? 'استيراد' : 'Import')}
-            </button>
+            {!batchId && (
+              <button className="btn primary" onClick={handleStartImport} disabled={!file || starting}>
+                <Icon name="upload" size={13}/>
+                {starting ? (isAr ? 'جارٍ البدء…' : 'Starting…') : (isAr ? 'استيراد' : 'Import')}
+              </button>
+            )}
           </>
         }
       >
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
-          background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 10,
-        }}>
-          <Icon name="download" size={16} style={{ color: 'var(--accent)', flexShrink: 0 }}/>
-          <div style={{ flex: 1, fontSize: 12, color: 'var(--ink-mute)' }}>
-            {isAr
-              ? 'ابدأ دائماً بتحميل قالب جديد — الأماكن والأنواع في القائمة المنسدلة تعكس ما هو موجود في المنصة الآن.'
-              : 'Always start with a fresh template — the Venue/Type dropdowns reflect what currently exists in the portal.'}
-          </div>
-          <button className="btn" style={{ flexShrink: 0, fontSize: 12 }} onClick={handleDownloadTemplate} disabled={downloading}>
-            <Icon name="download" size={13}/> {downloading ? (isAr ? 'جارٍ التحميل…' : 'Downloading…') : (isAr ? 'تحميل القالب' : 'Download Template')}
-          </button>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>
-            {isAr ? 'ملف الاستيراد' : 'Import File'}
-          </label>
-          <div style={{ position: 'relative' }}>
-            <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handlePickFile}
-              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }}/>
+        {!batchId && (
+          <>
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none',
-              background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 8, padding: '9px 12px',
+              display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+              background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 10,
             }}>
-              <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }}/>
-              <span style={{ fontSize: 12, color: file ? 'var(--accent)' : 'var(--ink-mute)' }}>
-                {file ? file.name : (isAr ? 'اختر ملف .xlsx…' : 'Choose a .xlsx file…')}
-              </span>
+              <Icon name="download" size={16} style={{ color: 'var(--accent)', flexShrink: 0 }}/>
+              <div style={{ flex: 1, fontSize: 12, color: 'var(--ink-mute)' }}>
+                {isAr
+                  ? 'ابدأ دائماً بتحميل قالب جديد — الأماكن والأنواع في القائمة المنسدلة تعكس ما هو موجود في المنصة الآن.'
+                  : 'Always start with a fresh template — the Venue/Type dropdowns reflect what currently exists in the portal.'}
+              </div>
+              <button className="btn" style={{ flexShrink: 0, fontSize: 12 }} onClick={handleDownloadTemplate} disabled={downloading}>
+                <Icon name="download" size={13}/> {downloading ? (isAr ? 'جارٍ التحميل…' : 'Downloading…') : (isAr ? 'تحميل القالب' : 'Download Template')}
+              </button>
             </div>
-          </div>
-        </div>
 
-        {result && (
-          <div>
-            <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 12 }}>
-              <span style={{ color: 'var(--ink-mute)' }}>{isAr ? 'الإجمالي' : 'Total'} <strong style={{ color: 'var(--ink)' }}>{result.total}</strong></span>
-              <span style={{ color: 'var(--accent)' }}>{isAr ? 'تم الاستيراد' : 'Imported'} <strong>{result.imported}</strong></span>
-              <span style={{ color: result.failed ? '#e08a7e' : 'var(--ink-mute)' }}>{isAr ? 'فشل' : 'Failed'} <strong>{result.failed}</strong></span>
-            </div>
-            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--glass-border)', borderRadius: 8 }}>
-              {result.rows.map((r) => (
-                <div key={r.row} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', fontSize: 12,
-                  borderBottom: '1px solid var(--glass-border)',
+            <div>
+              <label style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>
+                {isAr ? 'ملف الاستيراد' : 'Import File'}
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input ref={fileInputRef} type="file" accept=".xlsx" onChange={handlePickFile}
+                  style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%', zIndex: 1 }}/>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none',
+                  background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 8, padding: '9px 12px',
                 }}>
-                  <Icon name={r.success ? 'check' : 'close'} size={13}
-                    style={{ color: r.success ? 'var(--accent)' : '#e08a7e', flexShrink: 0, marginTop: 1 }}/>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500 }}>
-                      {isAr ? `صف ${r.row}` : `Row ${r.row}`}{r.title ? ` — ${r.title}` : ''}
-                    </div>
-                    {!r.success && <div style={{ color: '#e08a7e', marginTop: 2 }}>{r.error}</div>}
-                  </div>
+                  <Icon name="upload" size={13} style={{ color: 'var(--ink-mute)', flexShrink: 0 }}/>
+                  <span style={{ fontSize: 12, color: file ? 'var(--accent)' : 'var(--ink-mute)' }}>
+                    {file ? file.name : (isAr ? 'اختر ملف .xlsx…' : 'Choose a .xlsx file…')}
+                  </span>
                 </div>
-              ))}
+              </div>
             </div>
+          </>
+        )}
+
+        {isProcessing && (
+          <div style={{ fontSize: 12, color: 'var(--ink-mute)', fontStyle: 'italic' }}>
+            {isAr
+              ? 'يمكنك إغلاق هذه النافذة والانتقال إلى صفحات أخرى — سيتم إشعارك عند الانتهاء.'
+              : "You can close this and go do other things — we'll notify you when it's done."}
           </div>
         )}
+
+        <ImportBatchResults status={status} isAr={isAr}/>
       </Modal>
 
       {/* Dedicated "outdated template" popup — only for stale Venue/Type

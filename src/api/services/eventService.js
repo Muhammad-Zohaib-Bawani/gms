@@ -19,13 +19,18 @@ export const deleteEvent = (id) => apiClient.delete(ENDPOINTS.events.byId(id));
 export const getEventImportTemplate = () =>
   apiClient.get(ENDPOINTS.events.importTemplate, { responseType: 'blob' });
 
+// Kicks off a background import job and returns immediately — { batchId, status }.
+// The actual parsing/insert happens in a Hangfire job; poll getEventImportBatch.
 export const importEvents = (file) => {
   const formData = new FormData();
   formData.append('file', file);
   return apiClient.post(ENDPOINTS.events.import, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
-}; // -> ImportEventsResult { total, imported, failed, rows: [{ row, title, success, error, errorCategory }] }
+};
+
+export const getEventImportBatch = (batchId) => apiClient.get(ENDPOINTS.events.importBatch(batchId));
+// -> ImportBatchStatusDto { id, kind, status, total, imported, failed, errorMessage, rows: [{ row, title, success, error, errorCategory }] }
 
 // Admin-managed lookup — replaces the old hardcoded EVENT_TYPES list.
 export const getEventTypes = () => apiClient.get(ENDPOINTS.events.types);
