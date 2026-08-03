@@ -94,7 +94,7 @@ export default function VenueCanvas({
               <rect width="100%" height="100%" fill="url(#gridPat)"/>
             </svg>
 
-            {tables.map(t => {
+            {tables.map((t, i) => {
               const isSel = t.id === selectedId;
               const showDel = deleteSeatMode && isSel && tableHasSeats(t);
               const seatIdx = selectedSeat && selectedSeat.tableId === t.id ? selectedSeat.index : null;
@@ -102,6 +102,7 @@ export default function VenueCanvas({
                 <CanvasElement
                   key={t.id}
                   table={t}
+                  index={i}
                   selected={isSel}
                   showDeleteSeat={showDel}
                   selectedSeatIndex={seatIdx}

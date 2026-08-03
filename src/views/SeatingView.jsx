@@ -353,10 +353,11 @@ export default function SeatingView({ lang, activeEventId }) {
                     <rect width="100%" height="100%" fill="url(#sgrid)"/>
                   </svg>
 
-                  {renderTables.map(t => (
+                  {renderTables.map((t, i) => (
                     <CanvasElement
                       key={t.id}
                       table={t}
+                      index={i}
                       selected={false}
                       showDeleteSeat={false}
                       selectedSeatIndex={null}

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icons';
+import MessageList from './supportChat/MessageList.jsx';
 import { Avatar } from '../components/UI';
 import Select from '../components/ui/Select';
 import { useAuth } from '../auth/AuthContext';
@@ -788,63 +789,17 @@ export default function SupportChatView({ lang, activeEventId }) {
                         </button>
                       </div>
                     )}
-                    {messages.map((m, i) => {
-                      const prev = messages[i - 1];
-                      const showDivider = !prev || !sameDay(prev.sentAt, m.sentAt);
-                      // isMine, not fromGuest: SupportMessageResponse has no
-                      // fromGuest field, so the old `m.fromGuest === false` was
-                      // always false and every message rendered on the left.
-                      // The admin endpoints set isMine = !FromGuest server-side.
-                      const mine = m.isMine === true;
-                      return (
-                        <React.Fragment key={m.id}>
-                          {showDivider && (
-                            <div style={{ textAlign: 'center', margin: '14px 0', fontSize: 11, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              {dayLabel(m.sentAt, isAr)}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
-                            <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-                              {mine && m.senderName && (
-                                <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 2 }}>{m.senderName}</div>
-                              )}
-                              <div style={{
-                                padding: '9px 13px', borderRadius: mine ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                                background: mine ? 'var(--accent)' : 'var(--surface-soft-3)', color: mine ? '#fff' : 'var(--ink)',
-                                fontSize: 13.5, lineHeight: 1.45, wordBreak: 'break-word',
-                              }}>
-                                {/* Plain text both ways — bodies are no longer HTML (the
-                                    composer sends text), so nothing is ever set as innerHTML.
-                                    React escapes the string; pre-wrap keeps the line breaks. */}
-                                {m.body && (
-                                  <div style={{ whiteSpace: 'pre-wrap' }}>{plainBody(m.body)}</div>
-                                )}
-                                {m.attachmentUrl && (
-                                  m.attachmentType?.startsWith('image') ? (
-                                    <a href={m.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: m.body ? 8 : 0 }}>
-                                      <img src={m.attachmentUrl} alt="" style={{ maxWidth: '100%', borderRadius: 8, display: 'block' }} />
-                                    </a>
-                                  ) : (
-                                    <a href={m.attachmentUrl} target="_blank" rel="noreferrer"
-                                      style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: m.body ? 8 : 0, color: 'inherit', textDecoration: 'underline', fontSize: 12 }}>
-                                      <Icon name="doc" size={13} /> {isAr ? 'مرفق' : 'Attachment'}
-                                    </a>
-                                  )
-                                )}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 10.5, color: 'var(--ink-faint)' }}>
-                                {timeOfDay(m.sentAt, isAr)}
-                                {mine && (
-                                  <span title={m.isRead ? STR.read : STR.sent} style={{ display: 'inline-flex', color: m.isRead ? 'var(--accent)' : 'var(--ink-faint)' }}>
-                                    <Icon name="checkDouble" size={12} />
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
+                    <MessageList
+                      messages={messages}
+                      isAr={isAr}
+                      STR={STR}
+                      plainBody={plainBody}
+                      sameDay={sameDay}
+                      dayLabel={dayLabel}
+                      timeOfDay={timeOfDay}
+                      initialsFromName={initialsFromName}
+                      guestName={activeConversation?.guestName}
+                    />
                   </>
                 )}
               </div>
