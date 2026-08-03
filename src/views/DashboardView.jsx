@@ -1,19 +1,20 @@
 // Event overview. Every number here comes from GET /v1/Dashboard/{eventId}
 // (GetDashboardResponse) — nothing is invented client-side, so what the client
 // sees is what the data actually says.
+//
+// The panels themselves live in ./dashboard/parts.jsx; this file is the layout
+// plus the small amount of shaping needed to turn API counts into chart rows.
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { Avatar, StatusChip, ServiceLevelChip } from '../components/UI';
-import { Icon } from '../components/Icons';
 import {
-  PageHeader, Card, CardHead, Grid, Button, StatCard, Badge, Progress,
-  EmptyState, Skeleton, Alert, staggerParent, fadeUpItem,
+  PageHeader, Card, CardHead, Grid, Button, StatCard,
+  EmptyState, Skeleton, Alert, staggerParent,
 } from '../components/ds';
+import {
+  DonutPanel, BreakdownPanel, ReadinessPanel, MovementsPanel, FunnelPanel, AgendaPanel,
+} from './dashboard/parts';
 import toast from '../lib/toast';
 import { getDashboard } from '../api/services/dashboardService';
 
@@ -55,28 +56,14 @@ const getGreeting = (lang = 'en') => {
   return 'Good Evening';
 };
 
-const CHART_COLORS = ['#8d0134', '#c21857', '#a78bda', '#4a9edd', '#5abf6e', '#e0b864'];
-
-/** Themed recharts tooltip — the library's default is a white box that breaks in dark mode. */
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--popover-bg)', border: '1px solid var(--glass-border)',
-      borderRadius: 10, padding: '9px 11px', boxShadow: 'var(--shadow-lg)', fontSize: 12,
-    }}>
-      {label != null && (
-        <div style={{ color: 'var(--ink-mute)', marginBottom: 5, fontSize: 11 }}>{label}</div>
-      )}
-      {payload.map((p, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--ink)' }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: p.color || p.fill }} />
-          <span style={{ color: 'var(--ink-mute)' }}>{p.name}</span>
-          <strong style={{ marginInlineStart: 'auto' }}>{p.value}</strong>
-        </div>
-      ))}
-    </div>
-  );
+/** Days between today and the event start; negative once it's under way. */
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const start = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.round((start - now) / 86400000);
 }
 
 export default function DashboardView({ onOpenGuest, gotoView, lang, activeEventId }) {
@@ -107,84 +94,119 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const STR = isAr ? {
     export: 'تصدير', newInvite: 'دعوة جديدة', viewGuests: 'كل الضيوف',
     totalGuests: 'إجمالي الضيوف', confirmed: 'مؤكدون', awaiting: 'في الانتظار',
-    travel: 'حجوزات السفر', accred: 'اعتمادات صادرة',
+    travel: 'حجوزات السفر', accred: 'اعتمادات صادرة', responseRate: 'نسبة الرد',
     funnelTitle: 'مسار التأكيد', funnelSub: 'من الدعوة إلى الاعتماد',
     rsvpTitle: 'ملخص الردود', rsvpSub: 'حسب حالة الدعوة',
+    accredTitle: 'الاعتماد', accredSub: 'حسب حالة الشارة',
+    levelsTitle: 'مستويات الخدمة', levelsSub: 'الضيوف حسب المستوى',
+    natTitle: 'الجنسيات', natSub: 'الأكثر تمثيلاً',
+    orgTitle: 'المؤسسات', orgSub: 'الأكثر تمثيلاً',
+    readyTitle: 'جاهزية التشغيل', readySub: 'تقدّم كل مسار عمل',
+    moveTitle: 'الوصول والمغادرة', moveSub: 'حسب اليوم',
     recentTitle: 'آخر نشاط الضيوف', recentSub: 'أحدث الإضافات والتحديثات',
     todayTitle: 'برنامج اليوم', meetingsTitle: 'الاجتماعات القادمة',
     quickTitle: 'إجراءات سريعة',
     cols: { guest: 'الضيف', level: 'المستوى', org: 'المؤسسة', status: 'الحالة', arrival: 'الوصول' },
     noSessionsToday: 'لا توجد جلسات اليوم', noMeetings: 'لا توجد اجتماعات قادمة',
     noGuests: 'لا يوجد ضيوف بعد', noGuestsHint: 'أضف ضيوفاً لتظهر هنا',
+    noData: 'لا توجد بيانات بعد', noDataHint: 'ستظهر هنا عند إضافة الضيوف.',
     noEvent: 'اختر فعالية', noEventHint: 'اختر فعالية من الشريط العلوي لعرض لوحة المعلومات.',
     loadError: 'تعذّر تحميل لوحة المعلومات', loadErrorHint: 'تحقّق من الاتصال ثم أعد المحاولة.',
-    retry: 'إعادة المحاولة', of: 'من',
+    retry: 'إعادة المحاولة', of: 'من', guests: 'ضيوف',
+    arrivals: 'الوصول', departures: 'المغادرة',
+    accredIssued: 'اعتماد صادر', travelArranged: 'سفر مُرتَّب', seated: 'مقاعد مخصّصة', invited: 'دعوات مُرسلة',
+    daysToGo: 'يوم متبقٍ', inProgress: 'جارية الآن',
     qa: { addGuest: 'إضافة ضيف', invite: 'إرسال دعوة', accredit: 'الاعتماد', seating: 'الجلوس' },
+    rsvp: { accepted: 'مقبولة', awaiting: 'في الانتظار', declined: 'مرفوضة', notSent: 'لم تُرسل' },
+    accredLabels: { issued: 'صادرة', pending: 'قيد الانتظار', revoked: 'ملغاة', notRequired: 'غير مطلوبة' },
   } : {
     export: 'Export', newInvite: 'New Invitation', viewGuests: 'All guests',
     totalGuests: 'Total Guests', confirmed: 'Confirmed', awaiting: 'Awaiting Response',
-    travel: 'Travel Booked', accred: 'Accreditation Issued',
+    travel: 'Travel Booked', accred: 'Accreditation Issued', responseRate: 'Response rate',
     funnelTitle: 'Confirmation funnel', funnelSub: 'Invitation through to accreditation',
     rsvpTitle: 'RSVP summary', rsvpSub: 'By invitation status',
+    accredTitle: 'Accreditation', accredSub: 'By badge status',
+    levelsTitle: 'Service levels', levelsSub: 'Guests per level',
+    natTitle: 'Nationalities', natSub: 'Most represented',
+    orgTitle: 'Organisations', orgSub: 'Most represented',
+    readyTitle: 'Operational readiness', readySub: 'Progress across each workstream',
+    moveTitle: 'Arrivals & departures', moveSub: 'By day',
     recentTitle: 'Recent guest activity', recentSub: 'Latest additions and updates',
     todayTitle: "Today's programme", meetingsTitle: 'Upcoming meetings',
     quickTitle: 'Quick actions',
     cols: { guest: 'Guest', level: 'Service Level', org: 'Organisation', status: 'Status', arrival: 'Arrival' },
     noSessionsToday: 'No sessions today', noMeetings: 'No upcoming meetings',
     noGuests: 'No guests yet', noGuestsHint: 'Guests you add to this event will appear here.',
+    noData: 'Nothing to show yet', noDataHint: 'This fills in as you add guests.',
     noEvent: 'No event selected', noEventHint: 'Pick an event from the top bar to see its dashboard.',
     loadError: 'Could not load the dashboard', loadErrorHint: 'Check your connection and try again.',
-    retry: 'Retry', of: 'of',
+    retry: 'Retry', of: 'of', guests: 'Guests',
+    arrivals: 'Arrivals', departures: 'Departures',
+    accredIssued: 'Accreditation issued', travelArranged: 'Travel arranged', seated: 'Seats assigned', invited: 'Invitations sent',
+    daysToGo: 'days to go', inProgress: 'In progress',
     qa: { addGuest: 'Add guest', invite: 'Send invitation', accredit: 'Accreditation', seating: 'Seating' },
+    rsvp: { accepted: 'Accepted', awaiting: 'Awaiting', declined: 'Declined', notSent: 'Not sent' },
+    accredLabels: { issued: 'Issued', pending: 'Pending', revoked: 'Revoked', notRequired: 'Not required' },
   };
 
   const funnel = dashboard?.funnelData || {
     totalGuests: 0, confirmedGuest: 0, awaitingGuest: 0, travelBooked: 0, accreditationIssued: 0,
   };
+  const rsvp = dashboard?.rsvp || { accepted: 0, declined: 0, awaiting: 0, notSent: 0, responseRate: 0 };
+  const accred = dashboard?.accreditation || { issued: 0, pending: 0, revoked: 0, notRequired: 0 };
+  const travel = dashboard?.travel || { flightsBooked: 0, accommodationBooked: 0, transportBooked: 0, guestsWithTravel: 0 };
+  const seating = dashboard?.seating || { assigned: 0, unassigned: 0 };
   const total = funnel.totalGuests || 0;
   const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
-  // Funnel as a horizontal bar chart — each stage is a real backend count.
   const funnelData = useMemo(() => ([
     { stage: isAr ? 'الإجمالي' : 'Total', value: total },
+    { stage: isAr ? 'مدعوّون' : 'Invited', value: total - (rsvp.notSent || 0) },
     { stage: isAr ? 'مؤكد' : 'Confirmed', value: funnel.confirmedGuest },
-    { stage: isAr ? 'الانتظار' : 'Awaiting', value: funnel.awaitingGuest },
     { stage: isAr ? 'السفر' : 'Travel', value: funnel.travelBooked },
     { stage: isAr ? 'معتمد' : 'Accredited', value: funnel.accreditationIssued },
-  ]), [funnel, total, isAr]);
+  ]), [funnel, rsvp, total, isAr]);
 
-  // RSVP donut, derived from the same funnel counts. "No response" is whatever
-  // the invited/confirmed numbers don't account for, so the ring always totals.
-  const rsvpData = useMemo(() => {
-    const noResponse = Math.max(0, total - funnel.confirmedGuest - funnel.awaitingGuest);
+  // Zero-value slices are dropped so the ring never renders invisible segments.
+  const rsvpData = useMemo(() => ([
+    { name: STR.rsvp.accepted, value: rsvp.accepted, color: '#5abf6e' },
+    { name: STR.rsvp.awaiting, value: rsvp.awaiting, color: '#e0b864' },
+    { name: STR.rsvp.declined, value: rsvp.declined, color: '#d1584a' },
+    { name: STR.rsvp.notSent, value: rsvp.notSent, color: '#c9ced6' },
+  ].filter((d) => d.value > 0)), [rsvp, STR]);
+
+  const accredData = useMemo(() => ([
+    { name: STR.accredLabels.issued, value: accred.issued, color: '#5abf6e' },
+    { name: STR.accredLabels.pending, value: accred.pending, color: '#e0b864' },
+    { name: STR.accredLabels.revoked, value: accred.revoked, color: '#d1584a' },
+    { name: STR.accredLabels.notRequired, value: accred.notRequired, color: '#c9ced6' },
+  ].filter((d) => d.value > 0)), [accred, STR]);
+
+  // Server sends one row per day that has movement; only worth a chart when
+  // there's more than a single day to compare.
+  const movements = useMemo(() => (dashboard?.movements || []).map((m) => ({
+    date: new Date(`${m.date}T00:00:00`).toLocaleDateString(isAr ? 'ar' : 'en-US', { month: 'short', day: 'numeric' }),
+    arrivals: m.arrivals,
+    departures: m.departures,
+  })), [dashboard, isAr]);
+
+  // Denominators differ per workstream on purpose: accreditation is measured
+  // against guests who actually need a badge, not the whole list.
+  const readinessRows = useMemo(() => {
+    const needsAccred = accred.issued + accred.pending + accred.revoked;
     return [
-      { name: isAr ? 'مؤكد' : 'Confirmed', value: funnel.confirmedGuest, color: '#5abf6e' },
-      { name: isAr ? 'في الانتظار' : 'Awaiting', value: funnel.awaitingGuest, color: '#e0b864' },
-      { name: isAr ? 'لم يُرسل' : 'Not sent', value: noResponse, color: '#c9ced6' },
-    ].filter((d) => d.value > 0);
-  }, [funnel, total, isAr]);
-
-  // Arrivals per day across the event, from the guests the API returned. Only
-  // rendered when there's something real to plot.
-  const arrivalTrend = useMemo(() => {
-    const rows = dashboard?.recentGuests || [];
-    const byDay = new Map();
-    rows.forEach((g) => {
-      if (!g.arrivalDate) return;
-      byDay.set(g.arrivalDate, (byDay.get(g.arrivalDate) || 0) + 1);
-    });
-    return Array.from(byDay.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, count]) => ({
-        date: new Date(date).toLocaleDateString(isAr ? 'ar' : 'en-US', { month: 'short', day: 'numeric' }),
-        guests: count,
-      }));
-  }, [dashboard, isAr]);
+      { label: STR.invited, icon: 'invitation', tint: '#8d0134', value: total - rsvp.notSent, max: total },
+      { label: STR.accredIssued, icon: 'badge', tint: '#4a9edd', value: accred.issued, max: needsAccred },
+      { label: STR.travelArranged, icon: 'travel', tint: '#a78bda', value: travel.guestsWithTravel, max: total },
+      { label: STR.seated, icon: 'seating', tint: '#5abf6e', value: seating.assigned, max: total },
+    ];
+  }, [accred, travel, seating, rsvp, total, STR]);
 
   const today = todayStr();
   const todaySessions = (dashboard?.sessions || []).filter((s) => s.date === today);
   const upcomingMeetings = (dashboard?.meetings || []).filter((m) => m.date >= today).slice(0, 5);
   const recentGuests = dashboard?.recentGuests || [];
+  const countdown = daysUntil(dashboard?.startDate);
 
   const eventLine = dashboard
     ? [
@@ -192,6 +214,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
         dashboard.venue,
         dashboard.startDate
           ? `${dashboard.startDate}${dashboard.endDate && dashboard.endDate !== dashboard.startDate ? ` – ${dashboard.endDate}` : ''}`
+          : null,
+        countdown != null
+          ? (countdown > 0 ? `${ad(countdown)} ${STR.daysToGo}` : STR.inProgress)
           : null,
       ].filter(Boolean).join(' · ')
     : null;
@@ -207,7 +232,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     toast.success(isAr ? 'تم التصدير' : 'Exported');
   }
 
-  // ── No event / error / loading ────────────────────────────────────────────
   if (!activeEventId) {
     return (
       <div>
@@ -234,9 +258,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
         }
       />
 
-      {loadError && (
-        <Alert tone="danger" title={STR.loadError}>{STR.loadErrorHint}</Alert>
-      )}
+      {loadError && <Alert tone="danger" title={STR.loadError}>{STR.loadErrorHint}</Alert>}
 
       {loading ? (
         <Grid min={220}>
@@ -250,165 +272,73 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
           <motion.div {...staggerParent}>
             <Grid min={216} style={{ marginBottom: 18 }}>
               <StatCard label={STR.totalGuests} value={fmtN(total)} icon="guests" tint="#8d0134" />
-              <StatCard label={STR.confirmed} value={fmtN(funnel.confirmedGuest)} icon="check" tint="#5abf6e"
-                delta={total ? pct(funnel.confirmedGuest) : null} deltaLabel={`${STR.of} ${fmtN(total)}`} />
-              <StatCard label={STR.awaiting} value={fmtN(funnel.awaitingGuest)} icon="clock" tint="#e0b864" />
-              <StatCard label={STR.accred} value={fmtN(funnel.accreditationIssued)} icon="badge" tint="#4a9edd" />
+              <StatCard label={STR.confirmed} value={fmtN(rsvp.accepted)} icon="check" tint="#5abf6e"
+                delta={total ? pct(rsvp.accepted) : null} deltaLabel={`${STR.of} ${fmtN(total)}`} />
+              <StatCard label={STR.responseRate} value={`${ad(rsvp.responseRate)}%`} icon="invitation" tint="#e0b864"
+                deltaLabel={`${fmtN(rsvp.accepted + rsvp.declined)} ${STR.of} ${fmtN(total - rsvp.notSent)}`} />
+              <StatCard label={STR.accred} value={fmtN(accred.issued)} icon="badge" tint="#4a9edd"
+                deltaLabel={`${fmtN(accred.pending)} ${STR.accredLabels.pending.toLowerCase()}`} />
             </Grid>
           </motion.div>
 
-          {/* ── Charts ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 16, marginBottom: 18 }}
-            className="dash-charts">
-            <motion.div {...fadeUpItem} initial="hidden" animate="show">
-              <Card>
-                <CardHead title={STR.funnelTitle} subtitle={STR.funnelSub} icon="reports" />
-                <div style={{ height: 232 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={funnelData} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
-                      <CartesianGrid horizontal={false} stroke="var(--glass-border)" />
-                      <XAxis type="number" tick={{ fill: 'var(--ink-mute)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="stage" width={78}
-                        tick={{ fill: 'var(--ink-dim)', fontSize: 11.5 }} axisLine={false} tickLine={false} />
-                      <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--hover-tint)' }} />
-                      <Bar dataKey="value" name={isAr ? 'ضيوف' : 'Guests'} radius={[0, 6, 6, 0]} maxBarSize={26}>
-                        {funnelData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            </motion.div>
-
-            <motion.div {...fadeUpItem} initial="hidden" animate="show">
-              <Card>
-                <CardHead title={STR.rsvpTitle} subtitle={STR.rsvpSub} icon="invitation" />
-                {rsvpData.length === 0 ? (
-                  <EmptyState icon="invitation" title={STR.noGuests}>{STR.noGuestsHint}</EmptyState>
-                ) : (
-                  <>
-                    <div style={{ height: 168, position: 'relative' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={rsvpData} dataKey="value" nameKey="name"
-                            innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
-                            {rsvpData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                          </Pie>
-                          <Tooltip content={<ChartTooltip />} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div style={{
-                        position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
-                        pointerEvents: 'none',
-                      }}>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>{fmtN(total)}</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--ink-mute)' }}>{STR.totalGuests}</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 12 }}>
-                      {rsvpData.map((d) => (
-                        <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                          <span style={{ color: 'var(--ink-dim)' }}>{d.name}</span>
-                          <span style={{ marginInlineStart: 'auto', fontWeight: 600 }}>{fmtN(d.value)}</span>
-                          <span style={{ color: 'var(--ink-mute)', fontSize: 11, minWidth: 34, textAlign: 'end' }}>
-                            {ad(pct(d.value))}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </Card>
-            </motion.div>
+          {/* ── Funnel + RSVP ── */}
+          <div className="dash-charts"
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 16, marginBottom: 18 }}>
+            <FunnelPanel title={STR.funnelTitle} subtitle={STR.funnelSub} data={funnelData} seriesName={STR.guests} />
+            <DonutPanel
+              title={STR.rsvpTitle} subtitle={STR.rsvpSub} icon="invitation" data={rsvpData}
+              centerValue={fmtN(total)} centerLabel={STR.totalGuests}
+              emptyTitle={STR.noGuests} emptyHint={STR.noGuestsHint} fmtN={fmtN} ad={ad}
+            />
           </div>
 
-          {/* ── Arrivals trend (only when there are dated arrivals) ── */}
-          {arrivalTrend.length > 1 && (
-            <Card style={{ marginBottom: 18 }}>
-              <CardHead
-                title={isAr ? 'وصول الضيوف' : 'Guest arrivals'}
-                subtitle={isAr ? 'حسب تاريخ الوصول' : 'By arrival date'}
-                icon="travel"
-              />
-              <div style={{ height: 190 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={arrivalTrend} margin={{ left: -18, right: 8, top: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="arrivalFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#8d0134" stopOpacity={0.28} />
-                        <stop offset="100%" stopColor="#8d0134" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="var(--glass-border)" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: 'var(--ink-mute)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: 'var(--ink-mute)', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Area type="monotone" dataKey="guests" name={isAr ? 'ضيوف' : 'Guests'}
-                      stroke="#8d0134" strokeWidth={2} fill="url(#arrivalFill)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+          {/* ── Readiness + accreditation ── */}
+          <div className="dash-charts"
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 16, marginBottom: 18 }}>
+            <ReadinessPanel title={STR.readyTitle} subtitle={STR.readySub} rows={readinessRows} fmtN={fmtN} ad={ad} />
+            <DonutPanel
+              title={STR.accredTitle} subtitle={STR.accredSub} icon="badge" data={accredData}
+              centerValue={fmtN(accred.issued)} centerLabel={STR.accredLabels.issued}
+              emptyTitle={STR.noData} emptyHint={STR.noDataHint} fmtN={fmtN} ad={ad}
+            />
+          </div>
+
+          {/* ── Movements (only worth a chart with more than one dated day) ── */}
+          {movements.length > 1 && (
+            <div style={{ marginBottom: 18 }}>
+              <MovementsPanel title={STR.moveTitle} subtitle={STR.moveSub} data={movements}
+                labels={{ arrivals: STR.arrivals, departures: STR.departures }} />
+            </div>
           )}
+
+          {/* ── Composition breakdowns ── */}
+          <Grid min={280} style={{ marginBottom: 18 }}>
+            <BreakdownPanel title={STR.levelsTitle} subtitle={STR.levelsSub} icon="star"
+              rows={dashboard?.serviceLevels} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
+              fmtN={fmtN} isAr={isAr} />
+            <BreakdownPanel title={STR.natTitle} subtitle={STR.natSub} icon="globe"
+              rows={dashboard?.nationalities} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
+              fmtN={fmtN} isAr={isAr} />
+            <BreakdownPanel title={STR.orgTitle} subtitle={STR.orgSub} icon="venue"
+              rows={dashboard?.organizations} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
+              fmtN={fmtN} isAr={isAr} />
+          </Grid>
 
           {/* ── Programme / meetings / quick actions ── */}
           <Grid min={280} style={{ marginBottom: 18 }}>
-            <Card padded={false}>
-              <div style={{ padding: '16px 18px 0' }}>
-                <CardHead title={STR.todayTitle} icon="calendar" />
-              </div>
-              <div style={{ padding: '0 18px 16px' }}>
-                {todaySessions.length === 0 ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', padding: '8px 0 4px' }}>
-                    {STR.noSessionsToday}
-                  </div>
-                ) : todaySessions.map((s) => (
-                  <div key={s.id} style={{
-                    display: 'flex', gap: 11, padding: '9px 0',
-                    borderBottom: '1px solid var(--glass-border)',
-                  }}>
-                    <span style={{
-                      fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--accent)',
-                      minWidth: 42, direction: 'ltr',
-                    }}>{s.time || '—'}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 550 }}>{s.title}</div>
-                      {s.room && <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{s.room}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card padded={false}>
-              <div style={{ padding: '16px 18px 0' }}>
-                <CardHead title={STR.meetingsTitle} icon="meetings" />
-              </div>
-              <div style={{ padding: '0 18px 16px' }}>
-                {upcomingMeetings.length === 0 ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', padding: '8px 0 4px' }}>
-                    {STR.noMeetings}
-                  </div>
-                ) : upcomingMeetings.map((m) => (
-                  <div key={m.id} style={{
-                    display: 'flex', gap: 11, padding: '9px 0',
-                    borderBottom: '1px solid var(--glass-border)', alignItems: 'center',
-                  }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 550 }}>{m.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
-                        {m.date}{m.startTime ? ` · ${String(m.startTime).slice(0, 5)}` : ''}
-                        {m.location ? ` · ${m.location}` : ''}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
+            <AgendaPanel
+              title={STR.todayTitle} icon="calendar" emptyText={STR.noSessionsToday}
+              items={todaySessions.map((s) => ({ id: s.id, time: s.time || '—', title: s.title, detail: s.room }))}
+            />
+            <AgendaPanel
+              title={STR.meetingsTitle} icon="meetings" emptyText={STR.noMeetings}
+              items={upcomingMeetings.map((m) => ({
+                id: m.id,
+                time: m.startTime ? String(m.startTime).slice(0, 5) : null,
+                title: m.name,
+                detail: [m.date, m.location].filter(Boolean).join(' · '),
+              }))}
+            />
             <Card>
               <CardHead title={STR.quickTitle} icon="star" />
               <div style={{ display: 'grid', gap: 8 }}>
