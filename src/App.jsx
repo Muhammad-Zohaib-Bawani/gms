@@ -1085,7 +1085,6 @@ export default function App() {
     () => localStorage.getItem('gms-side-collapsed') === '1',
   );
   const [openMenus, setOpenMenus] = useState({});
-  const [globalSearch, setGlobalSearch] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const profileRef = React.useRef(null);
@@ -1245,20 +1244,6 @@ export default function App() {
     return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
   }, [showProfile]);
 
-  // "/" focuses global search, the way most dashboards behave. Ignored while
-  // the user is already typing in a field.
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== '/' || e.metaKey || e.ctrlKey) return;
-      const t = e.target;
-      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
-      e.preventDefault();
-      document.querySelector('.topbar-search input')?.focus();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
-
   // Route -> title + trail. Walks NAV so a parent (e.g. Lookups) shows up as an
   // ancestor crumb of its child, and never hardcodes a second copy of the labels.
   const { currentPageTitle, breadcrumbs } = useMemo(() => {
@@ -1410,24 +1395,6 @@ export default function App() {
               </React.Fragment>
             ))}
           </div>
-        </div>
-
-        <div className="topbar-search">
-          <Icon name="search" size={15}/>
-          <input
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && globalSearch.trim()) {
-                // Guests is the only list with server-side search, so that's
-                // where a global query is most useful.
-                navigate(`/guests?q=${encodeURIComponent(globalSearch.trim())}`);
-              }
-            }}
-            placeholder={lang === 'ar' ? 'بحث…' : 'Search guests, events…'}
-            aria-label={lang === 'ar' ? 'بحث' : 'Search'}
-          />
-          <kbd>/</kbd>
         </div>
 
         <div className="right">

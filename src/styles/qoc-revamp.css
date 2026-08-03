@@ -1,3 +1,226 @@
+/* ==========================================================================
+   THEME TOKENS
+   Moved here from style.css - see the note at the top of that file.
+   ========================================================================== */
+:root, html[data-theme="light"] {
+  /* Neutral greys, deliberately NOT pink-tinted: a maroon-tinted page fights
+     the maroon sidebar and reads cheap. The brand colour earns its impact by
+     being the only saturated thing on screen. */
+  --bg-0: #ffffff;
+  --bg-1: #f7f8fa;
+  --bg-2: #f1f3f6;
+  --bg: #f7f8fa;
+
+  --ink: #14161a;
+  --ink-dim: rgba(20, 22, 26, 0.72);
+  --ink-mute: rgba(20, 22, 26, 0.52);
+  --ink-faint: rgba(20, 22, 26, 0.32);
+
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --accent-soft: #fdf2f5;
+  --maroon: #8d0134;
+  --teal: #8d0134;
+  --rose: #c25c4e;
+
+  --card-bg: #ffffff;
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #e6e8ec;
+  --glass-border-strong: #d6d9df;
+  --glass-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+
+  --surface-soft:   #fafbfc;
+  --surface-soft-2: #f5f6f8;
+  --surface-soft-3: #f1f3f6;
+  --surface-soft-4: #e9ecf0;
+  --surface-soft-5: #dfe3e8;
+  --hover-tint: rgba(20, 22, 26, 0.04);
+  --selected-tint: rgba(141, 1, 52, 0.07);
+  --row-tint: rgba(20, 22, 26, 0.015);
+
+  --modal-bg: #ffffff;
+  --popover-bg: #ffffff;
+  --status-active: #8d0134;
+
+  /* Elevation ladder — light themes need real layered shadows, not one blur. */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.04);
+  --shadow-xl: 0 20px 24px -4px rgba(16, 24, 40, 0.10), 0 8px 8px -4px rgba(16, 24, 40, 0.04);
+
+  /* Semantic status — used by badges/alerts/toasts consistently. */
+  --ok: #067647;      --ok-bg: #ecfdf3;      --ok-border: #abefc6;
+  --warn: #b54708;    --warn-bg: #fffaeb;    --warn-border: #fedf89;
+  --danger: #b42318;  --danger-bg: #fef3f2;  --danger-border: #fecdca;
+  --info: #175cd3;    --info-bg: #eff8ff;    --info-border: #b2ddff;
+}
+
+/* ── Dark (opt-in via the topbar theme toggle) ───────────────────────────── */
+html[data-theme="dark"] {
+  --bg-0: #14000a;
+  --bg-1: #200011;
+  --bg-2: #2e0018;
+  --bg: #200011;
+
+  --ink: #eaf6f9;
+  --ink-dim: rgba(234, 246, 249, 0.74);
+  --ink-mute: rgba(234, 246, 249, 0.50);
+  --ink-faint: rgba(234, 246, 249, 0.16);
+
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --accent-soft: rgba(141, 1, 52, 0.18);
+  --maroon: #8d0134;
+  --teal: #8d0134;
+  --rose: #e08a7e;
+
+  --card-bg: #200011;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 12px -2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 14px 22px -6px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 40px -8px rgba(0, 0, 0, 0.65);
+
+  --ok: #5abf6e;      --ok-bg: rgba(90,191,110,0.14);   --ok-border: rgba(90,191,110,0.38);
+  --warn: #e0c47e;    --warn-bg: rgba(224,196,126,0.14); --warn-border: rgba(224,196,126,0.38);
+  --danger: #e08a7e;  --danger-bg: rgba(224,138,126,0.14); --danger-border: rgba(224,138,126,0.38);
+  --info: #7db6e8;    --info-bg: rgba(125,182,232,0.14); --info-border: rgba(125,182,232,0.38);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-strong: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 16px 48px rgba(2, 6, 20, 0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+
+  --surface-soft: rgba(255,255,255,0.06);
+  --surface-soft-2: rgba(255,255,255,0.08);
+  /* Input/field fill — bumped so fields read as raised on the maroon bg. */
+  --surface-soft-3: rgba(255,255,255,0.12);
+  --surface-soft-4: rgba(255,255,255,0.15);
+  --surface-soft-5: rgba(255,255,255,0.18);
+  --hover-tint: rgba(255,255,255,0.12);
+  --selected-tint: rgba(141, 1, 52,0.10);
+  --row-tint: rgba(255,255,255,0.025);
+
+  /* Opaque surfaces that float over the page (modals, calendar poppers,
+     menus). They can't be translucent or the content behind bleeds through. */
+  --modal-bg: #2a0616;
+  --popover-bg: #33091e;
+  /* "Active" status: the maroon accent is unreadable on the maroon surfaces,
+     so dark mode uses plain white. */
+  --status-active: #ffffff;
+}
+
+:root {
+  /* ── Brand chrome (sidebar + topbar) — identical in both themes ─────────
+     The QOC maroon lives here permanently so the shell reads as "Qatar
+     Olympic Committee" regardless of the page theme. */
+  --side-bg: linear-gradient(168deg, #8d0134 0%, #6d0127 52%, #4a0019 100%);
+  --side-ink: #ffffff;
+  --side-ink-dim: rgba(255, 255, 255, 0.78);
+  --side-ink-mute: rgba(255, 255, 255, 0.55);
+  --side-hover-bg: rgba(255, 255, 255, 0.10);
+  --side-active-bg: rgba(255, 255, 255, 0.16);
+  --side-border: rgba(255, 255, 255, 0.12);
+  --side-width: 256px;
+  --side-width-collapsed: 72px;
+  --topbar-h: 64px;
+
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+
+  /* Motion — one place, so every transition in the app feels related. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  --focus-ring: 0 0 0 3px rgba(141, 1, 52, 0.18);
+
+  --serif: 'Loew Next Arabic', 'Instrument Serif', 'Times New Roman', serif;
+  --sans: 'Loew Next Arabic', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Loew Next Arabic', 'JetBrains Mono', ui-monospace, monospace;
+
+  --glass-blur: 22px;
+  --orb-opacity: 0.55;
+  --density-pad: 22px;
+  --density-gap: 14px;
+}
+
+html[data-density="compact"]      { --density-pad: 14px; --density-gap: 10px; }
+html[data-density="comfortable"]  { --density-pad: 22px; --density-gap: 14px; }
+html[data-density="airy"]         { --density-pad: 32px; --density-gap: 20px; }
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+html { background: var(--bg-0); }
+body { background: transparent; }
+/* Negative, not 0 — a fixed-position box with z-index:0 still paints AFTER
+   normal-flow siblings in the same stacking context (it's "positioned"), so it
+   would render on top of .app instead of behind it. -1 guarantees it paints
+   first, underneath everything. */
+.bg-scene { z-index: -1; pointer-events: none; }
+#root { position: relative; z-index: 1; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+
+/* ── Select: solid themed background + native popup inherits theme ── */
+select {
+  background-color: var(--bg) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+}
+html[data-theme="light"] select {
+  color-scheme: light;
+}
+select option {
+  background-color: var(--bg);
+  color: var(--ink);
+}
+/* Native date/time widgets: make the browser's own icons + dropdown panel
+   follow the app theme instead of always rendering as light-on-light. */
+input[type="time"], input[type="date"], input[type="datetime-local"], input[type="month"] {
+  color-scheme: dark;
+}
+html[data-theme="light"] input[type="time"],
+html[data-theme="light"] input[type="date"],
+html[data-theme="light"] input[type="datetime-local"],
+html[data-theme="light"] input[type="month"] {
+  color-scheme: light;
+}
+
+/* ===== Background scene =====
+   Light (default) is deliberately plain: a flat near-white page with only the
+   faintest maroon breath at the top edge. The brief calls for white / very
+   light grey, and the orb wash that works on the dark maroon page reads as
+   muddy tinting here — so orbs + grain are off in light entirely.
+   Dark keeps the full gradient + orbs, scoped explicitly so it still wins. */
+.bg-scene {
+  position: fixed; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(1400px 520px at 78% -18%, rgba(141, 1, 52, 0.055), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, var(--bg-1) 100%);
+}
+.bg-orb, .bg-grain { display: none; }
+
+
 /* ═══════════════════════════════════════════════════════════════════════════
    QOC REVAMP — DESIGN SYSTEM
    Imported after style.css (see main.jsx), so it wins on equal specificity.
@@ -227,7 +450,7 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
   display: flex;
   align-items: center;
 }
-.topbar-titles { min-width: 0; }
+.topbar-titles { min-width: 0; margin-inline-end: auto; }
 .topbar-title {
   font-size: 15px;
   font-weight: 650;
@@ -256,48 +479,6 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
 .topbar-crumb-sep { color: var(--ink-faint); }
 
 /* Global search — grows to fill, caps out so the right-side actions stay put. */
-.topbar-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  max-width: 380px;
-  margin-inline-start: auto;
-  height: 38px;
-  padding: 0 12px;
-  background: var(--surface-soft-2);
-  border: 1px solid transparent;
-  border-radius: 10px;
-  color: var(--ink-mute);
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
-}
-.topbar-search:focus-within {
-  background: var(--card-bg);
-  border-color: var(--accent);
-  box-shadow: var(--focus-ring);
-}
-.topbar-search input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--ink);
-  font-size: 13px;
-}
-.topbar-search input::placeholder { color: var(--ink-faint); }
-.topbar-search kbd {
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 5px;
-  background: var(--surface-soft-4);
-  color: var(--ink-mute);
-  border: 1px solid var(--glass-border);
-}
-
-/* ── Page header ─────────────────────────────────────────────────────────── */
 .page-header {
   display: flex;
   align-items: flex-start;
@@ -701,7 +882,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
      strip of sea in frame while cropping the large empty sky. */
   background:
     url("/assets/qatar-skyline.jpg") center 62% / auto 140% no-repeat,
-    linear-gradient(168deg, #b21048 0%, #960439 42%, #5f0023 100%);
+    linear-gradient(168deg, #9e164c 0%, #880c3a 42%, #5e0a2a 100%);
   /* Duotone, not a veil. A translucent maroon layered over a bright daytime
      photo just lifts the pale sky to magenta; multiplying the photo into the
      brand gradient maps white sky onto full maroon and the towers onto the
@@ -731,8 +912,11 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(58% 44% at 14% 2%, rgba(255, 140, 175, 0.16), transparent 64%),
-    linear-gradient(to top, rgba(26, 0, 10, 0.42) 0%, transparent 26%);
+    /* A light lift over the whole panel — multiply can only darken, so this is
+       what keeps the photo from going heavy and over-saturated red. */
+    linear-gradient(to bottom, rgba(255, 228, 238, 0.16), rgba(255, 228, 238, 0.07)),
+    radial-gradient(58% 44% at 14% 2%, rgba(255, 150, 185, 0.12), transparent 64%),
+    linear-gradient(to top, rgba(34, 2, 16, 0.30) 0%, transparent 24%);
   pointer-events: none;
 }
 
@@ -800,7 +984,6 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   .nav-item { justify-content: center; padding: 10px; gap: 0; }
   .nav-item .badge { position: absolute; top: 3px; inset-inline-end: 3px; min-width: 16px; height: 16px; font-size: 9px; }
   .main { padding: 20px; }
-  .topbar-search { max-width: 240px; }
 }
 @media (max-width: 768px) {
   .app {
@@ -825,7 +1008,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   .nav-item { justify-content: flex-start; padding: 9px 12px; gap: 12px; }
   .nav-item .badge { position: static; }
   .topbar { padding: 0 14px; gap: 10px; }
-  .topbar-search, .topbar-crumbs { display: none; }
+  .topbar-crumbs { display: none; }
   .main { padding: 16px 14px 32px; }
   .page-title { font-size: 19px; }
 }
@@ -1123,4 +1306,39 @@ html[dir="rtl"] .dt-row.selected > .dt-td:first-child { box-shadow: inset -3px 0
   .dt-search { min-width: 0; flex: 1; }
   .dt-toolbar, .dt-footer { padding: 10px 12px; }
   .dt-th, .dt-td { padding: 10px; }
+}
+
+/* ==========================================================================
+   DIALOG MOTION
+   Modals grow out of the control that opened them and collapse back into it.
+   Most dialogs here are hand-rolled overlay divs rather than the shared
+   <Modal>, so the entry animation is driven from CSS off `.modal-solid` — the
+   one class they all share — using origin offsets published by
+   lib/clickOrigin.js. The shared <Modal> opts out via .modal-anim-js because
+   it drives the same motion (plus an exit) through framer-motion.
+   ========================================================================== */
+:root { --click-dx: 0px; --click-dy: 0px; }
+
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: translate(var(--click-dx), var(--click-dy)) scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-solid {
+  animation: modal-pop-in 0.26s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  will-change: transform, opacity;
+}
+.modal-solid.modal-anim-js { animation: none; will-change: auto; }
+
+/* The hand-rolled backdrops are inline-styled with no class of their own, so
+   they're reached through their only distinguishing feature: being the parent
+   of a .modal-solid. Browsers without :has() simply skip the fade. */
+body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-solid { animation: modal-backdrop-in 0.12s linear both; }
 }

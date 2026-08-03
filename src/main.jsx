@@ -8,6 +8,10 @@ import { router } from './router';
 import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
 import InvitationResponseView from './views/InvitationResponseView.jsx';
 import UserInviteAcceptView from './views/UserInviteAcceptView.jsx';
+// Installs the global pointer listener that lets dialogs animate out of the
+// control that opened them. Imported here rather than in ui/Modal so the
+// hand-rolled overlays in views that never import <Modal> get it too.
+import './lib/clickOrigin';
 import './style.css';
 // After style.css on purpose: the revamp layer overrides the older component
 // styles on equal specificity, so import order is what makes it win.
