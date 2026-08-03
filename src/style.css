@@ -1,4 +1,7 @@
-﻿<style>/* latin-ext */
+/* Stylesheet was originally lifted out of an HTML <style> block; the stray
+   opening tag it carried made the parser discard the first @font-face rule
+   (Instrument Serif latin-ext) and emitted a css-syntax-error on every build. */
+/* latin-ext */
 @font-face {
   font-family: 'Instrument Serif';
   font-style: italic;
@@ -888,7 +891,72 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-:root, html[data-theme="dark"] {
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEME TOKENS — light is the DEFAULT (QOC revamp); dark is opt-in.
+   Both blocks define the same token names, so every component is theme-agnostic.
+   The sidebar/topbar are maroon in BOTH themes and use the --side-* tokens
+   further down, not these page tokens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Light (default) ─────────────────────────────────────────────────────── */
+:root, html[data-theme="light"] {
+  /* Neutral greys, deliberately NOT pink-tinted: a maroon-tinted page fights
+     the maroon sidebar and reads cheap. The brand colour earns its impact by
+     being the only saturated thing on screen. */
+  --bg-0: #ffffff;
+  --bg-1: #f7f8fa;
+  --bg-2: #f1f3f6;
+  --bg: #f7f8fa;
+
+  --ink: #14161a;
+  --ink-dim: rgba(20, 22, 26, 0.72);
+  --ink-mute: rgba(20, 22, 26, 0.52);
+  --ink-faint: rgba(20, 22, 26, 0.32);
+
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --accent-soft: #fdf2f5;
+  --maroon: #8d0134;
+  --teal: #8d0134;
+  --rose: #c25c4e;
+
+  --card-bg: #ffffff;
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #e6e8ec;
+  --glass-border-strong: #d6d9df;
+  --glass-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+
+  --surface-soft:   #fafbfc;
+  --surface-soft-2: #f5f6f8;
+  --surface-soft-3: #f1f3f6;
+  --surface-soft-4: #e9ecf0;
+  --surface-soft-5: #dfe3e8;
+  --hover-tint: rgba(20, 22, 26, 0.04);
+  --selected-tint: rgba(141, 1, 52, 0.07);
+  --row-tint: rgba(20, 22, 26, 0.015);
+
+  --modal-bg: #ffffff;
+  --popover-bg: #ffffff;
+  --status-active: #8d0134;
+
+  /* Elevation ladder — light themes need real layered shadows, not one blur. */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.04);
+  --shadow-xl: 0 20px 24px -4px rgba(16, 24, 40, 0.10), 0 8px 8px -4px rgba(16, 24, 40, 0.04);
+
+  /* Semantic status — used by badges/alerts/toasts consistently. */
+  --ok: #067647;      --ok-bg: #ecfdf3;      --ok-border: #abefc6;
+  --warn: #b54708;    --warn-bg: #fffaeb;    --warn-border: #fedf89;
+  --danger: #b42318;  --danger-bg: #fef3f2;  --danger-border: #fecdca;
+  --info: #175cd3;    --info-bg: #eff8ff;    --info-border: #b2ddff;
+}
+
+/* ── Dark (opt-in via the topbar theme toggle) ───────────────────────────── */
+html[data-theme="dark"] {
   --bg-0: #14000a;
   --bg-1: #200011;
   --bg-2: #2e0018;
@@ -902,9 +970,22 @@
   --accent: #8d0134;
   --accent-2: #c21857;
   --accent-deep: #5e0022;
+  --accent-soft: rgba(141, 1, 52, 0.18);
   --maroon: #8d0134;
   --teal: #8d0134;
   --rose: #e08a7e;
+
+  --card-bg: #200011;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 12px -2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 14px 22px -6px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 40px -8px rgba(0, 0, 0, 0.65);
+
+  --ok: #5abf6e;      --ok-bg: rgba(90,191,110,0.14);   --ok-border: rgba(90,191,110,0.38);
+  --warn: #e0c47e;    --warn-bg: rgba(224,196,126,0.14); --warn-border: rgba(224,196,126,0.38);
+  --danger: #e08a7e;  --danger-bg: rgba(224,138,126,0.14); --danger-border: rgba(224,138,126,0.38);
+  --info: #7db6e8;    --info-bg: rgba(125,182,232,0.14); --info-border: rgba(125,182,232,0.38);
 
   --glass-bg: rgba(255, 255, 255, 0.06);
   --glass-bg-strong: rgba(255, 255, 255, 0.10);
@@ -931,49 +1012,33 @@
   --status-active: #ffffff;
 }
 
-html[data-theme="light"] {
-  --bg-0: #ffffff;
-  --bg-1: #faf6f7;
-  --bg-2: #f2e7ec;
-  --bg: #faf6f7;
-
-  --ink: #2a0512;
-  --ink-dim: rgba(12, 34, 48, 0.74);
-  --ink-mute: rgba(12, 34, 48, 0.55);
-  --ink-faint: rgba(12, 34, 48, 0.18);
-
-  --accent: #8d0134;
-  --accent-2: #c21857;
-  --accent-deep: #5e0022;
-  --maroon: #8d0134;
-  --teal: #8d0134;
-  --rose: #c25c4e;
-
-  --glass-bg: rgba(255, 255, 255, 0.62);
-  --glass-bg-strong: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(12, 34, 48, 0.10);
-  --glass-border-strong: rgba(12, 34, 48, 0.18);
-  --glass-shadow: 0 16px 48px rgba(8, 38, 60, 0.10), inset 0 1px 0 rgba(255,255,255,0.7);
-
-  --surface-soft: rgba(12,34,48,0.03);
-  --surface-soft-2: rgba(12,34,48,0.04);
-  --surface-soft-3: rgba(12,34,48,0.05);
-  --surface-soft-4: rgba(12,34,48,0.07);
-  --surface-soft-5: rgba(12,34,48,0.10);
-  --hover-tint: rgba(12,34,48,0.05);
-  --selected-tint: rgba(141, 1, 52,0.14);
-  --row-tint: rgba(12,34,48,0.02);
-
-  --modal-bg: #ffffff;
-  --popover-bg: #ffffff;
-  --status-active: #8d0134;
-}
-
 :root {
+  /* ── Brand chrome (sidebar + topbar) — identical in both themes ─────────
+     The QOC maroon lives here permanently so the shell reads as "Qatar
+     Olympic Committee" regardless of the page theme. */
+  --side-bg: linear-gradient(168deg, #8d0134 0%, #6d0127 52%, #4a0019 100%);
+  --side-ink: #ffffff;
+  --side-ink-dim: rgba(255, 255, 255, 0.78);
+  --side-ink-mute: rgba(255, 255, 255, 0.55);
+  --side-hover-bg: rgba(255, 255, 255, 0.10);
+  --side-active-bg: rgba(255, 255, 255, 0.16);
+  --side-border: rgba(255, 255, 255, 0.12);
+  --side-width: 256px;
+  --side-width-collapsed: 72px;
+  --topbar-h: 64px;
+
   --radius-sm: 10px;
   --radius: 16px;
   --radius-lg: 22px;
   --radius-xl: 28px;
+
+  /* Motion — one place, so every transition in the app feels related. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  --focus-ring: 0 0 0 3px rgba(141, 1, 52, 0.18);
 
   --serif: 'Loew Next Arabic', 'Instrument Serif', 'Times New Roman', serif;
   --sans: 'Loew Next Arabic', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -1038,24 +1103,29 @@ html[data-theme="light"] input[type="month"] {
   color-scheme: light;
 }
 
-/* ===== Background scene ===== */
+/* ===== Background scene =====
+   Light (default) is deliberately plain: a flat near-white page with only the
+   faintest maroon breath at the top edge. The brief calls for white / very
+   light grey, and the orb wash that works on the dark maroon page reads as
+   muddy tinting here — so orbs + grain are off in light entirely.
+   Dark keeps the full gradient + orbs, scoped explicitly so it still wins. */
 .bg-scene {
   position: fixed; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(1400px 520px at 78% -18%, rgba(141, 1, 52, 0.055), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, var(--bg-1) 100%);
+}
+.bg-orb, .bg-grain { display: none; }
+
+html[data-theme="dark"] .bg-scene {
   background:
     radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a, rgba(141, 1, 52,0.30)), transparent 60%),
     radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b, rgba(194, 24, 87,0.16)), transparent 55%),
     radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c, rgba(94, 0, 34,0.35)), transparent 60%),
     linear-gradient(180deg, var(--bg-0, #03101a) 0%, var(--bg-1, #051f2a) 50%, var(--bg-2, #062834) 100%);
 }
-html[data-theme="light"] .bg-scene {
-  background:
-    radial-gradient(1200px 700px at 75% -10%, var(--bg-glow-a-lt, rgba(141, 1, 52,0.22)), transparent 60%),
-    radial-gradient(1000px 800px at 10% 20%, var(--bg-glow-b-lt, rgba(194, 24, 87,0.20)), transparent 55%),
-    radial-gradient(900px 700px at 50% 110%, var(--bg-glow-c-lt, rgba(94, 0, 34,0.18)), transparent 60%),
-    linear-gradient(180deg, var(--bg-0, #f4f8fa) 0%, var(--bg-1, #e6eff2) 50%, var(--bg-2, #dbe8ec) 100%);
-}
-html[data-theme="light"] .bg-orb { mix-blend-mode: multiply; opacity: calc(var(--orb-opacity) * 0.4); filter: blur(90px); }
-html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
+html[data-theme="dark"] .bg-orb   { display: block; }
+html[data-theme="dark"] .bg-grain { display: block; }
 .bg-orb {
   position: absolute; border-radius: 50%;
   filter: blur(80px); opacity: var(--orb-opacity); mix-blend-mode: screen;
@@ -1113,9 +1183,9 @@ html[data-theme="light"] .bg-grain { mix-blend-mode: multiply; opacity: 0.18; }
   padding: 0 22px;
   border-radius: var(--radius);
   position: relative; z-index: 50;
-  background: linear-gradient(180deg, rgba(141,1,52,0.15) 0%, rgba(106,0,37,0.45) 100%),
-    url("/assets/qoc-bg-pattern.png") top center / 400px repeat,
-    linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
+  /* Background/border are owned by styles/qoc-revamp.css (.topbar). The old
+     maroon-gradient `!important` background lived here; in the revamp the
+     maroon belongs to the sidebar and the topbar is a light surface. */
 }
 .topbar .crumbs {
   display: flex; align-items: center; gap: 10px;
@@ -1621,15 +1691,10 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
 .chip.vvip { color: #c5f1f7; background: linear-gradient(135deg, rgba(141, 1, 52,0.30), rgba(94, 0, 34,0.55)); border-color: rgba(194, 24, 87,0.6); }
 .chip.vvip .dot { background: var(--accent-2); }
 
-/* Light theme: deeper inks for legibility on white surfaces */
-html[data-theme="light"] .chip.confirmed { color: #6b0027; background: rgba(141, 1, 52,0.12); border-color: rgba(141, 1, 52,0.35); }
-html[data-theme="light"] .chip.confirmed .dot { background: #6b0027; }
-html[data-theme="light"] .chip.pending { color: #7a5a16; background: rgba(217,170,46,0.16); border-color: rgba(217,170,46,0.45); }
-html[data-theme="light"] .chip.pending .dot { background: #b8860b; }
-html[data-theme="light"] .chip.declined { color: #9b2f24; background: rgba(224,138,126,0.18); border-color: rgba(224,138,126,0.45); }
-html[data-theme="light"] .chip.declined .dot { background: #9b2f24; }
-html[data-theme="light"] .chip.vip { color: #5e0022; background: linear-gradient(135deg, rgba(141, 1, 52,0.16), rgba(141, 1, 52,0.06)); border-color: rgba(141, 1, 52,0.45); }
-html[data-theme="light"] .chip.vvip { color: #062430; background: linear-gradient(135deg, rgba(141, 1, 52,0.28), rgba(141, 1, 52,0.10)); border-color: rgba(141, 1, 52,0.55); }
+/* NOTE: a `html[data-theme="light"] .chip.*` palette used to sit here. Its
+   `html[data-theme=…]` prefix out-specified the revamp layer, so chips kept
+   their old ad-hoc colours. Chip variants are now defined once, from the
+   semantic tokens, in styles/qoc-revamp.css (both themes).  */
 
 /* ===== Forms ===== */
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -1913,30 +1978,12 @@ html[dir="rtl"] .avatar { direction: ltr; }
 .sidebar-overlay.open { display: block; }
 .mobile-bottom-nav { display: none; }
 
-/* ── Tablet: icon-only sidebar (769px – 1024px) ── */
-@media (max-width: 1024px) {
-  .app {
-    grid-template-columns: 64px 1fr;
-    gap: 8px;
-    padding: 8px;
-  }
-  .sidebar {
-    padding: 12px 6px;
-    overflow: hidden;
-  }
-  .sidebar-brand-text { display: none !important; }
-  .brand-logo { padding: 6px 0 12px; justify-content: center; }
-  .brand-logo img { max-width: 36px; }
-  .nav-section { display: none; }
-  .nav-item { justify-content: center; padding: 10px; gap: 0; position: relative; }
-  .nav-item span:not(.badge) { display: none; }
-  .nav-item .badge { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; font-size: 9px; }
-  .event-card { display: none; }
-  .avatar .name, .avatar .role { display: none; }
-  .search input, .search kbd { display: none; }
-  .search { min-width: auto; padding: 0 10px; }
-  .topbar .right { gap: 8px; }
-}
+/* NOTE: the legacy "Tablet: icon-only sidebar" block used to sit here. It
+   force-collapsed the sidebar below 1024px by hiding `.nav-item span` and
+   `.nav-section` with !important, and it targeted class names the revamp
+   retired (.sidebar-brand-text, .brand-logo, .event-card). The revamp drives
+   collapse from one place — `.app[data-side="collapsed"]`, set by the sidebar
+   toggle and by the ≤1024px query in styles/qoc-revamp.css. */
 
 /* ── Mobile: off-canvas sidebar + bottom nav (≤768px) ── */
 @media (max-width: 768px) {
@@ -1965,13 +2012,8 @@ html[dir="rtl"] .avatar { direction: ltr; }
   [dir="rtl"] .sidebar { left: auto; right: 0; transform: translateX(100%); }
   [dir="rtl"] .sidebar.open { transform: translateX(0); }
 
-  /* Restore tablet overrides inside the drawer */
-  .sidebar .sidebar-brand-text { display: flex !important; }
-  .sidebar .nav-section { display: block !important; }
-  .sidebar .nav-item { justify-content: flex-start !important; padding: 9px 12px !important; gap: 12px !important; }
-  .sidebar .nav-item span:not(.badge) { display: inline !important; }
-  .sidebar .event-card { display: block !important; }
-  .sidebar .brand-logo img { max-width: 130px !important; }
+  /* (The "restore tablet overrides" !important rules that used to sit here
+     existed only to undo the removed icon-only block — no longer needed.) */
 
   /* Topbar */
   .topbar { border-radius: 0; padding: 0 12px; height: 56px; position: sticky; top: 0; z-index: 100; }
@@ -2178,10 +2220,10 @@ html[data-theme="light"] {
   --selected-tint: rgba(141, 1, 52, 0.08);
   --hover-tint: rgba(141, 1, 52, 0.05);
 }
-html[data-theme="light"] .topbar,
-html[data-theme="light"] .sidebar {
-  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(250,246,247,0.88));
-}
+/* NOTE: a `html[data-theme="light"] .topbar, .sidebar` white-gradient rule used
+   to sit here. Its `html[data-theme=…]` prefix out-specified the revamp layer's
+   plain `.sidebar`, so it painted the maroon sidebar white. Shell surfaces are
+   now defined once, in styles/qoc-revamp.css. */
 
 /* ==========================================================================
    Loew Next Arabic — actual font files (dropped into src/assets/fonts).
@@ -2196,131 +2238,19 @@ html[data-theme="light"] .sidebar {
 @font-face { font-family:'Loew Next Arabic'; src:url('./assets/fonts/loew-next-arabic-black.ttf')     format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
 
 /* ==========================================================================
-   QOC MAROON SHELL — make maroon the dominant surface (solid maroon rail +
-   clean white content), so the app reads as the Qatar-Olympic brand rather
-   than a white app with a few maroon buttons.
+   QOC MAROON SHELL + TOP BAR  —  REMOVED in the QOC revamp.
+
+   These two blocks forced a maroon topbar with `color: #fff !important` on
+   every inner control, plus a maroon !important page-title. The revamp uses a
+   WHITE topbar with dark text (brief: 80-90% light), so those rules made the
+   topbar text invisible, and being !important they could not be overridden
+   from styles/qoc-revamp.css without an escalating !important war.
+
+   The shell is now owned entirely by styles/qoc-revamp.css, which styles
+   .sidebar / .topbar / .page-title from the --side-* and page tokens and works
+   in both themes. Nothing here was still needed: the sidebar rules duplicated
+   the revamp's, and .brand-logo is commented out of App.jsx.
    ========================================================================== */
-
-/* Left rail: solid maroon with white content */
-.sidebar {
-  /* QOC box pattern layered over the maroon gradient for brand texture.
-     The pattern paints on top (only a light gradient veil for legibility)
-     so its box shades are actually visible, not washed out. */
-  background:
-    linear-gradient(180deg, rgba(141,1,52,0.15) 0%, rgba(106,0,37,0.45) 100%),
-    url("/assets/qoc-bg-pattern.png") top center / 400px repeat,
-    linear-gradient(180deg, #8d0134 0%, #6a0025 100%) !important;
-  border: 0 !important;
-  border-right: 1px solid rgba(0,0,0,0.18) !important;
-  box-shadow: 2px 0 26px rgba(94,0,34,0.28) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-}
-.sidebar .sidebar-brand-text,
-.sidebar .sidebar-brand-text * { color: #fff !important; }
-.sidebar .nav-section { color: rgba(255,255,255,0.62) !important; }
-.sidebar .nav-item {
-  color: rgba(255,255,255,0.86) !important;
-  border-color: transparent !important;
-}
-.sidebar .nav-item svg { color: currentColor !important; stroke: currentColor !important; }
-.sidebar .nav-item:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; }
-.sidebar .nav-item.active {
-  background: rgba(255,255,255,0.18) !important;
-  color: #fff !important;
-  border-color: transparent !important;
-}
-.sidebar .nav-item.active::before { background: #fff !important; }
-.sidebar .nav-item .badge { background: rgba(255,255,255,0.22) !important; color: #fff !important; }
-/* Always show the white event logo on the maroon rail */
-.sidebar .brand-logo .logo-white { display: block !important; mix-blend-mode: normal !important; }
-.sidebar .brand-logo .logo-color { display: none !important; }
-
-/* Top bar: clean, with a maroon underline to tie into the brand */
-.topbar { border-bottom: 2px solid rgba(141,1,52,0.22) !important; }
-
-/* Headings in maroon on the white content area */
-.page-title { color: #8d0134 !important; }
-.page-title em { color: #b8164c !important; font-style: italic; }
-html[data-theme="dark"] .page-title { color: #fff !important; }
-html[data-theme="dark"] .page-title em { color: #e79ab4 !important; }
-
-/* Mobile bottom nav active tint already uses --accent (maroon) — leave as is. */
-
-/* ==========================================================================
-   QOC MAROON TOP BAR — match the sidebar rail, and flip the inner controls
-   (crumbs, search, language switch, event switcher, avatar, icon buttons)
-   to read on maroon. Overrides the earlier maroon-underline rule.
-   ========================================================================== */
-.topbar {
-  /* background: linear-gradient(90deg, #8d0134 0%, #7a012c 100%) !important; */
-  border: 0 !important;
-  border-bottom: 1px solid rgba(0,0,0,0.18) !important;
-  box-shadow: 0 2px 22px rgba(94,0,34,0.22) !important;
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  color: #fff !important;
-}
-.topbar .crumbs, .topbar .crumbs strong { color: #fff !important; }
-.topbar .crumbs .sep { color: rgba(255,255,255,0.5) !important; }
-
-/* Icon buttons: bell, theme toggle, sign-out, mobile menu */
-.topbar .icon-btn {
-  background: rgba(255,255,255,0.10) !important;
-  border-color: rgba(255,255,255,0.20) !important;
-  color: rgba(255,255,255,0.92) !important;
-}
-.topbar .icon-btn:hover { background: rgba(255,255,255,0.20) !important; color: #fff !important; }
-.topbar .icon-btn .dot { background: #fff !important; box-shadow: 0 0 10px rgba(255,255,255,0.7) !important; }
-
-/* Search pill */
-.topbar .search {
-  background: rgba(255,255,255,0.12) !important;
-  border-color: rgba(255,255,255,0.22) !important;
-  color: rgba(255,255,255,0.85) !important;
-}
-.topbar .search svg { color: rgba(255,255,255,0.85) !important; stroke: currentColor !important; }
-.topbar .search input { color: #fff !important; }
-.topbar .search input::placeholder { color: rgba(255,255,255,0.65) !important; }
-.topbar .search kbd {
-  background: rgba(255,255,255,0.18) !important;
-  border-color: rgba(255,255,255,0.28) !important;
-  color: #fff !important;
-}
-
-/* Language switch */
-.topbar .lang-switch {
-  background: rgba(255,255,255,0.10) !important;
-  border-color: rgba(255,255,255,0.22) !important;
-}
-.topbar .lang-opt { color: rgba(255,255,255,0.78) !important; }
-.topbar .lang-opt:hover { color: #fff !important; }
-.topbar .lang-opt.active { background: #fff !important; color: #8d0134 !important; box-shadow: none !important; }
-
-/* Event switcher trigger */
-.topbar .event-trigger {
-  background: rgba(255,255,255,0.10) !important;
-  border-color: rgba(255,255,255,0.20) !important;
-  color: #fff !important;
-}
-.topbar .event-trigger:hover { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.32) !important; }
-.topbar .event-trigger.open { background: rgba(255,255,255,0.18) !important; border-color: rgba(255,255,255,0.5) !important; }
-/* Scope the maroon-topbar overrides to the TRIGGER only — the dropdown menu
-   (.event-menu) also lives inside .topbar and must keep its normal theme colors. */
-.topbar .event-trigger .event-name { color: #fff !important; }
-.topbar .event-trigger .event-sub { color: rgba(255,255,255,0.72) !important; }
-.topbar .event-trigger .event-caret { color: rgba(255,255,255,0.9) !important; }
-.topbar .event-trigger .event-logo-mark { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.28) !important; }
-
-/* Avatar pill: white chip, maroon monogram */
-.topbar .avatar {
-  background: rgba(255,255,255,0.10) !important;
-  border-color: rgba(255,255,255,0.20) !important;
-}
-.topbar .avatar .pic { background: #fff !important; color: #8d0134 !important; }
-.topbar .avatar .name { color: #fff !important; }
-.topbar .avatar .role { color: rgba(255,255,255,0.72) !important; }
-
 /* ===== Solid modal surface — an opaque card that follows the app theme.
    Add alongside .card/.glass or use on a Dialog.Content root; !important
    beats both the .glass class background and any inline background the

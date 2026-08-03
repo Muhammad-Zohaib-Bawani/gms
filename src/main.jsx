@@ -9,6 +9,9 @@ import VenueFullScreenView from './views/venue/VenueFullScreenView.jsx';
 import InvitationResponseView from './views/InvitationResponseView.jsx';
 import UserInviteAcceptView from './views/UserInviteAcceptView.jsx';
 import './style.css';
+// After style.css on purpose: the revamp layer overrides the older component
+// styles on equal specificity, so import order is what makes it win.
+import './styles/qoc-revamp.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
