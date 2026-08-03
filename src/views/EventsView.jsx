@@ -8,11 +8,11 @@ import { getVenues } from '../api/services/venueService';
 import { uploadImageFile } from '../api/services/uploadService';
 import { toViewEvent, toEventRequest, toSessionRequest } from '../api/adapters/eventAdapters';
 import { toast } from '../lib/toast';
+import ImportEventsModal from './ImportEventsModal';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
 import { startOfToday, isPastDate, toDate, toIsoDate } from '../lib/date';
 
-const EVENT_TYPES = ["Conference","Sports","Exhibition","Food Festival", "Others"];
 const EVENT_TYPE_ICONS = {
   Conference: "meetings", Forum: "globe", Summit: "protocol", Gala: "star",
   Workshop: "edit", Exhibition: "image", Bilateral: "guests", Ceremony: "badge", default: "meetings",
@@ -52,18 +52,6 @@ const INITIAL_EVENTS = [
     sessions: [],
   },
 ];
-
-function toHex(color) {
-  if (!color) return '#000000';
-  const s = color.trim();
-  if (s.startsWith('#')) {
-    if (s.length === 4) return '#' + s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
-    return s.toLowerCase().slice(0, 7);
-  }
-  const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-  if (m) return '#' + [m[1],m[2],m[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
-  return s;
-}
 
 const DEFAULT_UI_THEME = { preset: 'default', accent: '#8d0134', secondary: '#e0c47e', logoDark: '', logoLight: '' };
 function getStoredThemes() {
@@ -251,8 +239,17 @@ function StatusMenu({ status, labels, onPick, canChange, isAr }) {
 // Hoisted to module scope (not redefined per EventsView render) so typed-but-
 // unsaved form state survives unrelated parent re-renders — e.g. reload()
 // after a session edit no longer resets whatever the user is mid-typing here.
-function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, venuesLoading }) {
-  const [form, setForm] = useState({ ...ev });
+function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, venuesLoading, eventTypes, eventTypesLoading }) {
+  const [form, setForm] = useState(() => {
+    // Older events saved before VenueId was tracked only have a venue name —
+    // match it against the current venues list so the dropdown doesn't open
+    // empty for them.
+    if (!ev.venueId && ev.venue) {
+      const matched = venues.find(v => v.name === ev.venue);
+      if (matched) return { ...ev, venueId: matched.id };
+    }
+    return { ...ev };
+  });
   const [uiTheme, setUiTheme] = useState(() => {
     if (ev.appKey) {
       const stored = getStoredThemes()[ev.appKey];
@@ -290,18 +287,25 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
           </div>
         ) : (
           <Select
-            value={form.venue || ""}
-            onChange={v => setForm(f => ({ ...f, venue: v || "" }))}
+            value={form.venueId || ""}
+            onChange={v => {
+              const picked = venues.find(x => x.id === v);
+              setForm(f => ({ ...f, venueId: v || "", venue: picked?.name || "" }));
+            }}
             placeholder={isAr ? "— اختر مكاناً —" : "— Select venue —"}
-            options={venues.map(v => ({ value: v.name, label: v.name }))}
+            options={venues.map(v => ({ value: v.id, label: v.name }))}
             isClearable
           />
         )}
       </div>
       <div>
         <label style={lStyle}>{STR.fType}</label>
-        <Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
-          options={EVENT_TYPES.map(t => ({ value: t, label: t }))} />
+        {eventTypesLoading ? (
+          <div style={{ fontSize: 12, color: "var(--ink-mute)" }}>{isAr ? "جارٍ التحميل…" : "Loading…"}</div>
+        ) : (
+          <Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
+            options={eventTypes.map(t => ({ value: t.name, label: t.name }))} />
+        )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
@@ -317,56 +321,6 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
       </div>
       <LogoInput label={STR.fImage}
         value={form.image} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
-      {/* Visual Theme */}
-      {/* <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
-          {isAr ? 'السمة المرئية' : 'Visual Theme'}
-        </div>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {['default', 'custom'].map(p => (
-            <button key={p} type="button" onClick={() => setUiTheme(t => ({ ...t, preset: p }))}
-              style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: uiTheme.preset === p ? 600 : 400,
-                border: `1px solid ${uiTheme.preset === p ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: uiTheme.preset === p ? 'rgba(141, 1, 52,0.1)' : 'var(--surface-soft-3)',
-                color: uiTheme.preset === p ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer', transition: 'all 0.15s' }}>
-              {p === 'default' ? (isAr ? 'الافتراضي' : 'Default') : (isAr ? 'مخصص' : 'Custom')}
-            </button>
-          ))}
-        </div>
-        {uiTheme.preset === 'custom' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={lStyle}>{isAr ? 'اللون الأساسي' : 'Primary Color'}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="color" value={toHex(uiTheme.accent)} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
-                    style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
-                  <input type="text" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
-                    onBlur={e => setUiTheme(t => ({ ...t, accent: toHex(e.target.value) }))}
-                    placeholder="#000000"
-                    style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
-                </div>
-              </div>
-              <div>
-                <label style={lStyle}>{isAr ? 'اللون الثانوي' : 'Secondary Color'}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="color" value={toHex(uiTheme.secondary)} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
-                    style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
-                  <input type="text" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
-                    onBlur={e => setUiTheme(t => ({ ...t, secondary: toHex(e.target.value) }))}
-                    placeholder="#000000"
-                    style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
-                </div>
-              </div>
-            </div>
-            <LogoInput label={isAr ? 'شعار (خلفية داكنة)' : 'Logo — Dark background'}
-              value={uiTheme.logoDark} onChange={v => setUiTheme(t => ({ ...t, logoDark: v }))} isAr={isAr}/>
-            <LogoInput label={isAr ? 'شعار (خلفية فاتحة)' : 'Logo — Light background'}
-              value={uiTheme.logoLight} onChange={v => setUiTheme(t => ({ ...t, logoLight: v }))} isAr={isAr}/>
-          </div>
-        )}
-      </div> */}
-
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
         <button className="btn" onClick={onCancel}>{STR.cancel}</button>
         <button className="btn primary" onClick={trySave} disabled={!form.title}>
@@ -490,7 +444,21 @@ export default function EventsView({ lang }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Event types — admin-managed lookup (Lookups > Event Types), replacing the
+  // old hardcoded EVENT_TYPES list.
+  const [eventTypes, setEventTypes] = useState([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    eventsApi.getEventTypes()
+      .then(list => { if (!cancelled) setEventTypes(list || []); })
+      .catch(() => { if (!cancelled) setEventTypes([]); })
+      .finally(() => { if (!cancelled) setEventTypesLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const [showNewEvent, setShowNewEvent] = useState(false);
+  const [showImportEvents, setShowImportEvents] = useState(false);
   const [showNewSession, setShowNewSession] = useState(false);
   const [editEventId, setEditEventId] = useState(null);
   const [editSessionId, setEditSessionId] = useState(null);
@@ -512,7 +480,7 @@ export default function EventsView({ lang }) {
     return true;
   });
 
-  const [newEvent, setNewEvent] = useState({ title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" });
+  const [newEvent, setNewEvent] = useState({ title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning" });
   const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 });
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
@@ -524,7 +492,7 @@ export default function EventsView({ lang }) {
 
   function showMsg(msg) { toast.success(msg); }
 
-  const blankEvent = { title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" };
+  const blankEvent = { title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning" };
   const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 };
 
   async function saveNewEvent(ev) {
@@ -676,12 +644,24 @@ export default function EventsView({ lang }) {
         </div>
         <div className="page-actions">
           {can('Events.Create') && (
+            <button className="btn" onClick={() => setShowImportEvents(true)}>
+              <Icon name="upload" size={14}/> {isAr ? 'استيراد فعاليات' : 'Import Events'}
+            </button>
+          )}
+          {can('Events.Create') && (
             <button className="btn primary" onClick={() => setShowNewEvent(true)}>
               <Icon name="plus" size={14}/> {STR.newEvent}
             </button>
           )}
         </div>
       </div>
+
+      <ImportEventsModal
+        open={showImportEvents}
+        onClose={() => setShowImportEvents(false)}
+        lang={lang}
+        onImported={reload}
+      />
 
 
       <div className="events-layout" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -766,7 +746,8 @@ export default function EventsView({ lang }) {
                 <>
                   <div style={{ fontSize: 11, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 14 }}>{STR.editEvent}</div>
                   <EventForm ev={selectedEvent} onSave={saveEditEvent} onCancel={() => setEditEventId(null)}
-                    isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
+                    isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}
+                    eventTypes={eventTypes} eventTypesLoading={eventTypesLoading}/>
                 </>
               ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
@@ -879,7 +860,8 @@ export default function EventsView({ lang }) {
             </div>
             <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
               <EventForm ev={newEvent} onSave={saveNewEvent} onCancel={() => setShowNewEvent(false)} isNew
-                isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
+                isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}
+                eventTypes={eventTypes} eventTypesLoading={eventTypesLoading}/>
             </div>
           </div>
         </div>

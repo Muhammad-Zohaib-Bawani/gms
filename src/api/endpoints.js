@@ -52,6 +52,9 @@ export const ENDPOINTS = {
     status: (id) => `/v1/events/${id}/status`,
     sessions: (id) => `/v1/events/${id}/sessions`,
     session: (id, sessionId) => `/v1/events/${id}/sessions/${sessionId}`,
+    importTemplate: '/v1/events/import-template',
+    import: '/v1/events/import',
+    types: '/v1/events/types',
   },
 
   guests: {
@@ -111,6 +114,7 @@ export const ENDPOINTS = {
   venues: {
     base: '/v1/venue',
     byId: (id) => `/v1/venue/${id}`,
+    clone: (id) => `/v1/venue/${id}/clone`,
     box: '/v1/venue/box',
     boxById: (id) => `/v1/venue/box/${id}`,
     // Adds one more block to whichever VenueBox already exists for this event.

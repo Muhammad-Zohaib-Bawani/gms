@@ -4,6 +4,7 @@ import { Icon } from '../components/Icons.jsx';
 import Modal from '../components/ui/Modal.jsx';
 import Select from '../components/ui/Select.jsx';
 import AddVenueModal from './venue/AddVenueModal.jsx';
+import CloneVenueModal from './venue/CloneVenueModal.jsx';
 import VenueToolbar from './venue/VenueToolbar.jsx';
 import ElementPalette from './venue/ElementPalette.jsx';
 import VenueCanvas from './venue/canvas/VenueCanvas.jsx';
@@ -28,7 +29,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
     clearMsg: 'مسح كل العناصر في هذا المكان؟',
     dragHint: 'اسحب عنصراً من القائمة إلى اللوحة، وحرّك العناصر بالسحب',
     noSelection: 'انقر على عنصر للتهيئة', totalSeats: 'إجمالي المقاعد', tables: 'عناصر',
-    venues: 'الأماكن', newVenue: 'مكان جديد',
+    venues: 'الأماكن', newVenue: 'مكان جديد', cloneVenue: 'نسخ المكان',
     deleteVenue: 'حذف المكان', deleteVenueMsg: 'حذف هذا المكان وجميع عناصره؟',
     deleteSeats: 'حذف مقاعد', exitDeleteMode: 'إنهاء الحذف',
     deleteSeatsHint: 'انقر على المقعد لتحديده، أو × لحذفه',
@@ -55,7 +56,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
     clearMsg: 'Remove all elements from this venue?',
     dragHint: 'Drag a type from the palette onto the canvas, then reposition by dragging.',
     noSelection: 'Click an element to configure it', totalSeats: 'Total seats', tables: 'elements',
-    venues: 'Venues', newVenue: 'New Venue',
+    venues: 'Venues', newVenue: 'New Venue', cloneVenue: 'Clone Venue',
     deleteVenue: 'Delete venue', deleteVenueMsg: 'Delete this venue and all its elements?',
     deleteSeats: 'Delete seats', exitDeleteMode: 'Exit delete mode',
     deleteSeatsHint: 'Click a seat to select it, or × to remove it',
@@ -134,6 +135,8 @@ export default function VenueConfigView({ lang, activeEventId }) {
         activeVenue={ed.activeVenue}
         canDeleteVenue={ed.venues.length > 1}
         onDeleteVenueClick={() => ed.setPendingDeleteVenueId(ed.activeVenueId)}
+        canCloneVenue={!!ed.viewingBoxId}
+        onCloneVenueClick={() => ed.setShowCloneVenue(true)}
         onAddVenueClick={() => ed.setShowAddVenue(true)}
         boxWidth={ed.boxWidth}
         boxHeight={ed.boxHeight}
@@ -150,6 +153,15 @@ export default function VenueConfigView({ lang, activeEventId }) {
         onSaved={ed.handleVenueCreated}
         activeEventId={activeEventId}
         selectedSessionId={ed.selectedSessionId}
+      />
+
+      <CloneVenueModal
+        open={ed.showCloneVenue}
+        onClose={() => ed.setShowCloneVenue(false)}
+        lang={lang}
+        sourceVenueId={ed.activeVenueId}
+        saving={ed.cloningVenue}
+        onSubmit={ed.cloneCurrentVenue}
       />
 
       {/* Stats */}

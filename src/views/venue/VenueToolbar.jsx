@@ -7,6 +7,7 @@ export default function VenueToolbar({
   venues, activeVenueId, onSwitchVenue,
   sessions, selectedSessionId, onSessionChange,
   activeVenue, canDeleteVenue, onDeleteVenueClick, onAddVenueClick,
+  canCloneVenue, onCloneVenueClick,
   boxWidth, boxHeight, canvasSize, onSetBoxSize,
   isAr, t,
 }) {
@@ -60,6 +61,11 @@ export default function VenueToolbar({
           <button className="btn" style={{ fontSize: 11, padding: '4px 10px', color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)', flexShrink: 0 }}
             onClick={onDeleteVenueClick}>
             <Icon name="trash" size={12}/>
+          </button>
+        )}
+        {canCloneVenue && (
+          <button className="btn" title={t.cloneVenue} style={{ padding: '4px 12px', fontSize: 12, flexShrink: 0 }} onClick={onCloneVenueClick}>
+            <Icon name="copy" size={12}/> {t.cloneVenue}
           </button>
         )}
         <button className="btn" style={{ padding: '4px 12px', fontSize: 12, flexShrink: 0 }} onClick={onAddVenueClick}>

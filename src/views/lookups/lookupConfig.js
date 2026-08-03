@@ -14,6 +14,7 @@ import {
   getVenueTypes, createVenueType,
   getElementTypes, createElementType,
 } from '../../api/services/venueService';
+import { getEventTypes, createEventType } from '../../api/services/eventService';
 
 const NAME = { key: 'name', label: { en: 'Name', ar: 'الاسم' } };
 const NAME_AR = { key: 'nameAr', label: { en: 'Name (Arabic)', ar: 'الاسم بالعربية' } };
@@ -79,6 +80,11 @@ export const LOOKUP_DEFS = [
     customAdd: 'location-picker',
     columns: [ADDRESS, TYPE],
     fields: [],
+  },
+  {
+    key: 'event-types', label: { en: 'Event Types', ar: 'أنواع الفعاليات' },
+    list: getEventTypes, create: (f) => createEventType(f.name),
+    columns: [NAME], fields: [{ ...NAME, required: true }],
   },
   {
     key: 'venue-types', label: { en: 'Venue Types', ar: 'أنواع القاعات' },

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
 import { Icon } from '../../components/Icons';
+import ImageField from '../../components/ui/ImageField';
+import LocationPickerModal from '../../components/ui/LocationPickerModal';
 import toast from '../../lib/toast';
 import { createVenue, getVenueTypes } from '../../api/services/venueService';
 import { VENUE_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from './venueHelpers';
@@ -18,16 +20,17 @@ const errorBorder = { ...inputStyle, border: '1px solid #e05050' };
 const labelStyle = { display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5 };
 
 function emptyForm() {
-  return { name: '', typeId: '', categories: [], color: '', blocks: [] };
+  return { name: '', typeId: '', categories: [], color: '', blocks: [], location: null, imageUrl: '' };
 }
 
 export default function AddVenueModal({ open, onClose, lang, onSaved, activeEventId, selectedSessionId }) {
   const isAr = lang === 'ar';
 
-  const [form,      setForm]      = useState(emptyForm);
-  const [types,     setTypes]     = useState([]);
-  const [errors,    setErrors]    = useState({});
-  const [saving,    setSaving]    = useState(false);
+  const [form,        setForm]        = useState(emptyForm);
+  const [types,       setTypes]       = useState([]);
+  const [errors,      setErrors]      = useState({});
+  const [saving,      setSaving]      = useState(false);
+  const [showLocation, setShowLocation] = useState(false);
 
   // Load venue types from the dedicated VenueType endpoint when the modal opens.
   useEffect(() => {
@@ -64,6 +67,8 @@ export default function AddVenueModal({ open, onClose, lang, onSaved, activeEven
         venueType: form.typeId || EMPTY_GUID,
         category: form.categories,
         color: form.color || null,
+        locationId: form.location?.id || null,
+        imageUrl: form.imageUrl || null,
         // Scopes the starter box (built from blocks below) to whichever
         // event/session is active — otherwise it's an orphan box that never
         // matches the per-event editor's lookup and silently never shows up.
@@ -161,6 +166,30 @@ export default function AddVenueModal({ open, onClose, lang, onSaved, activeEven
         </div>
       </div>
 
+      <div>
+        <label style={labelStyle}>{isAr ? 'الموقع (اختياري)' : 'Location (optional)'}</label>
+        {form.location ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" className="btn" style={{ flex: 1, justifyContent: 'flex-start', fontSize: 12 }} onClick={() => setShowLocation(true)}>
+              <Icon name="venue" size={13}/> {form.location.label}
+            </button>
+            <button type="button" className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.4)', padding: '6px' }}
+              onClick={() => setF('location', null)}>
+              <Icon name="close" size={13}/>
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="btn" style={{ width: '100%', justifyContent: 'center', fontSize: 12 }} onClick={() => setShowLocation(true)}>
+            <Icon name="venue" size={13}/> {isAr ? 'اختر موقعاً على الخريطة' : 'Pick a location on the map'}
+          </button>
+        )}
+      </div>
+
+      <div>
+        <label style={labelStyle}>{isAr ? 'صورة المكان (اختياري)' : 'Venue image (optional)'}</label>
+        <ImageField value={form.imageUrl} onChange={v => setF('imageUrl', v)} isAr={isAr}/>
+      </div>
+
       {/* Optional blocks */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -197,6 +226,13 @@ export default function AddVenueModal({ open, onClose, lang, onSaved, activeEven
           ))}
         </div>
       </div>
+
+      <LocationPickerModal
+        open={showLocation}
+        onClose={() => setShowLocation(false)}
+        lang={lang}
+        onSelect={(loc) => { setF('location', loc); setShowLocation(false); }}
+      />
     </Modal>
   );
 }

@@ -14,6 +14,23 @@ export const updateEvent = (id, body) => apiClient.put(ENDPOINTS.events.byId(id)
 export const updateEventStatus = (id, status) => apiClient.patch(ENDPOINTS.events.status(id), { status });
 export const deleteEvent = (id) => apiClient.delete(ENDPOINTS.events.byId(id));
 
+// Always reflects the venues that exist right now — re-export before every
+// bulk import so the Venue dropdown (and validation) isn't stale.
+export const getEventImportTemplate = () =>
+  apiClient.get(ENDPOINTS.events.importTemplate, { responseType: 'blob' });
+
+export const importEvents = (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiClient.post(ENDPOINTS.events.import, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}; // -> ImportEventsResult { total, imported, failed, rows: [{ row, title, success, error, errorCategory }] }
+
+// Admin-managed lookup — replaces the old hardcoded EVENT_TYPES list.
+export const getEventTypes = () => apiClient.get(ENDPOINTS.events.types);
+export const createEventType = (name) => apiClient.post(ENDPOINTS.events.types, { name });
+
 export const listSessions = (eventId) => apiClient.get(ENDPOINTS.events.sessions(eventId));
 export const addSession = (eventId, body) => apiClient.post(ENDPOINTS.events.sessions(eventId), body);
 export const updateSession = (eventId, sessionId, body) => apiClient.put(ENDPOINTS.events.session(eventId, sessionId), body);

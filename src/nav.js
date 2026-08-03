@@ -16,6 +16,7 @@ export const KEY_PATH = {
   userAccess:      '/user-access',
   users:           '/users',
   organizations:   '/organizations',
+  venues:          '/venues',
   vehicles:        '/vehicles',
   supportChat:     '/support-chat',
 };

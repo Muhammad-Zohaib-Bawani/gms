@@ -18,6 +18,7 @@ import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
 import OrganizationsView from './views/OrganizationsView';
+import VenuesView from './views/VenuesView';
 import VehiclesView from './views/VehiclesView';
 import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
@@ -39,6 +40,7 @@ const MODULE_ROUTES = [
   { key: 'userAccess',      Component: UserAccessView,      permission: 'UserAccess.Manage' },
   { key: 'users',           Component: UsersView,           permission: 'Users.View' },
   { key: 'organizations',   Component: OrganizationsView,   permission: 'Organizations.View' },
+  { key: 'venues',          Component: VenuesView,          permission: 'Venue.View' },
   { key: 'vehicles',        Component: VehiclesView,        permission: 'Travel.View' },
   { key: 'supportChat',     Component: SupportChatView,     permission: 'SupportChat.View' },
 ];
