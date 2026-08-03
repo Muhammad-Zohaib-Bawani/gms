@@ -89,7 +89,7 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
               <Icon name="chevronDown" size={13} />
             </button>
             <button type="button" className="action-menu-trigger" title={isAr ? 'حذف' : 'Remove'}
-              onClick={() => remove(i)} style={{ color: '#e08a7e' }}>
+              onClick={() => remove(i)} style={{ color: 'var(--danger)' }}>
               <Icon name="trash" size={13} />
             </button>
           </div>

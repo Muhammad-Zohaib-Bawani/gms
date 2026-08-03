@@ -489,7 +489,7 @@ export default function SeatingView({ lang, activeEventId }) {
                   </div>
                   <div style={{ display:'flex', gap:8 }}>
                     <button className="btn" style={{ flex:1 }} onClick={() => setAssignModal(null)} disabled={assigning}>{STR.cancel}</button>
-                    <button className="btn" style={{ flex:1, color:'#e08a7e', borderColor:'rgba(224,138,126,0.3)' }} onClick={doUnassign} disabled={assigning}>
+                    <button className="btn" style={{ flex:1, color:'var(--danger)', borderColor:'var(--danger-border)' }} onClick={doUnassign} disabled={assigning}>
                       <Icon name="x" size={13}/> {STR.unassign}
                     </button>
                   </div>

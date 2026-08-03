@@ -716,7 +716,7 @@ export default function EventsView({ lang }) {
               {isAr ? "جارٍ التحميل…" : "Loading…"}
             </div>
           ) : loadError ? (
-            <div style={{ padding: "16px 12px", textAlign: "center", color: "#e08a7e", fontSize: 12, border: "1px solid rgba(224,138,126,0.25)", borderRadius: 10 }}>
+            <div style={{ padding: "16px 12px", textAlign: "center", color: "var(--danger)", fontSize: 12, border: "1px solid var(--danger-border)", borderRadius: 10 }}>
               {loadError}
               <button className="btn" style={{ display: "block", margin: "10px auto 0", fontSize: 11 }} onClick={reload}>
                 {isAr ? "إعادة المحاولة" : "Retry"}
@@ -796,7 +796,7 @@ export default function EventsView({ lang }) {
                           </button>
                         )}
                         {can('Events.Delete') && (
-                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
+                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "var(--danger)" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
                             <Icon name="trash" size={12}/>
                           </button>
                         )}
@@ -914,7 +914,7 @@ export default function EventsView({ lang }) {
             <div style={{ fontSize: 12, color: "var(--ink-mute)", marginBottom: 20 }}>{STR.confirmDeleteMsg}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setConfirmDelete(null)}>{STR.cancel}</button>
-              <button className="btn" style={{ color: "#e08a7e", borderColor: "rgba(224,138,126,0.3)", background: "rgba(224,138,126,0.1)" }}
+              <button className="btn" style={{ color: "var(--danger)", borderColor: "var(--danger-border)", background: "var(--danger-bg)" }}
                 onClick={() => {
                   const cd = confirmDelete;
                   setConfirmDelete(null);

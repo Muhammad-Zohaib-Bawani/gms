@@ -230,7 +230,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
         footer={
           <>
             <button className="btn" onClick={() => ed.setPendingDeleteVenueId(null)} disabled={ed.deletingVenue}>{t.cancel}</button>
-            <button className="btn primary" style={{ background: 'rgba(224,138,126,0.2)', color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
+            <button className="btn primary" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
               onClick={ed.confirmDeleteVenue} disabled={ed.deletingVenue}>
               {ed.deletingVenue ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : t.confirm}
             </button>
@@ -252,7 +252,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
         footer={
           <>
             <button className="btn" onClick={() => ed.setShowClearConfirm(false)} disabled={ed.clearingLayout}>{t.cancel}</button>
-            <button className="btn primary" style={{ background: 'rgba(224,138,126,0.2)', color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
+            <button className="btn primary" style={{ background: 'var(--danger-bg)', color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
               onClick={ed.clearLayout} disabled={ed.clearingLayout}>
               {ed.clearingLayout ? (isAr ? 'جارٍ الحذف…' : 'Clearing…') : t.confirm}
             </button>

@@ -93,8 +93,8 @@ export default function InvitationResponseView({ token, lang }) {
 
         {!loading && error && (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(224,138,126,0.15)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
-              <Icon name="close" size={22} style={{ color: '#e08a7e' }} />
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--danger-bg)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+              <Icon name="close" size={22} style={{ color: 'var(--danger)' }} />
             </div>
             <div style={{ fontSize: 15, color: 'var(--ink-dim)' }}>{error}</div>
           </div>
@@ -131,12 +131,12 @@ export default function InvitationResponseView({ token, lang }) {
             {responded ? (
               <div style={{
                 textAlign: 'center', padding: '18px 16px', borderRadius: 12,
-                background: status === 'accepted' ? 'rgba(90,191,110,0.12)' : 'rgba(224,138,126,0.12)',
-                border: `1px solid ${status === 'accepted' ? 'rgba(90,191,110,0.35)' : 'rgba(224,138,126,0.35)'}`,
+                background: status === 'accepted' ? 'rgba(90,191,110,0.12)' : 'var(--danger-bg)',
+                border: `1px solid ${status === 'accepted' ? 'rgba(90,191,110,0.35)' : 'var(--danger-bg)'}`,
               }}>
                 <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'grid', placeItems: 'center', margin: '0 auto 12px',
-                  background: status === 'accepted' ? 'rgba(90,191,110,0.2)' : 'rgba(224,138,126,0.2)' }}>
-                  <Icon name={status === 'accepted' ? 'check' : 'close'} size={22} style={{ color: status === 'accepted' ? '#5abf6e' : '#e08a7e' }} />
+                  background: status === 'accepted' ? 'rgba(90,191,110,0.2)' : 'var(--danger-bg)' }}>
+                  <Icon name={status === 'accepted' ? 'check' : 'close'} size={22} style={{ color: status === 'accepted' ? '#5abf6e' : 'var(--danger)' }} />
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
                   {status === 'accepted' ? T.accepted : T.declined}

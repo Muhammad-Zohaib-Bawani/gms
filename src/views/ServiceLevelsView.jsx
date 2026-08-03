@@ -28,7 +28,7 @@ const REQUIRABLE_FIELDS = [
   { key: 'departureDate', en: 'Departure date', ar: 'تاريخ المغادرة' },
 ];
 
-const PRESET_COLORS = ['#e0b864', '#a78bda', '#8d0134', '#5abf6e', '#e08a7e', '#4a9edd', '#9CA3AF'];
+const PRESET_COLORS = ['#e0b864', '#a78bda', '#8d0134', '#5abf6e', 'var(--danger)', '#4a9edd', '#9CA3AF'];
 
 const EMPTY_FORM = {
   name: '', nameAr: '', code: '', description: '', color: PRESET_COLORS[0],
@@ -292,7 +292,7 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                         <button className="action-menu-trigger" title={STR.edit} onClick={() => openEdit(level)}>
                           <Icon name="edit" size={13} />
                         </button>
-                        <button className="action-menu-trigger" title={STR.del} style={{ color: '#e08a7e' }}
+                        <button className="action-menu-trigger" title={STR.del} style={{ color: 'var(--danger)' }}
                           onClick={() => setToDelete(level)}>
                           <Icon name="trash" size={13} />
                         </button>
@@ -304,7 +304,7 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
                       <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{STR.guests}</span>
-                      <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: over ? '#e08a7e' : full ? '#e0c47e' : 'var(--ink)' }}>
+                      <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: over ? 'var(--danger)' : full ? '#e0c47e' : 'var(--ink)' }}>
                         {level.guestCount}{level.capacity != null ? ` / ${level.capacity}` : ''}
                         {level.capacity == null && (
                           <span style={{ color: 'var(--ink-faint)', fontSize: 10.5 }}> · {STR.unlimited}</span>
@@ -316,13 +316,13 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                         <div style={{
                           height: '100%', borderRadius: 10,
                           width: `${Math.min(100, (level.guestCount / Math.max(1, level.capacity)) * 100)}%`,
-                          background: over ? '#e08a7e' : full ? '#e0c47e' : (level.color || 'var(--accent)'),
+                          background: over ? 'var(--danger)' : full ? '#e0c47e' : (level.color || 'var(--accent)'),
                           transition: 'width 0.3s ease',
                         }} />
                       </div>
                     )}
                     {(full || over) && (
-                      <div style={{ fontSize: 10.5, color: over ? '#e08a7e' : '#e0c47e', marginTop: 4 }}>
+                      <div style={{ fontSize: 10.5, color: over ? 'var(--danger)' : '#e0c47e', marginTop: 4 }}>
                         {over ? STR.overCapacity : STR.atCapacity}
                       </div>
                     )}
@@ -554,8 +554,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
         </p>
         {toDelete?.guestCount > 0 && (
           <div style={{
-            marginTop: 12, padding: '10px 12px', borderRadius: 8, fontSize: 12.5, color: '#e08a7e',
-            background: 'rgba(224,138,126,0.12)', border: '1px solid rgba(224,138,126,0.4)',
+            marginTop: 12, padding: '10px 12px', borderRadius: 8, fontSize: 12.5, color: 'var(--danger)',
+            background: 'var(--danger-bg)', border: '1px solid var(--danger-border)',
           }}>
             <Icon name="alert" size={13} />{' '}
             {isAr

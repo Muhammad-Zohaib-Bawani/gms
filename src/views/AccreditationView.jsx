@@ -10,7 +10,7 @@ import { getGuestEnums } from '../api/services/lookupService';
 
 const TIER_COLOR = {
   vvip: '#e0b864', vip: '#a78bda', speaker: 'var(--accent)',
-  delegate: '#5abf6e', press: '#e08a7e', observer: 'var(--ink-mute)',
+  delegate: '#5abf6e', press: 'var(--danger)', observer: 'var(--ink-mute)',
 };
 
 export default function AccreditationView({ lang, activeEventId }) {
@@ -274,7 +274,7 @@ export default function AccreditationView({ lang, activeEventId }) {
               <button className="btn primary" style={{ fontSize: 12 }} onClick={() => bulkSet('issue')}>
                 <Icon name="badge" size={13}/> {STR.issueSelected}
               </button>
-              <button className="btn" style={{ fontSize: 12, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={() => bulkSet('revoke')}>
+              <button className="btn" style={{ fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={() => bulkSet('revoke')}>
                 <Icon name="x" size={13}/> {STR.revokeSelected}
               </button>
               <button className="btn" style={{ fontSize: 12 }} onClick={() => setSel(new Set())}>
@@ -343,7 +343,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                         </td>
                         <td>
                           {isIssued ? (
-                            <button className="btn" disabled={busy} style={{ fontSize: 11, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '4px 12px' }}
+                            <button className="btn" disabled={busy} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '4px 12px' }}
                               onClick={() => revoke(g.id)}>
                               <Icon name="x" size={12}/> {STR.revoke}
                             </button>
@@ -413,7 +413,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                       <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
                         onClick={e => e.stopPropagation()}>
                         {isIssued ? (
-                          <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '3px 10px' }}
+                          <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '3px 10px' }}
                             onClick={() => revoke(g.id)}>
                             <Icon name="x" size={11}/> {STR.revoke}
                           </button>
@@ -518,7 +518,7 @@ export default function AccreditationView({ lang, activeEventId }) {
               <div style={{ padding: '12px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button className="btn" onClick={() => setPreviewGuest(null)}>{STR.close}</button>
                 {isIssued ? (
-                  <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
+                  <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
                     onClick={() => { revoke(previewGuest.id); setPreviewGuest(null); }}>
                     <Icon name="x" size={13}/> {STR.revoke}
                   </button>

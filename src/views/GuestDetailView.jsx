@@ -31,7 +31,7 @@ const INVITE_BADGE = {
   sent:     { label: { en: 'Sent',     ar: 'أُرسلت' },   color: '#3B82F6' },
   opened:   { label: { en: 'Opened',   ar: 'فُتحت' },    color: '#F59E0B' },
   accepted: { label: { en: 'Accepted', ar: 'مقبولة' },   color: '#5abf6e' },
-  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: '#e08a7e' },
+  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: 'var(--danger)' },
 };
 const ACCRED_BADGE = {
   not_issued: { label: { en: 'Not issued', ar: 'غير صادر' }, color: '#9CA3AF' },
@@ -300,7 +300,7 @@ export default function GuestDetailView({ guestId, lang }) {
             </button>
             {guest.accreditationRequired && (
               guest.accreditationStatus === 'issued' ? (
-                <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={handleRevoke}>
+                <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={handleRevoke}>
                   <Icon name="x" size={13} /> {isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
                 </button>
               ) : (
