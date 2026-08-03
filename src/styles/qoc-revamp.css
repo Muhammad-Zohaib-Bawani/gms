@@ -686,42 +686,61 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
 .login-art {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(158deg, #a30a3f 0%, #8d0134 38%, #5e0022 100%);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   padding: 44px;
   color: #fff;
+  /* Doha's West Bay skyline, duotoned into the brand. The photo is a bright
+     daytime shot, so a maroon scrim rides on top of it: without one, white
+     text over the pale sky is unreadable. The scrim is heaviest at the top
+     and bottom (where the logo and the tagline sit) and thinnest across the
+     middle band, which is exactly where the towers are — so the skyline stays
+     legible instead of being flattened into a plain maroon block.
+     `center 58%` pushes the horizon low in the panel, keeping towers and a
+     strip of sea in frame while cropping the large empty sky. */
+  background:
+    url("/assets/qatar-skyline.jpg") center 62% / auto 140% no-repeat,
+    linear-gradient(168deg, #b21048 0%, #960439 42%, #5f0023 100%);
+  /* Duotone, not a veil. A translucent maroon layered over a bright daytime
+     photo just lifts the pale sky to magenta; multiplying the photo into the
+     brand gradient maps white sky onto full maroon and the towers onto the
+     darker end, so the panel reads as one deep QOC-maroon image. The gradient
+     stops are ~6% lighter than the brand colours to offset the darkening that
+     multiply applies. `auto 140%` zooms past `cover` — at this panel's aspect
+     cover exactly fills the height, which makes background-position-y a no-op
+     and leaves the top third as empty sky. */
+  background-blend-mode: multiply, normal;
+  background-color: #6d0127;
 }
+
+/* QOC pattern, barely there — it ties the panel to the sidebar's texture. */
 .login-art::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: url("/assets/qatar-skyline.jpg") center / 130% no-repeat;
-  opacity: 0.09;
+  background: url("/assets/qoc-bg-pattern.png") top center / 380px repeat;
+  opacity: 0.07;
+  pointer-events: none;
 }
-/* Skyline silhouette — layered translucent blocks reading as a city profile
-   along the bottom edge. Placeholder for the real photo. */
+
+/* A soft warm bloom off the top corner plus a bottom vignette; together they
+   stop the flat scrim from looking like a solid colour fill. */
 .login-art::after {
   content: "";
   position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 34%;
+  inset: 0;
   background:
-    linear-gradient(to top, rgba(30, 0, 12, 0.55), transparent),
-    repeating-linear-gradient(90deg,
-      transparent 0 18px,
-      rgba(255, 255, 255, 0.05) 18px 22px,
-      transparent 22px 40px);
-  mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 100%);
+    radial-gradient(58% 44% at 14% 2%, rgba(255, 140, 175, 0.16), transparent 64%),
+    linear-gradient(to top, rgba(26, 0, 10, 0.42) 0%, transparent 26%);
   pointer-events: none;
 }
+
 .login-art > * { position: relative; z-index: 1; }
 .login-art-logo { display: flex; align-items: center; gap: 13px; }
 .login-art-logo img { width: 52px; height: auto; }
 .login-art-title {
+  text-shadow: 0 1px 18px rgba(40, 0, 14, 0.45);
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -736,6 +755,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   margin-top: 12px;
 }
 .login-art-tag {
+  text-shadow: 0 1px 14px rgba(40, 0, 14, 0.5);
   font-size: 14px;
   color: rgba(255, 255, 255, 0.82);
   max-width: 34ch;
