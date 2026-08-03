@@ -5,7 +5,7 @@
 // actual mutation logic isn't duplicated.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar } from '../components/UI';
+import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
 import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
@@ -326,7 +326,13 @@ export default function GuestDetailView({ guestId, lang }) {
           <div style={fieldGrid}>
             <Field label={isAr ? 'البريد الإلكتروني' : 'Email'} value={guest.email} />
             <Field label={isAr ? 'نوع الضيف' : 'Guest Type'} value={guest.guestType} />
-            <Field label={isAr ? 'الفئة' : 'Tier'} value={guest.tier} />
+            <Field
+              label={isAr ? 'مستوى الخدمة' : 'Service Level'}
+              value={guest.serviceLevelName
+                ? <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                    color={guest.serviceLevelColor} lang={lang} />
+                : null}
+            />
             <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
             <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
             {/* GuestServiceType.Transport (3) on the guest's allowed-services

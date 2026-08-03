@@ -4,12 +4,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Icon } from "../../../components/Icons";
 import Select from "../../../components/ui/Select";
+import { useAuth } from "../../../auth/AuthContext";
 import toast from "../../../lib/toast";
-import {
-  createGuest,
-  updateGuest,
-  getGuestEnums,
-} from "../../../api/services/guestService";
+import { createGuest, updateGuest } from "../../../api/services/guestService";
 import {
   getTravelLookups,
   getGuestTravel,
@@ -80,12 +77,16 @@ const EMPTY_GUEST = {
   guestType: "delegate",
   organizationId: "",
   nationalityId: "",
-  tier: "delegate",
+  serviceLevelId: "",
   invitationStatus: "not_sent",
   arrivalDate: "",
   departureDate: "",
   photoUrl: "",
   accreditationRequired: false,
+  // Set when the user chooses to push past a failing level rule. The backend
+  // re-checks the permission, so ticking this without it changes nothing.
+  overrideServiceLevelRules: false,
+  serviceLevelOverrideReason: "",
 };
 
 function guestToForm(g) {
@@ -97,12 +98,14 @@ function guestToForm(g) {
     guestType: g.guestType || "delegate",
     organizationId: g.organizationId || "",
     nationalityId: g.nationalityId || "",
-    tier: g.tier || "delegate",
+    serviceLevelId: g.serviceLevelId || "",
     invitationStatus: g.invitationStatus || "not_sent",
     arrivalDate: g.arrivalDate || "",
     departureDate: g.departureDate || "",
     photoUrl: g.photoUrl || "",
     accreditationRequired: !!g.accreditationRequired,
+    overrideServiceLevelRules: false,
+    serviceLevelOverrideReason: "",
   };
 }
 
@@ -144,6 +147,7 @@ export default function GuestModal({
   eventEndDate,
   nationalities,
   organizations,
+  serviceLevels,
   templates,
   sessions,
   lang,
@@ -152,6 +156,8 @@ export default function GuestModal({
 }) {
   const isAr = lang === "ar";
   const isEdit = !!guest;
+  const { can } = useAuth();
+  const canOverrideRules = can("ServiceLevels.OverrideRules");
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(() => guestToForm(guest));
@@ -164,7 +170,6 @@ export default function GuestModal({
   const [step1Errors, setStep1Errors] = useState({});
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [enums, setEnums] = useState({});
   // Raw GET /travel/guest/{id} response; hydrated into `travel` below once
   // travelLookups is available too (it may still be loading when this
   // resolves — deriving from both avoids a race where roomTypeId can't be
@@ -201,10 +206,9 @@ export default function GuestModal({
   // `open` prop by some callers, so a bare `[]` dep would fire these (and the
   // 8 parallel requests inside getTravelLookups) on every mount regardless of
   // whether the dialog is actually visible yet.
-  useEffect(() => {
-    if (!open) return;
-    getGuestEnums().then(setEnums);
-  }, [open]);
+  //
+  // getGuestEnums() used to be fetched here for the tier picker; the picker now
+  // reads real ServiceLevel rows passed in as a prop, so the call is gone.
   useEffect(() => {
     if (!open) return;
     getTravelLookups()
@@ -302,6 +306,20 @@ export default function GuestModal({
       toast.error(travelErr);
       return;
     }
+
+    // Stop here rather than letting the backend 409 — same rules, friendlier
+    // moment. The override path is only offered to those who hold the permission.
+    if (ruleViolations.length > 0 && !(canOverrideRules && form.overrideServiceLevelRules)) {
+      toast.error(canOverrideRules
+        ? (isAr
+          ? "قواعد مستوى الخدمة غير مستوفاة — فعّل التجاوز للحفظ على أي حال."
+          : "This service level's rules aren't met — tick the override to save anyway.")
+        : (isAr
+          ? "قواعد مستوى الخدمة غير مستوفاة، وتحتاج صلاحية للتجاوز."
+          : "This service level's rules aren't met, and you don't have override permission."));
+      setStep(2);
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -311,7 +329,14 @@ export default function GuestModal({
         guestType: form.guestType,
         organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
-        tier: form.tier,
+        serviceLevelId: form.serviceLevelId || null,
+        // Only sent when there's actually something to waive, so a stale tick
+        // can't record a phantom override on a clean save.
+        overrideServiceLevelRules: ruleViolations.length > 0 && form.overrideServiceLevelRules,
+        serviceLevelOverrideReason:
+          ruleViolations.length > 0 && form.overrideServiceLevelRules
+            ? (form.serviceLevelOverrideReason || null)
+            : null,
         arrivalDate: form.arrivalDate || null,
         departureDate: form.departureDate || null,
         photoUrl: stripSasToken(form.photoUrl) || null,
@@ -408,9 +433,51 @@ export default function GuestModal({
     [organizations, isAr],
   );
 
+  const selectedLevel = useMemo(
+    () => (serviceLevels || []).find((l) => l.id === form.serviceLevelId) || null,
+    [serviceLevels, form.serviceLevelId],
+  );
+
+  // Rules are evaluated client-side from data we already have (the level's
+  // capacity/headcount + this form's own field values), so the warning appears
+  // as you type instead of only on submit. The backend re-validates on save —
+  // this is a convenience, never the enforcement point.
+  const ruleViolations = useMemo(() => {
+    if (!selectedLevel) return [];
+    const out = [];
+
+    // On edit, a guest already on this level doesn't count against its capacity.
+    const alreadyHere = isEdit && guest?.serviceLevelId === selectedLevel.id;
+    if (!alreadyHere && selectedLevel.capacity != null && selectedLevel.guestCount >= selectedLevel.capacity) {
+      out.push(isAr
+        ? `"${selectedLevel.name}" ممتلئ (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`
+        : `"${selectedLevel.name}" is at capacity (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`);
+    }
+
+    const FIELD_LABELS = {
+      email: isAr ? "البريد الإلكتروني" : "Email",
+      nationalityId: isAr ? "الجنسية" : "Nationality",
+      organizationId: isAr ? "المؤسسة" : "Organization",
+      photoUrl: isAr ? "الصورة" : "Photo",
+      arrivalDate: isAr ? "تاريخ الوصول" : "Arrival date",
+      departureDate: isAr ? "تاريخ المغادرة" : "Departure date",
+    };
+    const missing = (selectedLevel.requiredGuestFields || [])
+      .filter((key) => !String(form[key] ?? "").trim())
+      .map((key) => FIELD_LABELS[key] || key);
+
+    if (missing.length > 0) {
+      out.push(isAr
+        ? `"${selectedLevel.name}" يتطلب: ${missing.join("، ")}.`
+        : `"${selectedLevel.name}" requires: ${missing.join(", ")}.`);
+    }
+
+    return out;
+  }, [selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
+
   const stepLabels = isAr
-    ? ["المعلومات الشخصية", "الفئة والجلسات", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", "Matches & Tier", "Services", "Invitation"];
+    ? ["المعلومات الشخصية", "مستوى الخدمة والجلسات", "السفر والإقامة", "الدعوة"]
+    : ["Personal Info", "Service Level & Sessions", "Travel", "Invitation"];
 
   const inputStyle = {
     width: "100%",
@@ -887,36 +954,133 @@ export default function GuestModal({
                   </div>
                 </div>
                 <div>
-                  <SectionLabel>{isAr ? "الفئة" : "Tier"}</SectionLabel>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 8,
-                    }}
-                  >
-                    {enums?.GuestTier?.map((tier) => (
-                      <div
-                        key={tier.code}
-                        onClick={() => setF("tier", tier.code)}
-                        style={{
-                          padding: "12px 10px",
-                          borderRadius: 10,
-                          cursor: "pointer",
-                          textAlign: "center",
-                          border: `1px solid ${form.tier === tier.code ? "var(--accent)" : "var(--glass-border)"}`,
-                          background:
-                            form.tier === tier.code
-                              ? "rgba(26,174,196,0.12)"
-                              : "var(--surface-soft-2)",
-                          fontSize: 13,
-                          fontWeight: form.tier === tier.code ? 600 : 400,
-                        }}
-                      >
-                        {tier.name}
+                  <SectionLabel>{isAr ? "مستوى الخدمة" : "Service Level"}</SectionLabel>
+                  {(serviceLevels || []).length === 0 ? (
+                    <div style={{
+                      padding: "12px 14px", borderRadius: 10, fontSize: 12.5, color: "#e0c47e",
+                      background: "rgba(224,196,126,0.12)", border: "1px solid rgba(224,196,126,0.4)",
+                    }}>
+                      <Icon name="alert" size={13} />{" "}
+                      {isAr
+                        ? "لا توجد مستويات خدمة لهذه الفعالية — أضفها من صفحة مستويات الخدمة أولاً."
+                        : "This event has no service levels yet — add some on the Service Levels page first."}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {serviceLevels.map((lvl) => {
+                          const selected = form.serviceLevelId === lvl.id;
+                          const full = lvl.capacity != null && lvl.guestCount >= lvl.capacity;
+                          return (
+                            <div
+                              key={lvl.id}
+                              onClick={() => setF("serviceLevelId", lvl.id)}
+                              title={full ? (isAr ? "ممتلئ" : "At capacity") : undefined}
+                              style={{
+                                padding: "10px",
+                                borderRadius: 10,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                border: `1px solid ${selected ? (lvl.color || "var(--accent)") : "var(--glass-border)"}`,
+                                background: selected
+                                  ? `${lvl.color || "#8d0134"}1f`
+                                  : "var(--surface-soft-2)",
+                                fontSize: 13,
+                                fontWeight: selected ? 600 : 400,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                <span style={{
+                                  width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                                  background: lvl.color || "var(--ink-mute)",
+                                }} />
+                                {(isAr ? lvl.nameAr : null) || lvl.name}
+                              </div>
+                              {lvl.capacity != null && (
+                                <div style={{
+                                  fontSize: 10, marginTop: 3, fontFamily: "var(--mono)",
+                                  color: full ? "#e0c47e" : "var(--ink-faint)",
+                                }}>
+                                  {lvl.guestCount} / {lvl.capacity}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+
+                      {/* What this level includes — read-only, inherited by the guest. */}
+                      {selectedLevel && (selectedLevel.services || []).length > 0 && (
+                        <div style={{
+                          marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                          background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)",
+                        }}>
+                          <div style={{
+                            fontSize: 10, color: "var(--ink-mute)", textTransform: "uppercase",
+                            letterSpacing: "0.08em", marginBottom: 6,
+                          }}>
+                            {isAr ? "يشمل" : "Includes"}
+                          </div>
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                            {selectedLevel.services.map((s) => (
+                              <span key={s.serviceId} className="chip" style={{ fontSize: 10.5 }}>
+                                <Icon name="check" size={10} style={{ color: "#5abf6e" }} />
+                                {(isAr ? s.serviceNameAr : null) || s.serviceName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rule violations — blocking unless the user may override. */}
+                      {ruleViolations.length > 0 && (
+                        <div style={{
+                          marginTop: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12.5,
+                          color: "#e0c47e", background: "rgba(224,196,126,0.12)",
+                          border: "1px solid rgba(224,196,126,0.4)",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, marginBottom: 6 }}>
+                            <Icon name="alert" size={13} />
+                            {isAr ? "قواعد المستوى" : "Level rules"}
+                          </div>
+                          <ul style={{ margin: 0, paddingInlineStart: 18, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {ruleViolations.map((v, i) => <li key={i}>{v}</li>)}
+                          </ul>
+
+                          {canOverrideRules ? (
+                            <>
+                              <label style={{
+                                display: "flex", alignItems: "center", gap: 8, marginTop: 10,
+                                cursor: "pointer", color: "var(--ink)",
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.overrideServiceLevelRules}
+                                  onChange={(e) => setF("overrideServiceLevelRules", e.target.checked)}
+                                  style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                                />
+                                {isAr ? "تجاوز القواعد وحفظ على أي حال" : "Override the rules and save anyway"}
+                              </label>
+                              {form.overrideServiceLevelRules && (
+                                <input
+                                  style={{ ...inputStyle, marginTop: 8 }}
+                                  value={form.serviceLevelOverrideReason}
+                                  placeholder={isAr ? "سبب التجاوز (اختياري، يُسجَّل)" : "Reason for the override (optional, recorded)"}
+                                  onChange={(e) => setF("serviceLevelOverrideReason", e.target.value)}
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--ink-mute)" }}>
+                              {isAr
+                                ? "تحتاج صلاحية تجاوز القواعد لإضافة هذا الضيف لهذا المستوى."
+                                : "You need override permission to place this guest on this level."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div>
                   <label

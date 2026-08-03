@@ -78,6 +78,19 @@ export const ENDPOINTS = {
     base: '/v1/nationality',
   },
 
+  // Per-event service catalog + the guest grades built from it (replaces the old
+  // hardcoded 6-value tier list). Nested under the event because neither is
+  // global — event A's catalog is independent of event B's.
+  services: {
+    base: (eventId) => `/v1/events/${eventId}/services`,
+    byId: (eventId, id) => `/v1/events/${eventId}/services/${id}`,
+  },
+  serviceLevels: {
+    base: (eventId) => `/v1/events/${eventId}/service-levels`,
+    byId: (eventId, id) => `/v1/events/${eventId}/service-levels/${id}`,
+    ruleCheck: (eventId, id) => `/v1/events/${eventId}/service-levels/${id}/rule-check`,
+  },
+
   // Reads are open to any signed-in user (so any module can fill an org
   // dropdown); writes require Organizations.Manage.
   organizations: {

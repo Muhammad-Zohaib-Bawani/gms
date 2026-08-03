@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar, TierChip } from '../components/UI.jsx';
+import { Avatar, ServiceLevelChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import FlagIcon from '../components/FlagIcon.jsx';
 import toast from '../lib/toast';
@@ -333,7 +333,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                         <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         </td>
-                        <td><TierChip tier={g.tier} lang={lang}/></td>
+                        <td><ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/></td>
                         <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td>
                         <td>
                           <span style={chipStyle(isIssued)}>
@@ -403,7 +403,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                           <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName} · {g.arrivalDate || '—'}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <TierChip tier={g.tier} lang={lang}/>
+                          <ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/>
                           <span style={chipStyle(isIssued)}>
                             <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
                             {isIssued ? STR.badgeIssued : STR.badgePending}

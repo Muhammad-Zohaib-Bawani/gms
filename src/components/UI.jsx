@@ -40,14 +40,71 @@ export function StatusChip({ status, lang, label }) {
   );
 }
 
+// Legacy grade chip, still used by views that only have the mirrored
+// `guest.tier` string (Dashboard, Protocol). Prefer <ServiceLevelChip/> wherever
+// the real ServiceLevel fields are available — it carries the admin-set colour.
+//
+// Tier values are now normalised to lowercase level codes ("vvip", "delegate"),
+// so the lookups are case-insensitive and anything unrecognised is title-cased
+// rather than rendered as a raw slug.
 export function TierChip({ tier, lang }) {
   const l = lang || getLang();
   const labels = CHIP_I18N.tier[l] || CHIP_I18N.tier.en;
-  const cls = tier === "VVIP" ? "vvip" : tier === "VIP" ? "vip" : "draft";
+  if (!tier) return null;
+
+  const key = Object.keys(labels).find((k) => k.toLowerCase() === String(tier).toLowerCase());
+  const lower = String(tier).toLowerCase();
+  const cls = lower === "vvip" ? "vvip" : lower === "vip" ? "vip" : "draft";
+  const label = key
+    ? labels[key]
+    : String(tier).replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
   return (
     <span className={`chip ${cls}`}>
       <span className="dot" />
-      {labels[tier] || tier}
+      {label}
+    </span>
+  );
+}
+
+// Service-level badge. Unlike TierChip above (whose colours came from a
+// hardcoded VVIP/VIP map), this is driven entirely by the level's own configured
+// `color`, because levels are admin-created per event and can be named anything.
+// Falls back to the neutral "draft" chip when a guest has no level yet.
+export function ServiceLevelChip({ name, nameAr, color, lang, size = 11 }) {
+  const l = lang || getLang();
+  const label = (l === 'ar' ? nameAr : null) || name;
+
+  if (!label) {
+    return (
+      <span className="chip draft" style={{ fontSize: size }}>
+        <span className="dot" />
+        {l === 'ar' ? 'بدون مستوى' : 'No level'}
+      </span>
+    );
+  }
+
+  // No configured colour — use the neutral chip rather than inventing one.
+  if (!color) {
+    return (
+      <span className="chip draft" style={{ fontSize: size }}>
+        <span className="dot" />{label}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="chip"
+      style={{
+        fontSize: size,
+        color,
+        background: `${color}1f`,
+        borderColor: `${color}59`,
+      }}
+    >
+      <span className="dot" style={{ background: color }} />
+      {label}
     </span>
   );
 }

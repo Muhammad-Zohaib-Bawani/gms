@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Avatar, StatusChip, TierChip, Drawer } from './components/UI';
+import { Avatar, StatusChip, ServiceLevelChip, Drawer } from './components/UI';
 import { Icon } from './components/Icons';
 import Select from './components/ui/Select';
 import DateField from './components/ui/DateField';
@@ -42,7 +42,10 @@ const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
-  { key: "travel",         icon: "travel",     label: { en: "Services",            ar: "الخدمات"                }, section: "EVENT",    permission: "Travel.View"            },
+  { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "EVENT",    permission: "ServiceLevels.View"     },
+  // Renamed from "Services" — that label now belongs to the per-event service
+  // catalog under ADMIN. The route/permission/key are still `travel`.
+  { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
   { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
@@ -56,6 +59,7 @@ const NAV = [
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
+  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View"          },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
@@ -563,7 +567,8 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
             <h2 style={{ fontFamily: "var(--serif)", fontSize: 26, margin: 0, fontWeight: 400 }}>{guestName}</h2>
             <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.organization}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              <TierChip tier={guest.tier} lang={lang}/>
+              <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                color={guest.serviceLevelColor} lang={lang}/>
               {guest.nationalityName && <span className="chip"><FlagIcon code={guest.nationalityCode} size={12}/>{guest.nationalityName}</span>}
             </div>
           </div>
@@ -782,7 +787,8 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                       {guest.guestType && <div style={{ fontSize:12, color:"var(--ink-dim)", textTransform:"capitalize" }}>{guest.guestType}</div>}
                       {guest.organization && <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:12 }}>{guest.organization}</div>}
                       <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:14, flexWrap:"wrap" }}>
-                        <TierChip tier={guest.tier} lang={lang}/>
+                        <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                          color={guest.serviceLevelColor} lang={lang}/>
                         {guest.nationalityName && (
                           <span className="chip" style={{ fontSize:11 }}>
                             <FlagIcon code={guest.nationalityCode} size={12}/> {guest.nationalityName}
