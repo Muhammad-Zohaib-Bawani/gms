@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import FlightLegCell from './travel/FlightLegCell.jsx';
 import { useNavigate } from 'react-router-dom';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
@@ -725,61 +726,19 @@ export default function TravelView({ lang, activeEventId }) {
     const showInbound  = adDirection !== 'outbound';
     const showOutbound = adDirection !== 'inbound';
 
+    // One column per direction, each holding the whole leg. The flight number
+    // used to live in its own column away from the route it belonged to, and
+    // duration had a column per direction; both now sit inside the leg card.
     const routeColumn = (id, header, pick, inbound) => ({
       id, header, enableSorting: false,
-      cell: ({ row }) => {
-        const flights = pick(row.original);
-        if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
-        return (
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {flights.map(f0 => {
-              const f = segment(f0, inbound);
-              return (
-              <div key={f0.id}>
-                <div style={{ display:'flex', alignItems:'center', gap:7, fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
-                  <span>{f.departureCode || '—'}</span>
-                  <Icon
-  name={inbound ? 'planeLanding' : 'planeTakeoff'}
-  size={15}
-  style={{
-    color: 'var(--accent)',
-    flexShrink: 0,
-    ...(inbound && { strokeWidth: 0, borderBottom: '1px solid var(--accent)'}),
-  }}
-/>
-                  <span>{f.arrivalCode || '—'}</span>
-                </div>
-                <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2 }}>
-                  {dateLabelFor(f.departureTime || f.arrivalTime)}
-                </div>
-                <div style={{ fontSize:11, color:'var(--ink-mute)', fontFamily:'var(--mono)' }}>
-                  {timeRange(f.departureTime, f.arrivalTime)}
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        );
-      },
-    });
-
-    // Stacked one-per-flight, same row-height rhythm as routeColumn so a
-    // guest's durations line up against their routes above.
-    const durationColumn = (id, pick, inbound) => ({
-      id, header: STR.cols.duration, enableSorting: false,
-      cell: ({ row }) => {
-        const flights = pick(row.original);
-        if (!flights?.length) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
-        return (
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {flights.map(f0 => segment(f0, inbound)).map((f, i) => (
-              <div key={i} style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--ink-mute)', minHeight: 20, display:'flex', alignItems:'center' }}>
-                {flightDuration(f.departureTime, f.arrivalTime) || '—'}
-              </div>
-            ))}
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <FlightLegCell
+          flights={(pick(row.original) || []).map(f0 => ({ ...segment(f0, inbound), id: f0.id }))}
+          inbound={inbound}
+          dateLabelFor={dateLabelFor}
+          flightDuration={flightDuration}
+        />
+      ),
     });
 
     return [
@@ -790,37 +749,22 @@ export default function TravelView({ lang, activeEventId }) {
           return (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <Avatar initials={initialsFromName(g.guestName)} size={28} tier={g.tier}/>
-              <div>
+              <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:12.5, fontWeight:500 }}>{g.guestName || '—'}</div>
                 <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.email || '—'}</div>
+                {/* Organisation folds under the name rather than taking a
+                    column of its own — it is context for the guest, not a
+                    field anyone scans down. */}
+                {g.organization && (
+                  <div style={{ fontSize:11, color:'var(--ink-faint)' }}>{g.organization}</div>
+                )}
               </div>
             </div>
           );
         },
       },
-      {
-        id: 'organization', header: STR.cols.organization, enableSorting: false,
-        cell: ({ row }) => <span style={{ fontSize:12 }}>{row.original.organization || '—'}</span>,
-      },
-      {
-        id: 'flightNo', header: STR.cols.flight, enableSorting: false,
-        cell: ({ row }) => {
-          // Only the directions actually on screen, so a filtered view never
-          // shows a number whose route column is hidden.
-          const visible = [
-            ...(showInbound ? row.original.inbound : []),
-            ...(showOutbound ? row.original.outbound : []),
-          ];
-          const numbers = visible.map(f => f.flightNumber).filter(Boolean);  // booking-level, first leg
-          return (
-            <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:600 }}>
-              {numbers.length ? numbers.join(' / ') : '—'}
-            </span>
-          );
-        },
-      },
-      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true), durationColumn('inboundDuration',  r => r.inbound,  true)]  : []),
-      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false), durationColumn('outboundDuration', r => r.outbound, false)] : []),
+      ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true)]  : []),
+      ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false)] : []),
     ];
   }, [STR, adDirection]);
 
