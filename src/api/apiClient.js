@@ -45,7 +45,7 @@ apiClient.interceptors.request.use((config) => {
 // ── Token refresh (de-duped across concurrent 401s) ──────────────────────────
 let refreshPromise = null;
 
-function refreshTokens() {
+export function refreshTokens() {
   const refresh = tokenStore.refreshToken();
   if (!refresh) return Promise.reject(new ApiError('Session expired', { status: 401 }));
 
@@ -59,12 +59,18 @@ function refreshTokens() {
       .then((res) => {
         const data = res.data?.data;
         if (!res.data?.success || !data) throw new ApiError('Session expired', { status: 401 });
-        const next = { accessToken: data.accessToken, refreshToken: data.refreshToken };
+        // The server keeps the refresh token stable; fall back to the one we sent
+        // so a response that omits it doesn't wipe the session.
+        const next = { accessToken: data.accessToken, refreshToken: data.refreshToken || refresh };
         tokenStore.set(next);
         return next;
       })
       .catch((err) => {
-        tokenStore.clear();
+        // Only a rejected token means the session is over. A timeout, a 429 from
+        // the auth rate limiter, or a 5xx must NOT log the user out — clearing on
+        // those was turning every blip into a trip to the login screen.
+        const status = err.response?.status ?? err.status;
+        if (status === 401 || status === 403) tokenStore.clear();
         throw err;
       })
       .finally(() => {

@@ -57,7 +57,8 @@ const NAV = [
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
-  { key: "vehicles",       icon: "car",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
+  { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
+  { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
 
@@ -68,6 +69,7 @@ const SECTION_LABELS = {
   EVENT:    { en: "EVENT",    ar: "الحدث" },
   ONSITE:   { en: "ONSITE",   ar: "في الموقع" },
   INSIGHTS: { en: "INSIGHTS", ar: "تحليلات" },
+  FLEET:    { en: "FLEET MANAGEMENT", ar: "إدارة الأسطول" },
   ADMIN:    { en: "ADMIN",    ar: "الإدارة" },
 };
 
@@ -1078,7 +1080,19 @@ export default function App() {
   // toast for now. The bell UI itself is still a static stub, unwired.
   useEffect(() => onHub(REALTIME_TOPICS.NOTIFICATION_NEW, (title, message) => {
     toast.message(title || message, { description: title ? message : undefined });
+    // A toast on a hidden tab is a toast nobody sees. The native Notification
+    // API covers the "portal open in a background tab" case without a service
+    // worker or an FCM web-push registration — the tab still has to be open.
+    if (document.hidden && window.Notification?.permission === 'granted') {
+      new Notification(title || 'Notification', { body: title ? message : undefined });
+    }
   }), []);
+
+  // Ask once, ever. 'default' means untouched; 'denied' must not be re-prompted
+  // (browsers block repeat asks anyway, and the handler above just no-ops).
+  useEffect(() => {
+    if (window.Notification?.permission === 'default') Notification.requestPermission().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!showNotifications) return;
@@ -1197,7 +1211,7 @@ export default function App() {
     ? (activeLogo.dark || activeEv?.logoDark || activeEv?.logoLight)
     : (activeLogo.light || activeEv?.logoLight || activeEv?.logoDark);
 
-  const sections = ["EVENT", "ONSITE", "INSIGHTS", "ADMIN"];
+  const sections = ["EVENT", "ONSITE", "INSIGHTS", "FLEET", "ADMIN"];
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 

@@ -20,6 +20,7 @@ import UsersView from './views/UsersView';
 import OrganizationsView from './views/OrganizationsView';
 import VenuesView from './views/VenuesView';
 import VehiclesView from './views/VehiclesView';
+import FleetProvidersView from './views/FleetProvidersView';
 import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
 import GuestDetailView from './views/GuestDetailView';
@@ -42,6 +43,7 @@ const MODULE_ROUTES = [
   { key: 'organizations',   Component: OrganizationsView,   permission: 'Organizations.View' },
   { key: 'venues',          Component: VenuesView,          permission: 'Venue.View' },
   { key: 'vehicles',        Component: VehiclesView,        permission: 'Travel.View' },
+  { key: 'fleetProviders',  Component: FleetProvidersView,  permission: 'Travel.View' },
   { key: 'supportChat',     Component: SupportChatView,     permission: 'SupportChat.View' },
 ];
 
@@ -67,14 +69,18 @@ function GuestDetailAdapter() {
 // Redirect helpers ----------------------------------------------------------
 
 function RequireAuth() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isBooting } = useAuth();
   const location = useLocation();
+  // Startup refresh in flight — deciding either way here would flash the wrong
+  // screen (and used to send a returning user straight to /login).
+  if (isBooting) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
   return <App />; // App is the shell/layout; it renders <Outlet/> for the active module
 }
 
 function LoginRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isBooting } = useAuth();
+  if (isBooting) return null;
   if (isAuthenticated) return <Navigate to="/" replace />;
   return <AuthView />;
 }
