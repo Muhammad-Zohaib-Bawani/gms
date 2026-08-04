@@ -383,7 +383,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                       <th>{STR.cols.level}</th>
                       <th>{STR.cols.org}</th>
                       <th>{STR.cols.status}</th>
-                      <th>{STR.cols.arrival}</th>
+                      {/* <th>{STR.cols.arrival}</th> */}
                     </tr>
                   </thead>
                   <tbody>
@@ -399,9 +399,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                         <td><ServiceLevelChip name={g.tier} lang={lang} /></td>
                         <td style={{ color: 'var(--ink-mute)' }}>{g.organization || '—'}</td>
                         <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang} /></td>
-                        <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-mute)' }}>
+                        {/* <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-mute)' }}>
                           {g.arrivalDate || '—'}
-                        </td>
+                        </td> */}
                       </tr>
                     ))}
                   </tbody>

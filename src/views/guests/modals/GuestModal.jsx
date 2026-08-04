@@ -2,6 +2,7 @@
 // a new guest for `activeEventId`; an object = edit that guest in place).
 import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useEvents } from '../../../events/EventsContext';
 import { Icon } from "../../../components/Icons";
 import Select from "../../../components/ui/Select";
 import { useAuth } from "../../../auth/AuthContext";
@@ -138,6 +139,48 @@ const contentStyle = {
 // in up to 7 days before the event starts or leave up to 7 days after it ends.
 const DATE_MARGIN_DAYS = 7;
 
+// The pre-service-level tier vocabulary, mirroring Core.Constants.GuestTier.
+// Kept as a literal because these six values are a code enum with no lookup
+// endpoint — see GuestConstants.cs.
+const LEGACY_TIERS = [
+  { code: "vvip", en: "VVIP", ar: "شخصية بالغة الأهمية", color: "#e0b864" },
+  { code: "vip", en: "VIP", ar: "شخصية مهمة", color: "#a78bda" },
+  { code: "speaker", en: "Speaker", ar: "متحدث", color: "var(--accent)" },
+  { code: "delegate", en: "Delegate", ar: "مندوب", color: "#5abf6e" },
+  { code: "press", en: "Press", ar: "صحافة", color: "var(--danger)" },
+  { code: "observer", en: "Observer", ar: "مراقب", color: "var(--ink-mute)" },
+];
+
+function LegacyTierPicker({ value, onChange, isAr }) {
+  const current = (value || "").toLowerCase();
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      {LEGACY_TIERS.map((t) => {
+        const selected = current === t.code;
+        return (
+          <div
+            key={t.code}
+            onClick={() => onChange(t.code)}
+            style={{
+              padding: "10px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+              border: `1px solid ${selected ? t.color : "var(--glass-border)"}`,
+              background: selected ? "var(--accent-soft)" : "var(--surface-soft-2)",
+              fontSize: 13, fontWeight: selected ? 600 : 400,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: t.color,
+              }} />
+              {isAr ? t.ar : t.en}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GuestModal({
   open,
   onClose,
@@ -157,7 +200,15 @@ export default function GuestModal({
   const isAr = lang === "ar";
   const isEdit = !!guest;
   const { can } = useAuth();
+  const { events, activeEvent } = useEvents();
   const canOverrideRules = can("ServiceLevels.OverrideRules");
+
+  // Which flow this event runs. A guest always belongs to one event, so the
+  // model is read from that event rather than passed down through every call
+  // site of this modal.
+  const eventForGuest =
+    (guest?.eventId && (events || []).find((e) => e.id === guest.eventId)) || activeEvent;
+  const usesServiceLevels = eventForGuest?.guestModel === "fixed";
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(() => guestToForm(guest));
@@ -329,7 +380,9 @@ export default function GuestModal({
         guestType: form.guestType,
         organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
-        serviceLevelId: form.serviceLevelId || null,
+        // Omitted on a flexible event: the server ignores it there, and
+        // sending one would imply an assignment nothing enforces.
+        serviceLevelId: usesServiceLevels ? (form.serviceLevelId || null) : null,
         // Only sent when there's actually something to waive, so a stale tick
         // can't record a phantom override on a clean save.
         overrideServiceLevelRules: ruleViolations.length > 0 && form.overrideServiceLevelRules,
@@ -443,6 +496,10 @@ export default function GuestModal({
   // as you type instead of only on submit. The backend re-validates on save —
   // this is a convenience, never the enforcement point.
   const ruleViolations = useMemo(() => {
+    // A flexible event enforces nothing. This matters on an event switched from
+    // fixed to flexible: its guests keep their old serviceLevelId, so a level
+    // would still resolve here and its rules would still block the save.
+    if (!usesServiceLevels) return [];
     if (!selectedLevel) return [];
     const out = [];
 
@@ -473,11 +530,13 @@ export default function GuestModal({
     }
 
     return out;
-  }, [selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
+  }, [usesServiceLevels, selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
 
+  // Step 2 is named after whichever classifier the event actually uses, so the
+  // stepper doesn't promise a Service Level on a flexible event.
   const stepLabels = isAr
-    ? ["المعلومات الشخصية", "مستوى الخدمة والجلسات", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", "Service Level & Sessions", "Travel", "Invitation"];
+    ? ["المعلومات الشخصية", usesServiceLevels ? "مستوى الخدمة والجلسات" : "التصنيف والجلسات", "السفر والإقامة", "الدعوة"]
+    : ["Personal Info", usesServiceLevels ? "Service Level & Sessions" : "Tier & Sessions", "Travel", "Invitation"];
 
   const inputStyle = {
     width: "100%",
@@ -954,8 +1013,21 @@ export default function GuestModal({
                   </div>
                 </div>
                 <div>
-                  <SectionLabel>{isAr ? "مستوى الخدمة" : "Service Level"}</SectionLabel>
-                  {(serviceLevels || []).length === 0 ? (
+                  <SectionLabel>
+                    {usesServiceLevels
+                      ? (isAr ? "مستوى الخدمة" : "Service Level")
+                      : (isAr ? "التصنيف" : "Tier")}
+                  </SectionLabel>
+                  {/* A flexible event has no service levels, so it gets the
+                      original tier picker back: a plain label with no bundled
+                      services, no capacity and no required-field rules. */}
+                  {!usesServiceLevels ? (
+                    <LegacyTierPicker
+                      value={form.tier}
+                      onChange={(v) => setF("tier", v)}
+                      isAr={isAr}
+                    />
+                  ) : (serviceLevels || []).length === 0 ? (
                     <div style={{
                       padding: "12px 14px", borderRadius: 10, fontSize: 12.5, color: "#e0c47e",
                       background: "rgba(224,196,126,0.12)", border: "1px solid rgba(224,196,126,0.4)",

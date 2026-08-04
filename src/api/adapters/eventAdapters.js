@@ -31,6 +31,9 @@ export function toViewEvent(dto) {
     endDate: dto.endDate || '',
     image: dto.imageUrl || '',
     status: dto.status || 'planning',
+    // Absent means flexible — the backend default, and how an event created
+    // before this field existed behaves.
+    guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
     uiTheme: {
       preset: isCustom ? 'custom' : 'default',
       accent: dto.themeAccent || '#8d0134',
@@ -53,6 +56,7 @@ export function toEventRequest(v) {
     startDate: v.startDate || null,
     endDate: v.endDate || null,
     status: v.status || 'planning',
+    guestModel: v.guestModel === 'fixed' ? 'fixed' : 'flexible',
     // SAS tokens are short-lived — persist the bare blob URL, BlobSasMiddleware
     // re-signs it on read.
     imageUrl: stripSasToken(v.image) || null,

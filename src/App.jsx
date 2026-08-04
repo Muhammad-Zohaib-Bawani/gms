@@ -43,7 +43,7 @@ const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
-  { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "EVENT",    permission: "ServiceLevels.View"     },
+  { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "EVENT",    permission: "ServiceLevels.View",    fixedModelOnly: true },
   // Renamed from "Services" — that label now belongs to the per-event service
   // catalog under ADMIN. The route/permission/key are still `travel`.
   { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
@@ -60,7 +60,7 @@ const NAV = [
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
-  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View"          },
+  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View",         fixedModelOnly: true },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",     label: { en: "Vehicles",            ar: "المركبات"              }, section: "ADMIN",    permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
@@ -1119,6 +1119,9 @@ export default function App() {
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
   const { events, activeEvent, setActiveEventId } = useEvents();
+  // Whether the active event runs the Service Level flow. Drives which
+  // catalogue pages are worth showing in the nav.
+  const usesServiceLevels = activeEvent?.guestModel === 'fixed';
 
   const refreshUnreadCount = React.useCallback(() => {
     if (isDemo) return;
@@ -1302,7 +1305,15 @@ export default function App() {
 
         <div className="sidebar-nav-scroll">
           {sections.map(section => {
-            const visibleItems = NAV.filter(n => n.section === section && (!n.permission || can(n.permission)));
+            // The service catalogue only applies to events on the fixed guest
+            // model; on a flexible event there is nothing for these pages to
+            // configure, so they drop out of the nav rather than offering
+            // settings that would never be enforced. The routes stay reachable
+            // by URL — hiding the link is not access control.
+            const visibleItems = NAV.filter(n =>
+              n.section === section
+              && (!n.permission || can(n.permission))
+              && (!n.fixedModelOnly || usesServiceLevels));
             if (visibleItems.length === 0) return null;
             return (
               <React.Fragment key={section}>

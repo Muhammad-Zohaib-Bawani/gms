@@ -34,6 +34,11 @@ function normalize(dto) {
     logoDark: dto.logoDarkUrl || '',
     logoLight: dto.logoLightUrl || '',
     image: dto.imageUrl || '',
+    // 'fixed' runs the Service Level flow (levels, bundled services, capacity
+    // and required-field rules); 'flexible' is the older unrestricted flow
+    // where Guest.Tier is a plain string. Absent means flexible — that is the
+    // backend default and what an event that predates the field behaves as.
+    guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
   };
 }
 
