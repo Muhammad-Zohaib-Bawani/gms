@@ -538,7 +538,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
     badgeNotIssuedMsg: "Issue accreditation from the Accreditation module to view the badge.",
     guestType: "Guest Type", organization: "Organization", nationality: "Nationality",
     tier: "Tier", accreditation2: "Accreditation", accredRequired: "Required", accredNotRequired: "Not Required",
-    saveChanges: "Save Changes", saving: "Saving…", photoOptional: " Photo (optional)",
+    saveChanges: "Save Changes", saving: "Saving…", photoOptional: " ",
     removePhoto: "Remove photo", uploading: "Uploading…",
     pickMeeting: "Pick a meeting to add this guest to", noMeetings: "No meetings for this event",
     add: "Add", added: "Added",

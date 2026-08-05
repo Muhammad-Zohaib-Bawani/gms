@@ -651,61 +651,46 @@ export default function GuestModal({
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
         >
-          {/* Tabs — float above the card's top edge, outside its border, like
-              folder tabs; only shown for Add Guest (never while editing). */}
+                    {/* Mode switcher. Was a row of browser-style folder tabs absolutely
+              positioned at top:-38, i.e. floating outside the dialog over the
+              backdrop — which read as detached, and got worse once the dialog
+              became translucent. A segmented control inside the dialog keeps it
+              attached to the thing it controls. Add Guest only; never on edit. */}
           {!isEdit && (
-            <div
-              style={{
-                position: "absolute",
-                top: -38,
-                insetInlineStart: 20,
-                display: "flex",
-                gap: 4,
-                zIndex: 2,
-              }}
-            >
-              {[
-                { key: "new", label: isAr ? "ضيف جديد" : "New Guest" },
-                { key: "import", label: isAr ? "استيراد ضيوف" : "Import Guest" },
-                { key: "existing", label: isAr ? "ضيف حالي" : "Existing Guest" },
-              ].map((tab) => {
-                const active = mode === tab.key;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => { setMode(tab.key); setStep(1); }}
-                    style={{
-                      padding: "9px 18px",
-                      fontSize: 12.5,
-                      fontWeight: active ? 700 : 500,
-                      cursor: "pointer",
-                      border: "1px solid var(--glass-border)",
-                      borderBottom: active ? "none" : "1px solid var(--glass-border)",
-                      borderRadius: "10px 10px 0 0",
-                      // Floats outside `.modal-solid`'s own opaque background, directly
-                      // over the dark Dialog.Overlay — a transparent surface token here
-                      // would let that overlay bleed through (invisible in light theme).
-                      // color-mix keeps this fully opaque in both themes.
-                      background: active
-                        ? "var(--modal-bg)"
-                        : "color-mix(in srgb, var(--modal-bg) 85%, var(--ink) 15%)",
-                      color: active ? "var(--ink)" : "var(--ink-mute)",
-                      boxShadow: active ? "0 -3px 10px rgba(0,0,0,0.18)" : "none",
-                      transform: active ? "translateY(1px)" : "none",
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+            <div className="seg-wrap">
+              <div className="seg" role="tablist" aria-label={isAr ? "طريقة الإضافة" : "How to add"}>
+                {[
+                  { key: "new", label: isAr ? "ضيف جديد" : "New Guest", icon: "plus" },
+                  { key: "import", label: isAr ? "استيراد ضيوف" : "Import Guest", icon: "upload" },
+                  { key: "existing", label: isAr ? "ضيف حالي" : "Existing Guest", icon: "guests" },
+                ].map((tab) => {
+                  const active = mode === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className={`seg-btn${active ? " active" : ""}`}
+                      onClick={() => { setMode(tab.key); setStep(1); }}
+                    >
+                      <Icon name={tab.icon} size={13} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {/* Header */}
           <div
             style={{
-              padding: "18px 24px",
-              borderBottom: "1px solid var(--glass-border)",
+              padding: "4px 24px 16px",
+              // The divider belongs to whichever row is last before the body.
+              // With the wizard showing that's the step row; without it (Import
+              // / Existing Guest) the title is last and carries it here.
+              borderBottom: showWizard ? "none" : "1px solid var(--glass-border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
@@ -737,35 +722,6 @@ export default function GuestModal({
                 )}
               </Dialog.Title>
 
-              {showWizard && (
-                /* Only the current step is labelled. Four labels plus circles
-                   and connectors need far more than the modal's 560px, so the
-                   old row squeezed and wrapped; numbers carry the sequence and
-                   the active label says where you are. */
-                <div className="wizard-steps" role="group" aria-label="Progress">
-                  {stepLabels.map((label, i) => {
-                    const s = activeSteps[i];
-                    const done = stepPos > i;
-                    const active = step === s;
-                    return (
-                      <React.Fragment key={i}>
-                        <div
-                          className={`wizard-step${active ? " active" : ""}${done ? " done" : ""}`}
-                          aria-current={active ? "step" : undefined}
-                        >
-                          <span className="wizard-dot">
-                            {done ? <Icon name="check" size={11} /> : s}
-                          </span>
-                          {active && <span className="wizard-label">{label}</span>}
-                        </div>
-                        {i < stepLabels.length - 1 && (
-                          <span className={`wizard-bar${done ? " done" : ""}`} />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              )}
             </div>
             <Dialog.Close asChild>
               <button
@@ -776,6 +732,37 @@ export default function GuestModal({
               </button>
             </Dialog.Close>
           </div>
+
+
+          {showWizard && (
+            /* Only the current step is labelled. Four labels plus circles
+               and connectors need far more than the modal's 560px, so the
+               old row squeezed and wrapped; numbers carry the sequence and
+               the active label says where you are. */
+            <div className="wizard-steps" role="group" aria-label="Progress">
+              {stepLabels.map((label, i) => {
+                const s = activeSteps[i];
+                const done = stepPos > i;
+                const active = step === s;
+                return (
+                  <React.Fragment key={i}>
+                    <div
+                      className={`wizard-step${active ? " active" : ""}${done ? " done" : ""}`}
+                      aria-current={active ? "step" : undefined}
+                    >
+                      <span className="wizard-dot">
+                        {done ? <Icon name="check" size={11} /> : s}
+                      </span>
+                      {active && <span className="wizard-label">{label}</span>}
+                    </div>
+                    {i < stepLabels.length - 1 && (
+                      <span className={`wizard-bar${done ? " done" : ""}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
 
           {/* Body */}
           <div
@@ -874,6 +861,7 @@ export default function GuestModal({
                         accept="image/*"
                         onChange={handlePhotoSelect}
                         disabled={photoUploading}
+                        title="Guest Photo"
                         style={{ display: "none" }}
                       />
                     </label>
@@ -885,11 +873,12 @@ export default function GuestModal({
                         : "Uploading…"
                       : isAr
                         ? "صورة الوجه (اختياري)"
-                        : "Photo"}
+                        : ""}
                   </div>
                   {form.photoUrl && !photoUploading && (
                     <button
                       onClick={() => setF("photoUrl", "")}
+                      title=""
                       style={{
                         background: "none",
                         border: "none",
