@@ -1005,7 +1005,7 @@ html[data-theme="dark"] .bg-grain { display: block; }
 .icon-btn {
   width: 36px; height: 36px; display: grid; place-items: center;
   border-radius: 10px; background: var(--surface-soft-2);
-  border: 1px solid var(--glass-border); color: var(--ink-dim);
+  border: 1px solid #00000014;
   position: relative;
 }
 .icon-btn:hover { background: var(--surface-soft-5); color: var(--ink); }
@@ -2060,13 +2060,15 @@ html[data-theme="light"] .modal-solid {
   --ink-faint: rgba(26,20,32,0.30);
   --glass-border: rgba(20,10,20,0.10);
   --glass-border-strong: rgba(20,10,20,0.18);
-  --glass-bg: rgba(20,10,20,0.04);
-  --glass-bg-strong: #ffffff;
-  --surface-soft: rgba(20,10,20,0.03);
-  --surface-soft-2: rgba(20,10,20,0.04);
-  --surface-soft-3: rgba(20,10,20,0.05);
-  --surface-soft-4: rgba(20,10,20,0.07);
-  --surface-soft-5: rgba(20,10,20,0.10);
+  /* White-alpha, not ink-alpha: the dialog is frosted now, so an ink wash on
+     inner wells and inputs read as grey patches stuck on the glass. */
+  --glass-bg: rgba(255,255,255,0.42);
+  --glass-bg-strong: rgba(255,255,255,0.72);
+  --surface-soft: rgba(255,255,255,0.40);
+  --surface-soft-2: rgba(255,255,255,0.34);
+  --surface-soft-3: rgba(255,255,255,0.28);
+  --surface-soft-4: rgba(141,1,52,0.09);
+  --surface-soft-5: rgba(141,1,52,0.14);
   --hover-tint: rgba(20,10,20,0.05);
   --row-tint: rgba(20,10,20,0.02);
   color: var(--ink);

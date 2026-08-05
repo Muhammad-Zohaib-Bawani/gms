@@ -621,7 +621,7 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
   place-items: center;
   border-radius: 10px;
   background: transparent;
-  border: 1px solid transparent;
+  /* border: 1px solid transparent; */
   color: var(--ink-mute);
   position: relative;
   cursor: pointer;
@@ -1408,10 +1408,16 @@ body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 10px;
+  /* Its own row below the mode switcher, so it carries the padding and the
+     divider that used to belong to the header/seg row. */
+  padding: 2px 24px 14px;
+  border-bottom: 1px solid var(--glass-border);
   flex-wrap: nowrap;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.wizard-steps::-webkit-scrollbar { display: none; }
 
 .wizard-step { display: flex; align-items: center; gap: 7px; min-width: 0; }
 
@@ -1492,4 +1498,62 @@ textarea {
 }
 .input:focus, select:focus, textarea:focus {
   background: var(--surface-glass-strong);
+}
+
+/* ==========================================================================
+   SEGMENTED CONTROL  (guest modal mode switcher)
+   Replaces the folder tabs that used to float above the dialog, outside its
+   own background and over the backdrop. A segment group reads as "pick one of
+   these three", sits inside the surface it controls, and needs no z-index or
+   negative offsets to work.
+   ========================================================================== */
+.seg-wrap { padding: 16px 24px 12px; }
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--surface-soft-4);
+  border: 1px solid var(--glass-border);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.seg::-webkit-scrollbar { display: none; }
+
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+              box-shadow var(--dur) var(--ease);
+}
+.seg-btn:hover:not(.active) { color: var(--ink); background: var(--hover-tint); }
+.seg-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* The active segment is the one opaque thing in the group, so it lifts off the
+   track rather than relying on colour alone. */
+.seg-btn.active {
+  background: var(--bg-0);
+  color: var(--accent);
+  font-weight: 650;
+  box-shadow: var(--shadow-xs);
+}
+.seg-btn.active svg { color: var(--accent); }
+
+@media (max-width: 560px) {
+  .seg-wrap { padding: 14px 14px 10px; }
+  .wizard-steps { padding: 2px 14px 12px; }
+  .seg-btn span { display: none; }   /* icons only when it would otherwise wrap */
+  .seg-btn { padding: 8px 12px; }
 }
