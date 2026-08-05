@@ -341,10 +341,10 @@ export default function GuestModal({
 
   useEffect(() => {
     if (!open) return;
-    getTravelLookups()
+    getTravelLookups(activeEventId)
       .then(setTravelLookups)
       .catch(() => setTravelLookups({}));
-  }, [open]);
+  }, [open, activeEventId]);
 
   const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -1340,6 +1340,7 @@ export default function GuestModal({
                   dateMaxDate={dateWindowMax}
                   eventMinDate={eventStartDate}
                   eventMaxDate={eventEndDate}
+                  eventId={activeEventId}
                 />
               </>
             )}

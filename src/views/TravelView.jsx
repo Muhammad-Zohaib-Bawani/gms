@@ -13,6 +13,8 @@ import DataTable from '../components/ui/DataTable.jsx';
 import ActionMenu from '../components/ui/ActionMenu.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso } from '../lib/date.js';
+import { useAvailableVehicles } from '../lib/useAvailableVehicles.js';
+import { useHotelRoomTypes, useRoomAvailability } from '../lib/useRoomInventory.js';
 import TravelAccordion, {
   driverLabel,
   vehicleLabel,
@@ -433,13 +435,39 @@ export default function TravelView({ lang, activeEventId }) {
   // ── Travel lookups (shared by New Booking + every Edit modal) ──────────────
   const [travelLookups, setTravelLookups] = useState({});
   useEffect(() => {
-    getTravelLookups().then(setTravelLookups).catch(() => setTravelLookups({}));
-  }, []);
+    getTravelLookups(activeEventId).then(setTravelLookups).catch(() => setTravelLookups({}));
+  }, [activeEventId]);
 
   // ── Edit modal — reuses the exact same field set as New Booking/the guest
   //    wizard (TravelAccordion's per-section fields), scoped to one section.
   const [editModal, setEditModal] = useState(null); // { type, guestId, guestName, form } | { type, loading: true }
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Vehicle dropdown for the transfer Edit modal — cars free in the edited ride's
+  // window. The ride excludes itself, or it would report its own car as busy.
+  const isTransferEdit = editModal?.type === 'transfer';
+  const editVehicles = useAvailableVehicles({
+    pickupTime: isTransferEdit ? editModal?.form?.pickupTime : '',
+    dropoffTime: isTransferEdit ? editModal?.form?.dropoffTime : '',
+    eventId: activeEventId,
+    excludeTransportId: editModal?.form?.id,
+    fallback: travelLookups.vehicles,
+  });
+
+  // Same for the hotel Edit modal: room types held at the chosen hotel, and that
+  // room type's per-night availability for the date pickers.
+  const isHotelEdit = editModal?.type === 'hotel';
+  const editHotelId = isHotelEdit ? editModal?.form?.hotelId : '';
+  const editRoomTypes = useHotelRoomTypes({
+    eventId: activeEventId,
+    hotelId: editHotelId,
+    fallback: travelLookups.roomTypes,
+  });
+  const editRooms = useRoomAvailability({
+    eventId: activeEventId,
+    hotelId: editHotelId,
+    roomTypeId: isHotelEdit ? editModal?.form?.roomTypeId : '',
+  });
 
   async function openEdit(type, row) {
     setEditModal({ type, guestId: row.guestId, guestName: row.name, form: null, loading: true });
@@ -1041,14 +1069,26 @@ export default function TravelView({ lang, activeEventId }) {
                       <div><label style={lSt}>{isAr ? 'الفندق' : 'Hotel'} *</label>
                         <Select value={f.hotelId} onChange={v => set('hotelId', v)} options={mapOpts(travelLookups.hotels, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
-                      <div><label style={lSt}>{isAr ? 'نوع الغرفة' : 'Room Type'}</label>
-                        <Select value={f.roomTypeId} onChange={v => set('roomTypeId', v)} options={mapOpts(travelLookups.roomTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                      <div><label style={lSt}>{isAr ? 'نوع الغرفة' : 'Room Type'}{editRooms.managed ? ' *' : ''}</label>
+                        <Select value={f.roomTypeId} onChange={v => set('roomTypeId', v)} options={mapOpts(editRoomTypes, x=>x.name)} placeholder={isAr?'— اختر —':'— Select —'} isClearable={!editRooms.managed}/>
                       </div>
                     </>)}
+                    {/* Held-room window bounds the dates and full nights are greyed
+                        out; check-out is the morning after the last night slept, so
+                        it may sit one day past the window. */}
                     {grid2(<>
-                      <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
-                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={f.checkIn || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={editRooms.window?.min || dateWindowMin} maxDate={editRooms.window?.max || dateWindowMax} excludeDates={editRooms.fullDates} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={addDaysIso(f.checkIn, 1) || f.checkIn || dateWindowMin} maxDate={(editRooms.window && addDaysIso(editRooms.window.max, 1)) || dateWindowMax} placeholder="YYYY-MM-DD"/></div>
                     </>)}
+                    {editRooms.managed && f.checkIn && (
+                      <div style={{ fontSize:11, color:'var(--ink-faint)' }}>
+                        {editRooms.availableOn(f.checkIn) === null
+                          ? (isAr ? 'لا غرف محجوزة في هذا التاريخ' : 'No rooms held on that date')
+                          : (isAr
+                              ? `${editRooms.availableOn(f.checkIn)} غرفة متاحة ليلة ${f.checkIn}`
+                              : `${editRooms.availableOn(f.checkIn)} room(s) left on the night of ${f.checkIn}`)}
+                      </div>
+                    )}
                     {/* {grid2(<>
                       <div><label style={lSt}>{isAr ? 'إطلالة الغرفة' : 'Room View'}</label><input style={iSt} value={f.roomView} onChange={e => set('roomView', e.target.value)}/></div>
                       <div><label style={lSt}>{isAr ? 'عدد النزلاء' : 'Guest Count'}</label><input type="number" style={iSt} value={f.guestCount} onChange={e => set('guestCount', e.target.value)}/></div>
@@ -1074,17 +1114,19 @@ export default function TravelView({ lang, activeEventId }) {
                         <Select value={f.dropoffLocationId} onChange={v => set('dropoffLocationId', v)} options={mapOpts(travelLookups.locations, x=>x.address)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                     </>)}
+                    {/* Times before the vehicle: the list below only offers cars
+                        free in that window. */}
+                    {grid2(<>
+                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'وقت التوصيل' : 'Dropoff Time'} *</label><DateField value={f.dropoffTime} onChange={v => set('dropoffTime', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                    </>)}
                     {grid2(<>
                       <div><label style={lSt}>{isAr ? 'المركبة' : 'Vehicle'} *</label>
-                        <Select value={f.vehicleId} onChange={v => set('vehicleId', v)} options={mapOpts(travelLookups.vehicles, vehicleLabel)} placeholder={isAr?'— اختر —':'— Select —'}/>
+                        <Select value={f.vehicleId} onChange={v => set('vehicleId', v)} options={mapOpts(editVehicles, vehicleLabel)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                       <div><label style={lSt}>{isAr ? 'السائق' : 'Driver'}</label>
                         <Select value={f.driverId} onChange={v => set('driverId', v)} options={mapOpts(travelLookups.drivers, driverLabel)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
                       </div>
-                    </>)}
-                    {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
-                      <div><label style={lSt}>{isAr ? 'وقت التوصيل' : 'Dropoff Time'}</label><DateField value={f.dropoffTime} onChange={v => set('dropoffTime', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
                     </>)}
                   </>
                 );
@@ -1171,6 +1213,7 @@ export default function TravelView({ lang, activeEventId }) {
                   dateMaxDate={dateWindowMax}
                   eventMinDate={eventMinDate}
                   eventMaxDate={eventMaxDate}
+                  eventId={activeEventId}
                 />
               )}
             </div>

@@ -22,9 +22,10 @@ const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 };
 
 const EMPTY_FORM = { name: '', contactPerson: '', phone: '', email: '', notes: '' };
 
-// Fleet providers: the companies vehicles are sourced from. Gated on the same
-// Travel permissions as the vehicles screen.
-export default function FleetProvidersView({ lang }) {
+// Fleet providers: the companies vehicles are sourced from, contracted per
+// event — so the list follows the active event, like the service catalog does.
+// Gated on the same Travel permissions as the vehicles screen.
+export default function FleetProvidersView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const { can } = useAuth();
   const canManage = can('Travel.Manage');
@@ -39,11 +40,12 @@ export default function FleetProvidersView({ lang }) {
   const [deletingId, setDeletingId] = useState(null);
 
   const load = useCallback(async () => {
+    if (!activeEventId) { setRows([]); setLoading(false); return; }
     setLoading(true);
-    try { setRows((await getFleetProviders()) || []); }
+    try { setRows((await getFleetProviders(activeEventId)) || []); }
     catch { setRows([]); }
     finally { setLoading(false); }
-  }, []);
+  }, [activeEventId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -91,10 +93,10 @@ export default function FleetProvidersView({ lang }) {
     setSaving(true);
     try {
       if (editing) {
-        await updateFleetProvider(editing.id, body);
+        await updateFleetProvider(activeEventId, editing.id, body);
         toast.success(isAr ? 'تم التحديث' : 'Provider updated');
       } else {
-        await createFleetProvider(body);
+        await createFleetProvider(activeEventId, body);
         toast.success(isAr ? 'تمت الإضافة' : 'Provider added');
       }
       setShowForm(false);
@@ -109,7 +111,7 @@ export default function FleetProvidersView({ lang }) {
   async function handleDelete(row) {
     setDeletingId(row.id);
     try {
-      await deleteFleetProvider(row.id);
+      await deleteFleetProvider(activeEventId, row.id);
       toast.success(isAr ? 'تم الحذف' : 'Provider deleted');
       load();
     } catch (err) {
@@ -155,7 +157,7 @@ export default function FleetProvidersView({ lang }) {
             {isAr ? 'الشركات التي توفّر مركبات النقل' : 'Companies that supply transport vehicles'}
           </div>
         </div>
-        {canManage && (
+        {canManage && activeEventId && (
           <div className="page-actions">
             <button className="btn primary" onClick={openAdd}>
               <Icon name="plus" size={14} /> {isAr ? 'إضافة مزوّد' : 'Add Provider'}
@@ -164,17 +166,27 @@ export default function FleetProvidersView({ lang }) {
         )}
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
-        <DataTable
-          columns={columns}
-          data={rows}
-          loading={loading}
-          showSearch
-          pageSize={10}
-          searchPlaceholder={isAr ? 'بحث…' : 'Search providers…'}
-          emptyText={isAr ? 'لا يوجد مزوّدون بعد' : 'No fleet providers yet'}
-        />
-      </div>
+      {!activeEventId ? (
+        <div style={{
+          padding: '10px 16px', borderRadius: 10, fontSize: 13, color: '#e0c47e',
+          background: 'rgba(224,196,126,0.1)', border: '1px solid rgba(224,196,126,0.3)',
+        }}>
+          <Icon name="alert" size={14} />{' '}
+          {isAr ? 'اختر فعالية أولاً' : 'Select an event first'}
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0 }}>
+          <DataTable
+            columns={columns}
+            data={rows}
+            loading={loading}
+            showSearch
+            pageSize={10}
+            searchPlaceholder={isAr ? 'بحث…' : 'Search providers…'}
+            emptyText={isAr ? 'لا يوجد مزوّدون بعد' : 'No fleet providers yet'}
+          />
+        </div>
+      )}
 
       <Modal
         open={showForm}

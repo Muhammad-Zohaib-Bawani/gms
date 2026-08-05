@@ -1,6 +1,7 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 import { getVehicles } from './vehicleService';
+import { getContractedHotels } from './accommodationInventoryService';
 
 // ── Admin travel tabs: per-event booking lists (one call per active tab) ─────
 // Paged like GET /guest — returns { items, totalCount, pageNumber, pageSize }.
@@ -51,10 +52,18 @@ export const getDrivers       = () => apiClient.get(ENDPOINTS.lookups.drivers);
 // list comes from the vehicles module.
 export { getVehicles };
 
-// Fills every wizard dropdown by calling the lookup endpoints in parallel.
-export const getTravelLookups = async () => {
+// Fills every wizard dropdown by calling the lookup endpoints in parallel. Pass
+// eventId to scope the two event-specific lists: vehicles to this event's fleet
+// (its providers' cars plus in-house ones), hotels to the ones it holds a
+// contract with. `roomTypes` stays the global list — the accommodation form
+// narrows it per hotel once one is picked (useHotelRoomTypes).
+export const getTravelLookups = async (eventId) => {
   const [flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers] = await Promise.all([
-    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicles(), getHotels(), getLocations(),
+    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicles(eventId),
+    // An event with no contracts yet would leave the hotel dropdown empty, which
+    // is correct — add the contract on Accommodation › Inventory first.
+    eventId ? getContractedHotels(eventId) : getHotels(),
+    getLocations(),
     // ponytail: one failing lookup shouldn't blank every other dropdown (Promise.all is all-or-nothing).
     getAirports().catch(() => []),
     getDrivers().catch(() => []),

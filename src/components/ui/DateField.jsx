@@ -10,6 +10,9 @@ export default function DateField({
   onChange,
   minDate,
   maxDate,
+  // 'YYYY-MM-DD' strings to grey out inside the allowed range — e.g. nights a
+  // hotel has no rooms left. Unlike minDate/maxDate these punch holes in it.
+  excludeDates,
   openToDate,
   placeholder = 'Select date',
   disabled = false,
@@ -23,6 +26,7 @@ export default function DateField({
       onChange={(d) => onChange(format(d))}
       minDate={minDate ? toDate(minDate) : undefined}
       maxDate={maxDate ? toDate(maxDate) : undefined}
+      excludeDates={excludeDates?.length ? excludeDates.map(toDate).filter(Boolean) : undefined}
       openToDate={!value && openToDate ? toDate(openToDate) : undefined}
       // Time via a native <input type="time"> under the calendar — one click to
       // focus, type or use the OS stepper. The scrolling 96-row time column

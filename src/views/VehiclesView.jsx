@@ -32,7 +32,9 @@ const EMPTY_FORM = {
 
 // Fleet admin: the vehicles themselves plus their type lookup, as two tabs —
 // the types tab is the generic lookup screen, so it isn't duplicated here.
-export default function VehiclesView({ lang }) {
+// Scoped to the active event: a vehicle inherits its event from its provider, so
+// the list is this event's providers' cars plus the in-house ones.
+export default function VehiclesView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const { can } = useAuth();
   const canManage = can('Travel.Manage');
@@ -52,10 +54,10 @@ export default function VehiclesView({ lang }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setRows((await getVehicles()) || []); }
+    try { setRows((await getVehicles(activeEventId)) || []); }
     catch { setRows([]); }
     finally { setLoading(false); }
-  }, []);
+  }, [activeEventId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,13 +70,15 @@ export default function VehiclesView({ lang }) {
 
   useEffect(() => { loadTypes(); }, [loadTypes, tab]);
 
-  // Providers feed the form dropdown too — managed on their own screen.
+  // Providers feed the form dropdown too — managed on their own screen, and only
+  // the ones contracted for the active event are offered.
   useEffect(() => {
     (async () => {
-      try { setProviders((await getFleetProviders()) || []); }
+      if (!activeEventId) { setProviders([]); return; }
+      try { setProviders((await getFleetProviders(activeEventId)) || []); }
       catch { setProviders([]); }
     })();
-  }, []);
+  }, [activeEventId]);
 
   const setF = (k, v) => {
     setForm((p) => ({ ...p, [k]: v }));

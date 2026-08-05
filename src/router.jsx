@@ -23,6 +23,8 @@ import ServiceLevelsView from './views/ServiceLevelsView';
 import VenuesView from './views/VenuesView';
 import VehiclesView from './views/VehiclesView';
 import FleetProvidersView from './views/FleetProvidersView';
+import FleetBookingsView from './views/FleetBookingsView';
+import AccommodationInventoryView from './views/AccommodationInventoryView';
 import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
 import GuestDetailView from './views/GuestDetailView';
@@ -48,6 +50,8 @@ const MODULE_ROUTES = [
   { key: 'venues',          Component: VenuesView,          permission: 'Venue.View' },
   { key: 'vehicles',        Component: VehiclesView,        permission: 'Travel.View' },
   { key: 'fleetProviders',  Component: FleetProvidersView,  permission: 'Travel.View' },
+  { key: 'fleetBookings',   Component: FleetBookingsView,   permission: 'Travel.View' },
+  { key: 'roomInventory',   Component: AccommodationInventoryView, permission: 'Travel.View' },
   { key: 'supportChat',     Component: SupportChatView,     permission: 'SupportChat.View' },
 ];
 

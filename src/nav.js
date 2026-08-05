@@ -21,6 +21,8 @@ export const KEY_PATH = {
   venues:          '/venues',
   vehicles:        '/vehicles',
   fleetProviders:  '/fleet-providers',
+  fleetBookings:   '/fleet-bookings',
+  roomInventory:   '/room-inventory',
   supportChat:     '/support-chat',
 };
 

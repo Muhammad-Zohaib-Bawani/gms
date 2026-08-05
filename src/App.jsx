@@ -64,6 +64,8 @@ const NAV = [
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
+  { key: "fleetBookings",  icon: "meetings",   label: { en: "Bookings",            ar: "حجوزات الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
+  { key: "roomInventory",  icon: "hotel",      label: { en: "Inventory",           ar: "مخزون الإقامة"         }, section: "STAY",     permission: "Travel.View"            },
   { key: "lookups",        icon: "reports",    label: { en: "Lookups",             ar: "القوائم"               }, section: "ADMIN",    permission: "Lookups.View", children: LOOKUP_CHILDREN },
 ];
 
@@ -75,6 +77,7 @@ const SECTION_LABELS = {
   ONSITE:   { en: "ONSITE",   ar: "في الموقع" },
   INSIGHTS: { en: "INSIGHTS", ar: "تحليلات" },
   FLEET:    { en: "FLEET MANAGEMENT", ar: "إدارة الأسطول" },
+  STAY:     { en: "ACCOMMODATION", ar: "الإقامة" },
   ADMIN:    { en: "ADMIN",    ar: "الإدارة" },
 };
 
@@ -1242,7 +1245,7 @@ export default function App() {
     ? (activeLogo.dark || activeEv?.logoDark || activeEv?.logoLight)
     : (activeLogo.light || activeEv?.logoLight || activeEv?.logoDark);
 
-  const sections = ["EVENT", "ONSITE", "INSIGHTS", "FLEET", "ADMIN"];
+  const sections = ["EVENT", "ONSITE", "INSIGHTS", "FLEET", "STAY", "ADMIN"];
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 

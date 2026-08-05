@@ -20,6 +20,9 @@ import React from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
+import { useAvailableVehicles } from '../../../lib/useAvailableVehicles';
+import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
+import { addDaysIso } from '../../../lib/date';
 
 // `id` (a specific booking's public id) is populated only when hydrating an
 // existing booking — see the module doc comment above. Saving with it set
@@ -142,12 +145,21 @@ export function validateTravel(t, isAr = false) {
     if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
     if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
     if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
+    // A stay occupies the nights from check-in up to (not including) check-out, so
+    // a same-day pair is zero nights — nothing to book a room for.
+    if (t.accommodation.checkOut <= t.accommodation.checkIn)
+      return isAr ? 'تاريخ المغادرة يجب أن يكون بعد الوصول' : 'Check-out must be after check-in';
   }
   if (t.transport.enabled) {
     if (!t.transport.vehicleId) return isAr ? 'المركبة مطلوبة' : 'Vehicle is required';
     if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
     if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
     if (!t.transport.pickupTime) return isAr ? 'وقت الاستلام مطلوب' : 'Pickup time is required';
+    // Required, not optional: the drop-off is what bounds the vehicle's busy
+    // window, so without it the same car can be booked twice over.
+    if (!t.transport.dropoffTime) return isAr ? 'وقت التوصيل مطلوب' : 'Dropoff time is required';
+    if (t.transport.dropoffTime <= t.transport.pickupTime)
+      return isAr ? 'وقت التوصيل يجب أن يكون بعد وقت الاستلام' : 'Dropoff time must be after the pickup time';
   }
   return null;
 }
@@ -413,6 +425,9 @@ export default function TravelAccordion({
   // Raw event start/end (no margin) — bounds the flight departure/arrival
   // datetimes. Hotel and transport dates use the wider dateMinDate/dateMaxDate.
   eventMinDate, eventMaxDate,
+  // Narrows the vehicle dropdown to this event's fleet. Optional — omitting it
+  // only means the whole fleet is offered.
+  eventId,
 }) {
   const selPlaceholder = isAr ? '— اختر —' : '— Select —';
 
@@ -429,8 +444,33 @@ export default function TravelAccordion({
     }));
   };
 
-  const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
-  const vehicleOpts = mapOpts(lookups.vehicles, vehicleLabel);
+  // Room types narrow to the ones the event actually holds rooms of at the chosen
+  // hotel; an unmanaged hotel falls back to the global list.
+  const heldRoomTypes = useHotelRoomTypes({
+    eventId,
+    hotelId: travel.accommodation.enabled ? travel.accommodation.hotelId : '',
+    fallback: lookups.roomTypes,
+  });
+  const roomTypeOpts = mapOpts(heldRoomTypes, (x) => x.name);
+
+  // Per-night capacity for that hotel + room type: bounds the date pickers to the
+  // held window and greys out nights with nothing left.
+  const rooms = useRoomAvailability({
+    eventId,
+    hotelId: travel.accommodation.enabled ? travel.accommodation.hotelId : '',
+    roomTypeId: travel.accommodation.enabled ? travel.accommodation.roomTypeId : '',
+  });
+
+  // Once both transport times are set, only cars actually free in that window are
+  // offered — before that (or if the lookup fails) the full fleet is.
+  const freeVehicles = useAvailableVehicles({
+    pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
+    dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
+    eventId,
+    excludeTransportId: travel.transport.id,
+    fallback: lookups.vehicles,
+  });
+  const vehicleOpts = mapOpts(freeVehicles, vehicleLabel);
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
   const driverOpts = mapOpts(lookups.drivers, driverLabel);
@@ -463,7 +503,7 @@ export default function TravelAccordion({
     </div>
   );
 
-  const date = (section, key, label, { minDate, maxDate, required = false } = {}) => (
+  const date = (section, key, label, { minDate, maxDate, excludeDates, required = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
       <DateField
@@ -471,6 +511,7 @@ export default function TravelAccordion({
         onChange={(v) => setField(section, key, v || '')}
         minDate={minDate}
         maxDate={maxDate}
+        excludeDates={excludeDates}
         placeholder="YYYY-MM-DD"
       />
     </div>
@@ -510,12 +551,37 @@ export default function TravelAccordion({
       <Section enabled={travel.accommodation.enabled} onToggle={() => toggle('accommodation')} icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
         {grid(<>
           {sel('accommodation', 'hotelId', isAr ? 'الفندق' : 'Hotel', hotelOpts, { required: true })}
-          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts)}
+          {/* Required once the event holds rooms at this hotel — capacity is
+              tracked per room type, so there's nothing to check without one. */}
+          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts, { required: rooms.managed })}
         </>)}
+        {/* Dates are held to the room block's window, and nights with nothing left
+            are greyed out. Check-out is the morning after the last night slept, so
+            it may fall one day past the window and is never itself "full". */}
         {grid(<>
-          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', { minDate: travel.accommodation.checkIn || dateMinDate, maxDate: dateMaxDate, required: true })}
+          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', {
+            minDate: rooms.window?.min || dateMinDate,
+            maxDate: rooms.window?.max || dateMaxDate,
+            excludeDates: rooms.fullDates,
+            required: true,
+          })}
+          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', {
+            minDate: addDaysIso(travel.accommodation.checkIn, 1) || travel.accommodation.checkIn || dateMinDate,
+            maxDate: (rooms.window && addDaysIso(rooms.window.max, 1)) || dateMaxDate,
+            required: true,
+          })}
         </>)}
+        {rooms.managed && travel.accommodation.checkIn && (
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+            {(() => {
+              const left = rooms.availableOn(travel.accommodation.checkIn);
+              if (left === null) return isAr ? 'لا غرف محجوزة في هذا التاريخ' : 'No rooms held on that date';
+              return isAr
+                ? `${left} غرفة متاحة ليلة ${travel.accommodation.checkIn}`
+                : `${left} room(s) left on the night of ${travel.accommodation.checkIn}`;
+            })()}
+          </div>
+        )}
         {/* {grid(<>
           {txt('accommodation', 'roomView', isAr ? 'إطلالة الغرفة' : 'Room View', { ph: isAr ? 'إطلالة بحرية' : 'Sea view' })}
           {txt('accommodation', 'guestCount', isAr ? 'عدد النزلاء' : 'Guest Count', { type: 'number' })}
@@ -543,14 +609,24 @@ export default function TravelAccordion({
           {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true })}
           {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}
         </>)}
-        {grid(<>
-          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts)}
-          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
-        </>)}
+        {/* Times come first: the vehicle list below is filtered to what's free in
+            that window, so picking a car before the times would offer the whole
+            fleet and then quietly narrow it. */}
         {grid(<>
           {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate, required: true })}
         </>)}
+        {grid(<>
+          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts, { required: true })}
+          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
+        </>)}
+        {travel.transport.enabled && travel.transport.pickupTime && travel.transport.dropoffTime && (
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+            {isAr
+              ? 'المركبات المحجوزة في هذا الوقت مستثناة من القائمة'
+              : 'Vehicles already booked in this window are left out of the list'}
+          </div>
+        )}
       </Section>
     </div>
   );

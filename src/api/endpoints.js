@@ -104,12 +104,31 @@ export const ENDPOINTS = {
   vehicles: {
     base: '/v1/vehicles',
     byId: (id) => `/v1/vehicles/${id}`,
+    // Vehicles free over a time window — the booking forms' dropdown feed.
+    available: '/v1/vehicles/available',
+    // Which vehicle is booked when, and with which driver.
+    bookings: '/v1/vehicles/bookings',
   },
 
-  // Companies that supply fleet vehicles. Same access split as vehicles.
+  // Companies that supply fleet vehicles, contracted per event — hence nested
+  // under the event, like the service catalog. Same access split as vehicles.
   fleetProviders: {
-    base: '/v1/fleet-providers',
-    byId: (id) => `/v1/fleet-providers/${id}`,
+    base: (eventId) => `/v1/events/${eventId}/fleet-providers`,
+    byId: (eventId, id) => `/v1/events/${eventId}/fleet-providers/${id}`,
+  },
+
+  // Per-event hotel contracts + the room blocks held under them. Hotels and room
+  // types themselves stay global lookups.
+  accommodationInventory: {
+    contracts: (eventId) => `/v1/events/${eventId}/accommodation/contracts`,
+    contract: (eventId, id) => `/v1/events/${eventId}/accommodation/contracts/${id}`,
+    inventory: (eventId) => `/v1/events/${eventId}/accommodation/inventory`,
+    inventoryById: (eventId, id) => `/v1/events/${eventId}/accommodation/inventory/${id}`,
+    // Booking-form feeds: contracted hotels, that hotel's held room types, and
+    // the per-night availability the calendar greys out.
+    hotels: (eventId) => `/v1/events/${eventId}/accommodation/hotels`,
+    hotelRoomTypes: (eventId, hotelId) => `/v1/events/${eventId}/accommodation/hotels/${hotelId}/room-types`,
+    availability: (eventId) => `/v1/events/${eventId}/accommodation/availability`,
   },
 
   invitationTemplates: {
