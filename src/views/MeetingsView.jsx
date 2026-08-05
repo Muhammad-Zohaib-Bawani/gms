@@ -10,6 +10,7 @@ import toast from '../lib/toast.js';
 import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
 import { listGuests } from '../api/services/guestService.js';
 import DateField from '../components/ui/DateField.jsx';
+import { fmtDate } from '../lib/date.js';
 
 const ANCHOR = new Date();
 
@@ -57,7 +58,6 @@ export default function MeetingsView({ lang, activeEventId }) {
     searchGuest: 'بحث عن ضيف…',
     cancel: 'إلغاء', back: 'السابق', next: 'التالي', save: 'حفظ الاجتماع', saving: 'جارٍ الحفظ…',
     days: ['أح','اث','ث','أر','خ','ج','س'],
-    months: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
     newTitle: 'اجتماع جديد',
     addAttendee: 'إضافة مشارك',
     noMeetings: 'لا اجتماعات هذا الأسبوع',
@@ -82,7 +82,6 @@ export default function MeetingsView({ lang, activeEventId }) {
     searchGuest: 'Search guest…',
     cancel: 'Cancel', back: 'Back', next: 'Next', save: 'Save Meeting', saving: 'Saving…',
     days: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
-    months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     newTitle: 'New Meeting',
     addAttendee: 'Add attendee',
     noMeetings: 'No meetings this week',
@@ -278,8 +277,8 @@ export default function MeetingsView({ lang, activeEventId }) {
               {[...meetings]
                 .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
                 .map(m => {
-                  const [, mo, dy] = m.date.split('-').map(Number);
-                  const dateStr = `${STR.months[mo-1]} ${ad(dy)}`;
+                  // Portal-wide DD-MM-YYYY (lib/date), was "Aug 5" off STR.months.
+                  const dateStr = ad(fmtDate(m.date));
                   const firstAttendees = m.guests.slice(0, 3);
                   return (
                     <div key={m.id} onClick={() => setSelectedMeeting(m)}
@@ -333,9 +332,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                 <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, margin: 0, fontWeight: 400, lineHeight: 1.3 }}>{selectedMeeting.title}</h2>
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-                {(() => { const [, mo, dy] = selectedMeeting.date.split('-').map(Number); return (
-                  <span className="chip"><Icon name="calendar" size={11}/> {STR.months[mo-1]} {ad(dy)}</span>
-                ); })()}
+                <span className="chip"><Icon name="calendar" size={11}/> {ad(fmtDate(selectedMeeting.date))}</span>
                 <span className="chip" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{selectedMeeting.startTime}–{selectedMeeting.endTime}</span>
                 <span className="chip"><Icon name="venue" size={11}/> {selectedMeeting.location}</span>
               </div>

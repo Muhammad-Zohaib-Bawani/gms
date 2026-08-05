@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icons';
+import { fmtDate, fmtDayMonth } from '../lib/date';
 import MessageList from './supportChat/MessageList.jsx';
 import { Avatar } from '../components/UI';
 import Select from '../components/ui/Select';
@@ -57,7 +58,9 @@ function relativeTime(iso, isAr) {
   const daysDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (daysDiff === 1) return isAr ? 'أمس' : 'Yesterday';
   if (daysDiff < 7) return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { weekday: 'short' });
-  return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'short' });
+  // Older than a week: an actual date, in the portal's DD-MM (no room for the
+  // year in an inbox row).
+  return fmtDayMonth(d);
 }
 
 function timeOfDay(iso, isAr) {
@@ -73,7 +76,7 @@ function dayLabel(iso, isAr) {
   const daysDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (daysDiff === 0) return isAr ? 'اليوم' : 'Today';
   if (daysDiff === 1) return isAr ? 'أمس' : 'Yesterday';
-  return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  return fmtDate(d);
 }
 
 // Client-side approximation of the backend's ComputePreview, used only for

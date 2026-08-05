@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
+import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../lib/date';
 import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getOrganizations } from '../api/services/organizationService';
@@ -39,19 +40,10 @@ const ACCRED_BADGE = {
   revoked:    { label: { en: 'Revoked',    ar: 'ملغى' },     color: '#e05050' },
 };
 
-function fmtDate(d, isAr) {
-  if (!d) return null;
-  try { return new Date(d).toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }); }
-  catch { return d; }
-}
-function fmtDateTime(d, isAr) {
-  if (!d) return null;
-  try {
-    return new Date(d).toLocaleString(isAr ? 'ar' : 'en-US', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    });
-  } catch { return d; }
-}
+// Thin wrappers over lib/date so this screen reads the portal's DD-MM-YYYY like
+// everywhere else. Null (not '—') when empty: callers here hide the whole field.
+const fmtDate = (d) => (d ? isoDate(d, null) : null);
+const fmtDateTime = (d) => (d ? isoDateTime(d, null) : null);
 
 function Section({ icon, title, children, action }) {
   return (

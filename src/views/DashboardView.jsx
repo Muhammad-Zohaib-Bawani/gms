@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { fmtNum, toArDigits } from '../i18n/translations';
+import { fmtDate, fmtDayMonth } from '../lib/date';
 import { Avatar, StatusChip, ServiceLevelChip } from '../components/UI';
 import {
   PageHeader, Card, CardHead, Grid, Button, StatCard,
@@ -185,7 +186,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   // Server sends one row per day that has movement; only worth a chart when
   // there's more than a single day to compare.
   const movements = useMemo(() => (dashboard?.movements || []).map((m) => ({
-    date: new Date(`${m.date}T00:00:00`).toLocaleDateString(isAr ? 'ar' : 'en-US', { month: 'short', day: 'numeric' }),
+    // DD-MM (lib/date) — the year is dropped only because an axis tick has no
+    // room for it, and every point is inside one event anyway.
+    date: fmtDayMonth(m.date, ''),
     arrivals: m.arrivals,
     departures: m.departures,
   })), [dashboard, isAr]);
@@ -213,7 +216,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
         dashboard.title,
         dashboard.venue,
         dashboard.startDate
-          ? `${dashboard.startDate}${dashboard.endDate && dashboard.endDate !== dashboard.startDate ? ` – ${dashboard.endDate}` : ''}`
+          ? `${fmtDate(dashboard.startDate)}${dashboard.endDate && dashboard.endDate !== dashboard.startDate ? ` – ${fmtDate(dashboard.endDate)}` : ''}`
           : null,
         countdown != null
           ? (countdown > 0 ? `${ad(countdown)} ${STR.daysToGo}` : STR.inProgress)

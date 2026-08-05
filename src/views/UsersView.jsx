@@ -9,6 +9,7 @@ import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
 import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
+import { fmtDate } from '../lib/date';
 import DataTable from '../components/ui/DataTable';
 import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
@@ -31,11 +32,8 @@ function initials(u) {
   return [u.firstName?.[0], u.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?';
 }
 
-function formatDate(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// Portal-wide DD-MM-YYYY — see lib/date.
+const formatDate = (val) => fmtDate(val);
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -266,7 +264,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
               </div>
               <div>
                 <label style={labelStyle}>License expiry</label>
-                <DateField value={form.driverLicenseExpiry} onChange={(v) => setF('driverLicenseExpiry', v || '')} placeholder="YYYY-MM-DD" />
+                <DateField value={form.driverLicenseExpiry} onChange={(v) => setF('driverLicenseExpiry', v || '')} clearable />
               </div>
             </div>
             <div>

@@ -12,7 +12,7 @@ import { toast } from '../lib/toast';
 import ImportEventsModal from './ImportEventsModal';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
-import { startOfToday, isPastDate, toDate, toIsoDate } from '../lib/date';
+import { startOfToday, isPastDate, toDate, toIsoDate, fmtDate } from '../lib/date';
 
 const EVENT_TYPE_ICONS = {
   Conference: "meetings", Forum: "globe", Summit: "protocol", Gala: "star",
@@ -803,7 +803,7 @@ export default function EventsView({ lang }) {
                   <EventCover type={ev.type} image={ev.image} width={44} height={44} radius={8}/>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-mute)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.venue || (ev.type + " · " + ev.startDate)}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-mute)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.venue || (ev.type + " · " + fmtDate(ev.startDate))}</div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: evClass === "ongoing" ? "var(--accent)" : evClass === "upcoming" ? "#e0c47e" : "var(--ink-mute)", flexShrink: 0 }}/>
                       <span style={{ fontSize: 11, color: "var(--ink-mute)" }}>{STR.tabs[evClass]}</span>
@@ -843,7 +843,7 @@ export default function EventsView({ lang }) {
                         </div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <span className="chip"><span className="dot" style={{ background: EVENT_TYPE_COLORS[selectedEvent.type] || "var(--accent)" }}/>{selectedEvent.type}</span>
-                          <span className="chip" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{selectedEvent.startDate} → {selectedEvent.endDate}</span>
+                          <span className="chip" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{fmtDate(selectedEvent.startDate)} → {fmtDate(selectedEvent.endDate)}</span>
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
@@ -912,7 +912,7 @@ export default function EventsView({ lang }) {
                               {s.capacity && <span><Icon name="seating" size={10}/> {ad(s.capacity)}</span>}
                             </div>
                           </div>
-                          <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{s.date}</span>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{fmtDate(s.date)}</span>
                           {can('Events.ManageSessions') && (
                             <ActionMenu items={[
                               { label: STR.edit || (isAr ? 'تعديل' : 'Edit'), icon: 'edit', onClick: () => setEditSessionId(s.id) },

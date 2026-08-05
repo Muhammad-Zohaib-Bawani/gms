@@ -93,3 +93,30 @@ html[data-theme="dark"] .react-datepicker__day:hover { background: rgba(255,255,
 .react-datepicker__input-time-container input[type='time']:focus {
   outline: none; border-color: var(--accent);
 }
+
+/* Done button — a datetime picker can't close on date click (the time isn't set
+   yet), and closing on time change misfires because a native time input commits
+   hours and minutes separately. So there's one explicit way out.
+   react-datepicker renders `children` in this container, below the time row. */
+.react-datepicker__children-container {
+  width: auto;
+  margin: 0;
+  padding: 0 12px 10px;
+}
+.gms-datefield-done { display: flex; justify-content: flex-end; }
+.gms-datefield-done .btn { padding: 5px 14px; font-size: 12px; }
+
+/* Opt-in clear, for genuinely optional dates. A quiet text link under the field
+   rather than react-datepicker's unthemed blue × pinned inside it. */
+.gms-datefield-clear {
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ink-mute);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gms-datefield-clear:hover { color: var(--ink); }

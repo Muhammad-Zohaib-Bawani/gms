@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
+import { fmtDate } from '../lib/date';
 import { getInvitation, respondToInvitation } from '../api/services/invitationService';
 
 // Standalone, no-login page shown to a guest who clicks the "View invitation"
@@ -69,7 +70,7 @@ export default function InvitationResponseView({ token, lang }) {
     if (!invite?.eventStartDate) return '—';
     const s = invite.eventStartDate;
     const e = invite.eventEndDate;
-    return e && e !== s ? `${s} → ${e}` : s;
+    return e && e !== s ? `${fmtDate(s)} → ${fmtDate(e)}` : fmtDate(s);
   };
 
   const status = invite?.invitationStatus;

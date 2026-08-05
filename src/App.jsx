@@ -27,7 +27,7 @@ import { updateGuest, deleteGuest } from './api/services/guestService';
 import { uploadImageFile, stripSasToken } from './api/services/uploadService';
 import { getMeetings, editMeeting } from './api/services/meetingService';
 import { getNotifications, getUnreadCount, markAllNotificationsRead, markNotificationRead } from './api/services/notificationService';
-import { addDaysIso } from './lib/date';
+import { addDaysIso, fmtDate } from './lib/date';
 import FlagIcon from './components/FlagIcon';
 
 // Vehicle types live under the Vehicles module (its own tab), so they're left
@@ -301,13 +301,10 @@ function guestToProfileForm(g) {
 
 function fmtEventDates(ev) {
   if (!ev?.startDate) return '';
-  const opts = { month: 'short', day: 'numeric', year: 'numeric' };
-  try {
-    const start = new Date(ev.startDate).toLocaleDateString('en-US', opts);
-    if (!ev.endDate || ev.endDate === ev.startDate) return start;
-    const end = new Date(ev.endDate).toLocaleDateString('en-US', opts);
-    return `${start} – ${end}`;
-  } catch { return ''; }
+  // Portal-wide DD-MM-YYYY (lib/date), not the browser locale.
+  const start = fmtDate(ev.startDate, '');
+  if (!ev.endDate || ev.endDate === ev.startDate) return start;
+  return `${start} – ${fmtDate(ev.endDate, '')}`;
 }
 
 function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuestUpdated, onGuestDeleted }) {
@@ -729,7 +726,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12.5, fontWeight: checked ? 500 : 400, lineHeight: 1.3 }}>{s.title}</div>
                     <div style={{ fontSize: 10.5, color: "var(--ink-mute)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{ fontFamily: "var(--mono)" }}>{s.date} · {s.time}</span>
+                      <span style={{ fontFamily: "var(--mono)" }}>{fmtDate(s.date)} · {s.time}</span>
                       {" · "}{s.venue}{s.room ? ` · ${s.room}` : ""}
                     </div>
                   </div>
@@ -749,7 +746,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                 <div key={s.id} style={{ padding: "9px 12px", borderRadius: 9, background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)" }}>
                   <div style={{ fontSize: 12.5, fontWeight: 500 }}>{s.title}</div>
                   <div style={{ fontSize: 10.5, color: "var(--ink-mute)", marginTop: 2 }}>
-                    <span style={{ fontFamily: "var(--mono)" }}>{s.date} · {s.time}</span>
+                    <span style={{ fontFamily: "var(--mono)" }}>{fmtDate(s.date)} · {s.time}</span>
                     {" · "}{s.venue}{s.room ? ` · ${s.room}` : ""}
                   </div>
                 </div>
@@ -962,13 +959,15 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                   <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{D.arrivalDate}</label>
                   <DateField value={profileForm.arrivalDate}
                     onChange={v => setProfileField('arrivalDate', v || '')}
-                    minDate={dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                    minDate={dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate}
+                    clearable clearLabel={isAr ? 'مسح' : 'Clear'}/>
                 </div>
                 <div>
                   <label style={{ display:"block", fontSize:10.5, color:"var(--ink-mute)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:4 }}>{isAr ? "تاريخ المغادرة" : "Departure Date"}</label>
                   <DateField value={profileForm.departureDate}
                     onChange={v => setProfileField('departureDate', v || '')}
-                    minDate={profileForm.arrivalDate || dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate} placeholder="YYYY-MM-DD"/>
+                    minDate={profileForm.arrivalDate || dateWindowMin} maxDate={dateWindowMax} openToDate={eventMinDate}
+                    clearable clearLabel={isAr ? 'مسح' : 'Clear'}/>
                 </div>
               </div>
 
@@ -1021,7 +1020,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:500 }}>{m.name}</div>
                           <div style={{ fontSize:11, color:"var(--ink-mute)", fontFamily:"var(--mono)" }}>
-                            {m.date} {m.startTime ? `· ${m.startTime}` : ''}{m.location ? ` · ${m.location}` : ''}
+                            {fmtDate(m.date)} {m.startTime ? `· ${m.startTime}` : ""}{m.location ? ` · ${m.location}` : ''}
                           </div>
                         </div>
                         <button className="btn" disabled={busy || already} style={{ fontSize:11, padding:"4px 10px", flexShrink:0 }}

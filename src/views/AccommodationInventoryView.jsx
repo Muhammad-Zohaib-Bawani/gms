@@ -7,6 +7,7 @@ import DateField from '../components/ui/DateField';
 import ActionMenu from '../components/ui/ActionMenu';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
+import { fmtDate } from '../lib/date';
 import { getHotels, getRoomTypes } from '../api/services/travelService';
 import {
   getHotelContracts, createHotelContract, updateHotelContract, deleteHotelContract,
@@ -270,7 +271,7 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
         id: 'window', header: isAr ? 'الليالي' : 'Nights', accessorKey: 'fromDate',
         cell: ({ row: { original: r } }) => (
           <div>
-            <div style={{ fontSize: 12.5, fontFamily: 'var(--mono)', direction: 'ltr' }}>{r.fromDate} → {r.toDate}</div>
+            <div style={{ fontSize: 12.5, fontFamily: 'var(--mono)', direction: 'ltr' }}>{fmtDate(r.fromDate)} → {fmtDate(r.toDate)}</div>
             <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
               {r.nights} {isAr ? 'ليلة' : r.nights === 1 ? 'night' : 'nights'}
             </div>
@@ -523,13 +524,13 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
               <div>
                 <label style={labelStyle}>{isAr ? 'أول ليلة' : 'First Night'} *</label>
                 <DateField value={blockModal.form.fromDate} onChange={(v) => setBF('fromDate', v || '')}
-                  maxDate={blockModal.form.toDate || undefined} placeholder="YYYY-MM-DD" />
+                  maxDate={blockModal.form.toDate || undefined} placeholder="DD-MM-YYYY" />
                 {errors.fromDate && <div style={errText}>{errors.fromDate}</div>}
               </div>
               <div>
                 <label style={labelStyle}>{isAr ? 'آخر ليلة' : 'Last Night'} *</label>
                 <DateField value={blockModal.form.toDate} onChange={(v) => setBF('toDate', v || '')}
-                  minDate={blockModal.form.fromDate || undefined} placeholder="YYYY-MM-DD" />
+                  minDate={blockModal.form.fromDate || undefined} placeholder="DD-MM-YYYY" />
                 {errors.toDate && <div style={errText}>{errors.toDate}</div>}
               </div>
             </div>

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Icon } from '../../components/Icons';
+import { fmtDayMonth } from '../../lib/date';
 
 // Rooms held × nights. One column per night, one row per hotel + room type, with
 // an all-hotels row on top — so "how many rooms exist on the 7th, how many are
@@ -40,10 +41,11 @@ function tone(night) {
   return { fg: 'var(--ink)', bg: 'transparent' };
 }
 
+// Weekday is a word, so it does follow the locale. The date itself uses the
+// portal's DD-MM, clipped of the year — a 62px column has no room for it, and
+// every column is inside one event anyway.
 const weekday = (iso, isAr) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(isAr ? 'ar' : 'en-GB', { weekday: 'short' });
-const dayMonth = (iso, isAr) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString(isAr ? 'ar' : 'en-GB', { day: '2-digit', month: 'short' });
 
 function Cell({ night, isAr, strong = false }) {
   const { fg, bg } = tone(night);
@@ -148,7 +150,7 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr
               {totals.map((n) => (
                 <th key={n.date} style={{ ...cellBase, fontWeight: 500 }}>
                   <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase' }}>{weekday(n.date, isAr)}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--ink-dim)' }}>{dayMonth(n.date, isAr)}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', direction: 'ltr' }}>{fmtDayMonth(n.date)}</div>
                 </th>
               ))}
             </tr>

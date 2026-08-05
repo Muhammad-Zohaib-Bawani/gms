@@ -12,7 +12,7 @@ import Select from '../components/ui/Select.jsx';
 import DataTable from '../components/ui/DataTable.jsx';
 import ActionMenu from '../components/ui/ActionMenu.jsx';
 import DateField from '../components/ui/DateField.jsx';
-import { addDaysIso } from '../lib/date.js';
+import { addDaysIso, fmtDate } from '../lib/date.js';
 import { useAvailableVehicles } from '../lib/useAvailableVehicles.js';
 import { useHotelRoomTypes, useRoomAvailability } from '../lib/useRoomInventory.js';
 import TravelAccordion, {
@@ -87,12 +87,8 @@ function flightDuration(start, end) {
   return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
 }
 
-function dateLabelFor(dateStr) {
-  if (!dateStr) return '';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  } catch { return ''; }
-}
+// Portal-wide DD-MM-YYYY (lib/date) — was locale-dependent 'Aug 5'.
+const dateLabelFor = (dateStr) => fmtDate(dateStr, '');
 
 // ─── API row → table row mappers (data comes from the travel tables) ─────────
 // `bookingId` is that specific Flight/Accommodation/Transport's own id — a
@@ -719,7 +715,7 @@ export default function TravelView({ lang, activeEventId }) {
         }),
         col('date',        STR.cols.date,        b => (
           <div>
-            <div style={mono}>{b.dateLabel || b.date}</div>
+            <div style={mono}>{b.dateLabel || '—'}</div>
             <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(timeRange(b.departureTime, b.arrivalTime))}</div>
           </div>
         )),
@@ -738,8 +734,8 @@ export default function TravelView({ lang, activeEventId }) {
           </div>
         )),
         col('room',     STR.cols.room,     b => <span style={text}>{b.roomType}</span>),
-        col('checkIn',  STR.cols.checkIn,  b => <span style={mono}>{b.checkIn}</span>),
-        col('checkOut', STR.cols.checkOut, b => <span style={mono}>{b.checkOut}</span>),
+        col('checkIn',  STR.cols.checkIn,  b => <span style={mono}>{fmtDate(b.checkIn)}</span>),
+        col('checkOut', STR.cols.checkOut, b => <span style={mono}>{fmtDate(b.checkOut)}</span>),
         col('nights',   STR.cols.nights,   b => <span style={{ ...mono, color: 'var(--ink-mute)' }}>{nights(b)}</span>),
         actions('hotel'),
       ],
@@ -757,7 +753,7 @@ export default function TravelView({ lang, activeEventId }) {
         col('dropoff', STR.cols.dropoff, b => <div style={ellipsis}>{b.dropoff}</div>),
         col('date',    STR.cols.date,    b => (
           <div>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{b.dateLabel || b.date}</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{b.dateLabel || '—'}</div>
             <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(b.time)}</div>
           </div>
         )),
@@ -1077,16 +1073,16 @@ export default function TravelView({ lang, activeEventId }) {
                         out; check-out is the morning after the last night slept, so
                         it may sit one day past the window. */}
                     {grid2(<>
-                      <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={editRooms.window?.min || dateWindowMin} maxDate={editRooms.window?.max || dateWindowMax} excludeDates={editRooms.fullDates} placeholder="YYYY-MM-DD"/></div>
-                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={addDaysIso(f.checkIn, 1) || f.checkIn || dateWindowMin} maxDate={(editRooms.window && addDaysIso(editRooms.window.max, 1)) || dateWindowMax} placeholder="YYYY-MM-DD"/></div>
+                      <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={editRooms.window?.min || dateWindowMin} maxDate={editRooms.window?.max || dateWindowMax} excludeDates={editRooms.fullDates} placeholder="DD-MM-YYYY"/></div>
+                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={addDaysIso(f.checkIn, 1) || f.checkIn || dateWindowMin} maxDate={(editRooms.window && addDaysIso(editRooms.window.max, 1)) || dateWindowMax} placeholder="DD-MM-YYYY"/></div>
                     </>)}
                     {editRooms.managed && f.checkIn && (
                       <div style={{ fontSize:11, color:'var(--ink-faint)' }}>
                         {editRooms.availableOn(f.checkIn) === null
                           ? (isAr ? 'لا غرف محجوزة في هذا التاريخ' : 'No rooms held on that date')
                           : (isAr
-                              ? `${editRooms.availableOn(f.checkIn)} غرفة متاحة ليلة ${f.checkIn}`
-                              : `${editRooms.availableOn(f.checkIn)} room(s) left on the night of ${f.checkIn}`)}
+                              ? `${editRooms.availableOn(f.checkIn)} غرفة متاحة ليلة ${fmtDate(f.checkIn)}`
+                              : `${editRooms.availableOn(f.checkIn)} room(s) left on the night of ${fmtDate(f.checkIn)}`)}
                       </div>
                     )}
                     {/* {grid2(<>
@@ -1117,8 +1113,8 @@ export default function TravelView({ lang, activeEventId }) {
                     {/* Times before the vehicle: the list below only offers cars
                         free in that window. */}
                     {grid2(<>
-                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
-                      <div><label style={lSt}>{isAr ? 'وقت التوصيل' : 'Dropoff Time'} *</label><DateField value={f.dropoffTime} onChange={v => set('dropoffTime', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="YYYY-MM-DD HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'وقت الاستلام' : 'Pickup Time'} *</label><DateField value={f.pickupTime} onChange={v => set('pickupTime', v||'')} showTime minDate={dateWindowMin} maxDate={dateWindowMax} placeholder="DD-MM-YYYY HH:mm"/></div>
+                      <div><label style={lSt}>{isAr ? 'وقت التوصيل' : 'Dropoff Time'} *</label><DateField value={f.dropoffTime} onChange={v => set('dropoffTime', v||'')} showTime minDate={f.pickupTime || dateWindowMin} maxDate={dateWindowMax} placeholder="DD-MM-YYYY HH:mm"/></div>
                     </>)}
                     {grid2(<>
                       <div><label style={lSt}>{isAr ? 'المركبة' : 'Vehicle'} *</label>

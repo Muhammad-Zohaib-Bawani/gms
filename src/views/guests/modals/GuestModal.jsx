@@ -17,7 +17,7 @@ import {
   uploadImageFile,
   stripSasToken,
 } from "../../../api/services/uploadService";
-import { addDaysIso } from "../../../lib/date";
+import { addDaysIso, fmtDate } from "../../../lib/date";
 import TravelAccordion, {
   EMPTY_TRAVEL,
   hydrateTravel,
@@ -1110,7 +1110,7 @@ export default function GuestModal({
                               }}
                             >
                               <span style={{ fontFamily: "var(--mono)" }}>
-                                {s.date} · {s.time}
+                                {fmtDate(s.date)} · {s.time}
                               </span>
                               {s.venueName || s.room
                                 ? ` · ${[s.venueName, s.room].filter(Boolean).join(" · ")}`

@@ -22,7 +22,7 @@ import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
 import { useAvailableVehicles } from '../../../lib/useAvailableVehicles';
 import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
-import { addDaysIso } from '../../../lib/date';
+import { addDaysIso, fmtDate } from '../../../lib/date';
 
 // `id` (a specific booking's public id) is populated only when hydrating an
 // existing booking — see the module doc comment above. Saving with it set
@@ -336,13 +336,13 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
               <Label>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</Label>
               <DateField value={leg.startTime} onChange={(v) => setLeg(i, 'startTime', v || '')}
                 minDate={legs[i - 1]?.endTime || legs[i - 1]?.startTime || eventMinDate} maxDate={eventMaxDate}
-                showTime placeholder="YYYY-MM-DD HH:mm"/>
+                showTime placeholder="DD-MM-YYYY HH:mm"/>
             </div>
             <div>
               <Label>{isAr ? 'وقت الوصول' : 'Arrival Time'}</Label>
               <DateField value={leg.endTime} onChange={(v) => setLeg(i, 'endTime', v || '')}
                 minDate={leg.startTime || eventMinDate} maxDate={eventMaxDate}
-                showTime placeholder="YYYY-MM-DD HH:mm"/>
+                showTime placeholder="DD-MM-YYYY HH:mm"/>
             </div>
           </>)}
         </div>
@@ -512,7 +512,7 @@ export default function TravelAccordion({
         minDate={minDate}
         maxDate={maxDate}
         excludeDates={excludeDates}
-        placeholder="YYYY-MM-DD"
+        placeholder="DD-MM-YYYY"
       />
     </div>
   );
@@ -526,7 +526,7 @@ export default function TravelAccordion({
         minDate={minDate}
         maxDate={maxDate}
         showTime
-        placeholder="YYYY-MM-DD HH:mm"
+        placeholder="DD-MM-YYYY HH:mm"
       />
     </div>
   );
@@ -576,9 +576,10 @@ export default function TravelAccordion({
             {(() => {
               const left = rooms.availableOn(travel.accommodation.checkIn);
               if (left === null) return isAr ? 'لا غرف محجوزة في هذا التاريخ' : 'No rooms held on that date';
+              const night = fmtDate(travel.accommodation.checkIn);
               return isAr
-                ? `${left} غرفة متاحة ليلة ${travel.accommodation.checkIn}`
-                : `${left} room(s) left on the night of ${travel.accommodation.checkIn}`;
+                ? `${left} غرفة متاحة ليلة ${night}`
+                : `${left} room(s) left on the night of ${night}`;
             })()}
           </div>
         )}

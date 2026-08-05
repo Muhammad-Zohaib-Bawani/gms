@@ -4,7 +4,7 @@ import { StatusChip } from '../components/UI';
 import Select from '../components/ui/Select';
 import DataTable from '../components/ui/DataTable';
 import DateField from '../components/ui/DateField';
-import { addDaysIso } from '../lib/date';
+import { addDaysIso, fmtDate, fmtTime } from '../lib/date';
 import { getVehicles, getVehicleBookings } from '../api/services/vehicleService';
 import { getDrivers } from '../api/services/travelService';
 import { vehicleLabel, driverLabel } from './guests/modals/TravelAccordion';
@@ -26,9 +26,9 @@ const STATUS_LABEL = {
   completed:     { en: 'Completed',   ar: 'مكتمل' },
 };
 
-// "2026-08-05T09:30" → "09:30". Blank stays an em dash.
-const timeOf = (iso) => (iso ? String(iso).slice(11, 16) : '—');
-const dayOf = (iso) => (iso ? String(iso).slice(0, 10) : '—');
+// Portal-wide display format (lib/date): '05-08-2026' and '09:30'.
+const timeOf = (iso) => fmtTime(iso);
+const dayOf = (iso) => fmtDate(iso);
 
 // Fleet › Bookings: when is each vehicle taken, and with which driver. Read-only
 // — bookings are created and edited from the Travel screen. Rows arrive sorted by
@@ -167,11 +167,11 @@ export default function FleetBookingsView({ lang, activeEventId }) {
       </div>
       <div style={{ width: 150 }}>
         <label style={labelStyle}>{isAr ? 'من' : 'From'}</label>
-        <DateField value={from} onChange={(v) => setFrom(v || '')} maxDate={to || undefined} placeholder="YYYY-MM-DD" />
+        <DateField value={from} onChange={(v) => setFrom(v || '')} maxDate={to || undefined} placeholder="DD-MM-YYYY" />
       </div>
       <div style={{ width: 150 }}>
         <label style={labelStyle}>{isAr ? 'إلى' : 'To'}</label>
-        <DateField value={to} onChange={(v) => setTo(v || '')} minDate={from || undefined} placeholder="YYYY-MM-DD" />
+        <DateField value={to} onChange={(v) => setTo(v || '')} minDate={from || undefined} placeholder="DD-MM-YYYY" />
       </div>
       {(vehicleId || driverId || from || to) && (
         <button className="btn" onClick={() => { setVehicleId(''); setDriverId(''); setFrom(''); setTo(''); }}>
