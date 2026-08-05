@@ -5,7 +5,7 @@ import {
   getFlightClasses, createFlightClass,
   getRoomTypes, createRoomType,
   getVehicleTypes, createVehicleType,
-  getHotels, createHotel,
+  getHotels, createHotel, updateHotel,
   getAirports, createAirport,
   getLocations,
 } from '../../api/services/travelService';
@@ -49,8 +49,14 @@ export const LOOKUP_DEFS = [
     key: 'hotels', label: { en: 'Hotels', ar: 'الفنادق' },
     list: getHotels,
     create: (f) => createHotel({ name: f.name, address: f.address, imageUrl: stripSasToken(f.imageUrl) || null }),
+    // Editable, unlike the name-only lookups: the VIP app reads a hotel's address
+    // and image, so a typo (or a row from before the address was required) has to
+    // be fixable in place. Defining `update` is what puts Edit on the row.
+    update: (id, f) => updateHotel(id, { name: f.name, address: f.address, imageUrl: stripSasToken(f.imageUrl) || null }),
     columns: [IMAGE, NAME, ADDRESS],
-    fields: [{ ...NAME, required: true }, ADDRESS, IMAGE],
+    // Address is required: the VIP app shows it on the guest's accommodation
+    // screen and home check-in card, where a hotel name alone is no use.
+    fields: [{ ...NAME, required: true }, { ...ADDRESS, required: true }, IMAGE],
   },
   {
     key: 'airports', label: { en: 'Airports', ar: 'المطارات' },

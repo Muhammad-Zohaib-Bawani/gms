@@ -151,6 +151,9 @@ export const ENDPOINTS = {
     drivers: '/v1/lookups/drivers',
 
     locationById: (id) => `/v1/lookups/locations/${id}`,
+    // Hotels are the one name-and-more lookup that's editable — the VIP app reads
+    // their address and image, so those have to be fixable.
+    hotelById: (id) => `/v1/lookups/hotels/${id}`,
   },
 
   venues: {

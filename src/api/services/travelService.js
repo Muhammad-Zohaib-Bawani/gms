@@ -96,6 +96,9 @@ export const createRoomType    = (name)          => apiClient.post(ENDPOINTS.loo
 export const createVehicleType = (name)          => apiClient.post(ENDPOINTS.lookups.vehicleTypes, { name });
 // { name, address?, imageUrl? } — imageUrl must already have its SAS token stripped.
 export const createHotel       = (body)          => apiClient.post(ENDPOINTS.lookups.hotels, body);
+// Same body as create: { name, address, imageUrl?, locationId? }. Address is
+// required both ways — the VIP app shows it on the guest's accommodation screen.
+export const updateHotel       = (id, body)      => apiClient.put(ENDPOINTS.lookups.hotelById(id), body);
 
 // Airport: { code, city, country, continent, locationId? }.
 export const createAirport     = (body)          => apiClient.post(ENDPOINTS.lookups.airports, body);
