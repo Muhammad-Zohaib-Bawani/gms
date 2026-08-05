@@ -5,7 +5,7 @@
 // actual mutation logic isn't duplicated.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar } from '../components/UI';
+import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
 import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
@@ -31,7 +31,7 @@ const INVITE_BADGE = {
   sent:     { label: { en: 'Sent',     ar: 'أُرسلت' },   color: '#3B82F6' },
   opened:   { label: { en: 'Opened',   ar: 'فُتحت' },    color: '#F59E0B' },
   accepted: { label: { en: 'Accepted', ar: 'مقبولة' },   color: '#5abf6e' },
-  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: '#e08a7e' },
+  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: 'var(--danger)' },
 };
 const ACCRED_BADGE = {
   not_issued: { label: { en: 'Not issued', ar: 'غير صادر' }, color: '#9CA3AF' },
@@ -260,7 +260,7 @@ export default function GuestDetailView({ guestId, lang }) {
   }
 
   return (
-    <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+    <div style={{ margin: '0 auto' }}>
       <button
         className="btn"
         style={{ marginBottom: 14, fontSize: 12.5 }}
@@ -300,7 +300,7 @@ export default function GuestDetailView({ guestId, lang }) {
             </button>
             {guest.accreditationRequired && (
               guest.accreditationStatus === 'issued' ? (
-                <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={handleRevoke}>
+                <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={handleRevoke}>
                   <Icon name="x" size={13} /> {isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
                 </button>
               ) : (
@@ -326,7 +326,13 @@ export default function GuestDetailView({ guestId, lang }) {
           <div style={fieldGrid}>
             <Field label={isAr ? 'البريد الإلكتروني' : 'Email'} value={guest.email} />
             <Field label={isAr ? 'نوع الضيف' : 'Guest Type'} value={guest.guestType} />
-            <Field label={isAr ? 'الفئة' : 'Tier'} value={guest.tier} />
+            <Field
+              label={isAr ? 'مستوى الخدمة' : 'Service Level'}
+              value={guest.serviceLevelName
+                ? <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                    color={guest.serviceLevelColor} lang={lang} />
+                : null}
+            />
             <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
             <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
             {/* GuestServiceType.Transport (3) on the guest's allowed-services

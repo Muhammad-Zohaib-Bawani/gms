@@ -79,7 +79,9 @@ export default function VenueCanvas({
               width: canvasW, height: canvasH,
               transform: `scale(${zoom})`,
               transformOrigin: 'top left',
-              background: 'var(--surface-soft-2)',
+              // Solid, not translucent: the floor plan is the work surface, and
+              // the page gradient showing through it made placed elements hard to read.
+              background: 'var(--canvas-bg)',
             }}
             onDragOver={e => e.preventDefault()}
             onDrop={handleDrop}
@@ -88,13 +90,13 @@ export default function VenueCanvas({
             <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
               <defs>
                 <pattern id="gridPat" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--glass-border)" strokeWidth="0.4"/>
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--canvas-grid)" strokeWidth="1"/>
                 </pattern>
               </defs>
               <rect width="100%" height="100%" fill="url(#gridPat)"/>
             </svg>
 
-            {tables.map(t => {
+            {tables.map((t, i) => {
               const isSel = t.id === selectedId;
               const showDel = deleteSeatMode && isSel && tableHasSeats(t);
               const seatIdx = selectedSeat && selectedSeat.tableId === t.id ? selectedSeat.index : null;
@@ -102,6 +104,7 @@ export default function VenueCanvas({
                 <CanvasElement
                   key={t.id}
                   table={t}
+                  index={i}
                   selected={isSel}
                   showDeleteSeat={showDel}
                   selectedSeatIndex={seatIdx}

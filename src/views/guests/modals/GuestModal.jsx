@@ -2,14 +2,12 @@
 // a new guest for `activeEventId`; an object = edit that guest in place).
 import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useEvents } from '../../../events/EventsContext';
 import { Icon } from "../../../components/Icons";
 import Select from "../../../components/ui/Select";
+import { useAuth } from "../../../auth/AuthContext";
 import toast from "../../../lib/toast";
-import {
-  createGuest,
-  updateGuest,
-  getGuestEnums,
-} from "../../../api/services/guestService";
+import { createGuest, updateGuest, getGuestEnums } from "../../../api/services/guestService";
 import {
   getTravelLookups,
   getGuestTravel,
@@ -82,12 +80,16 @@ const EMPTY_GUEST = {
   guestType: "delegate",
   organizationId: "",
   nationalityId: "",
-  tier: "delegate",
+  serviceLevelId: "",
   invitationStatus: "not_sent",
   arrivalDate: "",
   departureDate: "",
   photoUrl: "",
   accreditationRequired: false,
+  // Set when the user chooses to push past a failing level rule. The backend
+  // re-checks the permission, so ticking this without it changes nothing.
+  overrideServiceLevelRules: false,
+  serviceLevelOverrideReason: "",
 };
 
 function guestToForm(g) {
@@ -99,12 +101,14 @@ function guestToForm(g) {
     guestType: g.guestType || "delegate",
     organizationId: g.organizationId || "",
     nationalityId: g.nationalityId || "",
-    tier: g.tier || "delegate",
+    serviceLevelId: g.serviceLevelId || "",
     invitationStatus: g.invitationStatus || "not_sent",
     arrivalDate: g.arrivalDate || "",
     departureDate: g.departureDate || "",
     photoUrl: g.photoUrl || "",
     accreditationRequired: !!g.accreditationRequired,
+    overrideServiceLevelRules: false,
+    serviceLevelOverrideReason: "",
   };
 }
 
@@ -137,6 +141,60 @@ const contentStyle = {
 // in up to 7 days before the event starts or leave up to 7 days after it ends.
 const DATE_MARGIN_DAYS = 7;
 
+// Colour per tier code. Only the colours live here — the codes and their
+// bilingual labels come from GET /v1/lookups/enums/guest (GuestEnumCatalog on
+// the server), so the vocabulary has one source of truth.
+const TIER_COLORS = {
+  vvip: "#e0b864",
+  vip: "#a78bda",
+  speaker: "var(--accent)",
+  delegate: "#5abf6e",
+  press: "var(--danger)",
+  observer: "var(--ink-mute)",
+};
+
+function LegacyTierPicker({ value, onChange, isAr, options }) {
+  const current = (value || "").toLowerCase();
+  if (!options?.length) {
+    return (
+      <div style={{ fontSize: 12, color: "var(--ink-mute)" }}>
+        {isAr ? "جارٍ التحميل…" : "Loading…"}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+      {options.map((opt) => {
+        const t = {
+          code: opt.code,
+          label: (isAr ? opt.nameAr : null) || opt.name,
+          color: TIER_COLORS[opt.code] || "var(--ink-mute)",
+        };
+        const selected = current === String(t.code).toLowerCase();
+        return (
+          <div
+            key={t.code}
+            onClick={() => onChange(t.code)}
+            style={{
+              padding: "10px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+              border: `1px solid ${selected ? t.color : "var(--glass-border)"}`,
+              background: selected ? "var(--accent-soft)" : "var(--surface-soft-2)",
+              fontSize: 13, fontWeight: selected ? 600 : 400,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: t.color,
+              }} />
+              {t.label}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GuestModal({
   open,
   onClose,
@@ -146,6 +204,7 @@ export default function GuestModal({
   eventEndDate,
   nationalities,
   organizations,
+  serviceLevels,
   templates,
   sessions,
   lang,
@@ -156,6 +215,16 @@ export default function GuestModal({
 }) {
   const isAr = lang === "ar";
   const isEdit = !!guest;
+  const { can } = useAuth();
+  const { events, activeEvent } = useEvents();
+  const canOverrideRules = can("ServiceLevels.OverrideRules");
+
+  // Which flow this event runs. A guest always belongs to one event, so the
+  // model is read from that event rather than passed down through every call
+  // site of this modal.
+  const eventForGuest =
+    (guest?.eventId && (events || []).find((e) => e.id === guest.eventId)) || activeEvent;
+  const usesServiceLevels = eventForGuest?.guestModel === "fixed";
 
   // Tabs (Add Guest only — editing always goes straight into the "new"
   // wizard on the existing guest). "existing" is a self-contained
@@ -175,6 +244,9 @@ export default function GuestModal({
   const [step1Errors, setStep1Errors] = useState({});
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  // Guest enum vocabulary (GuestTier, GuestType, …) from
+  // GET /v1/lookups/enums/guest. Needed by ExistingGuestPicker and by the
+  // tier picker a flexible event falls back to.
   const [enums, setEnums] = useState({});
   // Raw GET /travel/guest/{id} response; hydrated into `travel` below once
   // travelLookups is available too (it may still be loading when this
@@ -264,8 +336,9 @@ export default function GuestModal({
   // whether the dialog is actually visible yet.
   useEffect(() => {
     if (!open) return;
-    getGuestEnums().then(setEnums);
+    getGuestEnums().then(setEnums).catch(() => setEnums({}));
   }, [open]);
+
   useEffect(() => {
     if (!open) return;
     getTravelLookups()
@@ -370,6 +443,20 @@ export default function GuestModal({
       toast.error(travelErr);
       return;
     }
+
+    // Stop here rather than letting the backend 409 — same rules, friendlier
+    // moment. The override path is only offered to those who hold the permission.
+    if (ruleViolations.length > 0 && !(canOverrideRules && form.overrideServiceLevelRules)) {
+      toast.error(canOverrideRules
+        ? (isAr
+          ? "قواعد مستوى الخدمة غير مستوفاة — فعّل التجاوز للحفظ على أي حال."
+          : "This service level's rules aren't met — tick the override to save anyway.")
+        : (isAr
+          ? "قواعد مستوى الخدمة غير مستوفاة، وتحتاج صلاحية للتجاوز."
+          : "This service level's rules aren't met, and you don't have override permission."));
+      setStep(2);
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -379,7 +466,16 @@ export default function GuestModal({
         guestType: form.guestType,
         organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
-        tier: form.tier,
+        // Omitted on a flexible event: the server ignores it there, and
+        // sending one would imply an assignment nothing enforces.
+        serviceLevelId: usesServiceLevels ? (form.serviceLevelId || null) : null,
+        // Only sent when there's actually something to waive, so a stale tick
+        // can't record a phantom override on a clean save.
+        overrideServiceLevelRules: ruleViolations.length > 0 && form.overrideServiceLevelRules,
+        serviceLevelOverrideReason:
+          ruleViolations.length > 0 && form.overrideServiceLevelRules
+            ? (form.serviceLevelOverrideReason || null)
+            : null,
         arrivalDate: form.arrivalDate || null,
         departureDate: form.departureDate || null,
         photoUrl: stripSasToken(form.photoUrl) || null,
@@ -476,9 +572,61 @@ export default function GuestModal({
     [organizations, isAr],
   );
 
+  const selectedLevel = useMemo(
+    () => (serviceLevels || []).find((l) => l.id === form.serviceLevelId) || null,
+    [serviceLevels, form.serviceLevelId],
+  );
+
+  // Rules are evaluated client-side from data we already have (the level's
+  // capacity/headcount + this form's own field values), so the warning appears
+  // as you type instead of only on submit. The backend re-validates on save —
+  // this is a convenience, never the enforcement point.
+  const ruleViolations = useMemo(() => {
+    // A flexible event enforces nothing. This matters on an event switched from
+    // fixed to flexible: its guests keep their old serviceLevelId, so a level
+    // would still resolve here and its rules would still block the save.
+    if (!usesServiceLevels) return [];
+    if (!selectedLevel) return [];
+    const out = [];
+
+    // On edit, a guest already on this level doesn't count against its capacity.
+    const alreadyHere = isEdit && guest?.serviceLevelId === selectedLevel.id;
+    if (!alreadyHere && selectedLevel.capacity != null && selectedLevel.guestCount >= selectedLevel.capacity) {
+      out.push(isAr
+        ? `"${selectedLevel.name}" ممتلئ (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`
+        : `"${selectedLevel.name}" is at capacity (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`);
+    }
+
+    const FIELD_LABELS = {
+      email: isAr ? "البريد الإلكتروني" : "Email",
+      nationalityId: isAr ? "الجنسية" : "Nationality",
+      organizationId: isAr ? "المؤسسة" : "Organization",
+      photoUrl: isAr ? "الصورة" : "Photo",
+      arrivalDate: isAr ? "تاريخ الوصول" : "Arrival date",
+      departureDate: isAr ? "تاريخ المغادرة" : "Departure date",
+    };
+    const missing = (selectedLevel.requiredGuestFields || [])
+      .filter((key) => !String(form[key] ?? "").trim())
+      .map((key) => FIELD_LABELS[key] || key);
+
+    if (missing.length > 0) {
+      out.push(isAr
+        ? `"${selectedLevel.name}" يتطلب: ${missing.join("، ")}.`
+        : `"${selectedLevel.name}" requires: ${missing.join(", ")}.`);
+    }
+
+    return out;
+  }, [usesServiceLevels, selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
+
+  // Step 2 is named after whichever classifier the event actually uses, so the
+  // stepper doesn't promise a Service Level on a flexible event. Steps 2 and 3
+  // are labelled for what they actually render ("Sessions, Tier & Accreditation"
+  // and "Travel & Stay") rather than the older "Matches & Tier"/"Services".
   const allStepLabels = isAr
-    ? ["المعلومات الشخصية", "الفئة والجلسات", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", "Matches & Tier", "Services", "Invitation"];
+    ? ["المعلومات الشخصية", usesServiceLevels ? "مستوى الخدمة والجلسات" : "التصنيف والجلسات", "السفر والإقامة", "الدعوة"]
+    : ["Personal Info", usesServiceLevels ? "Service Level & Sessions" : "Tier & Sessions", "Travel", "Invitation"];
+  // Mapped through activeSteps (from main) because the wizard can now skip
+  // steps — the label list is no longer a fixed 1:1 with what's rendered.
   const stepLabels = activeSteps.map((s) => allStepLabels[s - 1]);
 
   const inputStyle = {
@@ -590,72 +738,33 @@ export default function GuestModal({
               </Dialog.Title>
 
               {showWizard && (
-              <div style={{ display: "flex", alignItems: "center" }}>
-                {stepLabels.map((label, i) => {
-                  const s = activeSteps[i],
-                    done = stepPos > i,
-                    active = step === s;
-                  return (
-                    <React.Fragment key={i}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                        }}
-                      >
+                /* Only the current step is labelled. Four labels plus circles
+                   and connectors need far more than the modal's 560px, so the
+                   old row squeezed and wrapped; numbers carry the sequence and
+                   the active label says where you are. */
+                <div className="wizard-steps" role="group" aria-label="Progress">
+                  {stepLabels.map((label, i) => {
+                    const s = activeSteps[i];
+                    const done = stepPos > i;
+                    const active = step === s;
+                    return (
+                      <React.Fragment key={i}>
                         <div
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            display: "grid",
-                            placeItems: "center",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                            background: done
-                              ? "var(--accent-deep)"
-                              : active
-                                ? "var(--accent)"
-                                : "var(--surface-soft-4)",
-                            color: done || active ? "#fff" : "var(--ink-mute)",
-                          }}
+                          className={`wizard-step${active ? " active" : ""}${done ? " done" : ""}`}
+                          aria-current={active ? "step" : undefined}
                         >
-                          {done ? <Icon name="check" size={11} /> : s}
+                          <span className="wizard-dot">
+                            {done ? <Icon name="check" size={11} /> : s}
+                          </span>
+                          {active && <span className="wizard-label">{label}</span>}
                         </div>
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            whiteSpace: "nowrap",
-                            color: active
-                              ? "var(--accent)"
-                              : done
-                                ? "var(--ink-dim)"
-                                : "var(--ink-mute)",
-                            fontWeight: active ? 600 : 400,
-                          }}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                      {i < stepLabels.length - 1 && (
-                        <div
-                          style={{
-                            width: 18,
-                            height: 1,
-                            background: done
-                              ? "var(--accent-deep)"
-                              : "var(--glass-border)",
-                            margin: "0 5px",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
+                        {i < stepLabels.length - 1 && (
+                          <span className={`wizard-bar${done ? " done" : ""}`} />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
               )}
             </div>
             <Dialog.Close asChild>
@@ -776,7 +885,7 @@ export default function GuestModal({
                         : "Uploading…"
                       : isAr
                         ? "صورة الوجه (اختياري)"
-                        : "Facial photo"}
+                        : "Photo"}
                   </div>
                   {form.photoUrl && !photoUploading && (
                     <button
@@ -1030,36 +1139,147 @@ export default function GuestModal({
                   </div>
                 </div>
                 <div>
-                  <SectionLabel>{isAr ? "الفئة" : "Tier"}</SectionLabel>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 8,
-                    }}
-                  >
-                    {enums?.GuestTier?.map((tier) => (
-                      <div
-                        key={tier.code}
-                        onClick={() => setF("tier", tier.code)}
-                        style={{
-                          padding: "12px 10px",
-                          borderRadius: 10,
-                          cursor: "pointer",
-                          textAlign: "center",
-                          border: `1px solid ${form.tier === tier.code ? "var(--accent)" : "var(--glass-border)"}`,
-                          background:
-                            form.tier === tier.code
-                              ? "rgba(26,174,196,0.12)"
-                              : "var(--surface-soft-2)",
-                          fontSize: 13,
-                          fontWeight: form.tier === tier.code ? 600 : 400,
-                        }}
-                      >
-                        {tier.name}
+                  <SectionLabel>
+                    {usesServiceLevels
+                      ? (isAr ? "مستوى الخدمة" : "Service Level")
+                      : (isAr ? "التصنيف" : "Tier")}
+                  </SectionLabel>
+                  {/* A flexible event has no service levels, so it gets the
+                      original tier picker back: a plain label with no bundled
+                      services, no capacity and no required-field rules. */}
+                  {!usesServiceLevels ? (
+                    <LegacyTierPicker
+                      value={form.tier}
+                      onChange={(v) => setF("tier", v)}
+                      isAr={isAr}
+                      options={enums?.GuestTier}
+                    />
+                  ) : (serviceLevels || []).length === 0 ? (
+                    <div style={{
+                      padding: "12px 14px", borderRadius: 10, fontSize: 12.5, color: "#e0c47e",
+                      background: "rgba(224,196,126,0.12)", border: "1px solid rgba(224,196,126,0.4)",
+                    }}>
+                      <Icon name="alert" size={13} />{" "}
+                      {isAr
+                        ? "لا توجد مستويات خدمة لهذه الفعالية — أضفها من صفحة مستويات الخدمة أولاً."
+                        : "This event has no service levels yet — add some on the Service Levels page first."}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {serviceLevels.map((lvl) => {
+                          const selected = form.serviceLevelId === lvl.id;
+                          const full = lvl.capacity != null && lvl.guestCount >= lvl.capacity;
+                          return (
+                            <div
+                              key={lvl.id}
+                              onClick={() => setF("serviceLevelId", lvl.id)}
+                              title={full ? (isAr ? "ممتلئ" : "At capacity") : undefined}
+                              style={{
+                                padding: "10px",
+                                borderRadius: 10,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                border: `1px solid ${selected ? (lvl.color || "var(--accent)") : "var(--glass-border)"}`,
+                                background: selected
+                                  ? `${lvl.color || "#8d0134"}1f`
+                                  : "var(--surface-soft-2)",
+                                fontSize: 13,
+                                fontWeight: selected ? 600 : 400,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                                <span style={{
+                                  width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                                  background: lvl.color || "var(--ink-mute)",
+                                }} />
+                                {(isAr ? lvl.nameAr : null) || lvl.name}
+                              </div>
+                              {lvl.capacity != null && (
+                                <div style={{
+                                  fontSize: 10, marginTop: 3, fontFamily: "var(--mono)",
+                                  color: full ? "#e0c47e" : "var(--ink-faint)",
+                                }}>
+                                  {lvl.guestCount} / {lvl.capacity}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+
+                      {/* What this level includes — read-only, inherited by the guest. */}
+                      {selectedLevel && (selectedLevel.services || []).length > 0 && (
+                        <div style={{
+                          marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                          background: "var(--surface-soft-2)", border: "1px solid var(--glass-border)",
+                        }}>
+                          <div style={{
+                            fontSize: 10, color: "var(--ink-mute)", textTransform: "uppercase",
+                            letterSpacing: "0.08em", marginBottom: 6,
+                          }}>
+                            {isAr ? "يشمل" : "Includes"}
+                          </div>
+                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                            {selectedLevel.services.map((s) => (
+                              <span key={s.serviceId} className="chip" style={{ fontSize: 10.5 }}>
+                                <Icon name="check" size={10} style={{ color: "#5abf6e" }} />
+                                {(isAr ? s.serviceNameAr : null) || s.serviceName}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rule violations — blocking unless the user may override. */}
+                      {ruleViolations.length > 0 && (
+                        <div style={{
+                          marginTop: 10, padding: "10px 12px", borderRadius: 10, fontSize: 12.5,
+                          color: "#e0c47e", background: "rgba(224,196,126,0.12)",
+                          border: "1px solid rgba(224,196,126,0.4)",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, marginBottom: 6 }}>
+                            <Icon name="alert" size={13} />
+                            {isAr ? "قواعد المستوى" : "Level rules"}
+                          </div>
+                          <ul style={{ margin: 0, paddingInlineStart: 18, display: "flex", flexDirection: "column", gap: 3 }}>
+                            {ruleViolations.map((v, i) => <li key={i}>{v}</li>)}
+                          </ul>
+
+                          {canOverrideRules ? (
+                            <>
+                              <label style={{
+                                display: "flex", alignItems: "center", gap: 8, marginTop: 10,
+                                cursor: "pointer", color: "var(--ink)",
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={form.overrideServiceLevelRules}
+                                  onChange={(e) => setF("overrideServiceLevelRules", e.target.checked)}
+                                  style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                                />
+                                {isAr ? "تجاوز القواعد وحفظ على أي حال" : "Override the rules and save anyway"}
+                              </label>
+                              {form.overrideServiceLevelRules && (
+                                <input
+                                  style={{ ...inputStyle, marginTop: 8 }}
+                                  value={form.serviceLevelOverrideReason}
+                                  placeholder={isAr ? "سبب التجاوز (اختياري، يُسجَّل)" : "Reason for the override (optional, recorded)"}
+                                  onChange={(e) => setF("serviceLevelOverrideReason", e.target.value)}
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--ink-mute)" }}>
+                              {isAr
+                                ? "تحتاج صلاحية تجاوز القواعد لإضافة هذا الضيف لهذا المستوى."
+                                : "You need override permission to place this guest on this level."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div>
                   <label

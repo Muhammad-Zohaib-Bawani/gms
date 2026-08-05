@@ -237,6 +237,52 @@ function StatusMenu({ status, labels, onPick, canChange, isAr }) {
   );
 } 
 
+// Fixed vs flexible decides whether the event runs the Service Level flow at
+// all, so it gets two explained cards instead of a dropdown — a bare
+// "Fixed/Flexible" select gives no clue what either does.
+function GuestModelPicker({ value, onChange, STR }) {
+  const opts = [
+    { v: "fixed", label: STR.gmFixed, hint: STR.gmFixedHint, icon: "star" },
+    { v: "flexible", label: STR.gmFlexible, hint: STR.gmFlexibleHint, icon: "guests" },
+  ];
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {opts.map(o => {
+          const active = value === o.v;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onChange(o.v)}
+              aria-pressed={active}
+              style={{
+                textAlign: "start", cursor: "pointer",
+                padding: "11px 12px", borderRadius: 10,
+                background: active ? "var(--accent-soft)" : "var(--bg-1)",
+                border: `1px solid ${active ? "var(--accent)" : "var(--glass-border)"}`,
+                boxShadow: active ? "var(--shadow-xs)" : "none",
+                transition: "background .16s, border-color .16s",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+                <Icon name={o.icon} size={13} style={{ color: active ? "var(--accent)" : "var(--ink-mute)" }} />
+                <span style={{ fontSize: 12.5, fontWeight: 650, color: active ? "var(--accent)" : "var(--ink)" }}>
+                  {o.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--ink-mute)" }}>{o.hint}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 6, lineHeight: 1.5 }}>
+        {STR.gmLockedHint}
+      </div>
+    </>
+  );
+}
+
 // Hoisted to module scope (not redefined per EventsView render) so typed-but-
 // unsaved form state survives unrelated parent re-renders — e.g. reload()
 // after a session edit no longer resets whatever the user is mid-typing here.
@@ -298,6 +344,14 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
             isClearable
           />
         )}
+      </div>
+      <div>
+        <label style={lStyle}>{STR.fGuestModel}</label>
+        <GuestModelPicker
+          value={form.guestModel || "flexible"}
+          onChange={v => setForm(f => ({ ...f, guestModel: v }))}
+          STR={STR}
+        />
       </div>
       <div>
         <label style={lStyle}>{STR.fType}</label>
@@ -496,7 +550,7 @@ export default function EventsView({ lang }) {
     return true;
   });
 
-  const [newEvent, setNewEvent] = useState({ title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning" });
+  const [newEvent, setNewEvent] = useState({ title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" });
   const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 });
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
@@ -508,7 +562,7 @@ export default function EventsView({ lang }) {
 
   function showMsg(msg) { toast.success(msg); }
 
-  const blankEvent = { title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning" };
+  const blankEvent = { title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" };
   const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 };
 
   async function saveNewEvent(ev) {
@@ -631,6 +685,11 @@ export default function EventsView({ lang }) {
     confirm: "تأكيد الحذف",
     fTitle: "اسم الفعالية", fType: "النوع", fTheme: "الموضوع", fVenue: "المكان",
     fStart: "تاريخ البداية", fEnd: "تاريخ النهاية", fImage: "صورة الغلاف", fStatus: "الحالة",
+    fGuestModel: "نموذج الضيوف",
+    gmFixed: "ثابت", gmFlexible: "مرن",
+    gmFixedHint: "يُصنَّف كل ضيف على مستوى خدمة يحدّد خدماته وقواعده (السعة والحقول المطلوبة).",
+    gmFlexibleHint: "بدون مستويات خدمة أو قيود — التصنيف نص حر كما في السابق.",
+    gmLockedHint: "يمكن تغيير النموذج لاحقاً. التبديل إلى «مرن» يوقف تطبيق القواعد لكنه لا يحذف تصنيفات الضيوف.",
     sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة",
     status: { active: "نشط", planning: "تخطيط", completed: "مكتمل", cancelled: "ملغى" },
     tabs: { all: "الكل", ongoing: "جارٍ", upcoming: "قادم", past: "منتهٍ" },
@@ -645,6 +704,11 @@ export default function EventsView({ lang }) {
     confirm: "Confirm delete",
     fTitle: "Event title", fType: "Type", fTheme: "Theme", fVenue: "Venue",
     fStart: "Start date", fEnd: "End date", fImage: "Cover image", fStatus: "Status",
+    fGuestModel: "Guest model",
+    gmFixed: "Fixed", gmFlexible: "Flexible",
+    gmFixedHint: "Every guest sits on a service level that defines their services and rules (capacity, required fields).",
+    gmFlexibleHint: "No service levels and no restrictions — the tier is a free form.",
+    gmLockedHint: "You can change this later. Switching to Flexible stops enforcing the rules but never deletes existing level assignments.",
     sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity",
     status: { active: "Active", planning: "Planning", completed: "Completed", cancelled: "Cancelled" },
     tabs: { all: "All", ongoing: "Ongoing", upcoming: "Upcoming", past: "Past" },
@@ -716,7 +780,7 @@ export default function EventsView({ lang }) {
               {isAr ? "جارٍ التحميل…" : "Loading…"}
             </div>
           ) : loadError ? (
-            <div style={{ padding: "16px 12px", textAlign: "center", color: "#e08a7e", fontSize: 12, border: "1px solid rgba(224,138,126,0.25)", borderRadius: 10 }}>
+            <div style={{ padding: "16px 12px", textAlign: "center", color: "var(--danger)", fontSize: 12, border: "1px solid var(--danger-border)", borderRadius: 10 }}>
               {loadError}
               <button className="btn" style={{ display: "block", margin: "10px auto 0", fontSize: 11 }} onClick={reload}>
                 {isAr ? "إعادة المحاولة" : "Retry"}
@@ -796,7 +860,7 @@ export default function EventsView({ lang }) {
                           </button>
                         )}
                         {can('Events.Delete') && (
-                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
+                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "var(--danger)" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
                             <Icon name="trash" size={12}/>
                           </button>
                         )}
@@ -914,7 +978,7 @@ export default function EventsView({ lang }) {
             <div style={{ fontSize: 12, color: "var(--ink-mute)", marginBottom: 20 }}>{STR.confirmDeleteMsg}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setConfirmDelete(null)}>{STR.cancel}</button>
-              <button className="btn" style={{ color: "#e08a7e", borderColor: "rgba(224,138,126,0.3)", background: "rgba(224,138,126,0.1)" }}
+              <button className="btn" style={{ color: "var(--danger)", borderColor: "var(--danger-border)", background: "var(--danger-bg)" }}
                 onClick={() => {
                   const cd = confirmDelete;
                   setConfirmDelete(null);

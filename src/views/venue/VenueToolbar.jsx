@@ -58,7 +58,7 @@ export default function VenueToolbar({
           </span>
         )}
         {canDeleteVenue && (
-          <button className="btn" title="Delete Venue" style={{ fontSize: 11, padding: '4px 10px', color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)', flexShrink: 0 }}
+          <button className="btn" title="Delete Venue" style={{ fontSize: 11, padding: '4px 10px', color: 'var(--danger)', borderColor: 'var(--danger-border)', flexShrink: 0 }}
             onClick={onDeleteVenueClick}>
             <Icon name="trash" size={12}/>
           </button>

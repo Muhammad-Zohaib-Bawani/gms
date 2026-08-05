@@ -99,8 +99,8 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
             disabled={busy}
             style={{
               padding: '8px 18px', fontSize: 13, opacity: busy ? 0.7 : 1,
-              background: 'rgba(224,138,126,0.14)', color: '#e08a7e',
-              border: '1px solid rgba(224,138,126,0.35)',
+              background: 'var(--danger-bg)', color: 'var(--danger)',
+              border: '1px solid var(--danger-border)',
             }}>
             {busy ? 'Deleting…' : 'Delete'}
           </button>

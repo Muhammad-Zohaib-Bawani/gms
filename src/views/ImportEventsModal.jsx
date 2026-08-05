@@ -175,7 +175,7 @@ export default function ImportEventsModal({ open, onClose, lang, onImported, ini
           <div style={{ fontSize: 12, color: 'var(--ink-mute)', fontStyle: 'italic' }}>
             {isAr
               ? 'يمكنك إغلاق هذه النافذة والانتقال إلى صفحات أخرى — سيتم إشعارك عند الانتهاء.'
-              : "You can close this and go do other things — we'll notify you when it's done."}
+              : "You can close this - we'll notify you when import is done."}
           </div>
         )}
 
@@ -207,7 +207,7 @@ export default function ImportEventsModal({ open, onClose, lang, onImported, ini
           {staleValues.map((v, i) => (
             <div key={i} style={{
               fontSize: 12, padding: '7px 10px', borderRadius: 7,
-              background: 'rgba(224,138,126,0.1)', border: '1px solid rgba(224,138,126,0.3)', color: '#e08a7e',
+              background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', color: 'var(--danger)',
             }}>{v}</div>
           ))}
         </div>

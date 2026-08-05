@@ -1,0 +1,1452 @@
+/* ==========================================================================
+   THEME TOKENS
+   Moved here from style.css - see the note at the top of that file.
+   ========================================================================== */
+:root, html[data-theme="light"] {
+  /* Neutral greys, deliberately NOT pink-tinted: a maroon-tinted page fights
+     the maroon sidebar and reads cheap. The brand colour earns its impact by
+     being the only saturated thing on screen. */
+  --bg-0: #ffffff;
+
+  /* The page canvas. Deliberately its own token rather than a change to
+     --bg-0: that one is the flat white used by cards, inputs, popovers and
+     pager buttons, which must stay opaque and un-gradiented. */
+  --page-bg:
+    radial-gradient(1100px 620px at 10% -12%, #fffdfb 0%, rgba(255,253,251,0) 60%),
+    radial-gradient(900px 720px at 102% 104%, #f0c9c5 0%, rgba(240,201,197,0) 66%),
+    linear-gradient(140deg,#fdf8f4 0%,#fbefe9 36%,#f7e0dc 72%,#f3d6d3 100%);
+  --bg-1: #f7f8fa;
+  --bg-2: #f1f3f6;
+  --bg: #f7f8fa;
+
+  --ink: #14161a;
+  --ink-dim: rgba(20, 22, 26, 0.72);
+  --ink-mute: rgba(20, 22, 26, 0.52);
+  --ink-faint: rgba(20, 22, 26, 0.32);
+
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --accent-soft: #fdf2f5;
+  --maroon: #8d0134;
+  --teal: #8d0134;
+  --rose: #c25c4e;
+
+  --card-bg: #ffffff;
+
+  /* Panel surfaces (cards, stat cards, tables) sit ON the page gradient, so
+     they are translucent and blurred rather than flat white — an opaque white
+     block on the warm gradient reads as a hole punched in the page. Separate
+     from --card-bg, which still backs small controls (buttons, inputs, the
+     pager) where crisp edges and full legibility matter more than depth. */
+  --surface-glass: rgba(255, 255, 255, 0.58);
+  --surface-glass-strong: rgba(255, 255, 255, 0.76);
+  --surface-glass-border: rgba(141, 1, 52, 0.10);
+  --surface-blur: saturate(150%) blur(14px);
+
+  /* Floor-plan canvas: solid on purpose, so placed elements sit on a stable
+     surface instead of the page gradient. The grid is a touch stronger than a
+     normal divider — at 0.4px it vanished once the page stopped being flat. */
+  --canvas-bg: #fcfbfb;
+  --canvas-grid: rgba(20, 10, 20, 0.07);
+  --glass-bg: #ffffff;
+  --glass-bg-strong: #ffffff;
+  --glass-border: #e6e8ec;
+  --glass-border-strong: #d6d9df;
+  --glass-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+
+  --surface-soft:   #fafbfc;
+  --surface-soft-2: #f5f6f8;
+  --surface-soft-3: #f1f3f6;
+  --surface-soft-4: #e9ecf0;
+  --surface-soft-5: #dfe3e8;
+  --hover-tint: rgba(20, 22, 26, 0.04);
+  --selected-tint: rgba(141, 1, 52, 0.07);
+  --row-tint: rgba(20, 22, 26, 0.015);
+
+  --modal-bg: #ffffff;
+  --popover-bg: #ffffff;
+  --status-active: #8d0134;
+
+  /* Elevation ladder — light themes need real layered shadows, not one blur. */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.04);
+  --shadow-xl: 0 20px 24px -4px rgba(16, 24, 40, 0.10), 0 8px 8px -4px rgba(16, 24, 40, 0.04);
+
+  /* Semantic status — used by badges/alerts/toasts consistently. */
+  --ok: #067647;      --ok-bg: #ecfdf3;      --ok-border: #abefc6;
+  --warn: #b54708;    --warn-bg: #fffaeb;    --warn-border: #fedf89;
+  --danger: #b42318;  --danger-bg: #fef3f2;  --danger-border: #fecdca;
+  --info: #175cd3;    --info-bg: #eff8ff;    --info-border: #b2ddff;
+}
+
+/* ── Dark (opt-in via the topbar theme toggle) ───────────────────────────── */
+html[data-theme="dark"] {
+  --bg-0: #14000a;
+
+  --page-bg:
+    radial-gradient(1100px 620px at 10% -12%, #360019 0%, rgba(54,0,25,0) 62%),
+    radial-gradient(900px 720px at 102% 104%, #48001f 0%, rgba(72,0,31,0) 66%),
+    linear-gradient(140deg,#1b0009 0%,#240010 42%,#2e0016 100%);
+  --bg-1: #200011;
+  --bg-2: #2e0018;
+  --bg: #200011;
+
+  --ink: #eaf6f9;
+  --ink-dim: rgba(234, 246, 249, 0.74);
+  --ink-mute: rgba(234, 246, 249, 0.50);
+  --ink-faint: rgba(234, 246, 249, 0.16);
+
+  --accent: #8d0134;
+  --accent-2: #c21857;
+  --accent-deep: #5e0022;
+  --accent-soft: rgba(141, 1, 52, 0.18);
+  --maroon: #8d0134;
+  --teal: #8d0134;
+  --rose: #e08a7e;
+
+  --card-bg: #200011;
+
+  --surface-glass: rgba(255, 255, 255, 0.055);
+  --surface-glass-strong: rgba(38, 0, 18, 0.72);
+  --surface-glass-border: rgba(255, 255, 255, 0.12);
+  --surface-blur: saturate(140%) blur(14px);
+
+  --canvas-bg: #170009;
+  --canvas-grid: rgba(255, 255, 255, 0.07);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 12px -2px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 14px 22px -6px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 40px -8px rgba(0, 0, 0, 0.65);
+
+  --ok: #5abf6e;      --ok-bg: rgba(90,191,110,0.14);   --ok-border: rgba(90,191,110,0.38);
+  --warn: #e0c47e;    --warn-bg: rgba(224,196,126,0.14); --warn-border: rgba(224,196,126,0.38);
+  --danger: #e08a7e;  --danger-bg: rgba(224,138,126,0.14); --danger-border: rgba(224,138,126,0.38);
+  --info: #7db6e8;    --info-bg: rgba(125,182,232,0.14); --info-border: rgba(125,182,232,0.38);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-strong: rgba(255, 255, 255, 0.22);
+  --glass-shadow: 0 16px 48px rgba(2, 6, 20, 0.45), inset 0 1px 0 rgba(255,255,255,0.08);
+
+  --surface-soft: rgba(255,255,255,0.06);
+  --surface-soft-2: rgba(255,255,255,0.08);
+  /* Input/field fill — bumped so fields read as raised on the maroon bg. */
+  --surface-soft-3: rgba(255,255,255,0.12);
+  --surface-soft-4: rgba(255,255,255,0.15);
+  --surface-soft-5: rgba(255,255,255,0.18);
+  --hover-tint: rgba(255,255,255,0.12);
+  --selected-tint: rgba(141, 1, 52,0.10);
+  --row-tint: rgba(255,255,255,0.025);
+
+  /* Opaque surfaces that float over the page (modals, calendar poppers,
+     menus). They can't be translucent or the content behind bleeds through. */
+  --modal-bg: #2a0616;
+  --popover-bg: #33091e;
+  /* "Active" status: the maroon accent is unreadable on the maroon surfaces,
+     so dark mode uses plain white. */
+  --status-active: #ffffff;
+}
+
+:root {
+  /* ── Brand chrome (sidebar + topbar) — identical in both themes ─────────
+     The QOC maroon lives here permanently so the shell reads as "Qatar
+     Olympic Committee" regardless of the page theme. */
+  --side-bg: linear-gradient(168deg, #8d0134 0%, #6d0127 52%, #4a0019 100%);
+  --side-ink: #ffffff;
+  --side-ink-dim: rgba(255, 255, 255, 0.78);
+  --side-ink-mute: rgba(255, 255, 255, 0.55);
+  --side-hover-bg: rgba(255, 255, 255, 0.10);
+  --side-active-bg: rgba(255, 255, 255, 0.16);
+  --side-border: rgba(255, 255, 255, 0.12);
+  --side-width: 256px;
+  --side-width-collapsed: 72px;
+  --topbar-h: 64px;
+
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+
+  /* Motion — one place, so every transition in the app feels related. */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  --focus-ring: 0 0 0 3px rgba(141, 1, 52, 0.18);
+
+  --serif: 'Loew Next Arabic', 'Instrument Serif', 'Times New Roman', serif;
+  --sans: 'Loew Next Arabic', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Loew Next Arabic', 'JetBrains Mono', ui-monospace, monospace;
+
+  --glass-blur: 22px;
+  --orb-opacity: 0.55;
+  --density-pad: 22px;
+  --density-gap: 14px;
+}
+
+html[data-density="compact"]      { --density-pad: 14px; --density-gap: 10px; }
+html[data-density="comfortable"]  { --density-pad: 22px; --density-gap: 14px; }
+html[data-density="airy"]         { --density-pad: 32px; --density-gap: 20px; }
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+html {
+  background: var(--page-bg);
+  background-attachment: fixed;
+  background-color: var(--bg-0);
+}
+body { background: transparent; }
+/* Negative, not 0 — a fixed-position box with z-index:0 still paints AFTER
+   normal-flow siblings in the same stacking context (it's "positioned"), so it
+   would render on top of .app instead of behind it. -1 guarantees it paints
+   first, underneath everything. */
+.bg-scene { z-index: -1; pointer-events: none; }
+#root { position: relative; z-index: 1; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+
+/* ── Select: solid themed background + native popup inherits theme ── */
+select {
+  background-color: var(--bg) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+}
+html[data-theme="light"] select {
+  color-scheme: light;
+}
+select option {
+  background-color: var(--bg);
+  color: var(--ink);
+}
+/* Native date/time widgets: make the browser's own icons + dropdown panel
+   follow the app theme instead of always rendering as light-on-light. */
+input[type="time"], input[type="date"], input[type="datetime-local"], input[type="month"] {
+  color-scheme: dark;
+}
+html[data-theme="light"] input[type="time"],
+html[data-theme="light"] input[type="date"],
+html[data-theme="light"] input[type="datetime-local"],
+html[data-theme="light"] input[type="month"] {
+  color-scheme: light;
+}
+
+/* ===== Background scene =====
+   Light (default) is deliberately plain: a flat near-white page with only the
+   faintest maroon breath at the top edge. The brief calls for white / very
+   light grey, and the orb wash that works on the dark maroon page reads as
+   muddy tinting here — so orbs + grain are off in light entirely.
+   Dark keeps the full gradient + orbs, scoped explicitly so it still wins. */
+.bg-scene {
+  position: fixed; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(1400px 520px at 78% -18%, rgba(141, 1, 52, 0.055), transparent 62%),
+    linear-gradient(180deg, #ffffff 0%, var(--bg-1) 100%);
+}
+.bg-orb, .bg-grain { display: none; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QOC REVAMP — DESIGN SYSTEM
+   Imported after style.css (see main.jsx), so it wins on equal specificity.
+   Kept as its own file rather than appended to the 2.5k-line style.css so the
+   revamp layer stays reviewable and revertable on its own.
+
+   Everything here is theme-agnostic: it reads the tokens declared in the theme
+   blocks at the top of style.css, so light and dark both work with no
+   duplicated rules. The sidebar/topbar are maroon in BOTH themes and use the
+   --side-* tokens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── App shell ───────────────────────────────────────────────────────────── */
+/* Flat, gapless chrome: sidebar and topbar meet the content edge-to-edge, which
+   reads more "enterprise" than the previous floating-panel layout. */
+.app {
+  grid-template-columns: var(--side-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-h) 1fr;
+  gap: 0;
+  padding: 0;
+  /* Deliberately NOT transitioning grid-template-columns. Chrome can animate
+     the track, but when the value changes because a media query flipped (i.e.
+     on resize rather than on the collapse toggle) the transition never
+     settles and the track stays frozen at the old width. The sidebar's own
+     contents carry the motion instead. */
+}
+.app[data-side="collapsed"] {
+  grid-template-columns: var(--side-width-collapsed) minmax(0, 1fr);
+}
+
+.main {
+  padding: 24px 28px 40px;
+  overflow-x: hidden;
+  /* Pairs with the minmax(0, …) track: without it a grid item defaults to
+     min-width:auto and refuses to shrink below its content. */
+  min-width: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--side-bg);
+  color: var(--side-ink);
+  border: none;
+  border-radius: 0;
+  border-inline-end: 1px solid var(--side-border);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+/* Brand watermark, using the QOC pattern asset already in the repo. Very low
+   contrast so it never competes with the nav labels. */
+.sidebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/assets/qoc-bg-pattern.png") center / 180% no-repeat;
+  opacity: 0.05;
+  pointer-events: none;
+}
+.sidebar > * { position: relative; z-index: 1; }
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 18px;
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--side-border);
+}
+.side-brand img { width: 34px; height: auto; flex-shrink: 0; }
+.side-brand-text { min-width: 0; overflow: hidden; }
+.side-brand-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--side-ink);
+  white-space: nowrap;
+  line-height: 1.25;
+}
+.side-brand-sub {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--side-ink-mute);
+  white-space: nowrap;
+  margin-top: 1px;
+}
+
+.sidebar-nav-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 10px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.sidebar-nav-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.nav-section {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--side-ink-mute);
+  padding: 0 10px;
+  margin: 16px 0 6px;
+  white-space: nowrap;
+}
+.sidebar-nav-scroll > .nav-section:first-child { margin-top: 0; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 11px;
+  margin-bottom: 2px;
+  border: none;
+  background: none;
+  border-radius: 10px;
+  color: var(--side-ink-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.nav-item svg { flex-shrink: 0; }
+.nav-item:hover { background: var(--side-hover-bg); color: var(--side-ink); }
+.nav-item.active {
+  background: var(--side-active-bg);
+  color: var(--side-ink);
+  font-weight: 600;
+}
+/* Active rail on the inline-start edge — direction-aware, so it stays on the
+   correct side in Arabic RTL without a second rule. */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: #fff;
+}
+html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
+
+.nav-item .badge {
+  margin-inline-start: auto;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+}
+
+/* Collapsed rail: icons only. */
+.app[data-side="collapsed"] .side-brand { justify-content: center; padding: 0; }
+.app[data-side="collapsed"] .side-brand-text,
+.app[data-side="collapsed"] .nav-section,
+.app[data-side="collapsed"] .nav-item-label,
+.app[data-side="collapsed"] .nav-chevron,
+.app[data-side="collapsed"] .side-foot-text { display: none; }
+.app[data-side="collapsed"] .nav-item { justify-content: center; padding: 10px; gap: 0; }
+.app[data-side="collapsed"] .nav-item .badge {
+  position: absolute;
+  top: 3px;
+  inset-inline-end: 3px;
+  margin: 0;
+  min-width: 15px;
+  height: 15px;
+  font-size: 8.5px;
+}
+
+.side-foot {
+  flex-shrink: 0;
+  padding: 12px 10px;
+  border-top: 1px solid var(--side-border);
+}
+.side-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--side-ink-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.side-collapse-btn:hover { background: var(--side-hover-bg); color: var(--side-ink); }
+
+/* ── Topbar ──────────────────────────────────────────────────────────────── */
+.topbar {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  padding: 0 24px;
+  gap: 16px;
+  display: flex;
+  align-items: center;
+}
+.topbar-titles { min-width: 0; margin-inline-end: auto; }
+.topbar-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.topbar-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.topbar-crumbs button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink-mute);
+  font-size: 11px;
+  cursor: pointer;
+}
+.topbar-crumbs button:hover { color: var(--accent); text-decoration: underline; }
+.topbar-crumb-sep { color: var(--ink-faint); }
+
+/* Global search — grows to fill, caps out so the right-side actions stay put. */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.page-title {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.2;
+}
+.page-title em { font-style: normal; color: var(--accent); }
+.page-sub { font-size: 13px; color: var(--ink-mute); margin-top: 4px; }
+.page-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+.card-hover { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease); }
+.card-hover:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.card-title { font-size: 14px; font-weight: 640; color: var(--ink); }
+.card-sub { font-size: 11.5px; color: var(--ink-mute); margin-top: 2px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--card-bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--shadow-xs);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.btn:hover { background: var(--surface-soft-2); border-color: var(--glass-border-strong); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(141, 1, 52, 0.24);
+}
+.btn.primary:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn.ghost:hover { background: var(--hover-tint); }
+
+.btn.danger { color: var(--danger); border-color: var(--danger-border); background: var(--card-bg); }
+.btn.danger:hover { background: var(--danger-bg); }
+
+.btn.sm { height: 32px; padding: 0 11px; font-size: 12px; border-radius: 8px; }
+.btn.lg { height: 44px; padding: 0 20px; font-size: 14px; }
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-mute);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.icon-btn:hover { background: var(--surface-soft-3); color: var(--ink); }
+.icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.icon-btn .dot {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  border: 2px solid var(--card-bg);
+}
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+.field { display: block; margin-bottom: 14px; }
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.field-label .req { color: var(--danger); margin-inline-start: 2px; }
+.input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-family: var(--sans);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+textarea.input { height: auto; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.input::placeholder { color: var(--ink-faint); }
+.input:hover { border-color: var(--glass-border-strong); }
+.input:focus { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.input.error { border-color: var(--danger); }
+.input.error:focus { box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.15); }
+.input:disabled { background: var(--surface-soft-2); color: var(--ink-mute); cursor: not-allowed; }
+.field-hint { font-size: 11.5px; color: var(--ink-mute); margin-top: 5px; }
+.field-error { font-size: 11.5px; color: var(--danger); margin-top: 5px; }
+
+/* Floating-label variant. The label rides up onto the field when filled or
+   focused. Requires placeholder=" " (a single space) on the input for
+   :placeholder-shown to behave — the FloatingField component always sets it. */
+.float-field { position: relative; margin-bottom: 16px; }
+.float-field > .input { padding-top: 16px; height: 52px; }
+.float-field > label {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 15px;
+  font-size: 13.5px;
+  color: var(--ink-faint);
+  pointer-events: none;
+  transform-origin: left top;
+  transition: transform var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+html[dir="rtl"] .float-field > label { transform-origin: right top; }
+.float-field > .input:focus + label,
+.float-field > .input:not(:placeholder-shown) + label {
+  transform: translateY(-9px) scale(0.8);
+  color: var(--accent);
+}
+.float-field > .input:not(:focus):not(:placeholder-shown) + label { color: var(--ink-mute); }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.badge-ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border); }
+.badge-ok .dot { background: var(--ok); }
+.badge-warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+.badge-warn .dot { background: var(--warn); }
+.badge-danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.badge-danger .dot { background: var(--danger); }
+.badge-info { color: var(--info); background: var(--info-bg); border-color: var(--info-border); }
+.badge-info .dot { background: var(--info); }
+.badge-neutral { color: var(--ink-mute); background: var(--surface-soft-3); border-color: var(--glass-border); }
+.badge-neutral .dot { background: var(--ink-faint); }
+.badge-brand { color: var(--accent); background: var(--accent-soft); border-color: rgba(141, 1, 52, 0.2); }
+.badge-brand .dot { background: var(--accent); }
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.alert svg { flex-shrink: 0; margin-top: 1px; }
+.alert-title { font-weight: 600; margin-bottom: 2px; }
+.alert-ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border); }
+.alert-warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+.alert-danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.alert-info { color: var(--info); background: var(--info-bg); border-color: var(--info-border); }
+
+/* ── Stat card ───────────────────────────────────────────────────────────── */
+.stat-card {
+  background: var(--surface-glass);
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
+  border: 1px solid var(--surface-glass-border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.stat-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.stat-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.stat-label { font-size: 12px; font-weight: 550; color: var(--ink-mute); }
+.stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.stat-value {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.1;
+  margin-top: 10px;
+}
+.stat-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 550;
+  margin-top: 7px;
+}
+.stat-delta.up { color: var(--ok); }
+.stat-delta.down { color: var(--danger); }
+.stat-delta .muted { color: var(--ink-mute); font-weight: 400; }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-soft-2);
+  padding: 10px 14px;
+  text-align: start;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--glass-border);
+  white-space: nowrap;
+  user-select: none;
+}
+.table tbody td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--surface-glass-border);
+  vertical-align: middle;
+}
+.table tbody tr { transition: background var(--dur-fast) var(--ease); }
+.table tbody tr:hover { background: var(--hover-tint); }
+.table tbody tr:last-child td { border-bottom: none; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+}
+.tab {
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-mute);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ── Skeleton loader ─────────────────────────────────────────────────────── */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-soft-2) 25%,
+    var(--surface-soft-4) 37%,
+    var(--surface-soft-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sheen 1.3s ease-in-out infinite;
+}
+@keyframes skeleton-sheen {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty-state { padding: 48px 24px; text-align: center; }
+.empty-state-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.empty-state-title { font-size: 15px; font-weight: 620; color: var(--ink); }
+.empty-state-text {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin-top: 5px;
+  max-width: 380px;
+  margin-inline: auto;
+  line-height: 1.55;
+}
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.filter-bar .search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--ink-mute);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.filter-bar .search:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.filter-bar .search input {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-size: 13px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* ── Login ───────────────────────────────────────────────────────────────── */
+/* Split layout: branded art panel + form. The art side is CSS-only for now
+   (maroon gradient + the QOC pattern + a skyline silhouette); dropping a real
+   photo in is a one-line change to .login-art's background-image. */
+.login-shell {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+}
+.login-art {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px;
+  color: #fff;
+  /* Doha's West Bay skyline, duotoned into the brand. The photo is a bright
+     daytime shot, so a maroon scrim rides on top of it: without one, white
+     text over the pale sky is unreadable. The scrim is heaviest at the top
+     and bottom (where the logo and the tagline sit) and thinnest across the
+     middle band, which is exactly where the towers are — so the skyline stays
+     legible instead of being flattened into a plain maroon block.
+     `center 58%` pushes the horizon low in the panel, keeping towers and a
+     strip of sea in frame while cropping the large empty sky. */
+  background:
+    url("/assets/qatar-skyline.jpg") center 62% / auto 140% no-repeat,
+    linear-gradient(168deg, #9e164c 0%, #880c3a 42%, #5e0a2a 100%);
+  /* Duotone, not a veil. A translucent maroon layered over a bright daytime
+     photo just lifts the pale sky to magenta; multiplying the photo into the
+     brand gradient maps white sky onto full maroon and the towers onto the
+     darker end, so the panel reads as one deep QOC-maroon image. The gradient
+     stops are ~6% lighter than the brand colours to offset the darkening that
+     multiply applies. `auto 140%` zooms past `cover` — at this panel's aspect
+     cover exactly fills the height, which makes background-position-y a no-op
+     and leaves the top third as empty sky. */
+  background-blend-mode: multiply, normal;
+  background-color: #6d0127;
+}
+
+/* QOC pattern, barely there — it ties the panel to the sidebar's texture. */
+.login-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/assets/qoc-bg-pattern.png") top center / 380px repeat;
+  opacity: 0.07;
+  pointer-events: none;
+}
+
+/* A soft warm bloom off the top corner plus a bottom vignette; together they
+   stop the flat scrim from looking like a solid colour fill. */
+.login-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    /* A light lift over the whole panel — multiply can only darken, so this is
+       what keeps the photo from going heavy and over-saturated red. */
+    linear-gradient(to bottom, rgba(255, 228, 238, 0.16), rgba(255, 228, 238, 0.07)),
+    radial-gradient(58% 44% at 14% 2%, rgba(255, 150, 185, 0.12), transparent 64%),
+    linear-gradient(to top, rgba(34, 2, 16, 0.30) 0%, transparent 24%);
+  pointer-events: none;
+}
+
+.login-art > * { position: relative; z-index: 1; }
+.login-art-logo { display: flex; align-items: center; gap: 13px; }
+.login-art-logo img { width: 52px; height: auto; }
+.login-art-title {
+  text-shadow: 0 1px 18px rgba(40, 0, 14, 0.45);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  max-width: 12ch;
+}
+.login-art-sub {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: 12px;
+}
+.login-art-tag {
+  text-shadow: 0 1px 14px rgba(40, 0, 14, 0.5);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 34ch;
+  line-height: 1.6;
+}
+
+.login-form-side {
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+  background: var(--bg-0);
+}
+.login-card { width: 100%; max-width: 384px; }
+.login-heading {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.login-subheading { font-size: 13.5px; color: var(--ink-mute); margin: 6px 0 28px; }
+
+@media (max-width: 900px) {
+  .login-shell { grid-template-columns: 1fr; }
+  /* Art collapses to a compact brand banner above the form. */
+  .login-art { min-height: 210px; padding: 24px; }
+  .login-art-title { font-size: 22px; max-width: none; }
+  .login-art-tag, .login-art-sub { display: none; }
+}
+
+/* ── Responsive shell ────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  /* Between 768 and 1024 the sidebar is always the icon rail — there isn't room
+     for labels, so the toggle is moot. These mirror the .app[data-side="collapsed"]
+     rules rather than relying on the toggle's state. */
+  .app { grid-template-columns: var(--side-width-collapsed) minmax(0, 1fr); }
+  .side-brand { justify-content: center; }
+  .side-brand-text,
+  .nav-section,
+  .nav-item-label,
+  .nav-chevron,
+  .side-foot-text { display: none; }
+  .nav-item { justify-content: center; padding: 10px; gap: 0; }
+  .nav-item .badge { position: absolute; top: 3px; inset-inline-end: 3px; min-width: 16px; height: 16px; font-size: 9px; }
+  .main { padding: 20px; }
+}
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--topbar-h) 1fr;
+    grid-template-areas: "topbar" "main";
+  }
+  .sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: var(--side-width);
+    z-index: 200;
+    transform: translateX(-102%);
+    transition: transform var(--dur-slow) var(--ease);
+  }
+  html[dir="rtl"] .sidebar { transform: translateX(102%); }
+  .sidebar.open { transform: none; box-shadow: var(--shadow-xl); }
+  /* Inside the off-canvas drawer there IS room, so undo the ≤1024 icon rail. */
+  .side-brand { justify-content: flex-start; }
+  .side-brand-text, .nav-section, .nav-item-label, .nav-chevron, .side-foot-text { display: revert; }
+  .nav-item { justify-content: flex-start; padding: 9px 12px; gap: 12px; }
+  .nav-item .badge { position: static; }
+  .topbar { padding: 0 14px; gap: 10px; }
+  .topbar-crumbs { display: none; }
+  .main { padding: 16px 14px 32px; }
+  .page-title { font-size: 19px; }
+}
+
+/* Respect the OS "reduce motion" setting across the whole revamp. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .card-hover:hover, .stat-card:hover { transform: none; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ── Topbar: avatar + profile menu + lang switch ──────────────────────────── */
+.topbar .right { display: flex; align-items: center; gap: 8px; }
+
+.topbar .avatar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  transition: background var(--dur-fast) var(--ease);
+}
+.topbar .avatar:hover { background: var(--surface-soft-3); }
+.topbar .avatar .pic {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+.topbar .avatar .name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+  text-align: start;
+  white-space: nowrap;
+}
+.topbar .avatar .role {
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  line-height: 1.2;
+  text-align: start;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.profile-menu-item:hover { background: var(--surface-soft-3); }
+.profile-menu-item.danger { color: var(--danger); }
+.profile-menu-item.danger:hover { background: var(--danger-bg); }
+
+.lang-switch {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--surface-soft-3);
+  border-radius: 9px;
+}
+.lang-opt {
+  padding: 5px 9px;
+  border: none;
+  background: none;
+  border-radius: 7px;
+  color: var(--ink-mute);
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.lang-opt:hover { color: var(--ink); }
+.lang-opt.active { background: var(--card-bg); color: var(--accent); box-shadow: var(--shadow-xs); }
+
+/* Notification + profile dropdown shell */
+.notif-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  width: 320px;
+  z-index: 200;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--popover-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg);
+  color: var(--ink);
+}
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--glass-border);
+}
+.notif-item { padding: 10px 11px; border-radius: 9px; cursor: pointer; }
+.notif-item:hover { background: var(--surface-soft-3); }
+.notif-item.unread { background: var(--accent-soft); }
+.notif-item-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.notif-item-body { font-size: 11.5px; color: var(--ink-mute); margin-top: 2px; }
+.notif-item-time { font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; }
+
+/* Mobile hamburger is desktop-hidden; the sidebar has its own collapse control. */
+.mobile-menu-btn { display: none; }
+@media (max-width: 768px) {
+  .mobile-menu-btn { display: grid; }
+  .side-foot { display: none; }
+}
+
+/* Dashboard chart row stacks on narrower screens. */
+@media (max-width: 1100px) {
+  .dash-charts { grid-template-columns: 1fr !important; }
+}
+
+/* Recharts injects focus outlines on bars/slices; suppress the default and
+   rely on our own focus ring vocabulary instead. */
+.recharts-wrapper:focus, .recharts-surface:focus { outline: none; }
+
+/* ==========================================================================
+   STATUS CHIPS
+   The app's tables/drawers use `.chip` + a state modifier, so rather than
+   renaming hundreds of call sites the revamp restyles `.chip` in place. The
+   original palette in style.css was tuned for the dark shell (pale yellow /
+   pale cyan text) and is unreadable on the light surfaces, so every variant
+   is re-derived here from the semantic tokens.
+   ========================================================================== */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em;
+  line-height: 1.5; white-space: nowrap;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-1);
+  color: var(--ink-dim);
+}
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+
+.chip.confirmed, .chip.accepted, .chip.issued, .chip.active, .chip.ok {
+  color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border);
+}
+.chip.pending, .chip.sent, .chip.warn {
+  color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border);
+}
+.chip.declined, .chip.rejected, .chip.cancelled, .chip.danger {
+  color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border);
+}
+.chip.info { color: var(--info); background: var(--info-bg); border-color: var(--info-border); }
+.chip.draft, .chip.notsent {
+  color: var(--ink-mute); background: var(--bg-1); border-color: var(--glass-border);
+}
+
+/* Tier / service-level chips carry the brand instead of a status colour. */
+.chip.vip, .chip.vvip, .chip.brand {
+  color: var(--accent); background: var(--accent-soft); border-color: rgba(141, 1, 52, 0.22);
+}
+.chip.vvip {
+  background: linear-gradient(135deg, rgba(141, 1, 52, 0.12), rgba(141, 1, 52, 0.05));
+  border-color: rgba(141, 1, 52, 0.34);
+  font-weight: 700;
+}
+
+/* Chips sitting inside a table cell shouldn't inflate the row. */
+.table td .chip { vertical-align: middle; }
+
+/* ==========================================================================
+   DATA TABLE  (components/ui/DataTable.jsx)
+   The shared TanStack table. Styling moved out of the component's inline-style
+   object so it can be theme-aware — the old values were white-alpha borders and
+   hover tints that were invisible against a light page.
+   ========================================================================== */
+.dt { display: flex; flex-direction: column; }
+
+.dt-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.dt-search {
+  min-width: 220px;
+  padding: 8px 12px;
+  font-size: 13px; color: var(--ink);
+  background: var(--bg-1);
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  outline: none;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.dt-search::placeholder { color: var(--ink-faint); }
+.dt-search:hover { border-color: var(--ink-faint); }
+.dt-search:focus { border-color: var(--accent); box-shadow: var(--focus-ring); background: var(--bg-0); }
+
+/* The scroll container is what makes `position: sticky` headers work: the
+   header sticks to the top of THIS box, so long tables keep their column
+   labels visible while scrolling. */
+.dt-scroll { overflow-x: auto; overflow-y: auto; max-height: 68vh; }
+.dt-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+
+.dt-th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 11px 14px;
+  text-align: start;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--ink-mute);
+  background: var(--surface-glass-strong);
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
+  border-bottom: 1px solid var(--surface-glass-border);
+  white-space: nowrap; user-select: none;
+}
+.dt-th.sortable { cursor: pointer; transition: color var(--dur) var(--ease); }
+.dt-th.sortable:hover { color: var(--ink); }
+.dt-sort { font-size: 10px; opacity: 0.3; }
+.dt-sort.active { opacity: 1; color: var(--accent); }
+
+.dt-td {
+  padding: 12px 14px;
+  font-size: 13px; color: var(--ink);
+  border-bottom: 1px solid var(--glass-border);
+  vertical-align: middle;
+}
+.dt-row { transition: background var(--dur) var(--ease); }
+.dt-row:hover { background: var(--hover-tint); }
+.dt-row.clickable { cursor: pointer; }
+.dt-row.selected { background: var(--accent-soft); }
+/* Logical inset so the active-row rail flips correctly in Arabic/RTL. */
+.dt-row.selected > .dt-td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+html[dir="rtl"] .dt-row.selected > .dt-td:first-child { box-shadow: inset -3px 0 0 var(--accent); }
+.dt-table tbody tr:last-child .dt-td { border-bottom: none; }
+
+.dt-empty {
+  padding: 44px 16px; text-align: center;
+  color: var(--ink-mute); font-size: 13px;
+}
+
+.dt-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
+  padding: 11px 16px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 12px; color: var(--ink-mute);
+}
+.dt-size {
+  padding: 5px 8px;
+  font-size: 12px; color: var(--ink);
+  background: var(--bg-0);
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  cursor: pointer; outline: none;
+}
+.dt-size:focus-visible { box-shadow: var(--focus-ring); border-color: var(--accent); }
+
+.dt-page {
+  min-width: 30px;
+  padding: 5px 10px;
+  font-size: 12px; line-height: 1.4; color: var(--ink-dim);
+  background: var(--bg-0);
+  border: 1px solid var(--glass-border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.dt-page:hover:not(:disabled) { background: var(--bg-1); color: var(--ink); }
+.dt-page:focus-visible { box-shadow: var(--focus-ring); border-color: var(--accent); outline: none; }
+.dt-page.active {
+  background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+}
+.dt-page:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .dt-scroll { max-height: none; }
+  .dt-search { min-width: 0; flex: 1; }
+  .dt-toolbar, .dt-footer { padding: 10px 12px; }
+  .dt-th, .dt-td { padding: 10px; }
+}
+
+/* ==========================================================================
+   DIALOG MOTION
+   Modals grow out of the control that opened them and collapse back into it.
+   Most dialogs here are hand-rolled overlay divs rather than the shared
+   <Modal>, so the entry animation is driven from CSS off `.modal-solid` — the
+   one class they all share — using origin offsets published by
+   lib/clickOrigin.js. The shared <Modal> opts out via .modal-anim-js because
+   it drives the same motion (plus an exit) through framer-motion.
+   ========================================================================== */
+:root { --click-dx: 0px; --click-dy: 0px; }
+
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: translate(var(--click-dx), var(--click-dy)) scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-solid {
+  animation: modal-pop-in 0.26s var(--ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  will-change: transform, opacity;
+}
+.modal-solid.modal-anim-js { animation: none; will-change: auto; }
+
+/* The hand-rolled backdrops are inline-styled with no class of their own, so
+   they're reached through their only distinguishing feature: being the parent
+   of a .modal-solid. Browsers without :has() simply skip the fade. */
+body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-solid { animation: modal-backdrop-in 0.12s linear both; }
+}
+
+/* ==========================================================================
+   WIZARD STEPS  (guest modal header)
+   Compact by necessity: four labelled steps do not fit across a 560px dialog,
+   so only the active step is labelled and the rest are numbered dots. The
+   active pill also gives the header a clear "you are here" anchor.
+   ========================================================================== */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.wizard-step { display: flex; align-items: center; gap: 7px; min-width: 0; }
+
+.wizard-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  flex: none;
+  background: var(--surface-soft-4);
+  color: var(--ink-mute);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.wizard-step.done .wizard-dot   { background: var(--accent-deep); color: #fff; }
+.wizard-step.active .wizard-dot { background: var(--accent); color: #fff; }
+
+/* The label rides inside a tinted pill so the active step reads as one unit
+   rather than a dot with loose text beside it. */
+.wizard-step.active {
+  background: var(--accent-soft);
+  border: 1px solid rgba(141, 1, 52, 0.16);
+  border-radius: 999px;
+  padding: 3px 11px 3px 3px;
+  min-width: 0;
+}
+html[dir="rtl"] .wizard-step.active { padding: 3px 3px 3px 11px; }
+
+.wizard-label {
+  font-size: 11.5px; font-weight: 650;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+.wizard-bar {
+  width: 16px; height: 2px;
+  border-radius: 2px;
+  flex: none;
+  background: var(--glass-border);
+}
+.wizard-bar.done { background: var(--accent-deep); }
+
+@media (max-width: 560px) {
+  /* Nothing to shrink further — drop the connectors before the labels. */
+  .wizard-bar { width: 8px; }
+}

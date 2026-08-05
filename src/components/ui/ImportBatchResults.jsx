@@ -20,7 +20,7 @@ export default function ImportBatchResults({ status, isAr }) {
       )}
 
       {isFailed && (
-        <div style={{ fontSize: 12, color: '#e08a7e', padding: '8px 10px', background: 'rgba(224,138,126,0.1)', border: '1px solid rgba(224,138,126,0.3)', borderRadius: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--danger)', padding: '8px 10px', background: 'var(--danger-bg)', border: '1px solid var(--danger-border)', borderRadius: 8, marginBottom: 8 }}>
           {status.errorMessage}
         </div>
       )}
@@ -29,7 +29,7 @@ export default function ImportBatchResults({ status, isAr }) {
         <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 12 }}>
           <span style={{ color: 'var(--ink-mute)' }}>{isAr ? 'الإجمالي' : 'Total'} <strong style={{ color: 'var(--ink)' }}>{status.total}</strong></span>
           <span style={{ color: 'var(--accent)' }}>{isAr ? 'تم الاستيراد' : 'Imported'} <strong>{status.imported}</strong></span>
-          <span style={{ color: status.failed ? '#e08a7e' : 'var(--ink-mute)' }}>{isAr ? 'فشل' : 'Failed'} <strong>{status.failed}</strong></span>
+          <span style={{ color: status.failed ? 'var(--danger)' : 'var(--ink-mute)' }}>{isAr ? 'فشل' : 'Failed'} <strong>{status.failed}</strong></span>
         </div>
       )}
 
@@ -41,12 +41,12 @@ export default function ImportBatchResults({ status, isAr }) {
               borderBottom: '1px solid var(--glass-border)',
             }}>
               <Icon name={r.success ? 'check' : 'close'} size={13}
-                style={{ color: r.success ? 'var(--accent)' : '#e08a7e', flexShrink: 0, marginTop: 1 }}/>
+                style={{ color: r.success ? 'var(--accent)' : 'var(--danger)', flexShrink: 0, marginTop: 1 }}/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 500 }}>
                   {isAr ? `صف ${r.row}` : `Row ${r.row}`}{r.title ? ` — ${r.title}` : ''}
                 </div>
-                {!r.success && <div style={{ color: '#e08a7e', marginTop: 2 }}>{r.error}</div>}
+                {!r.success && <div style={{ color: 'var(--danger)', marginTop: 2 }}>{r.error}</div>}
               </div>
             </div>
           ))}

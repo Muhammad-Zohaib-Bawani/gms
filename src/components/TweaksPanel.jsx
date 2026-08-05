@@ -109,8 +109,20 @@ export function useTweaks(defaults) {
 }
 
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
-export function TweaksPanel({ title = 'Tweaks', children }) {
-  const [open, setOpen] = React.useState(false);
+/**
+ * Optionally controlled: pass `open` + `onOpenChange` to drive it from outside
+ * (the topbar's "Theme settings" item does this). With neither, it keeps its
+ * original self-managed behaviour, so the postMessage edit-mode hooks below and
+ * any existing caller are unaffected.
+ */
+export function TweaksPanel({ title = 'Tweaks', children, open: openProp, onOpenChange }) {
+  const [openState, setOpenState] = React.useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : openState;
+  const setOpen = React.useCallback((v) => {
+    setOpenState(v);
+    onOpenChange?.(v);
+  }, [onOpenChange]);
   const dragRef = React.useRef(null);
   const offsetRef = React.useRef({ x: 16, y: 16 });
   const PAD = 16;

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
-import { Avatar, StatusChip, TierChip, Drawer } from './components/UI';
+import { Avatar, StatusChip, ServiceLevelChip, Drawer } from './components/UI';
 import { Icon } from './components/Icons';
 import Select from './components/ui/Select';
 import DateField from './components/ui/DateField';
@@ -42,7 +43,10 @@ const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
-  { key: "travel",         icon: "travel",     label: { en: "Services",            ar: "الخدمات"                }, section: "EVENT",    permission: "Travel.View"            },
+  { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "EVENT",    permission: "ServiceLevels.View",    fixedModelOnly: true },
+  // Renamed from "Services" — that label now belongs to the per-event service
+  // catalog under ADMIN. The route/permission/key are still `travel`.
+  { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
   { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
@@ -56,6 +60,7 @@ const NAV = [
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
+  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View",         fixedModelOnly: true },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
@@ -136,8 +141,20 @@ function blendHex(base, accent, amt) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b_.toString(16).padStart(2,'0')}`;
 }
 function applyBgVars(root, accent, isDark) {
-  const base = isDark ? '#121212' : '#f8f8f8';
-  const amounts = isDark ? [0.10, 0.18, 0.28] : [0.05, 0.10, 0.16];
+  // Light mode is deliberately NOT accent-tinted. The old behaviour blended the
+  // accent into every background at 5–16%, which turned the QOC maroon into a
+  // pink cast across all surfaces; the revamp wants neutral white/grey pages
+  // with the maroon reserved for the shell and accents. Dark mode keeps the
+  // original tinting, where it reads as depth rather than as a colour wash.
+  if (!isDark) {
+    root.style.removeProperty('--bg-0');
+    root.style.removeProperty('--bg-1');
+    root.style.removeProperty('--bg-2');
+    root.style.removeProperty('--bg');
+    return;
+  }
+  const base = '#121212';
+  const amounts = [0.10, 0.18, 0.28];
   root.style.setProperty('--bg-0', blendHex(base, accent, amounts[0]));
   root.style.setProperty('--bg-1', blendHex(base, accent, amounts[1]));
   root.style.setProperty('--bg-2', blendHex(base, accent, amounts[2]));
@@ -151,7 +168,9 @@ function applyBgVars(root, accent, isDark) {
 const BRAND_THEME = { enabled: true, accent: "#8d0134", secondary: "#c21857" };
 
 const TWEAK_DEFAULTS = {
-  theme: "dark",
+  // Light is the QOC-revamp default (the brief calls for 80–90% light); dark
+  // stays available via the topbar toggle.
+  theme: "light",
   accent: BRAND_THEME.accent,
   secondary: BRAND_THEME.secondary,
   blur: 22,
@@ -519,7 +538,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
     badgeNotIssuedMsg: "Issue accreditation from the Accreditation module to view the badge.",
     guestType: "Guest Type", organization: "Organization", nationality: "Nationality",
     tier: "Tier", accreditation2: "Accreditation", accredRequired: "Required", accredNotRequired: "Not Required",
-    saveChanges: "Save Changes", saving: "Saving…", photoOptional: "Facial photo (optional)",
+    saveChanges: "Save Changes", saving: "Saving…", photoOptional: " Photo (optional)",
     removePhoto: "Remove photo", uploading: "Uploading…",
     pickMeeting: "Pick a meeting to add this guest to", noMeetings: "No meetings for this event",
     add: "Add", added: "Added",
@@ -565,7 +584,8 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
             <h2 style={{ fontFamily: "var(--serif)", fontSize: 26, margin: 0, fontWeight: 400 }}>{guestName}</h2>
             <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 2 }}>{guest.organization}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-              <TierChip tier={guest.tier} lang={lang}/>
+              <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                color={guest.serviceLevelColor} lang={lang}/>
               {guest.nationalityName && <span className="chip"><FlagIcon code={guest.nationalityCode} size={12}/>{guest.nationalityName}</span>}
             </div>
           </div>
@@ -784,7 +804,8 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
                       {guest.guestType && <div style={{ fontSize:12, color:"var(--ink-dim)", textTransform:"capitalize" }}>{guest.guestType}</div>}
                       {guest.organization && <div style={{ fontSize:12, color:"var(--ink-mute)", marginBottom:12 }}>{guest.organization}</div>}
                       <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:14, flexWrap:"wrap" }}>
-                        <TierChip tier={guest.tier} lang={lang}/>
+                        <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                          color={guest.serviceLevelColor} lang={lang}/>
                         {guest.nationalityName && (
                           <span className="chip" style={{ fontSize:11 }}>
                             <FlagIcon code={guest.nationalityCode} size={12}/> {guest.nationalityName}
@@ -1026,9 +1047,9 @@ function DetailRow({ label, value, mono }) {
   );
 }
 
-function Tweaks({ tweaks, setTweak }) {
+function Tweaks({ tweaks, setTweak, open, onOpenChange }) {
   return (
-    <TweaksPanel title="Tweaks">
+    <TweaksPanel title="Theme settings" open={open} onOpenChange={onOpenChange}>
       <TweakSection label="Theme">
         <TweakRadio label="Mode" value={tweaks.theme || "dark"} options={["dark","light"]} onChange={v => setTweak("theme", v)}/>
         <TweakColor label="Accent" value={tweaks.accent} onChange={v => setTweak("accent", v)}/>
@@ -1061,7 +1082,14 @@ export default function App() {
   const { pathname } = useLocation();
   const [openGuest, setOpenGuest] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Desktop rail collapse, persisted so it survives a reload.
+  const [sideCollapsed, setSideCollapsed] = useState(
+    () => localStorage.getItem('gms-side-collapsed') === '1',
+  );
   const [openMenus, setOpenMenus] = useState({});
+  const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const profileRef = React.useRef(null);
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -1105,6 +1133,9 @@ export default function App() {
   const [activeLogo, setActiveLogo] = useState({ dark: '', light: '' });
   const { user, isDemo, signOut, can } = useAuth();
   const { events, activeEvent, setActiveEventId } = useEvents();
+  // Whether the active event runs the Service Level flow. Drives which
+  // catalogue pages are worth showing in the nav.
+  const usesServiceLevels = activeEvent?.guestModel === 'fixed';
 
   const refreshUnreadCount = React.useCallback(() => {
     if (isDemo) return;
@@ -1215,34 +1246,88 @@ export default function App() {
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 
+  // ── Topbar chrome, all derived from the active route ──────────────────────
+  useEffect(() => {
+    localStorage.setItem('gms-side-collapsed', sideCollapsed ? '1' : '0');
+  }, [sideCollapsed]);
+
+  // Close the profile menu on outside click / Escape (same pattern as notifs).
+  useEffect(() => {
+    if (!showProfile) return;
+    const onDoc = (e) => { if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfile(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setShowProfile(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [showProfile]);
+
+  // Route -> title + trail. Walks NAV so a parent (e.g. Lookups) shows up as an
+  // ancestor crumb of its child, and never hardcodes a second copy of the labels.
+  const { currentPageTitle, breadcrumbs } = useMemo(() => {
+    for (const n of NAV) {
+      if (n.children) {
+        const kid = n.children.find(c => isActiveKey(c.key));
+        if (kid) {
+          return {
+            currentPageTitle: navLabelOf(kid),
+            breadcrumbs: [{ label: navLabelOf(n) }, { label: navLabelOf(kid), key: kid.key }],
+          };
+        }
+      } else if (isActiveKey(n.key)) {
+        return { currentPageTitle: navLabelOf(n), breadcrumbs: [{ label: navLabelOf(n), key: n.key }] };
+      }
+    }
+    // Detail routes (e.g. /guests/:id) aren't NAV leaves — fall back to the
+    // section they live under so the crumb trail still makes sense.
+    const seg = pathname.split('/').filter(Boolean)[0];
+    const parent = NAV.find(n => pathForKey(n.key) === `/${seg}`);
+    if (parent) {
+      const detail = lang === 'ar' ? 'التفاصيل' : 'Details';
+      return {
+        currentPageTitle: navLabelOf(parent),
+        breadcrumbs: [{ label: navLabelOf(parent), key: parent.key }, { label: detail }],
+      };
+    }
+    return { currentPageTitle: shell.userName ? 'GMS' : 'GMS', breadcrumbs: [] };
+  }, [pathname, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const userInitials = useMemo(() => {
+    if (isDemo || !user?.fullName) return lang === 'ar' ? 'ض' : 'GM';
+    return user.fullName.trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+  }, [user, isDemo, lang]);
+
   return (
     <>
       {/* Decorative gradient + glow layer behind the whole shell — fixed, z-index 0,
           purely visual (see .bg-scene/.bg-orb/.bg-grain in style.css). */}
-      <div className="bg-scene">
+      {/* <div className="bg-scene">
         <div className="bg-orb bg-orb--1" />
         <div className="bg-orb bg-orb--2" />
         <div className="bg-orb bg-orb--3" />
         <div className="bg-grain" />
-      </div>
-      <div className="app">
+      </div> */}
+      <div className="app" data-side={sideCollapsed ? "collapsed" : "expanded"}>
       <div className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`} onClick={() => setSidebarOpen(false)}/>
-      <aside className={`sidebar glass${sidebarOpen ? ' open' : ''}`}>
-        {/* <div className="brand-logo" key={activeEvent?.id || 'none'}>
-          <img className="logo-color" src={logoColorSrc} alt={activeEv?.title || ''}
-            onError={e => { e.target.style.display = "none"; }}/>
-          <img className="logo-white" src={logoWhiteSrc} alt={activeEv?.title || ''}
-            onError={e => { e.target.replaceWith(Object.assign(document.createElement("div"), { className: "brand-logo-fallback", innerHTML: `<span style="font-family:var(--serif);font-size:22px;font-style:italic;color:var(--accent)">${(activeEv?.title || 'GMS').split(' ')[0]}</span>`, style: "display:flex;flex-direction:column;align-items:center;line-height:1.2;padding:4px 0" })); }}/>
-        </div> */}
-        <div className="sidebar-brand-text" style={{ padding: "14px 12px 6px", display: "flex",flexDirection: "column", alignItems: "center", gap: 8 , justifyContent: "center" }}>
-          <img src="/assets/side-logo.png" alt="GMS" width="80"/>
-                    <div style={{ fontSize: 10, letterSpacing: "0.01em" }}>GUEST MANAGEMENT SYSTEM</div>
-          {/* <div style={{ fontSize: 10.5, color: "var(--ink-mute)", letterSpacing: lang === "ar" ? "0.04em" : "0.18em", textTransform: "uppercase" }}>{shell.guestMgmt}</div> */}
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
+        <div className="side-brand">
+          <img src="/assets/side-logo.png" alt="Qatar Olympic Committee"/>
+          <div className="side-brand-text">
+            <div className="side-brand-title">{lang === 'ar' ? 'اللجنة الأولمبية القطرية' : 'Qatar Olympic'}</div>
+            <div className="side-brand-sub">{lang === 'ar' ? 'إدارة الضيوف' : 'Guest Management'}</div>
+          </div>
         </div>
 
         <div className="sidebar-nav-scroll">
           {sections.map(section => {
-            const visibleItems = NAV.filter(n => n.section === section && (!n.permission || can(n.permission)));
+            // The service catalogue only applies to events on the fixed guest
+            // model; on a flexible event there is nothing for these pages to
+            // configure, so they drop out of the nav rather than offering
+            // settings that would never be enforced. The routes stay reachable
+            // by URL — hiding the link is not access control.
+            const visibleItems = NAV.filter(n =>
+              n.section === section
+              && (!n.permission || can(n.permission))
+              && (!n.fixedModelOnly || usesServiceLevels));
             if (visibleItems.length === 0) return null;
             return (
               <React.Fragment key={section}>
@@ -1255,31 +1340,47 @@ export default function App() {
                     const isOpen = openMenus[n.key] ?? hasActiveKid;
                     return (
                       <React.Fragment key={n.key}>
-                        <div className={`nav-item ${hasActiveKid ? "active" : ""}`}
+                        <button type="button" className={`nav-item ${hasActiveKid ? "active" : ""}`}
+                          title={sideCollapsed ? navLabelOf(n) : undefined}
                           onClick={() => setOpenMenus(m => ({ ...m, [n.key]: !isOpen }))}>
-                          <Icon name={n.icon} size={16}/>
-                          <span>{navLabelOf(n)}</span>
-                          <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={14} style={{ marginInlineStart: "auto" }}/>
-                        </div>
-                        {isOpen && kids.map(c => (
-                          <div key={c.key}
-                            className={`nav-item ${isActiveKey(c.key) ? "active" : ""}`}
-                            style={{ paddingInlineStart: 38, fontSize: 13 }}
-                            onClick={() => gotoView(c.key)}>
-                            <span>{navLabelOf(c)}</span>
-                          </div>
-                        ))}
+                          <Icon name={n.icon} size={17}/>
+                          <span className="nav-item-label">{navLabelOf(n)}</span>
+                          <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={13}
+                            className="nav-chevron" style={{ marginInlineStart: "auto" }}/>
+                        </button>
+                        {/* Height-animated so the submenu doesn't snap open. */}
+                        <AnimatePresence initial={false}>
+                          {isOpen && !sideCollapsed && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                              style={{ overflow: 'hidden' }}
+                            >
+                              {kids.map(c => (
+                                <button type="button" key={c.key}
+                                  className={`nav-item ${isActiveKey(c.key) ? "active" : ""}`}
+                                  style={{ paddingInlineStart: 40, fontSize: 12.5 }}
+                                  onClick={() => gotoView(c.key)}>
+                                  <span className="nav-item-label">{navLabelOf(c)}</span>
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </React.Fragment>
                     );
                   }
                   return (
-                    <div key={n.key}
+                    <button type="button" key={n.key}
                       className={`nav-item ${isActiveKey(n.key) ? "active" : ""}`}
+                      title={sideCollapsed ? navLabelOf(n) : undefined}
                       onClick={() => gotoView(n.key)}>
-                      <Icon name={n.icon} size={16}/>
-                      <span>{navLabelOf(n)}</span>
+                      <Icon name={n.icon} size={17}/>
+                      <span className="nav-item-label">{navLabelOf(n)}</span>
                       {n.badge && <span className="badge">{n.badge}</span>}
-                    </div>
+                    </button>
                   );
                 })}
               </React.Fragment>
@@ -1287,24 +1388,42 @@ export default function App() {
           })}
         </div>
 
-        {/* <div className="event-card">
-          <div className="kicker">{shell.inSession}</div>
-          <h4>{activeEvent?.title || shell.eventName}</h4>
-          <div className="meta">{activeEvent?.subtitle || shell.eventMeta}</div>
-          <div className="progress"><i/></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(234,246,249,0.55)", marginTop: 8 }}>
-            <span style={{ direction: "ltr" }}>{lang === "ar" ? "١٬٢٨٤ / ١٬٦٥٠" : "1,284 / 1,650"}</span>
-            <span>{shell.daysOut}</span>
-          </div>
-        </div> */}
+        {/* Desktop-only collapse control; on mobile the sidebar is an overlay
+            driven by the topbar hamburger instead. */}
+        <div className="side-foot">
+          <button type="button" className="side-collapse-btn"
+            onClick={() => setSideCollapsed(v => !v)}
+            title={sideCollapsed ? (lang === 'ar' ? 'توسيع' : 'Expand') : (lang === 'ar' ? 'تصغير' : 'Collapse')}>
+            <Icon name={sideCollapsed ? "chevronRight" : "arrowLeft"} size={14}/>
+            <span className="side-foot-text">{lang === 'ar' ? 'تصغير القائمة' : 'Collapse menu'}</span>
+          </button>
+        </div>
       </aside>
 
-      <header className="topbar glass">
+      <header className="topbar">
         <button className="mobile-menu-btn icon-btn" onClick={() => setSidebarOpen(o => !o)}>
           <Icon name="menu" size={20}/>
         </button>
-        <EventSwitcher events={events} value={activeEvent?.key} onChange={(e) => setActiveEventId(e.id)} lang={lang} theme={tweaks.theme || 'dark'} />
+
+        {/* Page title + breadcrumb, derived from the active route so it can never
+            drift out of sync with the sidebar. */}
+        <div className="topbar-titles">
+          <div className="topbar-title">{currentPageTitle}</div>
+          <div className="topbar-crumbs">
+            <button onClick={() => gotoView('dashboard')}>{lang === 'ar' ? 'الرئيسية' : 'Home'}</button>
+            {breadcrumbs.map((c, i) => (
+              <React.Fragment key={i}>
+                <span className="topbar-crumb-sep">/</span>
+                {i === breadcrumbs.length - 1
+                  ? <span style={{ color: 'var(--ink)', fontWeight: 550 }}>{c.label}</span>
+                  : <button onClick={() => c.key && gotoView(c.key)}>{c.label}</button>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
         <div className="right">
+          <EventSwitcher events={events} value={activeEvent?.key} onChange={(e) => setActiveEventId(e.id)} lang={lang} theme={tweaks.theme || 'light'} />
           <div className="lang-switch" role="group" aria-label="Language">
             <button className={"lang-opt" + ((tweaks.lang||"en")==="en" ? " active" : "")} onClick={() => setTweak("lang", "en")} aria-pressed={(tweaks.lang||"en")==="en"}>EN</button>
             <button className={"lang-opt" + ((tweaks.lang||"en")==="ar" ? " active" : "")} onClick={() => setTweak("lang", "ar")} aria-pressed={(tweaks.lang||"en")==="ar"}>عربي</button>
@@ -1343,20 +1462,44 @@ export default function App() {
               </div>
             )}
           </div>
-          <button className="icon-btn" title={shell.switchTo((tweaks.theme || "dark") === "dark" ? "light" : "dark")}
-            onClick={() => setTweak("theme", (tweaks.theme || "dark") === "dark" ? "light" : "dark")}>
-            <Icon name={(tweaks.theme || "dark") === "dark" ? "sun" : "moon"} size={16}/>
+          <button className="icon-btn" title={shell.switchTo((tweaks.theme || "light") === "dark" ? "light" : "dark")}
+            onClick={() => setTweak("theme", (tweaks.theme || "light") === "dark" ? "light" : "dark")}>
+            <Icon name={(tweaks.theme || "light") === "dark" ? "sun" : "moon"} size={16}/>
           </button>
-          <div className="avatar">
-            <div className="pic">{lang === "ar" ? "أ.ح" : "AH"}</div>
-            <div>
-              <div className="name">{user && !isDemo ? user.fullName : shell.userName}</div>
-              <div className="role">{user && !isDemo ? (user.role || user.roleCode || shell.userRole) : (isDemo ? "Demo mode" : shell.userRole)}</div>
-            </div>
+
+          {/* Profile dropdown — replaces the old always-visible name/role block
+              and the separate sign-out button. */}
+          <div className="notif-wrap" ref={profileRef}>
+            <button className="avatar" style={{ cursor: 'pointer', border: 'none', background: 'none' }}
+              onClick={() => setShowProfile(o => !o)}>
+              <div className="pic">{userInitials}</div>
+              <div>
+                <div className="name">{user && !isDemo ? user.fullName : shell.userName}</div>
+                <div className="role">{user && !isDemo ? (user.role || user.roleCode || shell.userRole) : (isDemo ? "Demo mode" : shell.userRole)}</div>
+              </div>
+              <Icon name="chevronDown" size={13} style={{ color: 'var(--ink-mute)', marginInlineStart: 2 }}/>
+            </button>
+            {showProfile && (
+              <div className="notif-menu" style={{ width: 232 }}>
+                <div style={{ padding: '11px 13px', borderBottom: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{user && !isDemo ? user.fullName : shell.userName}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{user?.email || '—'}</div>
+                </div>
+                <div style={{ padding: 5 }}>
+                  <button className="profile-menu-item" onClick={() => { setShowProfile(false); gotoView('users'); }}>
+                    <Icon name="guests" size={14}/>{lang === 'ar' ? 'المستخدمون' : 'Users'}
+                  </button>
+                  <button className="profile-menu-item" onClick={() => { setShowProfile(false); setShowSettings(true); }}>
+                    <Icon name="settings" size={14}/>{lang === 'ar' ? 'إعدادات المظهر' : 'Theme settings'}
+                  </button>
+                  <button className="profile-menu-item danger"
+                    onClick={async () => { setShowProfile(false); await signOut(); navigate('/login'); }}>
+                    <Icon name="power" size={14}/>{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <button className="icon-btn" title="Sign out" onClick={async () => { await signOut(); navigate('/login'); }}>
-            <Icon name="power" size={16}/>
-          </button>
         </div>
       </header>
 
@@ -1395,7 +1538,7 @@ export default function App() {
         )}
       </Drawer>
 
-      <Tweaks tweaks={tweaks} setTweak={setTweak}/>
+      <Tweaks tweaks={tweaks} setTweak={setTweak} open={showSettings} onOpenChange={setShowSettings}/>
       </div>
     </>
   );

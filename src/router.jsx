@@ -18,6 +18,8 @@ import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
 import OrganizationsView from './views/OrganizationsView';
+import ServicesView from './views/ServicesView';
+import ServiceLevelsView from './views/ServiceLevelsView';
 import VenuesView from './views/VenuesView';
 import VehiclesView from './views/VehiclesView';
 import FleetProvidersView from './views/FleetProvidersView';
@@ -31,6 +33,8 @@ const MODULE_ROUTES = [
   { key: 'dashboard',       Component: DashboardView,       permission: 'Dashboard.View' },
   { key: 'invitations',     Component: InvitationsView,     permission: 'Invitations.View' },
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
+  { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
+  { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
   { key: 'travel',          Component: TravelView,          permission: 'Travel.View' },
   { key: 'accreditation',   Component: AccreditationView,   permission: 'Accreditation.View' },
   { key: 'seating',         Component: SeatingView,         permission: 'Seating.View' },

@@ -8,6 +8,10 @@ import { toast } from '../lib/toast';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+// Role codes (Core/Constants/Roles.cs) whose users never sign into this portal,
+// so they're excluded from the access list entirely.
+const NON_PORTAL_ROLES = ['guest', 'driver'];
+
 const DEMO_USERS = [
   { id: '1', firstName: 'Sara',  lastName: 'Ali',    email: 'sara@gms.local',  roleName: 'Event Manager' },
   { id: '2', firstName: 'Khalid',lastName: 'Hassan', email: 'khalid@gms.local',roleName: 'Guest Relations Manager' },
@@ -167,6 +171,13 @@ export default function UserAccessView() {
   }
 
   const filteredUsers = users.filter(u => {
+    // Guests and drivers have no portal access at all (their roles are
+    // PortalAccess=false — guests sign in via VIP-app OTP, drivers via the
+    // driver app), so granting them cross-module portal access is meaningless.
+    // Matched on the role CODE, which is stable, rather than the display name.
+    const roleCode = (u.role || '').toLowerCase();
+    if (NON_PORTAL_ROLES.includes(roleCode)) return false;
+
     const q = search.toLowerCase();
     return !q
       || u.email?.toLowerCase().includes(q)

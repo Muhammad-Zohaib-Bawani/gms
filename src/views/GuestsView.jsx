@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
-import { Avatar, StatusChip, TierChip } from "../components/UI";
+import { Avatar, StatusChip, ServiceLevelChip } from "../components/UI";
 import { Icon } from "../components/Icons";
 import FlagIcon from "../components/FlagIcon";
 import DataTable from "../components/ui/DataTable";
@@ -11,6 +11,7 @@ import toast from "../lib/toast";
 import { listGuests } from "../api/services/guestService";
 import { getNationalities } from "../api/services/nationalityService";
 import { getOrganizations } from "../api/services/organizationService";
+import { getServiceLevels } from "../api/services/serviceCatalogService";
 import { getTemplates } from "../api/services/invitationTemplateService";
 import { listSessions, getEvent } from "../api/services/eventService";
 
@@ -18,8 +19,6 @@ import GuestModal from "./guests/modals/GuestModal";
 import MessageModal from "./guests/modals/MessageModal";
 import AccreditationModal from "./guests/modals/AccreditationModal";
 import DeleteGuestsModal from "./guests/modals/DeleteGuestsModal";
-
-const TIERS = ["vvip", "vip", "Speaker", "Delegate", "press", "Observer"];
 
 export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const t = getTranslations(lang);
@@ -41,6 +40,9 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // this, and it used to fire unconditionally on every mount/event switch.
   const [nationalities, setNationalities] = useState([]);
   const [organizations, setOrganizations] = useState([]);
+  // Needed by both the filter panel and the guest form's level picker, and it's
+  // small + per-event, so it loads with the page rather than lazily.
+  const [serviceLevels, setServiceLevels] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [activeEvent, setActiveEvent] = useState(null);
@@ -51,7 +53,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
   // ── filter / selection ────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
-  const [tierFilter, setTierFilter] = useState("All");
+  const [levelFilter, setLevelFilter] = useState("All");
   const [statusFilters, setStatusFilters] = useState([]); // multi-select, [] = all
   const [orgFilter, setOrgFilter] = useState("All");
   const [nationalityFilter, setNationalityFilter] = useState("All");
@@ -61,7 +63,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [selResetKey, setSelResetKey] = useState(0);
 
   const activeFilterCount = [
-    tierFilter !== "All",
+    levelFilter !== "All",
     statusFilters.length > 0,
     orgFilter !== "All",
     nationalityFilter !== "All",
@@ -69,7 +71,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   ].filter(Boolean).length;
 
   const clearAllFilters = () => {
-    setTierFilter("All");
+    setLevelFilter("All");
     setStatusFilters([]);
     setOrgFilter("All");
     setNationalityFilter("All");
@@ -101,6 +103,17 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
   const selCount = selectedGuests.length;
   const clearSelection = () => setSelResetKey((k) => k + 1);
+
+  // Reloaded on every event switch, and after a guest save so the levels'
+  // guestCount (which drives the capacity rule) stays accurate.
+  const loadServiceLevels = useCallback(() => {
+    if (!activeEventId) { setServiceLevels([]); return Promise.resolve(); }
+    return getServiceLevels(activeEventId)
+      .then((r) => setServiceLevels(r || []))
+      .catch(() => setServiceLevels([]));
+  }, [activeEventId]);
+
+  useEffect(() => { loadServiceLevels(); }, [loadServiceLevels]);
 
   // ── load reference data, on demand ────────────────────────────────────────
   // Called right before opening Add/Edit Guest — the only consumer of any of
@@ -154,7 +167,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         pageNumber: pageIndex + 1, // API pages are 1-based
         pageSize,
         search: query || undefined,
-        tier: tierFilter !== "All" ? tierFilter : undefined,
+        serviceLevelId: levelFilter !== "All" ? levelFilter : undefined,
         invitationStatuses: statusFilters.length ? statusFilters : undefined,
         organizationId: orgFilter !== "All" ? orgFilter : undefined,
         nationalityId: nationalityFilter !== "All" ? nationalityFilter : undefined,
@@ -167,7 +180,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     } finally {
       setLoading(false);
     }
-  }, [activeEventId, query, pageIndex, pageSize, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]);
+  }, [activeEventId, query, pageIndex, pageSize, levelFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]);
 
   useEffect(() => {
     loadGuests();
@@ -177,14 +190,14 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // otherwise a filter that narrows to 3 rows leaves us stranded on page 5.
   useEffect(() => {
     setPageIndex(0);
-  }, [activeEventId, query, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter, pageSize]);
+  }, [activeEventId, query, levelFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter, pageSize]);
 
   // Selection can't span pages: only the current page's rows are in memory, so
   // a selection made on page 1 would silently vanish from the bulk actions on
   // page 2. Clearing on navigation makes that visible instead of surprising.
   useEffect(() => {
     clearSelection();
-  }, [pageIndex, pageSize, query, tierFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pageIndex, pageSize, query, levelFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close the filter panel on an outside click or Escape — same pattern as
   // the topbar notification dropdown.
@@ -199,12 +212,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   }, [showFilterPanel]);
 
   // ── select options ────────────────────────────────────────────────────────
-  const tierFilterOpts = useMemo(
+  const levelFilterOpts = useMemo(
     () => [
-      { value: "All", label: isAr ? "كل الفئات" : "All Tiers" },
-      ...TIERS.map((t) => ({ value: t, label: t })),
+      { value: "All", label: isAr ? "كل المستويات" : "All Service Levels" },
+      ...serviceLevels.map((l) => ({ value: l.id, label: isAr ? (l.nameAr || l.name) : l.name })),
     ],
-    [isAr],
+    [serviceLevels, isAr],
   );
 
   const statusFilterOpts = useMemo(
@@ -282,11 +295,18 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         },
       },
       {
-        id: "tier",
-        header: isAr ? "الفئة" : "Tier",
-        accessorKey: "tier",
-        size: 100,
-        cell: ({ getValue }) => <TierChip tier={getValue()} lang={lang} />,
+        id: "serviceLevel",
+        header: isAr ? "مستوى الخدمة" : "Service Level",
+        accessorKey: "serviceLevelName",
+        size: 130,
+        cell: ({ row: { original: g } }) => (
+          <ServiceLevelChip
+            name={g.serviceLevelName}
+            nameAr={g.serviceLevelNameAr}
+            color={g.serviceLevelColor}
+            lang={lang}
+          />
+        ),
       },
       {
         id: "nationality",
@@ -384,7 +404,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       "Name",
       "Email",
       "Nationality",
-      "Tier",
+      "Service Level",
       "Invitation Status",
       "Hotel",
       "Accreditation",
@@ -397,7 +417,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         pageNumber: 1,
         pageSize: Math.max(totalCount, 1),
         search: query || undefined,
-        tier: tierFilter !== "All" ? tierFilter : undefined,
+        serviceLevelId: levelFilter !== "All" ? levelFilter : undefined,
         invitationStatus: statusFilter !== "All" ? statusFilter : undefined,
       });
       if (r?.items?.length) all = r.items;
@@ -414,7 +434,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         g.fullName,
         g.email,
         g.nationalityName,
-        g.tier,
+        g.serviceLevelName || g.tier,
         g.invitationStatus,
         g.hotel,
         g.accreditationStatus,
@@ -558,13 +578,13 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
               <div>
                 <label style={{ display: "block", fontSize: 10.5, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
-                  {isAr ? "الفئة" : "Tier"}
+                  {isAr ? "مستوى الخدمة" : "Service Level"}
                 </label>
                 <Select
-                  value={tierFilter}
-                  onChange={(v) => setTierFilter(v || "All")}
-                  options={tierFilterOpts}
-                  placeholder={isAr ? "الفئة" : "Tier"}
+                  value={levelFilter}
+                  onChange={(v) => setLevelFilter(v || "All")}
+                  options={levelFilterOpts}
+                  placeholder={isAr ? "مستوى الخدمة" : "Service Level"}
                 />
               </div>
 
@@ -680,10 +700,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           eventEndDate={activeEvent?.endDate}
           nationalities={nationalities}
           organizations={organizations}
+          serviceLevels={serviceLevels}
           templates={templates}
           sessions={sessions}
           lang={lang}
-          onSaved={loadGuests}
+          onSaved={() => { loadGuests(); loadServiceLevels(); }}
           initialMode={importBatchId ? "import" : "new"}
           initialImportBatchId={importBatchId}
         />
@@ -700,10 +721,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           eventEndDate={activeEvent?.endDate}
           nationalities={nationalities}
           organizations={organizations}
+          serviceLevels={serviceLevels}
           templates={templates}
           sessions={sessions}
           lang={lang}
-          onSaved={loadGuests}
+          onSaved={() => { loadGuests(); loadServiceLevels(); }}
         />
       )}
 

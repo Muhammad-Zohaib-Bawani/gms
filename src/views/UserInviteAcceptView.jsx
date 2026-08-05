@@ -107,13 +107,13 @@ export default function UserInviteAcceptView({ token }) {
                 width: 52,
                 height: 52,
                 borderRadius: "50%",
-                background: "rgba(224,138,126,0.15)",
+                background: "var(--danger-bg)",
                 display: "grid",
                 placeItems: "center",
                 margin: "0 auto 16px",
               }}
             >
-              <Icon name="close" size={22} style={{ color: "#e08a7e" }} />
+              <Icon name="close" size={22} style={{ color: "var(--danger)" }} />
             </div>
             <div style={{ fontSize: 15, color: "var(--ink-dim)" }}>{error}</div>
           </div>
@@ -149,7 +149,7 @@ export default function UserInviteAcceptView({ token }) {
                   borderRadius: 10,
                   border: "none",
                   cursor: "pointer",
-                  background: "var(--accent, #1aaec4)",
+                  background: "var(--accent, #8d0134)",
                   color: "#fff",
                   fontSize: 15,
                   fontWeight: 600,
@@ -270,7 +270,7 @@ export default function UserInviteAcceptView({ token }) {
                     borderRadius: 10,
                     border: "none",
                     cursor: "pointer",
-                    background: "var(--accent, #1aaec4)",
+                    background: "var(--accent, #8d0134)",
                     color: "#fff",
                     fontSize: 15,
                     fontWeight: 600,

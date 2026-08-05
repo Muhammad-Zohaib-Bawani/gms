@@ -29,8 +29,8 @@ export function RoundSVG({ table, selected, onDeleteSeat, onSeatClick, selectedI
   const cx = ROUND_SIZE / 2, cy = ROUND_SIZE / 2;
   const removed = new Set(table.removedSeats || []);
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(141, 1, 52,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(141, 1, 52,0.1)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(141, 1, 52,0.45)');
+  const fill = selected ? (c ? hexToRgba(c, 0.34) : 'rgba(141, 1, 52,0.34)') : (c ? hexToRgba(c, 0.20) : 'rgba(141, 1, 52,0.20)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.72) : 'rgba(141, 1, 52,0.72)');
   return (
     <svg width={ROUND_SIZE} height={ROUND_SIZE} style={{ display: 'block' }}>
       <circle cx={cx} cy={cy} r={TABLE_R} fill={fill} stroke={stroke} strokeWidth={selected ? 2 : 1.5}/>
@@ -74,8 +74,8 @@ export function RectSVG({ table, selected, onDeleteSeat, onSeatClick, selectedIn
   const seatY1 = 10, seatY2 = h - 10;
   const removed = new Set(table.removedSeats || []);
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.22) : 'rgba(141, 1, 52,0.22)') : (c ? hexToRgba(c, 0.1) : 'rgba(141, 1, 52,0.1)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.45) : 'rgba(141, 1, 52,0.45)');
+  const fill = selected ? (c ? hexToRgba(c, 0.34) : 'rgba(141, 1, 52,0.34)') : (c ? hexToRgba(c, 0.20) : 'rgba(141, 1, 52,0.20)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.72) : 'rgba(141, 1, 52,0.72)');
 
   function seat(index, sx, sy) {
     if (removed.has(index)) return null;
@@ -126,8 +126,8 @@ export function StadiumSVG({ table, selected, onDeleteSeat, onSeatClick, selecte
   const removed = new Set(table.removedSeats || []);
   const rowNamesArr = table.rowNames || [];
   const c = table.color;
-  const fill = selected ? (c ? hexToRgba(c, 0.12) : 'rgba(141, 1, 52,0.12)') : (c ? hexToRgba(c, 0.05) : 'rgba(141, 1, 52,0.05)');
-  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.3) : 'rgba(141, 1, 52,0.3)');
+  const fill = selected ? (c ? hexToRgba(c, 0.24) : 'rgba(141, 1, 52,0.24)') : (c ? hexToRgba(c, 0.14) : 'rgba(141, 1, 52,0.14)');
+  const stroke = selected ? (c || 'var(--accent)') : (c ? hexToRgba(c, 0.60) : 'rgba(141, 1, 52,0.60)');
   const labelColor = c || 'var(--accent)';
 
   return (
@@ -194,7 +194,7 @@ export function StageSVG({ table, selected }) {
     <svg width={svgW} height={svgH} style={{ display: 'block' }}>
       <text x={svgW / 2} y={12} textAnchor="middle" fontSize="9" fill={c} fontFamily="var(--mono)" fontWeight="600">{table.label}</text>
       <rect x={2} y={16} width={w + 16} height={h + 10} rx={3} fill={hexToRgba(c, 0.06)} stroke={hexToRgba(c, 0.2)} strokeWidth="1"/>
-      <rect x={6} y={19} width={w + 8} height={h + 6} rx={3} fill={hexToRgba(c, 0.1)} stroke={hexToRgba(c, 0.3)} strokeWidth="1"/>
+      <rect x={6} y={19} width={w + 8} height={h + 6} rx={3} fill={hexToRgba(c, 0.18)} stroke={hexToRgba(c, 0.55)} strokeWidth="1"/>
       <rect x={10} y={22} width={w} height={h} rx={4}
         fill={selected ? hexToRgba(c, 0.28) : hexToRgba(c, 0.16)}
         stroke={selected ? c : hexToRgba(c, 0.5)}
@@ -214,13 +214,13 @@ export function PitchSVG({ table, selected }) {
     <svg width={svgW} height={svgH} style={{ display: 'block' }}>
       <text x={svgW / 2} y={13} textAnchor="middle" fontSize="9" fill={c} fontFamily="var(--mono)" fontWeight="600">{table.label}</text>
       <rect x={fx} y={fy} width={pw} height={ph} rx={6}
-        fill={selected ? hexToRgba(c, 0.18) : hexToRgba(c, 0.08)}
-        stroke={selected ? c : hexToRgba(c, 0.38)}
+        fill={selected ? hexToRgba(c, 0.26) : hexToRgba(c, 0.15)}
+        stroke={selected ? c : hexToRgba(c, 0.62)}
         strokeWidth={selected ? 2 : 1.5}/>
-      <line x1={fx + pw / 2} y1={fy + 5} x2={fx + pw / 2} y2={fy + ph - 5} stroke={hexToRgba(c, 0.28)} strokeWidth="1" strokeDasharray="5 3"/>
-      <circle cx={fx + pw / 2} cy={fy + ph / 2} r={cr} fill="none" stroke={hexToRgba(c, 0.28)} strokeWidth="1"/>
-      <circle cx={fx + pw / 2} cy={fy + ph / 2} r={2.5} fill={hexToRgba(c, 0.5)}/>
-      <text x={svgW / 2} y={fy + ph / 2 + 4} textAnchor="middle" fontSize="9" fill={hexToRgba(c, 0.5)} fontFamily="sans-serif" fontWeight="700" letterSpacing="1.5">PITCH AREA</text>
+      <line x1={fx + pw / 2} y1={fy + 5} x2={fx + pw / 2} y2={fy + ph - 5} stroke={hexToRgba(c, 0.48)} strokeWidth="1" strokeDasharray="5 3"/>
+      <circle cx={fx + pw / 2} cy={fy + ph / 2} r={cr} fill="none" stroke={hexToRgba(c, 0.48)} strokeWidth="1"/>
+      <circle cx={fx + pw / 2} cy={fy + ph / 2} r={2.5} fill={hexToRgba(c, 0.7)}/>
+      <text x={svgW / 2} y={fy + ph / 2 + 4} textAnchor="middle" fontSize="9" fill={hexToRgba(c, 0.7)} fontFamily="sans-serif" fontWeight="700" letterSpacing="1.5">PITCH AREA</text>
     </svg>
   );
 }

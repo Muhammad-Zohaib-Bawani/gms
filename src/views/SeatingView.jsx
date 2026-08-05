@@ -369,16 +369,17 @@ export default function SeatingView({ lang, activeEventId }) {
                   <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }}>
                     <defs>
                       <pattern id="sgrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--glass-border)" strokeWidth="0.4"/>
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--canvas-grid)" strokeWidth="1"/>
                       </pattern>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#sgrid)"/>
                   </svg>
 
-                  {renderTables.map(t => (
+                  {renderTables.map((t, i) => (
                     <CanvasElement
                       key={t.id}
                       table={t}
+                      index={i}
                       selected={false}
                       showDeleteSeat={false}
                       selectedSeatIndex={null}
@@ -510,7 +511,7 @@ export default function SeatingView({ lang, activeEventId }) {
                   </div>
                   <div style={{ display:'flex', gap:8 }}>
                     <button className="btn" style={{ flex:1 }} onClick={() => setAssignModal(null)} disabled={assigning}>{STR.cancel}</button>
-                    <button className="btn" style={{ flex:1, color:'#e08a7e', borderColor:'rgba(224,138,126,0.3)' }} onClick={doUnassign} disabled={assigning}>
+                    <button className="btn" style={{ flex:1, color:'var(--danger)', borderColor:'var(--danger-border)' }} onClick={doUnassign} disabled={assigning}>
                       <Icon name="x" size={13}/> {STR.unassign}
                     </button>
                   </div>
