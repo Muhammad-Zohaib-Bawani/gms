@@ -93,6 +93,12 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/vehicles/${id}`,
   },
 
+  // Companies that supply fleet vehicles. Same access split as vehicles.
+  fleetProviders: {
+    base: '/v1/fleet-providers',
+    byId: (id) => `/v1/fleet-providers/${id}`,
+  },
+
   invitationTemplates: {
     base: '/v1/invitation-templates',
     byId: (id) => `/v1/invitation-templates/${id}`,

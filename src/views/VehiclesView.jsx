@@ -11,6 +11,7 @@ import {
   getVehicles, createVehicle, updateVehicle, deleteVehicle,
 } from '../api/services/vehicleService';
 import { getVehicleTypes } from '../api/services/travelService';
+import { getFleetProviders } from '../api/services/fleetProviderService';
 import { uploadImageFile, stripSasToken } from '../api/services/uploadService';
 
 const inputStyle = {
@@ -24,7 +25,10 @@ const labelStyle = {
 };
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 };
 
-const EMPTY_FORM = { vehicleTypeId: '', vehicleModel: '', vehicleNumber: '', vehicleImage: '', capacity: '' };
+const EMPTY_FORM = {
+  vehicleTypeId: '', fleetProviderId: '', vehicleModel: '', vehicleNumber: '',
+  vehicleImage: '', capacity: '',
+};
 
 // Fleet admin: the vehicles themselves plus their type lookup, as two tabs —
 // the types tab is the generic lookup screen, so it isn't duplicated here.
@@ -36,6 +40,7 @@ export default function VehiclesView({ lang }) {
   const [tab, setTab] = useState('vehicles');
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);   // row being edited, or null for "add"
@@ -63,6 +68,14 @@ export default function VehiclesView({ lang }) {
 
   useEffect(() => { loadTypes(); }, [loadTypes, tab]);
 
+  // Providers feed the form dropdown too — managed on their own screen.
+  useEffect(() => {
+    (async () => {
+      try { setProviders((await getFleetProviders()) || []); }
+      catch { setProviders([]); }
+    })();
+  }, []);
+
   const setF = (k, v) => {
     setForm((p) => ({ ...p, [k]: v }));
     if (errors[k]) setErrors((p) => ({ ...p, [k]: null }));
@@ -79,6 +92,7 @@ export default function VehiclesView({ lang }) {
     setEditing(row);
     setForm({
       vehicleTypeId: row.vehicleTypeId || '',
+      fleetProviderId: row.fleetProviderId || '',
       vehicleModel: row.vehicleModel || '',
       vehicleNumber: row.vehicleNumber || '',
       vehicleImage: row.vehicleImage || '',
@@ -108,6 +122,7 @@ export default function VehiclesView({ lang }) {
 
     const body = {
       vehicleTypeId: form.vehicleTypeId,
+      fleetProviderId: form.fleetProviderId || null,
       vehicleModel: form.vehicleModel.trim(),
       vehicleNumber: form.vehicleNumber.trim(),
       vehicleImage: stripSasToken(form.vehicleImage) || null,
@@ -158,6 +173,8 @@ export default function VehiclesView({ lang }) {
       { id: 'vehicleModel', header: isAr ? 'الطراز' : 'Model', accessorKey: 'vehicleModel',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'vehicleTypeName', header: isAr ? 'النوع' : 'Type', accessorKey: 'vehicleTypeName',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      { id: 'fleetProviderName', header: isAr ? 'المزوّد' : 'Provider', accessorKey: 'fleetProviderName',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'capacity', header: isAr ? 'السعة' : 'Capacity', accessorKey: 'capacity',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() ?? '—'}</span> },
@@ -243,6 +260,18 @@ export default function VehiclesView({ lang }) {
             placeholder={isAr ? '— اختر —' : '— Select —'}
           />
           {errors.vehicleTypeId && <div style={{ ...hintStyle, color: '#e05050' }}>{errors.vehicleTypeId}</div>}
+        </div>
+
+        <div>
+          <label style={labelStyle}>{isAr ? 'مزوّد الأسطول' : 'Fleet Provider'}</label>
+          <Select
+            value={form.fleetProviderId}
+            onChange={(v) => setF('fleetProviderId', v || '')}
+            options={providers.map((p) => ({ value: p.id, label: p.name }))}
+            placeholder={isAr ? '— اختر —' : '— Select —'}
+            isClearable
+          />
+          <div style={hintStyle}>{isAr ? 'اختياري — اتركه فارغًا للمركبات الداخلية' : 'Optional — leave empty for in-house vehicles'}</div>
         </div>
 
         <div>

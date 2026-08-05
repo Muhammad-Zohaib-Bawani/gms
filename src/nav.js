@@ -18,6 +18,7 @@ export const KEY_PATH = {
   organizations:   '/organizations',
   venues:          '/venues',
   vehicles:        '/vehicles',
+  fleetProviders:  '/fleet-providers',
   supportChat:     '/support-chat',
 };
 
