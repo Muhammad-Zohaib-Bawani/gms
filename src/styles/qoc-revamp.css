@@ -32,7 +32,7 @@
   --teal: #8d0134;
   --rose: #c25c4e;
 
-  --card-bg: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.55);
 
   /* Panel surfaces (cards, stat cards, tables) sit ON the page gradient, so
      they are translucent and blurred rather than flat white — an opaque white
@@ -55,17 +55,24 @@
   --glass-border-strong: #d6d9df;
   --glass-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
 
-  --surface-soft:   #fafbfc;
-  --surface-soft-2: #f5f6f8;
-  --surface-soft-3: #f1f3f6;
-  --surface-soft-4: #e9ecf0;
+  /* Translucent, not an opaque grey ladder: these back inputs, chips, wells
+     and inner panels that sit on an already-translucent card, so a solid grey
+     read as a patch stuck on the glass. Alpha rises with each step so the
+     ramp still gives depth. */
+  --surface-soft:   rgba(255, 255, 255, 0.42);
+  --surface-soft-2: rgba(255, 255, 255, 0.34);
+  --surface-soft-3: rgba(255, 255, 255, 0.26);
+  --surface-soft-4: rgba(141, 1, 52, 0.10);
   --surface-soft-5: #dfe3e8;
   --hover-tint: rgba(20, 22, 26, 0.04);
   --selected-tint: rgba(141, 1, 52, 0.07);
   --row-tint: rgba(20, 22, 26, 0.015);
 
-  --modal-bg: #ffffff;
-  --popover-bg: #ffffff;
+  /* Frosted rather than flat. Both are blurred at the point of use, and both
+     stay well above card opacity: a dialog and a dropdown have to stay
+     readable over arbitrary content behind them. */
+  --modal-bg: rgba(255, 255, 255, 0.80);
+  --popover-bg: rgba(255, 255, 255, 0.88);
   --status-active: #8d0134;
 
   /* Elevation ladder — light themes need real layered shadows, not one blur. */
@@ -107,7 +114,7 @@ html[data-theme="dark"] {
   --teal: #8d0134;
   --rose: #e08a7e;
 
-  --card-bg: #200011;
+  --card-bg: rgba(255, 255, 255, 0.05);
 
   --surface-glass: rgba(255, 255, 255, 0.055);
   --surface-glass-strong: rgba(38, 0, 18, 0.72);
@@ -145,8 +152,8 @@ html[data-theme="dark"] {
 
   /* Opaque surfaces that float over the page (modals, calendar poppers,
      menus). They can't be translucent or the content behind bleeds through. */
-  --modal-bg: #2a0616;
-  --popover-bg: #33091e;
+  --modal-bg: rgba(42, 6, 22, 0.86);
+  --popover-bg: rgba(51, 9, 30, 0.92);
   /* "Active" status: the maroon accent is unreadable on the maroon surfaces,
      so dark mode uses plain white. */
   --status-active: #ffffff;
@@ -224,7 +231,7 @@ input, textarea, select { font: inherit; color: inherit; }
 
 /* ── Select: solid themed background + native popup inherits theme ── */
 select {
-  background-color: var(--bg) !important;
+  background-color: var(--card-bg) !important;
   color: var(--ink) !important;
   color-scheme: dark;
 }
@@ -232,7 +239,8 @@ html[data-theme="light"] select {
   color-scheme: light;
 }
 select option {
-  background-color: var(--bg);
+  /* Opaque on purpose — this is the native popup list, which no blur reaches. */
+  background-color: var(--bg-0);
   color: var(--ink);
 }
 /* Native date/time widgets: make the browser's own icons + dropdown panel
@@ -1449,4 +1457,39 @@ html[dir="rtl"] .wizard-step.active { padding: 3px 3px 3px 11px; }
 @media (max-width: 560px) {
   /* Nothing to shrink further — drop the connectors before the labels. */
   .wizard-bar { width: 8px; }
+}
+
+
+/* ==========================================================================
+   FROSTED OVERLAYS
+   style.css pins `.modal-solid { backdrop-filter: none !important }` from when
+   modals had to be forced opaque. Now that --modal-bg is translucent that rule
+   would leave dialogs showing raw content through them, so it is overridden
+   here (matching its !important) and paired with a blur.
+   ========================================================================== */
+.modal-solid {
+  -webkit-backdrop-filter: saturate(150%) blur(20px) !important;
+  backdrop-filter: saturate(150%) blur(20px) !important;
+}
+
+/* Dropdowns, menus and popovers: same treatment, higher opacity. */
+.notif-menu,
+.profile-menu,
+.event-menu,
+.action-menu,
+[data-radix-popper-content-wrapper] > * {
+  -webkit-backdrop-filter: saturate(150%) blur(18px);
+  backdrop-filter: saturate(150%) blur(18px);
+}
+
+/* Inputs read as recessed glass: a hair darker than the card they sit on, with
+   the border doing the work of defining the field. */
+.input,
+select,
+textarea {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.input:focus, select:focus, textarea:focus {
+  background: var(--surface-glass-strong);
 }

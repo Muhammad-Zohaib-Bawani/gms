@@ -417,8 +417,16 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         pageNumber: 1,
         pageSize: Math.max(totalCount, 1),
         search: query || undefined,
+        // Mirrors the list query above. `statusFilter` (singular) never existed
+        // — it was left behind when the filter became multi-select, so Export
+        // threw "statusFilter is not defined" and, once that was fixed, would
+        // still have ignored the org/nationality/accreditation filters and
+        // exported rows the user had filtered out.
         serviceLevelId: levelFilter !== "All" ? levelFilter : undefined,
-        invitationStatus: statusFilter !== "All" ? statusFilter : undefined,
+        invitationStatuses: statusFilters.length ? statusFilters : undefined,
+        organizationId: orgFilter !== "All" ? orgFilter : undefined,
+        nationalityId: nationalityFilter !== "All" ? nationalityFilter : undefined,
+        accreditationStatus: accreditationFilter !== "All" ? accreditationFilter : undefined,
       });
       if (r?.items?.length) all = r.items;
     } catch {
