@@ -1,31 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Modal from '../../../components/ui/Modal';
 import { Icon } from '../../../components/Icons';
 import ImportBatchResults from '../../../components/ui/ImportBatchResults';
 import toast from '../../../lib/toast';
 import useImportBatchPoll from '../../../lib/useImportBatchPoll';
 import { importGuests, getGuestImportBatch } from '../../../api/services/guestService';
 
-// Bulk-import guests from CSV. The upload only kicks off a Hangfire job
-// (StartGuestsImportAsync) and returns a batch id — parsing/insert runs in
-// the background, so the user can close this and keep working; a
-// notification fires when it's done, deep-linking back here via
-// `?importBatch=` (see GuestsView).
-export default function ImportModal({ open, onClose, activeEventId, lang, onImported, initialBatchId }) {
+// Embeddable body of the CSV bulk-import flow — used as the "Import Guest"
+// tab inside GuestModal (previously its own standalone ImportModal). The
+// upload only kicks off a Hangfire job (StartGuestsImportAsync) and returns a
+// batch id — parsing/insert runs in the background, so the user can close
+// this and keep working; a notification fires when it's done, deep-linking
+// back here via `?importBatch=` (see GuestsView / GuestModal).
+export default function ImportGuestsPanel({ activeEventId, lang, onImported, initialBatchId }) {
   const isAr    = lang === 'ar';
   const fileRef = useRef();
   const notifiedRef = useRef(false);
 
-  const [file,      setFile]      = useState(null);
-  const [dragging,  setDragging]  = useState(false);
-  const [starting,  setStarting]  = useState(false);
-  const [batchId,   setBatchId]   = useState(null);
+  const [file,     setFile]     = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [batchId,  setBatchId]  = useState(initialBatchId || null);
 
   const status = useImportBatchPoll(batchId, getGuestImportBatch);
 
   useEffect(() => {
-    if (open && initialBatchId) { setBatchId(initialBatchId); notifiedRef.current = true; }
-  }, [open, initialBatchId]);
+    if (initialBatchId) { setBatchId(initialBatchId); notifiedRef.current = true; }
+  }, [initialBatchId]);
 
   useEffect(() => {
     if (!status || notifiedRef.current) return;
@@ -52,18 +52,6 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
     if (f) { setFile(f); setBatchId(null); notifiedRef.current = false; }
   }
 
-  function reset() {
-    setFile(null);
-    setDragging(false);
-    setBatchId(null);
-    notifiedRef.current = false;
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
-
   async function handleImport() {
     if (!file || !activeEventId) return;
     setStarting(true);
@@ -81,23 +69,7 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
   const isProcessing = batchId && status && status.status !== 'completed' && status.status !== 'failed';
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={isAr ? 'استيراد CSV' : 'Import CSV'}
-      width={460}
-      footer={
-        <>
-          <button className="btn" onClick={handleClose}>{isAr ? 'إغلاق' : 'Close'}</button>
-          {!batchId && (
-            <button className="btn primary" disabled={!file || starting} onClick={handleImport}>
-              <Icon name="upload" size={13}/>
-              {starting ? (isAr ? 'جارٍ البدء…' : 'Starting…') : (isAr ? 'استيراد' : 'Import')}
-            </button>
-          )}
-        </>
-      }
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {!batchId && (
         <>
           <div
@@ -142,6 +114,11 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
                 : 'Only First/Last name are required — everything else is optional. Nationality is matched by name or code; AccreditationRequired accepts true/yes/required.'}
             </div>
           </div>
+
+          <button className="btn primary" disabled={!file || starting} onClick={handleImport} style={{ alignSelf: 'flex-end' }}>
+            <Icon name="upload" size={13}/>
+            {starting ? (isAr ? 'جارٍ البدء…' : 'Starting…') : (isAr ? 'استيراد' : 'Import')}
+          </button>
         </>
       )}
 
@@ -154,6 +131,6 @@ export default function ImportModal({ open, onClose, activeEventId, lang, onImpo
       )}
 
       <ImportBatchResults status={status} isAr={isAr}/>
-    </Modal>
+    </div>
   );
 }

@@ -63,6 +63,8 @@ export const ENDPOINTS = {
     byId: (id) => `/v1/guest/${id}`,
     // Slim feed for guest pickers — name/org/tier/photo, searched + paged server-side.
     picker: '/v1/guest/picker',
+    // "Existing Guest" tab of the Add Guest modal — guests from every other event.
+    otherEvents: '/v1/guest/other-events',
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
     importBatch: (batchId) => `/v1/guest/import/${batchId}`,
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,

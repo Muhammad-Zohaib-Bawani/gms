@@ -103,15 +103,22 @@ export function computeCanvasSize(box, tables) {
 
 // Pick the arrangement box for the current event/session: session-specific box
 // when a session is selected; otherwise the event's own default box (never
-// fall back to a random session-scoped box — that showed the wrong canvas when
-// switching a session dropdown back to "Event (default)"). If neither exists,
+// fall back to a random OTHER session's box — that showed the wrong canvas
+// when switching a session dropdown back to "Event (default)"). If the
+// selected session has no box of its own, fall back to the event's default
+// box — most events design one shared layout for the whole event rather than
+// a separate one per session, so a session with nothing session-specific
+// saved should still show that layout, not go blank. If neither exists,
 // fall back to the venue's own event-agnostic box (e.g. blocks added via the
 // venue-creation quick-add form before any event was selected) so it's not
-// silently invisible — the caller should NOT treat this fallback as "this
-// event's own box" for save/clear purposes (see useVenueEditor's isOwnBox).
+// silently invisible — the caller should NOT treat either fallback as "this
+// event/session's own box" for save/clear purposes (see useVenueEditor's isOwnBox).
 export function pickBox(boxes, eventId, sessionId) {
   if (!boxes || !boxes.length) return null;
-  if (sessionId) return boxes.find(b => b.eventId === eventId && b.sessionId === sessionId) || null;
+  if (sessionId) {
+    const sessionBox = boxes.find(b => b.eventId === eventId && b.sessionId === sessionId);
+    if (sessionBox) return sessionBox;
+  }
   const eventBox = boxes.find(b => b.eventId === eventId && !b.sessionId);
   if (eventBox) return eventBox;
   return boxes.find(b => !b.eventId && !b.sessionId) || null;

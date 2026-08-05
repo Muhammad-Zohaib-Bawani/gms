@@ -104,11 +104,16 @@ function mapFlight(r) {
     org: r.organization,
     flight: r.flightNumber || '—',
     flightType: r.flightType || '',
-    // Every segment, so a return booking shows both halves of the trip.
+    // Every segment, so a return booking shows both halves of the trip —
+    // each leg carries its own class/seat (a return can be Business outbound,
+    // Economy inbound), so this is the source of truth for the Route column.
     legs: r.legs || [],
     flightClass: r.flightClass || '—',
+    seat: r.seat || '',
     from: r.departureCode || '—',
     to: r.arrivalCode || '—',
+      photoUrl: r.photoUrl || '',
+
     date: r.date ? r.date.slice(0, 10) : '',
     dateLabel: r.date ? dateLabelFor(r.date) : '—',
     // Booking-level times off the Flights row (backend falls back to the legs).
@@ -123,6 +128,7 @@ function mapHotel(r) {
     bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
+  photoUrl: r.photoUrl || '',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
@@ -142,6 +148,8 @@ function mapTransfer(r) {
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     vehicle: r.vehicle || '—',
+      photoUrl: r.photoUrl || '',
+
     driver: r.driverName || '—',
     driverType: r.driverType ?? null, // DriverType enum: 1 = Fixed, 2 = Open
     pickup: r.pickup || '—',
@@ -229,7 +237,7 @@ function GuestCell({ g, withOrg = true, onOpen }) {
   );
   return (
     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-      <Avatar initials={g.initials} size={28} tier={g.tier}/>
+      <Avatar initials={g.initials} size={28} tier={g.tier} src={g.photoUrl}/>
       {withOrg ? (
         <div>
           <div>{name}</div>
@@ -656,14 +664,30 @@ export default function TravelView({ lang, activeEventId }) {
         guest(),
         col('flight',      STR.cols.flight,      b => <span style={{ ...mono, fontWeight: 600 }}>{b.flight}</span>),
         col('flightType',  STR.cols.flightType,  b => <span style={text}>{flightTypeLabel(b.flightType, isAr)}</span>),
-        col('flightClass', STR.cols.flightClass, b => <span style={text}>{b.flightClass}</span>),
-        col('route',       STR.cols.route,       b => (
-          <div style={{ ...muted, fontFamily: 'var(--mono)' }}>
-            {b.legs.length > 1
-              ? b.legs.map(l => <div key={l.id}>{l.departureCode} → {l.arrivalCode}</div>)
-              : <span>{b.from} → {b.to}</span>}
-          </div>
-        )),
+        // One line per leg: route, then class/seat right under it — a return
+        // booking's two legs can be on different fare classes/seats, so each
+        // needs its own line rather than one shared "Class" column that can
+        // only ever show one value.
+        col('route',       STR.cols.route,       b => {
+          const legRows = b.legs.length > 0
+            ? b.legs
+            : [{ id: 'single', departureCode: b.from, arrivalCode: b.to, flightClass: b.flightClass, seat: b.seat }];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {legRows.map((l, idx) => {
+                const meta = [l.flightClass, l.seat].filter(v => v && v !== '—').join(' · ');
+                return (
+                  <div key={l.id || idx}>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink)' }}>
+                      {l.departureCode} → {l.arrivalCode}
+                    </div>
+                    {meta && <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{meta}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        }),
         col('date',        STR.cols.date,        b => (
           <div>
             <div style={mono}>{b.dateLabel || b.date}</div>
@@ -789,7 +813,7 @@ export default function TravelView({ lang, activeEventId }) {
           const g = row.original;
           return (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <Avatar initials={initialsFromName(g.guestName)} size={28} tier={g.tier}/>
+              <Avatar initials={initialsFromName(g.guestName)} size={28} tier={g.tier} src={g.photoUrl}/>
               <div>
                 <div style={{ fontSize:12.5, fontWeight:500 }}>{g.guestName || '—'}</div>
                 <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.email || '—'}</div>

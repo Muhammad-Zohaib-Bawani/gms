@@ -24,8 +24,11 @@ import DateField from '../../../components/ui/DateField';
 // `id` (a specific booking's public id) is populated only when hydrating an
 // existing booking — see the module doc comment above. Saving with it set
 // updates that exact booking in place; saving with it blank adds a new one.
+// flightClassId/seat live per leg — a return booking's two legs can be on
+// different fare classes/seats (e.g. Business outbound, Economy inbound).
 export const EMPTY_LEG = {
   id: '', flightNumber: '', fromAirportId: '', toAirportId: '', startTime: '', endTime: '',
+  flightClassId: '', seat: '',
 };
 
 // A return booking is one flight with two legs (outbound + inbound); inbound and
@@ -81,6 +84,12 @@ function hydrateFlight(data) {
   const flight = hydrateSection(EMPTY_TRAVEL.flight, data);
   const type = (data?.flightType || 'inbound').toLowerCase();
   const legs = (data?.legs || []).map((l) => hydrateSection(EMPTY_LEG, l));
+  // Bookings saved before class/seat moved to the leg only have the
+  // booking-level value — show it on the first leg instead of blank.
+  if (legs[0] && !legs[0].flightClassId && !legs[0].seat) {
+    legs[0].flightClassId = flight.flightClassId;
+    legs[0].seat = flight.seat;
+  }
   flight.flightType = type;
   flight.legs = padLegs(legs, FLIGHT_LEG_COUNT[type] ?? 1);
   return flight;
@@ -185,6 +194,11 @@ export function buildTravelPayload(travel) {
     // itinerary ends, so listings don't have to walk the legs.
     body.flight.departureTime = body.flight.legs[0]?.startTime ?? null;
     body.flight.arrivalTime = body.flight.legs.at(-1)?.endTime ?? null;
+    // Booking-level FlightClassId/Seat are a "primary" copy mirrored from the
+    // first leg — same pattern as departure/arrival time above — since class
+    // and seat are now edited per leg (see FlightFields).
+    body.flight.flightClassId = body.flight.legs[0]?.flightClassId ?? null;
+    body.flight.seat = body.flight.legs[0]?.seat ?? null;
   }
   if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
   if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
@@ -264,19 +278,6 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
         </div>
       </div>
 
-      {grid2(<>
-        <div>
-          <Label>{isAr ? 'الدرجة' : 'Flight Class'}</Label>
-          <Select value={flight.flightClassId} onChange={(v) => setFlight({ flightClassId: v })}
-            options={flightClassOpts} placeholder={selPlaceholder} isClearable/>
-        </div>
-        <div>
-          <Label>{isAr ? 'المقعد' : 'Seat'}</Label>
-          <input style={inputStyle} placeholder="3A" value={flight.seat}
-            onChange={(e) => setFlight({ seat: e.target.value })}/>
-        </div>
-      </>)}
-
       {legs.map((leg, i) => (
         <div key={i} style={{
           display: 'flex', flexDirection: 'column', gap: 12,
@@ -306,6 +307,18 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
             <input style={inputStyle} placeholder="QR 512" value={leg.flightNumber}
               onChange={(e) => setLeg(i, 'flightNumber', e.target.value)}/>
           </div>
+          {grid2(<>
+            <div>
+              <Label>{isAr ? 'الدرجة' : 'Flight Class'}</Label>
+              <Select value={leg.flightClassId} onChange={(v) => setLeg(i, 'flightClassId', v)}
+                options={flightClassOpts} placeholder={selPlaceholder} isClearable/>
+            </div>
+            <div>
+              <Label>{isAr ? 'المقعد' : 'Seat'}</Label>
+              <input style={inputStyle} placeholder="3A" value={leg.seat}
+                onChange={(e) => setLeg(i, 'seat', e.target.value)}/>
+            </div>
+          </>)}
           {grid2(<>
             <div>
               <Label>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</Label>

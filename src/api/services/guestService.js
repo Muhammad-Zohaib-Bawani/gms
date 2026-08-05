@@ -32,6 +32,15 @@ export function getGuestPicker({ eventId, search, pageNumber = 1, pageSize = 20 
   });
 }
 
+// "Existing Guest" tab of the Add Guest modal — guests from every other event.
+// One row per past booking (not deduped by person) — the same person can show
+// up more than once if they attended multiple other events.
+export function getGuestsFromOtherEvents({ currentEventId, search, pageNumber = 1, pageSize = 20 } = {}) {
+  return apiClient.get(ENDPOINTS.guests.otherEvents, {
+    params: { currentEventId, pageNumber, pageSize, searchTerm: search || undefined },
+  });
+}
+
 export const getGuest = (id) => apiClient.get(ENDPOINTS.guests.byId(id));
 
 export const createGuest = (body) => apiClient.post(ENDPOINTS.guests.base, body);

@@ -466,12 +466,12 @@ export default function AccreditationView({ lang, activeEventId }) {
                       <span style={{ fontSize: 12, fontWeight: 700, color: tierCol, background: `${tierCol}18`, border: `1px solid ${tierCol}44`, borderRadius: 20, padding: '3px 12px' }}>
                         {previewGuest.tier}
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {/* <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <FlagIcon code={previewGuest.nationalityCode} /> {previewGuest.nationalityName}
-                      </span>
+                      </span> */}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 18 }}>
+                    {/* <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 18 }}>
                       {[
                         // [STR.badgeNo, previewGuest.id?.slice(0, 8)],
                         [STR.arrival, previewGuest.arrivalDate],
@@ -481,7 +481,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                           <div style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: 500 }}>{val || '—'}</div>
                         </div>
                       ))}
-                    </div>
+                    </div> */}
 
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)', gap: 12 }}>
                       <div style={{ flex: 1 }}>

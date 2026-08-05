@@ -18,7 +18,6 @@ import GuestModal from "./guests/modals/GuestModal";
 import MessageModal from "./guests/modals/MessageModal";
 import AccreditationModal from "./guests/modals/AccreditationModal";
 import DeleteGuestsModal from "./guests/modals/DeleteGuestsModal";
-import ImportModal from "./guests/modals/ImportModal";
 
 const TIERS = ["vvip", "vip", "Speaker", "Delegate", "press", "Observer"];
 
@@ -84,20 +83,21 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [showMessage, setShowMessage] = useState(false);
   const [showAccred, setShowAccred] = useState(false);
   const [showDeleteGuests, setShowDeleteGuests] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [importBatchId, setImportBatchId] = useState(null);
 
   // Deep-link from an "import finished" notification (?importBatch=<id>) —
-  // reopen the modal straight into its results view.
+  // reopen the Add Guest modal straight into its Import tab, on that batch's
+  // results.
   useEffect(() => {
     const batchId = searchParams.get('importBatch');
     if (!batchId) return;
+    ensureGuestFormData();
     setImportBatchId(batchId);
-    setShowImport(true);
+    setShowAddGuest(true);
     const next = new URLSearchParams(searchParams);
     next.delete('importBatch');
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selCount = selectedGuests.length;
   const clearSelection = () => setSelResetKey((k) => k + 1);
@@ -469,9 +469,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               </button>
             </>
           )}
-          <button className="btn" onClick={() => setShowImport(true)}>
-            <Icon name="upload" size={14} /> {isAr ? "استيراد" : "Import"}
-          </button>
           <button className="btn" onClick={handleExport}>
             <Icon name="download" size={14} /> {isAr ? "تصدير" : "Export"}
           </button>
@@ -676,7 +673,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       {showAddGuest && (
         <GuestModal
           open={showAddGuest}
-          onClose={() => setShowAddGuest(false)}
+          onClose={() => { setShowAddGuest(false); setImportBatchId(null); }}
           guest={null}
           activeEventId={activeEventId}
           eventStartDate={activeEvent?.startDate}
@@ -687,6 +684,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           sessions={sessions}
           lang={lang}
           onSaved={loadGuests}
+          initialMode={importBatchId ? "import" : "new"}
+          initialImportBatchId={importBatchId}
         />
       )}
 
@@ -745,15 +744,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           clearSelection();
           loadGuests();
         }}
-      />
-
-      <ImportModal
-        open={showImport}
-        onClose={() => { setShowImport(false); setImportBatchId(null); }}
-        activeEventId={activeEventId}
-        lang={lang}
-        onImported={loadGuests}
-        initialBatchId={importBatchId}
       />
     </div>
   );

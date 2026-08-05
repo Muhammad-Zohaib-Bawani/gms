@@ -52,7 +52,7 @@ const NAV = [
   // { key: "financials",     icon: "finance",    label: { en: "Financials",          ar: "الماليات"              }, section: "INSIGHTS", permission: "Financials.View"        },
   // { key: "reports",        icon: "reports",    label: { en: "Reports",             ar: "التقارير"              }, section: "INSIGHTS", permission: "Reports.View"           },
   { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
-  { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
+  // { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },

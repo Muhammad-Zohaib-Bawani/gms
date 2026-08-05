@@ -27,6 +27,8 @@ import TravelAccordion, {
   buildTravelPayload,
   validateTravel,
 } from "./TravelAccordion";
+import ImportGuestsPanel from "./ImportGuestsPanel";
+import ExistingGuestPicker from "./ExistingGuestPicker";
 
 const GUEST_TYPES = [
   "dignitary",
@@ -118,9 +120,9 @@ const contentStyle = {
   position: "fixed",
   inset: 0,
   margin: "auto",
-  width: 560,
+  width: 640,
   maxWidth: "94vw",
-  height: 680,
+  height: 700,
   maxHeight: "92vh",
   zIndex: 1101,
   display: "flex",
@@ -149,9 +151,18 @@ export default function GuestModal({
   lang,
   onSaved,
   initialStep = 1,
+  initialMode = "new",
+  initialImportBatchId = null,
 }) {
   const isAr = lang === "ar";
   const isEdit = !!guest;
+
+  // Tabs (Add Guest only — editing always goes straight into the "new"
+  // wizard on the existing guest). "existing" is a self-contained
+  // multi-select table (ExistingGuestPicker) that creates guests directly —
+  // it never feeds into the wizard steps below.
+  const [mode, setMode] = useState(initialMode);
+  const [existingSaving, setExistingSaving] = useState(false);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(() => guestToForm(guest));
@@ -184,12 +195,62 @@ export default function GuestModal({
     setStep(initialStep);
     setStep1Errors({});
     setRawTravel(null);
+    setMode(initialMode);
     if (guest?.id) {
       getGuestTravel(guest.id)
         .then(setRawTravel)
         .catch(() => setRawTravel(null));
     }
   }, [open, guest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Existing Guest" tab bulk-add — each entry is a brand-new guest for this
+  // event (Guest is per-event, no cross-event identity to link to). Personal
+  // info comes from the source row; tier, sessionIds and accreditationRequired
+  // are whatever was checked/edited per-row in the table. Travel is never
+  // carried over — every bulk-added guest starts with no travel/services.
+  async function handleExistingSubmit(entries, invitationTemplateId) {
+    setExistingSaving(true);
+    let success = 0,
+      failed = 0;
+    for (const e of entries) {
+      try {
+        await createGuest({
+          firstName: e.firstName,
+          lastName: e.lastName,
+          email: e.email || null,
+          guestType: e.guestType,
+          organizationId: e.organizationId || null,
+          nationalityId: e.nationalityId || null,
+          tier: e.tier,
+          photoUrl: e.photoUrl ? stripSasToken(e.photoUrl) : null,
+          accreditationRequired: !!e.accreditationRequired,
+          invitationTemplateId: invitationTemplateId || null,
+          sessionIds: e.sessionIds,
+          eventId: activeEventId,
+        });
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    setExistingSaving(false);
+    onSaved?.();
+    if (failed === 0) {
+      toast.success(
+        isAr
+          ? `تمت إضافة ${success} ضيف`
+          : `Added ${success} guest${success === 1 ? "" : "s"}`,
+      );
+      handleClose();
+    } else {
+      toast.warning(
+        isAr
+          ? `تمت إضافة ${success} — فشل ${failed}`
+          : `Added ${success} — ${failed} failed`,
+      );
+      if (success > 0) handleClose();
+    }
+  }
 
   useEffect(() => {
     setTravel(
@@ -270,6 +331,13 @@ export default function GuestModal({
     onClose();
   }
 
+  // Only the "new" tab uses the step wizard below — "import" and "existing"
+  // are fully self-contained panels that create guests directly.
+  const activeSteps = [1, 2, 3, 4];
+  const stepPos = activeSteps.indexOf(step);
+  const isLastStep = stepPos === activeSteps.length - 1;
+  const showWizard = mode === "new";
+
   function handleNext() {
     if (step === 1) {
       const errs = {};
@@ -293,7 +361,7 @@ export default function GuestModal({
         return;
       }
     }
-    setStep((s) => s + 1);
+    setStep(activeSteps[stepPos + 1]);
   }
 
   async function handleSave() {
@@ -408,9 +476,10 @@ export default function GuestModal({
     [organizations, isAr],
   );
 
-  const stepLabels = isAr
+  const allStepLabels = isAr
     ? ["المعلومات الشخصية", "الفئة والجلسات", "السفر والإقامة", "الدعوة"]
     : ["Personal Info", "Matches & Tier", "Services", "Invitation"];
+  const stepLabels = activeSteps.map((s) => allStepLabels[s - 1]);
 
   const inputStyle = {
     width: "100%",
@@ -430,10 +499,60 @@ export default function GuestModal({
         <Dialog.Overlay style={overlayStyle} />
         <Dialog.Content
           className="modal-solid"
-          style={contentStyle}
+          style={mode === "existing" ? { ...contentStyle, width: 1040 } : contentStyle}
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
         >
+          {/* Tabs — float above the card's top edge, outside its border, like
+              folder tabs; only shown for Add Guest (never while editing). */}
+          {!isEdit && (
+            <div
+              style={{
+                position: "absolute",
+                top: -38,
+                insetInlineStart: 20,
+                display: "flex",
+                gap: 4,
+                zIndex: 2,
+              }}
+            >
+              {[
+                { key: "new", label: isAr ? "ضيف جديد" : "New Guest" },
+                { key: "import", label: isAr ? "استيراد ضيوف" : "Import Guest" },
+                { key: "existing", label: isAr ? "ضيف حالي" : "Existing Guest" },
+              ].map((tab) => {
+                const active = mode === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setMode(tab.key); setStep(1); }}
+                    style={{
+                      padding: "9px 18px",
+                      fontSize: 12.5,
+                      fontWeight: active ? 700 : 500,
+                      cursor: "pointer",
+                      border: "1px solid var(--glass-border)",
+                      borderBottom: active ? "none" : "1px solid var(--glass-border)",
+                      borderRadius: "10px 10px 0 0",
+                      // Floats outside `.modal-solid`'s own opaque background, directly
+                      // over the dark Dialog.Overlay — a transparent surface token here
+                      // would let that overlay bleed through (invisible in light theme).
+                      // color-mix keeps this fully opaque in both themes.
+                      background: active
+                        ? "var(--modal-bg)"
+                        : "color-mix(in srgb, var(--modal-bg) 85%, var(--ink) 15%)",
+                      color: active ? "var(--ink)" : "var(--ink-mute)",
+                      boxShadow: active ? "0 -3px 10px rgba(0,0,0,0.18)" : "none",
+                      transform: active ? "translateY(1px)" : "none",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Header */}
           <div
             style={{
@@ -469,10 +588,12 @@ export default function GuestModal({
                   </span>
                 )}
               </Dialog.Title>
+
+              {showWizard && (
               <div style={{ display: "flex", alignItems: "center" }}>
                 {stepLabels.map((label, i) => {
-                  const s = i + 1,
-                    done = step > s,
+                  const s = activeSteps[i],
+                    done = stepPos > i,
                     active = step === s;
                   return (
                     <React.Fragment key={i}>
@@ -535,6 +656,7 @@ export default function GuestModal({
                   );
                 })}
               </div>
+              )}
             </div>
             <Dialog.Close asChild>
               <button
@@ -557,8 +679,29 @@ export default function GuestModal({
               gap: 14,
             }}
           >
+            {mode === "import" && (
+              <ImportGuestsPanel
+                activeEventId={activeEventId}
+                lang={lang}
+                onImported={onSaved}
+                initialBatchId={initialImportBatchId}
+              />
+            )}
+
+            {mode === "existing" && (
+              <ExistingGuestPicker
+                activeEventId={activeEventId}
+                lang={lang}
+                sessions={sessions}
+                enums={enums}
+                templates={templates}
+                saving={existingSaving}
+                onSubmit={handleExistingSubmit}
+              />
+            )}
+
             {/* STEP 1 — Personal Info */}
-            {step === 1 && (
+            {showWizard && step === 1 && (
               <>
                 <div
                   style={{
@@ -738,7 +881,7 @@ export default function GuestModal({
             )}
 
             {/* STEP 2 — Sessions, Tier & Accreditation */}
-            {step === 2 && (
+            {showWizard && step === 2 && (
               <>
                 <div>
                   <div
@@ -966,7 +1109,7 @@ export default function GuestModal({
             )}
 
             {/* STEP 3 — Travel & Stay */}
-            {step === 3 && (
+            {showWizard && step === 3 && (
               <>
                 <TravelAccordion
                   travel={travel}
@@ -982,7 +1125,7 @@ export default function GuestModal({
             )}
 
             {/* STEP 4 — Invitation */}
-            {step === 4 && (
+            {showWizard && step === 4 && (
               <>
                 <div>
                   <div
@@ -1192,9 +1335,12 @@ export default function GuestModal({
           >
             <button
               className="btn"
-              onClick={() => (step > 1 ? setStep(step - 1) : handleClose())}
+              onClick={() => {
+                if (showWizard && stepPos > 0) setStep(activeSteps[stepPos - 1]);
+                else handleClose();
+              }}
             >
-              {step > 1 ? (
+              {showWizard && stepPos > 0 ? (
                 <>
                   <Icon name="arrowLeft" size={13} /> {isAr ? "السابق" : "Back"}
                 </>
@@ -1204,11 +1350,12 @@ export default function GuestModal({
                 "Cancel"
               )}
             </button>
-            {step < 4 ? (
+            {showWizard && !isLastStep && (
               <button className="btn primary" onClick={handleNext}>
                 {isAr ? "التالي" : "Next"} <Icon name="arrow" size={13} />
               </button>
-            ) : (
+            )}
+            {showWizard && isLastStep && (
               <button
                 className="btn primary"
                 onClick={handleSave}
