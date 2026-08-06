@@ -15,7 +15,7 @@ import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso, fmtDate } from '../lib/date.js';
 import { useAvailableVehicles, useAvailableDrivers } from '../lib/useAvailableVehicles.js';
 import { useHotelRoomTypes, useRoomAvailability } from '../lib/useRoomInventory.js';
-import TravelAccordion, {
+import {
   driverLabel,
   vehicleLabel,
   EMPTY_TRAVEL,
@@ -28,10 +28,7 @@ import TravelAccordion, {
 } from './guests/modals/TravelAccordion.jsx';
 import { getGuestServicePlan, getServices } from '../api/services/serviceCatalogService.js';
 import ServiceOpsView from './ServiceOpsView.jsx';
-
-// Built-in service code → the TravelAccordion section it owns. These three are
-// relational, not dynamic — see Core/Constants/SystemServices.cs.
-const TRAVEL_SECTION = { flight: 'flight', accommodation: 'accommodation', transport: 'transport' };
+import ServiceAccordion, { TRAVEL_SECTION, validateServices } from './guests/ServiceAccordion.jsx';
 
 // A return booking is listed under both directions on the arrivals/departures
 // board, so each column reads its own leg — first for the departure, last for
@@ -267,7 +264,8 @@ export default function TravelView({ lang, activeEventId }) {
     newBooking:'حجز جديد',
     kpi:{ flights:'رحلات مؤكدة',flightsH:'',
       rooms:'غرف محجوزة',roomsH:'',
-      transfers:'نقل بري',transfersH:'أسطول VIP · ٢٤ مركبة',
+      transfers:'نقل بري',transfersH:'',
+      movements:'وصول ومغادرة',movementsH:'ضيوف مسافرون',
       visas:'تأشيرات موافق عليها',visasH:'٨٨٫٦٪ موافقة · مزامنة الداخلية' },
     hayya:{ title:'طلبات تأشيرة هيّا',sub:'مزامنة مباشرة · آخر تحديث قبل دقيقتين',
       connected:'متصل · وزارة الداخلية',syncNow:'مزامنة',synced:'تمت ✓' },
@@ -300,6 +298,7 @@ export default function TravelView({ lang, activeEventId }) {
     kpi:{ flights:'Flights confirmed',flightsH:'',
       rooms:'Hotel rooms blocked',roomsH:'',
       transfers:'Ground transfers',transfersH:'',
+      movements:'Arrivals & departures',movementsH:'Guests travelling',
       visas:'Visas approved',visasH:'88.6% approved · MOI Qatar live sync' },
     hayya:{ title:'Hayya visa applications',sub:'Permit-to-Enter synced via Hayya gateway · Last refresh 2m ago',
       connected:'Connected · MOI Qatar',syncNow:'Sync now',synced:'Synced ✓' },
@@ -346,6 +345,15 @@ export default function TravelView({ lang, activeEventId }) {
   const [tabLoading, setTabLoading]     = useState({ 0: false, 1: false, 2: false });
   const loadedRef = useRef({ 0: null, 1: null, 2: null }); // tab -> eventId already loaded
 
+  // The A&D board pages by guest — one row is one traveller, however many legs
+  // they hold — so its headline number is distinct guests, not flight bookings.
+  // Derived from the flights already loaded rather than the paged A&D endpoint,
+  // whose totalCount only exists once that tab has been opened and filtered.
+  const travellingGuests = useMemo(
+    () => new Set(flightRows.map(f => f.guestId).filter(Boolean)).size,
+    [flightRows],
+  );
+
   const TAB_SVC = [getEventFlights, getEventAccommodation, getEventTransport];
   const TAB_SET = [setFlightRows, setHotelRows, setTransferRows];
   const TAB_MAP = [mapFlight, mapHotel, mapTransfer];
@@ -389,17 +397,21 @@ export default function TravelView({ lang, activeEventId }) {
     if (svcId && !dynServices.some((s) => s.id === svcId)) setSvcId(null);
   }, [dynServices, svcId]);
 
-  // Fetch the active tab's rows the first time it's shown for this event.
+  // All three lists load up front, not just the active tab's: the KPI row is on
+  // screen for every tab, and lazily-loaded rows made it read 0 for whichever tab
+  // hadn't been opened yet. Three requests once per event, then switching tabs is
+  // instant.
   useEffect(() => {
     if (!activeEventId) {
       setFlightRows([]); setHotelRows([]); setTransferRows([]);
       loadedRef.current = { 0: null, 1: null, 2: null };
       return;
     }
-    if (loadedRef.current[activeTab] === activeEventId) return; // already loaded
-    refetchTab(activeTab);
+    [0, 1, 2].forEach((idx) => {
+      if (loadedRef.current[idx] !== activeEventId) refetchTab(idx);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, activeEventId]);
+  }, [activeEventId]);
 
   // ── Arrivals & departures tab (read-only) ──────────────────────────────────
   // Unlike the other tabs this pages server-side: the endpoint pages by guest,
@@ -613,12 +625,14 @@ export default function TravelView({ lang, activeEventId }) {
   // BookingModal applies to dynamic services (docs/service-levels-v2.md §10).
   const [bookPlan, setBookPlan] = useState(null);   // GuestServicePlanResponse | null
   const [bookPlanLoading, setBookPlanLoading] = useState(false);
+  // Which services are ticked in the accordion. Only the built-ins are offered
+  // here, so their data lands in `travel`, not in these values.
+  const [bookPending, setBookPending] = useState({});
 
   const bookSlots = useMemo(
     () => (bookPlan?.slots || []).filter((s) => s.isSystem && TRAVEL_SECTION[s.code]),
     [bookPlan],
   );
-  const bookSections = useMemo(() => bookSlots.map((s) => TRAVEL_SECTION[s.code]), [bookSlots]);
 
   // Fetched when the guest is chosen, not on every keystroke of the picker.
   useEffect(() => {
@@ -637,11 +651,14 @@ export default function TravelView({ lang, activeEventId }) {
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
     setTravel(EMPTY_TRAVEL);
     setBookPlan(null);
+    setBookPending({});
   }
 
   async function saveBooking() {
     if (!activeEventId || !bookGuestId) return;
-    const travelErr = validateTravel(travel, isAr);
+    // Ticking a service commits to completing it — the per-service Done button is
+    // optional, so this is what enforces its required fields.
+    const travelErr = validateServices(bookSlots, bookPending, travel, isAr);
     if (travelErr) { toast.error(travelErr); return; }
     // "Enabled" isn't enough any more — a section the user opened but left blank
     // is not a booking, so this checks something was actually filled in.
@@ -662,6 +679,7 @@ export default function TravelView({ lang, activeEventId }) {
 
       setBookings(prev => [...prev, { guest: bookGuest }]);
       setShowNewBooking(false); setBookStep(1); setBookGuest(''); setBookGuestId(''); setGuestSearch('');
+      setBookPending({});
       toast.success(isAr ? 'تم إنشاء الحجز بنجاح' : 'Booking created successfully');
     } catch (err) {
       toast.fromError(err, isAr ? 'حدث خطأ أثناء إنشاء الحجز' : 'Error creating booking');
@@ -919,15 +937,7 @@ export default function TravelView({ lang, activeEventId }) {
           <h1 className="page-title">{STR.title[0]} <em>{STR.title[1]}</em></h1>
           <div className="page-sub" style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>{STR.sub}</div>
         </div>
-        {/* A dynamic service's own New Booking button lives in its embedded panel
-            — this one books the three relational services. */}
-        {!svcId && (
-          <div className="page-actions">
-            <button className="btn primary" onClick={openNewBooking}>
-              <Icon name="plus" size={14}/> {STR.newBooking}
-            </button>
-          </div>
-        )}
+        {/* New Booking moved down to the end of the tab strip — see below. */}
       </div>
 
       {bookings.length > 0 && (
@@ -937,43 +947,83 @@ export default function TravelView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* KPI row — counts the three relational services, so it's hidden while a
-          dynamic service's tab is showing. */}
-      {!svcId && (
-      <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      {/* KPI row — one card per built-in tab, always on screen (including while a
+          dynamic service's tab is showing), so the four headline numbers don't move
+          or disappear as you switch tabs. Each card is a shortcut to its own tab and
+          is highlighted while that tab is the one open. */}
+      <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,minmax(0,1fr))', gap:10, marginBottom:14 }}>
         {[
-          { icon:'flight', val:fmtN(flightRows.filter(f=>f.flightStatus==='confirmed').length),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:0 },
-          { icon:'hotel',  val:fmtN(hotelRows.length), label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:1 },
-          { icon:'car',    val:fmtN(transferRows.length),   label:STR.kpi.transfers,  help:STR.kpi.transfersH, tab:2 },
-        ].map((k, i) => (
-          <div key={i} className="card" style={{ padding:'14px 18px', cursor:'pointer' }}
-            onClick={() => setActiveTab(k.tab)}
-            onMouseEnter={e => e.currentTarget.style.boxShadow='0 4px 16px rgba(0,0,0,0.14)'}
-            onMouseLeave={e => e.currentTarget.style.boxShadow=''}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-              <Icon name={k.icon} size={14} style={{ color:'var(--accent)' }}/>
-              <span style={{ fontSize:11, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.1em' }}>{k.label}</span>
+          { icon:'flight',   val:flightRows.filter(f=>f.flightStatus==='confirmed').length, label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:0 },
+          { icon:'hotel',    val:hotelRows.length,                                          label:STR.kpi.rooms,     help:STR.kpi.roomsH,     tab:1 },
+          { icon:'car',      val:transferRows.length,                                       label:STR.kpi.transfers, help:STR.kpi.transfersH, tab:2 },
+          // Guests, not flights: the A&D board pages by guest, so one row there is
+          // one traveller however many legs they have.
+          { icon:'calendar', val:travellingGuests,                                          label:STR.kpi.movements, tab:3 },
+        ].map((k) => {
+          const on = builtinTab === k.tab;
+          return (
+            <div key={k.tab} className="card"
+              style={{
+                padding:'10px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:10,
+                borderColor: on ? 'var(--accent)' : undefined,
+                background: on ? 'var(--accent-soft)' : undefined,
+                transition:'background 120ms, border-color 120ms',
+              }}
+              onClick={() => { setSvcId(null); setActiveTab(k.tab); }}>
+              <span style={{
+                width:30, height:30, borderRadius:8, flexShrink:0, display:'grid', placeItems:'center',
+                background: on ? 'var(--accent)' : 'var(--surface-soft-3)',
+              }}>
+                <Icon name={k.icon} size={14} style={{ color: on ? '#fff' : 'var(--accent)' }}/>
+              </span>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
+                  <span style={{ fontFamily:'var(--serif)', fontSize:19, fontStyle:'italic', lineHeight:1, direction:'ltr' }}>
+                    {fmtN(k.val)}
+                  </span>
+                  <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.09em',
+                    whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {k.label}
+                  </span>
+                </div>
+                {/* Several of these have no sub-line; an empty div would still
+                    take up height and make the cards uneven. */}
+                {k.help && (
+                  <div style={{ fontSize:10.5, color:'var(--ink-faint)', whiteSpace:'nowrap',
+                    overflow:'hidden', textOverflow:'ellipsis' }}>{k.help}</div>
+                )}
+              </div>
             </div>
-            <div style={{ fontFamily:'var(--serif)', fontSize:26, fontStyle:'italic', lineHeight:1, marginBottom:4, direction:'ltr' }}>{k.val}</div>
-            <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{k.help}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      )}
 
       {/* Tabs — the four built-in ones, then one per dynamic service so the whole
-          catalogue lives on this page rather than a second menu entry. */}
-      <div className="tabs" style={{ marginBottom:16 }}>
-        {STR.tabs.map((t, i) => (
-          <button key={i} className={`tab${builtinTab===i?' active':''}`}
-            onClick={() => { setSvcId(null); setActiveTab(i); }}>{t}</button>
-        ))}
-        {dynServices.map((s) => (
-          <button key={s.id} className={`tab${svcId===s.id?' active':''}`} onClick={() => setSvcId(s.id)}>
-            {s.icon && <Icon name={s.icon} size={13}/>}
-            {(isAr ? s.nameAr : null) || s.name}
+          catalogue lives on this page rather than a second menu entry. New Booking
+          sits at the end of the same line: it acts on whichever tab is showing, so
+          it belongs next to them rather than up in the page header. */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 , justifyContent:'space-between', flexWrap:'wrap'}}>
+        {/* The strip scrolls on its own once the catalogue outgrows the width —
+            the button must stay reachable, not be pushed off the edge. */}
+        <div className="tabs" style={{ marginBottom:0, minWidth:0, overflowX:'auto' }}>
+          {STR.tabs.map((t, i) => (
+            <button key={i} className={`tab${builtinTab===i?' active':''}`}
+              onClick={() => { setSvcId(null); setActiveTab(i); }}>{t}</button>
+          ))}
+          {dynServices.map((s) => (
+            <button key={s.id} className={`tab${svcId===s.id?' active':''}`} onClick={() => setSvcId(s.id)}>
+              {s.icon && <Icon name={s.icon} size={13}/>}
+              {(isAr ? s.nameAr : null) || s.name}
+            </button>
+          ))}
+        </div>
+        {/* A dynamic service's own New Booking lives in its embedded panel — this
+            one books the three relational services. */}
+        {!svcId && (
+          <button className="btn primary" style={{ flexShrink:0 }} onClick={openNewBooking}>
+            <Icon name="plus" size={14}/> {STR.newBooking}
           </button>
-        ))}
+        )}
       </div>
 
       {/* Dynamic service: its own table, columns built from its form, and its own
@@ -1225,8 +1275,9 @@ export default function TravelView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* ── New Booking Modal — step 1 picks the guest, step 2 is the exact
-             same TravelAccordion as the guest creation wizard. ── */}
+      {/* ── New Booking Modal — step 1 picks the guest, step 2 is the exact same
+             ServiceAccordion tick-list as the guest creation wizard's step 3,
+             narrowed to the built-in services that guest's level includes. ── */}
       {showNewBooking && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
           <div className="card glass modal-solid" style={{ width:520, maxWidth:'92vw', padding:0, maxHeight:'85vh', display:'flex', flexDirection:'column' }}>
@@ -1297,7 +1348,7 @@ export default function TravelView({ lang, activeEventId }) {
                       ? `${bookGuest} ليس لديه مستوى خدمة — عيّن مستوى أولاً من صفحة الضيوف.`
                       : `${bookGuest} has no service level yet — assign one on the Guests page first.`}</div>
                   </div>
-                ) : bookSections.length === 0 ? (
+                ) : bookSlots.length === 0 ? (
                   <div className="alert alert-warn" style={{ fontSize:12.5 }}>
                     <Icon name="alert" size={14}/>
                     <div>{isAr
@@ -1308,8 +1359,8 @@ export default function TravelView({ lang, activeEventId }) {
                   <>
                     <div style={{ fontSize:11.5, color:'var(--ink-mute)' }}>
                       {isAr
-                        ? `الخدمات المتاحة حسب مستوى "${bookPlan.serviceLevelName}"`
-                        : `Services available on "${bookPlan.serviceLevelName}"`}
+                        ? `ضع علامة على ما تريد إضافته — حسب مستوى "${bookPlan.serviceLevelName}"`
+                        : `Tick whatever you want to add — from "${bookPlan.serviceLevelName}"`}
                     </div>
                     {/* Fixed events complete services in order. The travel endpoints
                         don't enforce that (only the service-entry API does), so this
@@ -1320,17 +1371,23 @@ export default function TravelView({ lang, activeEventId }) {
                         <div>{bookSlots.filter((s) => !s.isUnlocked).map((s) => s.lockedReason).filter(Boolean).join(' ')}</div>
                       </div>
                     )}
-                    <TravelAccordion
+                    {/* Same tick-list as the guest wizard's step 3: one collapsible
+                        row per service with a checkbox, rather than every section
+                        pinned open at once. */}
+                    <ServiceAccordion
+                      slots={bookSlots}
+                      pending={bookPending}
+                      onPendingChange={setBookPending}
                       travel={travel}
-                      onChange={setTravel}
-                      lookups={travelLookups}
-                      isAr={isAr}
-                      only={bookSections}
+                      onTravelChange={setTravel}
+                      travelLookups={travelLookups}
+                      isFixed={bookPlan.guestModel === 'fixed'}
+                      lang={lang}
+                      eventId={activeEventId}
+                      eventStart={eventMinDate}
+                      eventEnd={eventMaxDate}
                       dateMinDate={dateWindowMin}
                       dateMaxDate={dateWindowMax}
-                      eventMinDate={eventMinDate}
-                      eventMaxDate={eventMaxDate}
-                      eventId={activeEventId}
                     />
                   </>
                 )

@@ -47,8 +47,8 @@ const NAV = [
   // (flight / accommodation / transport) get their own tabs, and each dynamic
   // service from the catalogue gets a tab after them — ServiceOpsView embedded.
   // Deliberately no second menu entry for those.
-  { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
-  { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
+  { key: "travel",         icon: "travel",     label: { en: "Services",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
+  { key: "supportChat",    icon: "message",    label: { en: "Support",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },
   { key: "meetings",       icon: "meetings",   label: { en: "Meetings",            ar: "الاجتماعات"            }, section: "ONSITE",   permission: "Meetings.View"          },

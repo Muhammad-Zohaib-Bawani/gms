@@ -18,25 +18,18 @@ import {
   stripSasToken,
 } from "../../../api/services/uploadService";
 import { addDaysIso, fmtDate } from "../../../lib/date";
-import TravelAccordion, {
+import {
   EMPTY_TRAVEL,
   hydrateTravel,
   anyTravelEnabled,
   buildTravelPayload,
   validateTravel,
-  sectionHasData,
 } from "./TravelAccordion";
 import ImportGuestsPanel from "./ImportGuestsPanel";
 import GuestServicesPanel from "../GuestServicesPanel";
-import { DynamicFormInputs, missingRequired } from "../../../components/ui/DynamicFields";
+import ServiceAccordion, { TRAVEL_SECTION, validateServices } from "../ServiceAccordion";
 import { getServices, saveGuestServiceEntry } from "../../../api/services/serviceCatalogService";
 import ExistingGuestPicker from "./ExistingGuestPicker";
-
-// Service code → the TravelAccordion section that owns it. Those three services
-// are built in and relational: their fields are static and their data goes to
-// the Flights / Accommodations / Transports tables via saveGuestTravel, not into
-// a service entry's JSON. See Core/Constants/SystemServices.cs.
-const TRAVEL_SECTION = { flight: "flight", accommodation: "accommodation", transport: "transport" };
 
 const GUEST_TYPES = [
   "dignitary",
@@ -266,10 +259,10 @@ export default function GuestModal({
   // Service forms live on the catalogue, not on the level's assignment rows, so
   // the wizard needs the full list to render them.
   const [servicesCatalog, setServicesCatalog] = useState([]);
-  // Filled in during creation and POSTed once the guest exists:
-  // { [serviceId]: { values, completed } }
+  // Filled in during creation and POSTed once the guest exists. ServiceAccordion
+  // owns the shape and which row is expanded:
+  // { [serviceId]: { selected, values, completed } }
   const [pendingServices, setPendingServices] = useState({});
-  const [openService, setOpenService] = useState(null);
 
   // Reset/prefill whenever the modal opens for a (possibly different) guest —
   // covers switching between two different edit targets and going from edit
@@ -284,7 +277,6 @@ export default function GuestModal({
     setRawTravel(null);
     setMode(initialMode);
     setPendingServices({});
-    setOpenService(null);
     if (guest?.id) {
       getGuestTravel(guest.id)
         .then(setRawTravel)
@@ -429,6 +421,15 @@ export default function GuestModal({
   const isLastStep = stepPos === activeSteps.length - 1;
   const showWizard = mode === "new";
 
+  // Both the step-3 "Next" and the final Save run this — Save has to as well,
+  // since the wizard can be finished from any step.
+  function servicesError() {
+    // Editing hands step 3 to GuestServicesPanel, which saves each service on its
+    // own; there is no pending set to validate here.
+    if (isEdit) return validateTravel(travel, isAr);
+    return validateServices(wizardSlots, pendingServices, travel, isAr);
+  }
+
   function handleNext() {
     if (step === 1) {
       const errs = {};
@@ -445,14 +446,14 @@ export default function GuestModal({
         return;
       }
     }
-    // Services are never required to move on: only a half-filled travel section
-    // stops you, and an untouched one doesn't count as started. Anything skipped
-    // here is added later from the guest's Services list, which shows exactly the
-    // services their level assigns.
+    // No service has to be TICKED to move on — anything left unticked is added
+    // later from the guest's Services list. But a ticked one has to be complete:
+    // ticking it is the request, so a half-filled form is an error rather than
+    // something to silently drop.
     if (step === 3) {
-      const travelErr = validateTravel(travel, isAr);
-      if (travelErr) {
-        toast.error(travelErr);
+      const err = servicesError();
+      if (err) {
+        toast.error(err);
         return;
       }
     }
@@ -460,7 +461,7 @@ export default function GuestModal({
   }
 
   async function handleSave() {
-    const travelErr = validateTravel(travel, isAr);
+    const travelErr = servicesError();
     if (travelErr) {
       toast.error(travelErr);
       return;
@@ -561,12 +562,18 @@ export default function GuestModal({
             await saveGuestServiceEntry(guestId, {
               serviceId: slot.serviceId,
               values: filled.values,
-              markCompleted: !!filled.completed,
+              // Ticked and past servicesError() means every required field is in,
+              // so it's complete whether or not the user pressed Done. Saving it
+              // as a draft instead would leave the NEXT service locked on a Fixed
+              // event, and the loop below it would then be rejected.
+              markCompleted: true,
             });
-          } catch {
+          } catch (err) {
+            // Surfaced with the reason, not a generic line — the API explains
+            // sequence and validation failures in a sentence worth reading.
             toast.error(isAr
-              ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}"`
-              : `Guest saved, but "${slot.name}" could not be saved`);
+              ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}": ${err?.message || ''}`
+              : `Guest saved, but "${slot.name}" could not be saved: ${err?.message || ''}`);
           }
         }
       }
@@ -1416,173 +1423,28 @@ export default function GuestModal({
                     <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
                       {isFixedEvent
                         ? (isAr
-                          ? "أكمل الخدمات بالترتيب. يمكنك تخطّيها الآن وإضافتها لاحقاً من زر الحجز الجديد."
-                          : "Complete these in order. You can also skip them now and add them later from New Booking.")
+                          ? "ضع علامة على الخدمة لإضافتها الآن — بالترتيب. ما تتركه يمكن إضافته لاحقاً من زر الحجز الجديد."
+                          : "Tick a service to add it now, in order. Anything you leave unticked can be added later from New Booking.")
                         : (isAr
-                          ? "كل الخدمات اختيارية — املأ ما تحتاجه الآن أو أضفه لاحقاً."
-                          : "All optional — fill in what you need now, or add them later.")}
+                          ? "ضع علامة على ما تريد إضافته الآن — كل الخدمات اختيارية."
+                          : "Tick whichever you want to add now — all of them are optional.")}
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {wizardSlots.map((slot, i) => {
-                        const filled = pendingServices[slot.serviceId];
-                        const done = !!filled?.completed;
-                        // Mirrors the server's gate: on a Fixed event only the
-                        // first unfinished service is open.
-                        const locked = isFixedEvent && firstIncomplete !== -1 && i > firstIncomplete;
-                        const expanded = openService === slot.serviceId;
-
-                        return (
-                          <div key={slot.serviceId} style={{
-                            borderRadius: 10,
-                            border: `1px solid ${expanded ? "var(--accent)" : "var(--glass-border)"}`,
-                            background: "var(--surface-soft-2)",
-                            opacity: locked ? 0.55 : 1,
-                            overflow: "hidden",
-                          }}>
-                            <div
-                              onClick={() => !locked && setOpenService(expanded ? null : slot.serviceId)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 9, padding: "10px 12px",
-                                cursor: locked ? "not-allowed" : "pointer",
-                              }}
-                            >
-                              <span style={{
-                                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
-                                display: "grid", placeItems: "center", fontSize: 10.5, fontWeight: 700,
-                                background: done ? "var(--ok)" : "var(--surface-soft-4)",
-                                color: done ? "#fff" : "var(--ink-mute)",
-                              }}>
-                                {done ? <Icon name="check" size={11} /> : i + 1}
-                              </span>
-                              {slot.icon && <Icon name={slot.icon} size={14} style={{ color: "var(--accent)" }} />}
-                              <span style={{ fontSize: 13, fontWeight: 550, flex: 1 }}>
-                                {(isAr ? slot.nameAr : null) || slot.name}
-                              </span>
-                              <span className={`chip ${done ? "confirmed" : "draft"}`} style={{ fontSize: 10.5 }}>
-                                {done
-                                  ? (isAr ? "مكتمل" : "Completed")
-                                  : locked
-                                    ? (isAr ? "مقفل" : "Locked")
-                                    : (isAr ? "قيد الانتظار" : "Pending")}
-                              </span>
-                              {!locked && (
-                                <Icon name={expanded ? "chevronDown" : "chevronRight"} size={13}
-                                  style={{ color: "var(--ink-mute)" }} />
-                              )}
-                            </div>
-
-                            {locked && (
-                              <div style={{ fontSize: 11, color: "var(--ink-faint)", padding: "0 12px 10px 41px" }}>
-                                {isAr
-                                  ? `أكمل "${wizardSlots[firstIncomplete]?.name}" أولاً.`
-                                  : `Complete "${wizardSlots[firstIncomplete]?.name}" first.`}
-                              </div>
-                            )}
-
-                            {expanded && !locked && (
-                              <div style={{ padding: "12px", borderTop: "1px solid var(--glass-border)" }}>
-                                {slot.isSystem ? (
-                                  // Writes into the shared `travel` state, which is
-                                  // POSTed to the travel endpoint once the guest
-                                  // exists — see saveGuestTravel in handleSubmit.
-                                  <TravelAccordion
-                                    travel={travel}
-                                    onChange={setTravel}
-                                    lookups={travelLookups}
-                                    isAr={isAr}
-                                    only={TRAVEL_SECTION[slot.code]}
-                                    eventId={activeEventId}
-                                    eventMinDate={eventStartDate}
-                                    eventMaxDate={eventEndDate}
-                                    dateMinDate={dateWindowMin}
-                                    dateMaxDate={dateWindowMax}
-                                  />
-                                ) : (
-                                <DynamicFormInputs
-                                  eventStart={eventStartDate}
-                                  eventEnd={eventEndDate}
-                                  eventId={activeEventId}
-                                  form={slot.form}
-                                  values={filled?.values || {}}
-                                  onChange={(vals) => setPendingServices((prev) => ({
-                                    ...prev,
-                                    [slot.serviceId]: { ...(prev[slot.serviceId] || {}), values: vals },
-                                  }))}
-                                  lang={lang}
-                                />
-                                )}
-                                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-                                  <button
-                                    type="button"
-                                    className="btn"
-                                    onClick={() => {
-                                      // Clearing a built-in has to empty its travel
-                                      // section too, or the fields stay filled in and
-                                      // get saved anyway.
-                                      if (slot.isSystem) {
-                                        const key = TRAVEL_SECTION[slot.code];
-                                        setTravel((p) => ({ ...p, [key]: { ...EMPTY_TRAVEL[key] } }));
-                                      }
-                                      setPendingServices((prev) => ({
-                                        ...prev,
-                                        [slot.serviceId]: { values: {}, completed: false },
-                                      }));
-                                      setOpenService(null);
-                                    }}
-                                  >
-                                    {isAr ? "مسح" : "Clear"}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn primary"
-                                    onClick={() => {
-                                      // A built-in's data lives in `travel`, so it
-                                      // is validated by the travel rules and marked
-                                      // done with no values — which is also what
-                                      // makes the save loop below skip it.
-                                      if (slot.isSystem) {
-                                        const key = TRAVEL_SECTION[slot.code];
-                                        const travelErr = validateTravel(travel, isAr, key);
-                                        if (travelErr) { toast.warning(travelErr); return; }
-                                        // Nothing typed in = skipped, not done. The
-                                        // guest can be created without it and it can
-                                        // be added later from their Services list.
-                                        setPendingServices((prev) => ({
-                                          ...prev,
-                                          [slot.serviceId]: {
-                                            values: {},
-                                            completed: sectionHasData(travel, key),
-                                          },
-                                        }));
-                                        setOpenService(null);
-                                        return;
-                                      }
-
-                                      const vals = pendingServices[slot.serviceId]?.values || {};
-                                      const missing = missingRequired(slot.form, vals);
-                                      if (missing.length > 0) {
-                                        toast.warning(isAr
-                                          ? `أكمل: ${missing.join("، ")}`
-                                          : `Fill in ${missing.join(", ")} first`);
-                                        return;
-                                      }
-                                      setPendingServices((prev) => ({
-                                        ...prev,
-                                        [slot.serviceId]: { values: vals, completed: true },
-                                      }));
-                                      setOpenService(null);
-                                    }}
-                                  >
-                                    <Icon name="check" size={13} /> {isAr ? "تم" : "Done"}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <ServiceAccordion
+                      slots={wizardSlots}
+                      pending={pendingServices}
+                      onPendingChange={setPendingServices}
+                      travel={travel}
+                      onTravelChange={setTravel}
+                      travelLookups={travelLookups}
+                      isFixed={isFixedEvent}
+                      lang={lang}
+                      eventId={activeEventId}
+                      eventStart={eventStartDate}
+                      eventEnd={eventEndDate}
+                      dateMinDate={dateWindowMin}
+                      dateMaxDate={dateWindowMax}
+                    />
                   </>
                 )}
               </>

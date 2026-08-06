@@ -1196,9 +1196,9 @@ html[data-theme="light"] .event-menu { background: #ffffff; border-color: rgba(4
 .lang-opt:nth-child(2) { letter-spacing: 0; font-size: 13px; }
 .lang-opt:hover { color: var(--ink); }
 .lang-opt.active {
-  background: var(--accent);
-  color: #04141a;
-  box-shadow: 0 4px 12px -4px rgba(141, 1, 52,0.5);
+  background: var(--accent) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(141, 1, 52,0.5) !important;
 }
 html[data-theme="light"] .lang-opt.active { color: #ffffff; }
 .icon-btn .dot {

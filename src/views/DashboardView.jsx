@@ -169,10 +169,10 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const total = funnel.totalGuests || 0;
 
   const funnelData = useMemo(() => ([
-    { stage: isAr ? 'الإجمالي' : 'Total', value: total },
-    { stage: isAr ? 'مدعوّون' : 'Invited', value: total - (rsvp.notSent || 0) },
+    { stage: isAr ? 'الإجمالي' : 'Total Invited', value: total },
+    { stage: isAr ? 'مدعوّون' : 'Pending', value: funnel.awaitingGuest },
     { stage: isAr ? 'مؤكد' : 'Confirmed', value: funnel.confirmedGuest },
-    { stage: isAr ? 'السفر' : 'Travel', value: funnel.travelBooked },
+    // { stage: isAr ? 'السفر' : 'Travel', value: funnel.travelBooked },
     { stage: isAr ? 'معتمد' : 'Accredited', value: funnel.accreditationIssued },
   ]), [funnel, rsvp, total, isAr]);
 
@@ -361,9 +361,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               }))}
               quickActions={[
                 { label: STR.qa.addMeeting, icon: 'plus', onClick: () => gotoView?.('meetings') },
-                { label: STR.qa.invite, icon: 'invitation', onClick: () => gotoView?.('invitations') },
-                { label: STR.qa.accredit, icon: 'badge', onClick: () => gotoView?.('accreditation') },
-                { label: STR.qa.seating, icon: 'seating', onClick: () => gotoView?.('seating') },
+                // { label: STR.qa.invite, icon: 'invitation', onClick: () => gotoView?.('invitations') },
+                // { label: STR.qa.accredit, icon: 'badge', onClick: () => gotoView?.('accreditation') },
+                // { label: STR.qa.seating, icon: 'seating', onClick: () => gotoView?.('seating') },
               ]}
             />
           </Grid>

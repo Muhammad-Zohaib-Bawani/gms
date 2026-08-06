@@ -1,0 +1,285 @@
+// The guest's services as a tick-list: one collapsible row per service the
+// level assigns, a checkbox to include it, and its form inside.
+//
+// A checkbox rather than a step number: the number implied a mandatory sequence
+// that only Fixed events have, and it gave nothing to click. Ticking a service
+// means "I'm adding this one now"; unticking clears what was typed, so an
+// untouched service is never half-saved. Everything left unticked stays pending
+// and can be added later from the guest's Services list.
+//
+// Shared by GuestModal (create wizard, step 3) and BookingModal (New Booking), so
+// both dialogs behave identically.
+//
+// `pending` is the caller's state, keyed by serviceId:
+//   { [serviceId]: { selected: bool, values: { fieldKey: value }, completed: bool } }
+// The three built-in services (flight / accommodation / transport) don't use
+// `values` at all — their fields live in the shared `travel` state and are saved
+// through the travel endpoints. See Core/Constants/SystemServices.cs.
+import React, { useState } from 'react';
+import { Icon } from '../../components/Icons';
+import toast from '../../lib/toast';
+import { DynamicFormInputs, missingRequired } from '../../components/ui/DynamicFields';
+import TravelAccordion, {
+  EMPTY_TRAVEL, validateTravel, sectionHasData,
+} from './modals/TravelAccordion';
+
+export const TRAVEL_SECTION = { flight: 'flight', accommodation: 'accommodation', transport: 'transport' };
+
+/** Anything actually typed into this slot — blank keys don't count as input. */
+export function slotHasData(slot, pending, travel) {
+  if (slot.isSystem) return sectionHasData(travel, TRAVEL_SECTION[slot.code]);
+  return Object.values(pending?.[slot.serviceId]?.values || {})
+    .some((v) => String(v ?? '').trim() !== '');
+}
+
+/** Ticked = the user asked for this service, whether or not they typed anything. */
+export const slotSelected = (slot, pending, travel) =>
+  !!pending?.[slot.serviceId]?.selected || slotHasData(slot, pending, travel);
+
+/**
+ * First problem across every TICKED service, or null when they're all complete.
+ *
+ * Ticking a service is a commitment: it has to be filled in before the guest can
+ * be saved. Unticked services stay optional and are simply not created — that's
+ * what lets a guest be added now and their services completed later.
+ *
+ * Callers run this before saving, because the per-service "Done" button is
+ * optional — nothing forces the user to press it.
+ */
+export function validateServices(slots, pending, travel, isAr = false) {
+  for (const slot of slots || []) {
+    if (!slotSelected(slot, pending, travel)) continue;
+
+    const name = (isAr ? slot.nameAr : null) || slot.name;
+
+    if (!slotHasData(slot, pending, travel)) {
+      return isAr ? `أكمل بيانات "${name}" أو أزل علامتها` : `Fill in "${name}", or untick it`;
+    }
+
+    if (slot.isSystem) {
+      const err = validateTravel(travel, isAr, TRAVEL_SECTION[slot.code]);
+      if (err) return `${name} — ${err}`;
+      continue;
+    }
+
+    const missing = missingRequired(slot.form, pending?.[slot.serviceId]?.values || {});
+    if (missing.length > 0) {
+      return isAr
+        ? `${name} — أكمل: ${missing.join('، ')}`
+        : `${name} — fill in ${missing.join(', ')}`;
+    }
+  }
+  return null;
+}
+
+function Checkbox({ checked, disabled }) {
+  return (
+    <span style={{
+      width: 18, height: 18, borderRadius: 5, flexShrink: 0, display: 'grid', placeItems: 'center',
+      border: `2px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
+      background: checked ? 'var(--accent)' : 'transparent',
+      opacity: disabled ? 0.5 : 1,
+    }}>
+      {checked && <Icon name="check" size={10} style={{ color: '#fff' }} />}
+    </span>
+  );
+}
+
+export default function ServiceAccordion({
+  slots = [],
+  pending = {},
+  onPendingChange,
+  travel,
+  onTravelChange,
+  travelLookups = {},
+  // Fixed events complete services in order, so everything after the first
+  // unfinished one is locked. Flexible events lock nothing.
+  isFixed = false,
+  lang,
+  eventId,
+  eventStart,
+  eventEnd,
+  dateMinDate,
+  dateMaxDate,
+  // Editing one existing entry: that slot is the only one shown, already on, and
+  // can't be unticked — there is nothing to choose.
+  singleSlotId = null,
+}) {
+  const isAr = lang === 'ar';
+  const [open, setOpen] = useState(singleSlotId);
+
+  const visible = singleSlotId ? slots.filter((s) => s.serviceId === singleSlotId) : slots;
+  const firstIncomplete = slots.findIndex((s) => !pending[s.serviceId]?.completed);
+
+  const patch = (id, next) =>
+    onPendingChange((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...next } }));
+
+  function toggle(slot, on) {
+    if (on) {
+      patch(slot.serviceId, { selected: true });
+      setOpen(slot.serviceId);
+      return;
+    }
+    // Unticking is the "clear" action: a built-in's fields live in `travel`, so
+    // emptying only `pending` would leave them filled in and still get saved.
+    if (slot.isSystem) {
+      const key = TRAVEL_SECTION[slot.code];
+      onTravelChange((p) => ({ ...p, [key]: { ...EMPTY_TRAVEL[key] } }));
+    }
+    patch(slot.serviceId, { selected: false, values: {}, completed: false });
+    setOpen((o) => (o === slot.serviceId ? null : o));
+  }
+
+  function confirm(slot) {
+    if (slot.isSystem) {
+      const key = TRAVEL_SECTION[slot.code];
+      const err = validateTravel(travel, isAr, key);
+      if (err) { toast.warning(err); return; }
+      // Nothing typed in = skipped, not done.
+      patch(slot.serviceId, { values: {}, completed: sectionHasData(travel, key) });
+      setOpen(null);
+      return;
+    }
+
+    const values = pending[slot.serviceId]?.values || {};
+    const missing = missingRequired(slot.form, values);
+    if (missing.length > 0) {
+      toast.warning(isAr ? `أكمل: ${missing.join('، ')}` : `Fill in ${missing.join(', ')} first`);
+      return;
+    }
+    patch(slot.serviceId, { completed: slotHasData(slot, pending, travel) });
+    setOpen(null);
+  }
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {visible.map((slot) => {
+        const state = pending[slot.serviceId];
+        const done = !!state?.completed;
+        // Ticked either because the user ticked it, or because data is already
+        // there (prefilled edit, or a booking typed before this render).
+        const ticked = !!state?.selected || slotHasData(slot, pending, travel) || slot.serviceId === singleSlotId;
+        const index = slots.indexOf(slot);
+        const locked = !singleSlotId && (
+          slot.isUnlocked === false
+          || (isFixed && firstIncomplete !== -1 && index > firstIncomplete)
+        );
+        const expanded = open === slot.serviceId;
+
+        return (
+          <div key={slot.serviceId} style={{
+            borderRadius: 10,
+            border: `1px solid ${expanded ? 'var(--accent)' : 'var(--glass-border)'}`,
+            background: 'var(--surface-soft-2)',
+            opacity: locked ? 0.55 : 1,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px',
+              cursor: locked ? 'not-allowed' : 'pointer',
+            }}>
+              {/* The checkbox includes/excludes the service; the rest of the row
+                  just expands it, so ticking never has to mean two things. */}
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (locked || singleSlotId) return;
+                  toggle(slot, !ticked);
+                }}
+                style={{ display: 'grid', placeItems: 'center' }}
+              >
+                <Checkbox checked={ticked} disabled={locked || !!singleSlotId} />
+              </span>
+
+              <div
+                onClick={() => {
+                  if (locked) return;
+                  // Opening a service is also choosing it — otherwise you could
+                  // fill in a form that nothing saves.
+                  if (!ticked) { toggle(slot, true); return; }
+                  setOpen(expanded ? null : slot.serviceId);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}
+              >
+                {slot.icon && <Icon name={slot.icon} size={14} style={{ color: 'var(--accent)' }} />}
+                <span style={{ fontSize: 13, fontWeight: 550, flex: 1 }}>
+                  {(isAr ? slot.nameAr : null) || slot.name}
+                </span>
+                <span className={`chip ${done ? 'confirmed' : 'draft'}`} style={{ fontSize: 10.5 }}>
+                  {done
+                    ? (isAr ? 'مكتمل' : 'Completed')
+                    : locked
+                      ? (isAr ? 'مقفل' : 'Locked')
+                      : ticked
+                        ? (isAr ? 'قيد الإدخال' : 'In progress')
+                        : (isAr ? 'غير مُضاف' : 'Not added')}
+                </span>
+                {!locked && (
+                  <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={13}
+                    style={{ color: 'var(--ink-mute)' }} />
+                )}
+              </div>
+            </div>
+
+            {locked && slot.lockedReason && (
+              <div style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '0 12px 10px 41px' }}>
+                {slot.lockedReason}
+              </div>
+            )}
+            {locked && !slot.lockedReason && firstIncomplete !== -1 && (
+              <div style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '0 12px 10px 41px' }}>
+                {isAr
+                  ? `أكمل "${slots[firstIncomplete]?.name}" أولاً.`
+                  : `Complete "${slots[firstIncomplete]?.name}" first.`}
+              </div>
+            )}
+
+            {expanded && !locked && (
+              <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
+                {slot.isSystem ? (
+                  // Writes into the shared `travel` state, saved through the travel
+                  // endpoints by the caller — never as a service entry's JSON.
+                  <TravelAccordion
+                    travel={travel}
+                    onChange={onTravelChange}
+                    lookups={travelLookups}
+                    isAr={isAr}
+                    only={TRAVEL_SECTION[slot.code]}
+                    eventId={eventId}
+                    eventMinDate={eventStart}
+                    eventMaxDate={eventEnd}
+                    dateMinDate={dateMinDate}
+                    dateMaxDate={dateMaxDate}
+                  />
+                ) : (
+                  <DynamicFormInputs
+                    form={slot.form}
+                    values={state?.values || {}}
+                    onChange={(vals) => patch(slot.serviceId, { selected: true, values: vals })}
+                    lang={lang}
+                    eventId={eventId}
+                    eventStart={eventStart}
+                    eventEnd={eventEnd}
+                  />
+                )}
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                  {!singleSlotId && (
+                    <button type="button" className="btn" onClick={() => toggle(slot, false)}>
+                      {isAr ? 'إزالة' : 'Remove'}
+                    </button>
+                  )}
+                  <button type="button" className="btn primary" onClick={() => confirm(slot)}>
+                    <Icon name="check" size={13} /> {isAr ? 'تم' : 'Done'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

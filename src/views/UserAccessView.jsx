@@ -22,7 +22,7 @@ const DEMO_MODULES = [
   { slug: 'events',        displayName: 'Events',            isNative: true,  isGranted: false },
   { slug: 'guests',        displayName: 'Guests',            isNative: false, isGranted: true  },
   { slug: 'invitations',   displayName: 'Invitations',       isNative: false, isGranted: false },
-  { slug: 'travel',        displayName: 'Travel & Logistics',isNative: false, isGranted: false },
+  { slug: 'travel',        displayName: 'Services',isNative: false, isGranted: false },
   { slug: 'accreditation', displayName: 'Accreditation',     isNative: false, isGranted: false },
   { slug: 'venue',         displayName: 'Venue Config',      isNative: false, isGranted: false },
   { slug: 'seating',       displayName: 'Seating',           isNative: false, isGranted: false },

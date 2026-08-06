@@ -659,8 +659,8 @@ export default function TravelAccordion({
         {image('flight',
           isAr ? 'صورة التذكرة' : 'Ticket Image',
           isAr
-            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة، يراها الضيف في التطبيق'
-            : 'Optional — ticket or boarding pass; the guest sees it in the app')}
+            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            : 'Optional — ticket or boarding pass. A clear, straight scan reads best with OCR, and the guest sees it in the app')}
       </>))}
 
       {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
@@ -709,8 +709,8 @@ export default function TravelAccordion({
         {image('accommodation',
           isAr ? 'صورة الحجز' : 'Booking Image',
           isAr
-            ? 'اختياري — قسيمة الحجز أو صورة الغرفة، يراها الضيف في التطبيق'
-            : 'Optional — booking voucher or a photo of the room; the guest sees it in the app')}
+            ? 'اختياري — قسيمة الحجز أو صورة الغرفة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            : 'Optional — booking voucher or a photo of the room. A clear, straight scan reads best with OCR, and the guest sees it in the app')}
       </>))}
 
       {section('transport', 'car', isAr ? 'النقل' : 'Transport', (<>

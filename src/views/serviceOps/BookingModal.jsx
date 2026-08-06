@@ -1,17 +1,36 @@
-// "New Booking" / edit for one service entry.
+// "New Booking" / edit for one guest's services.
 //
-// Only guests whose service level actually includes this service can be picked
-// — offering the rest would just produce a server rejection. On a Fixed event
-// the sequence still applies: the API refuses a service whose predecessor is
-// unfinished, and that message is surfaced here rather than swallowed.
+// Only guests whose service level actually includes the service being booked can
+// be picked — offering the rest would just produce a server rejection. Once a
+// guest is chosen, their whole service list appears as the same tick-list the
+// create wizard uses (ServiceAccordion), so one dialog can add several services
+// at once instead of one per visit.
+//
+// On a Fixed event the sequence still applies: the API refuses a service whose
+// predecessor is unfinished, and that message is surfaced here rather than
+// swallowed.
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
 import { Icon } from '../../components/Icons';
-import { DynamicFormInputs, missingRequired } from '../../components/ui/DynamicFields';
+import ServiceAccordion, {
+  TRAVEL_SECTION, slotHasData, validateServices,
+} from '../guests/ServiceAccordion';
+import {
+  EMPTY_TRAVEL, hydrateTravel, buildTravelPayload, sectionHasData,
+} from '../guests/modals/TravelAccordion';
 import toast from '../../lib/toast';
 import { listGuests } from '../../api/services/guestService';
-import { getServiceLevels, saveGuestServiceEntry } from '../../api/services/serviceCatalogService';
+import {
+  getServiceLevels, saveGuestServiceEntry, getGuestServicePlan,
+} from '../../api/services/serviceCatalogService';
+import {
+  getTravelLookups, getGuestTravel, saveGuestTravel,
+} from '../../api/services/travelService';
+import { addDaysIso } from '../../lib/date';
+
+// Hotel and transport dates sit a few days either side of the event itself.
+const DATE_MARGIN_DAYS = 3;
 
 export default function BookingModal({
   open, onClose, onSaved, service, activeEventId, lang, eventStart, eventEnd,
@@ -23,16 +42,26 @@ export default function BookingModal({
   const [guests, setGuests] = useState([]);
   const [levels, setLevels] = useState([]);
   const [guestId, setGuestId] = useState('');
-  const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // The guest's own service list, and the two state bags the accordion writes to.
+  const [plan, setPlan] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [pending, setPending] = useState({});
+  const [travel, setTravel] = useState(EMPTY_TRAVEL);
+  const [travelLookups, setTravelLookups] = useState({});
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setGuestId(entry?.guestId || '');
-    setValues(entry ? { ...(entry.values || {}) } : {});
-  }, [open, entry]);
+    setPending(entry
+      // Editing: that one service, already ticked, prefilled.
+      ? { [service?.id]: { selected: true, values: { ...(entry.values || {}) }, completed: entry.status === 'completed' } }
+      : {});
+    setTravel(EMPTY_TRAVEL);
+  }, [open, entry, service?.id]);
 
   useEffect(() => {
     if (!open || !activeEventId) return;
@@ -43,6 +72,42 @@ export default function BookingModal({
       .catch(() => setGuests([]));
     getServiceLevels(false).then(setLevels).catch(() => setLevels([]));
   }, [open, activeEventId]);
+
+  // The guest's plan is what decides which services this dialog offers — the
+  // level, not the tab it was opened from.
+  useEffect(() => {
+    if (!open || !guestId) { setPlan(null); return undefined; }
+    let cancelled = false;
+    setPlanLoading(true);
+    getGuestServicePlan(guestId)
+      .then((p) => { if (!cancelled) setPlan(p); })
+      .catch(() => { if (!cancelled) setPlan(null); })
+      .finally(() => { if (!cancelled) setPlanLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, guestId]);
+
+  const slots = useMemo(() => (plan?.slots || []).map((s) => ({ ...s })), [plan]);
+  const systemSlots = useMemo(() => slots.filter((s) => s.isSystem), [slots]);
+
+  // Only fetched once a built-in service is actually on offer — it's eight
+  // parallel lookup requests, and a purely dynamic level needs none of them.
+  useEffect(() => {
+    if (!open || systemSlots.length === 0 || Object.keys(travelLookups).length > 0) return;
+    getTravelLookups(activeEventId).then(setTravelLookups).catch(() => setTravelLookups({}));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, systemSlots.length, activeEventId]);
+
+  // Editing a built-in means editing a booking row, so the prefill comes from the
+  // travel endpoint keyed by that booking's id (which is the entry id).
+  useEffect(() => {
+    if (!open || !entry?.entryId || !guestId) return;
+    const isSystemEntry = TRAVEL_SECTION[(service?.code || '').toLowerCase()];
+    if (!isSystemEntry) return;
+    getGuestTravel(guestId, entry.entryId)
+      .then((raw) => setTravel(hydrateTravel(raw)))
+      .catch(() => setError(isAr ? 'تعذّر تحميل الحجز' : 'Could not load that booking'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, entry?.entryId, guestId, service?.code]);
 
   // Levels carrying this service → the guests eligible for it.
   const eligible = useMemo(() => {
@@ -63,27 +128,51 @@ export default function BookingModal({
     [eligible],
   );
 
-  async function save(markCompleted) {
+  // Everything ticked AND filled in — what Save will actually write.
+  const toSave = useMemo(
+    () => slots.filter((s) => slotHasData(s, pending, travel)),
+    [slots, pending, travel],
+  );
+
+  async function save() {
     if (!guestId) {
       setError(isAr ? 'اختر ضيفاً' : 'Pick a guest first');
       return;
     }
-    if (markCompleted) {
-      const missing = missingRequired(service.form, values);
-      if (missing.length > 0) {
-        setError(isAr ? `أكمل: ${missing.join('، ')}` : `Fill in ${missing.join(', ')} before completing.`);
-        return;
-      }
+    if (toSave.length === 0) {
+      setError(isAr ? 'ضع علامة على خدمة واملأ بياناتها' : 'Tick a service and fill it in');
+      return;
     }
+
+    // Ticking a service commits to filling it in — the per-service Done button is
+    // optional, so this is what actually enforces its required fields.
+    const err = validateServices(slots, pending, travel, isAr);
+    if (err) { setError(err); return; }
 
     setSaving(true);
     try {
-      await saveGuestServiceEntry(guestId, {
-        id: entry?.entryId || null,
-        serviceId: service.id,
-        values,
-        markCompleted,
-      });
+      // Built-ins first and in one call: they all live on the same travel payload.
+      if (systemSlots.some((s) => sectionHasData(travel, TRAVEL_SECTION[s.code]))) {
+        await saveGuestTravel(guestId, buildTravelPayload(travel));
+      }
+
+      // Sequential on purpose: on a Fixed event the server rejects a service whose
+      // predecessor is not yet complete, so they have to go in order.
+      for (const slot of toSave) {
+        if (slot.isSystem) continue;
+        await saveGuestServiceEntry(guestId, {
+          // Only the entry actually being edited updates in place; every other
+          // ticked service is a new row.
+          id: slot.serviceId === service?.id ? (entry?.entryId || null) : null,
+          serviceId: slot.serviceId,
+          values: pending[slot.serviceId]?.values || {},
+          // Past validateServices means the required fields are in, so it's
+          // complete — a draft would leave the next service locked on a Fixed
+          // event and the rest of this loop would then be rejected.
+          markCompleted: true,
+        });
+      }
+
       toast.success(isAr ? 'تم الحفظ' : 'Saved');
       onSaved?.();
       onClose?.();
@@ -105,17 +194,15 @@ export default function BookingModal({
       open={open}
       onClose={onClose}
       title={`${title} — ${(isAr ? service?.nameAr : null) || service?.name || ''}`}
-      width={640}
+      width={680}
       footer={
         <>
           <button className="btn" onClick={onClose} disabled={saving}>
             {isAr ? 'إلغاء' : 'Cancel'}
           </button>
-          <button className="btn" onClick={() => save(false)} disabled={saving}>
-            {isAr ? 'حفظ كمسودة' : 'Save draft'}
-          </button>
-          <button className="btn primary" onClick={() => save(true)} disabled={saving}>
-            <Icon name="check" size={13} /> {isAr ? 'إكمال' : 'Complete'}
+          <button className="btn primary" onClick={save} disabled={saving}>
+            <Icon name="check" size={13} />
+            {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ' : 'Save')}
           </button>
         </>
       }
@@ -154,16 +241,46 @@ export default function BookingModal({
         )}
       </div>
 
-      {service && (
-        <DynamicFormInputs
-          form={service.form}
-          values={values}
-          onChange={setValues}
-          lang={lang}
-          eventStart={eventStart}
-          eventEnd={eventEnd}
-          eventId={activeEventId}
-        />
+      {guestId && (
+        planLoading ? (
+          <div style={{ padding: 14, textAlign: 'center', fontSize: 12.5, color: 'var(--ink-mute)' }}>
+            {isAr ? 'جارٍ التحميل…' : 'Loading…'}
+          </div>
+        ) : slots.length === 0 ? (
+          <div className="alert alert-warn" style={{ fontSize: 12.5 }}>
+            <Icon name="alert" size={14} />
+            <div>{isAr
+              ? 'لا توجد خدمات مُسنَدة إلى مستوى هذا الضيف.'
+              : "No services are assigned to this guest's service level."}</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
+              {isEdit
+                ? (isAr ? 'تعديل هذا الحجز' : 'Editing this booking')
+                : (isAr
+                  ? `ضع علامة على ما تريد إضافته — حسب مستوى "${plan?.serviceLevelName || ''}"`
+                  : `Tick whatever you want to add — from "${plan?.serviceLevelName || ''}"`)}
+            </div>
+            <ServiceAccordion
+              slots={slots}
+              pending={pending}
+              onPendingChange={setPending}
+              travel={travel}
+              onTravelChange={setTravel}
+              travelLookups={travelLookups}
+              isFixed={plan?.guestModel === 'fixed'}
+              lang={lang}
+              eventId={activeEventId}
+              eventStart={eventStart}
+              eventEnd={eventEnd}
+              dateMinDate={addDaysIso(eventStart, -DATE_MARGIN_DAYS)}
+              dateMaxDate={addDaysIso(eventEnd, DATE_MARGIN_DAYS)}
+              // Editing is scoped to the one entry that was opened.
+              singleSlotId={isEdit ? service?.id : null}
+            />
+          </>
+        )
       )}
     </Modal>
   );

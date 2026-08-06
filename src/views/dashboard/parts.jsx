@@ -73,7 +73,7 @@ function PanelTabs({ tabs, active, onChange }) {
 
 // Ordered so adjacent slices stay distinguishable; maroon leads because the
 // first series is almost always the primary one.
-export const CHART_COLORS = ['#8d0134', '#c21857', '#a78bda', '#4a9edd', '#5abf6e', '#e0b864', '#8fa3b8'];
+export const CHART_COLORS = ['#8d0134', '#DFB764', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
 
 /** Themed recharts tooltip — the library default is a white box that breaks in dark mode. */
 export function ChartTooltip({ active, payload, label }) {

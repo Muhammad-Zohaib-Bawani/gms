@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import AppToaster from './components/ui/AppToaster.jsx';
 import { AuthProvider } from './auth/AuthContext';
 import { EventsProvider } from './events/EventsContext';
 import { router } from './router';
@@ -45,7 +45,7 @@ if (screenParams.get('screen') === 'venueView') {
         token={screenParams.get('token')}
         lang={screenParams.get('lang') || 'en'}
       />
-      <Toaster position="top-right" richColors closeButton theme="dark" />
+      <AppToaster />
     </React.StrictMode>
   );
 } else if (screenParams.get('screen') === 'userInvite') {
@@ -55,7 +55,7 @@ if (screenParams.get('screen') === 'venueView') {
   root.render(
     <React.StrictMode>
       <UserInviteAcceptView token={screenParams.get('token')} />
-      <Toaster position="top-right" richColors closeButton theme="dark" />
+      <AppToaster />
     </React.StrictMode>
   );
 } else {
@@ -66,7 +66,7 @@ if (screenParams.get('screen') === 'venueView') {
           <RouterProvider router={router} />
         </EventsProvider>
       </AuthProvider>
-      <Toaster position="top-right" richColors closeButton theme="dark" />
+      <AppToaster />
     </React.StrictMode>
   );
 }
