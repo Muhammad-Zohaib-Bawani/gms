@@ -60,6 +60,7 @@ const NAV = [
   // { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
+   { key: "guestOverview",  icon: "reports",    label: { en: "Guest Overview",      ar: "نظرة عامة على الضيوف"  }, section: "ADMIN",    permission: "Guests.View"            },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
     { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "ADMIN",    permission: "ServiceLevels.View"     },
   { key: "services",       icon: "star",       label: { en: "Manage Services",     ar: "إدارة الخدمات"          }, section: "ADMIN",    permission: "Services.View"          },

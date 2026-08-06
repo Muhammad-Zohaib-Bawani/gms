@@ -58,6 +58,14 @@ export const ENDPOINTS = {
     types: '/v1/events/types',
   },
 
+  // Guest Overview — every guest, every event, one paged/filterable list, plus
+  // an on-demand per-guest detail (sections: event, sessions, flights,
+  // accommodations, transport, seatings, other dynamic services).
+  guestOverview: {
+    base: '/v1/guest-overview',
+    byId: (id) => `/v1/guest-overview/${id}`,
+  },
+
   guests: {
     base: '/v1/guest',
     byId: (id) => `/v1/guest/${id}`,

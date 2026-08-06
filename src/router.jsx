@@ -8,6 +8,7 @@ import { KEY_PATH } from './nav';
 import DashboardView from './views/DashboardView';
 import InvitationsView from './views/InvitationsView';
 import GuestsView from './views/GuestsView';
+import GuestOverviewView from './views/GuestOverviewView';
 import ServiceOpsView from './views/ServiceOpsView';
 import TravelView from './views/TravelView';
 import AccreditationView from './views/AccreditationView';
@@ -36,6 +37,7 @@ const MODULE_ROUTES = [
   { key: 'dashboard',       Component: DashboardView,       permission: 'Dashboard.View' },
   { key: 'invitations',     Component: InvitationsView,     permission: 'Invitations.View' },
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
+  { key: 'guestOverview',   Component: GuestOverviewView,   permission: 'Guests.View' },
   { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
   { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
   // One page for every service: TravelView renders the three built-in relational

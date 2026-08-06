@@ -6,6 +6,7 @@ export const KEY_PATH = {
   dashboard:       '/dashboard',
   invitations:     '/invitations',
   guests:          '/guests',
+  guestOverview:   '/guest-overview',
   serviceLevels:   '/service-levels',
   travel:          '/travel',
   // Not in the sidebar — the dynamic services show as tabs inside /travel. The
