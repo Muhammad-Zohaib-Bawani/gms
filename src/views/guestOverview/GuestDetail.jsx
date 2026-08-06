@@ -1,11 +1,11 @@
 // The expanded row: one guest, A–Z — fetched on demand from
 // GET /v1/guest-overview/{id} so the list itself stays lightweight.
 //
-// One section per data source rather than one card per event: a guest here
-// belongs to exactly one event (see GuestOverviewService), so grouping by
-// event would just be an extra wrapper around the same content. Each section
-// — Event, Sessions, Flights, Seatings, Accommodations, Transport, Other
-// services — reads directly off the matching part of the API response.
+// One section per data source rather than one card per event. A person can be
+// in more than one event (the backend groups Guest Overview rows by email —
+// see GuestOverviewService), so `events` is a list and every other section
+// flattens across all of that person's events, each item carrying which event
+// it came from.
 import React, { useEffect, useState } from 'react';
 import { Icon } from '../../components/Icons';
 import { getGuestOverviewDetail } from '../../api/services/guestOverviewService';
@@ -61,8 +61,8 @@ function Facts({ data }) {
   );
 }
 
-/** A bordered record with an optional status chip in its header. */
-function RecordCard({ title, status, children }) {
+/** A bordered record with an optional status chip and event tag in its header. */
+function RecordCard({ title, status, eventTitle, children }) {
   return (
     <div style={{
       border: '1px solid var(--glass-border)',
@@ -76,6 +76,14 @@ function RecordCard({ title, status, children }) {
           <span className={`chip ${status === 'completed' ? 'confirmed' : 'pending'}`} style={{ fontSize: 10 }}>
             <span className="dot" />
             {status === 'completed' ? 'Booked' : 'Pending'}
+          </span>
+        )}
+        {eventTitle && (
+          <span
+            className="chip draft"
+            style={{ fontSize: 10, marginInlineStart: 'auto', whiteSpace: 'nowrap' }}
+          >
+            {eventTitle}
           </span>
         )}
       </div>
@@ -111,7 +119,7 @@ export default function GuestDetail({ guestId }) {
   if (!detail) return null;
 
   const {
-    event, sessions = [], flights = [], accommodations = [],
+    events = [], sessions = [], flights = [], accommodations = [],
     transport = [], seatings = [], otherServices = [],
   } = detail;
 
@@ -119,23 +127,26 @@ export default function GuestDetail({ guestId }) {
 
   return (
     <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <Section icon="calendar" title="Event">
-        {event ? (
-          <RecordCard title={event.title}>
-            <Facts data={{
-              Type: event.type, Venue: event.venueName,
-              'Start date': event.startDate, 'End date': event.endDate,
-            }} />
-          </RecordCard>
-        ) : (
-          <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>Not linked to an event</div>
-        )}
+      <Section icon="calendar" title="Events" count={events.length} empty="Not linked to an event">
+        <div style={stack}>
+          {events.map((ev) => (
+            <RecordCard key={ev.guestId} title={ev.eventTitle}>
+              <Facts data={{
+                Type: ev.eventType, Venue: ev.venueName,
+                'Start date': ev.startDate, 'End date': ev.endDate,
+                'Service level': ev.serviceLevelName,
+                Invitation: ev.invitationStatus, Accreditation: ev.accreditationStatus,
+                Arrival: ev.arrivalDate, Departure: ev.departureDate,
+              }} />
+            </RecordCard>
+          ))}
+        </div>
       </Section>
 
       <Section icon="meetings" title="Sessions" count={sessions.length} empty="No sessions">
         <div style={stack}>
-          {sessions.map((s) => (
-            <RecordCard key={s.id} title={s.title}>
+          {sessions.map((s, i) => (
+            <RecordCard key={s.id || i} title={s.title} eventTitle={s.eventTitle}>
               <Facts data={{ Date: s.date, Time: s.time, Room: s.room, Speaker: s.speaker, Status: s.status || 'selected' }} />
             </RecordCard>
           ))}
@@ -149,6 +160,7 @@ export default function GuestDetail({ guestId }) {
               key={f.id}
               title={f.legs?.[0]?.flightNumber || 'Flight'}
               status={f.status === 'Confirmed' ? 'completed' : 'pending'}
+              eventTitle={f.eventTitle}
             >
               <Facts data={{
                 Type: f.flightType, Class: f.flightClass, Seat: f.seat,
@@ -173,7 +185,7 @@ export default function GuestDetail({ guestId }) {
       <Section icon="seating" title="Seatings" count={seatings.length} empty="No seat assigned">
         <div style={stack}>
           {seatings.map((s, i) => (
-            <RecordCard key={i} title={s.seatCode}>
+            <RecordCard key={i} title={s.seatCode} eventTitle={s.eventTitle}>
               <Facts data={{ Session: s.sessionTitle || 'Event-wide' }} />
             </RecordCard>
           ))}
@@ -183,7 +195,7 @@ export default function GuestDetail({ guestId }) {
       <Section icon="hotel" title="Accommodations" count={accommodations.length} empty="No stay booked">
         <div style={stack}>
           {accommodations.map((a) => (
-            <RecordCard key={a.id} title={a.hotel || 'Accommodation'}>
+            <RecordCard key={a.id} title={a.hotel || 'Accommodation'} eventTitle={a.eventTitle}>
               <Facts data={{ 'Room type': a.roomType, 'Check-in': a.checkIn, 'Check-out': a.checkOut }} />
             </RecordCard>
           ))}
@@ -197,6 +209,7 @@ export default function GuestDetail({ guestId }) {
               key={t.id}
               title={t.vehicle || 'Transport'}
               status={t.tripStatus === 'On Time' ? 'completed' : 'pending'}
+              eventTitle={t.eventTitle}
             >
               <Facts data={{
                 Driver: t.driverName, Pickup: t.pickup, Dropoff: t.dropoff,
@@ -211,8 +224,13 @@ export default function GuestDetail({ guestId }) {
           — this section grows on its own as new services are created. */}
       <Section icon="star" title="Other services" count={otherServices.length} empty="None configured">
         <div style={stack}>
-          {otherServices.map((s) => (
-            <RecordCard key={s.serviceId} title={s.name} status={s.status === 'completed' ? 'completed' : 'pending'}>
+          {otherServices.map((s, i) => (
+            <RecordCard
+              key={`${s.serviceId}-${i}`}
+              title={s.name}
+              status={s.status === 'completed' ? 'completed' : 'pending'}
+              eventTitle={s.eventTitle}
+            >
               {s.entries?.length > 0 ? (
                 <div style={stack}>
                   {s.entries.map((e) => <Facts key={e.id} data={e.values} />)}

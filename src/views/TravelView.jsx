@@ -106,6 +106,16 @@ function flightDuration(start, end) {
 // Portal-wide DD-MM-YYYY (lib/date) — was locale-dependent 'Aug 5'.
 const dateLabelFor = (dateStr) => fmtDate(dateStr, '');
 
+// A return booking has two segments — its own flight number and its own date,
+function flightLegRows(b) {
+  return b.legs.length > 0
+    ? b.legs
+    : [{
+      id: 'single', flightNumber: b.flight, departureCode: b.from, arrivalCode: b.to,
+      flightClass: b.flightClass, seat: b.seat, startTime: b.departureTime, endTime: b.arrivalTime,
+    }];
+}
+
 // ─── API row → table row mappers (data comes from the travel tables) ─────────
 // `bookingId` is that specific Flight/Accommodation/Transport's own id — a
 // guest can have more than one, so it's never the same as guestId.
@@ -874,36 +884,40 @@ export default function TravelView({ lang, activeEventId }) {
     return {
       flights: [
         guest(),
-        col('flight',      STR.cols.flight,      b => <span style={{ ...mono, fontWeight: 600 }}>{b.flight}</span>),
+        // One line per leg on flight/route/date alike — a return booking has two
+        // segments, each with its own number, route, class/seat and date, so a
+        // single shared value per column can only ever show one of them.
+        col('flight',      STR.cols.flight,      b => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {flightLegRows(b).map((l, idx) => (
+              <span key={l.id || idx} style={{ ...mono, fontWeight: 600 }}>{l.flightNumber || '—'}</span>
+            ))}
+          </div>
+        )),
         col('flightType',  STR.cols.flightType,  b => <span style={text}>{flightTypeLabel(b.flightType, isAr)}</span>),
-        // One line per leg: route, then class/seat right under it — a return
-        // booking's two legs can be on different fare classes/seats, so each
-        // needs its own line rather than one shared "Class" column that can
-        // only ever show one value.
-        col('route',       STR.cols.route,       b => {
-          const legRows = b.legs.length > 0
-            ? b.legs
-            : [{ id: 'single', departureCode: b.from, arrivalCode: b.to, flightClass: b.flightClass, seat: b.seat }];
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {legRows.map((l, idx) => {
-                const meta = [l.flightClass, l.seat].filter(v => v && v !== '—').join(' · ');
-                return (
-                  <div key={l.id || idx}>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink)' }}>
-                      {l.departureCode} → {l.arrivalCode}
-                    </div>
-                    {meta && <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{meta}</div>}
+        col('route',       STR.cols.route,       b => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {flightLegRows(b).map((l, idx) => {
+              const meta = [l.flightClass, l.seat].filter(v => v && v !== '—').join(' · ');
+              return (
+                <div key={l.id || idx}>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink)' }}>
+                    {l.departureCode} → {l.arrivalCode}
                   </div>
-                );
-              })}
-            </div>
-          );
-        }),
+                  {meta && <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{meta}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )),
         col('date',        STR.cols.date,        b => (
-          <div>
-            <div style={mono}>{b.dateLabel || '—'}</div>
-            <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(timeRange(b.departureTime, b.arrivalTime))}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {flightLegRows(b).map((l, idx) => (
+              <div key={l.id || idx}>
+                <div style={mono}>{dateLabelFor(l.startTime) || '—'}</div>
+                <div style={{ ...muted, fontFamily: 'var(--mono)' }}>{ad(timeRange(l.startTime, l.endTime))}</div>
+              </div>
+            ))}
           </div>
         )),
         col('status',      STR.cols.status,      b => <StatusChip status={b.flightStatus} label={STR.statuses[b.flightStatus]} />),
