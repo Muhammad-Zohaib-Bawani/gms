@@ -108,7 +108,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // guestCount (which drives the capacity rule) stays accurate.
   const loadServiceLevels = useCallback(() => {
     if (!activeEventId) { setServiceLevels([]); return Promise.resolve(); }
-    return getServiceLevels(activeEventId)
+    return getServiceLevels(false)
       .then((r) => setServiceLevels(r || []))
       .catch(() => setServiceLevels([]));
   }, [activeEventId]);

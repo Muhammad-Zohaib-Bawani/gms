@@ -29,6 +29,10 @@ function normalize(dto) {
     title: dto.title,
     subtitle,
     status: dto.status,
+    // Consumed by the dynamic service forms, whose date fields can be
+    // constrained to the event window.
+    startDate: dto.startDate || null,
+    endDate: dto.endDate || null,
     accent: dto.themeAccent || '#8d0134',
     secondary: dto.themeSecondary || '#e0c47e',
     logoDark: dto.logoDarkUrl || '',

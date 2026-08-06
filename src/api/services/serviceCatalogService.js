@@ -1,55 +1,56 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
-// Per-event service catalog + guest grades. Everything here is event-scoped —
-// there is no global list, so every call needs an eventId.
+// The global service catalogue, the guest grades built from it, and each
+// guest's service plan. Nothing here is event-scoped — see
+// docs/service-levels-v2.md.
 //
-// Not to be confused with `travelService`'s flight/accommodation/transport
-// bookings, nor with the guest's `allowedServices` (GuestServiceType) VIP-app
-// self-request permissions. Those are separate concepts that happen to share
-// the word "service".
+// Not to be confused with the guest's `allowedServices` (GuestServiceType)
+// VIP-app self-request permissions, which is a separate concept sharing the
+// word "service".
 
-// ── Services (the catalog) ───────────────────────────────────────────────────
-// Row shape: { id, eventId, name, nameAr, description, sortOrder,
-//              fields: [{key,label,labelAr,type,required,options[]}],
-//              usedByLevelCount }
-export const getServices = (eventId) => apiClient.get(ENDPOINTS.services.base(eventId));
+// ── Services ────────────────────────────────────────────────────────────────
+// Row: { id, code, name, nameAr, description, icon, sortOrder, isActive,
+//        form: { sections: [{ key, label, fields: [...] }] }, levelCount }
+export const getServices = (includeInactive = false) =>
+  apiClient.get(ENDPOINTS.services.base, { params: { includeInactive } });
 
-// body: { name, nameAr?, description?, sortOrder?, fields: [...] }
-export const createService = (eventId, body) =>
-  apiClient.post(ENDPOINTS.services.base(eventId), body);
+export const getService = (id) => apiClient.get(ENDPOINTS.services.byId(id));
 
-export const updateService = (eventId, id, body) =>
-  apiClient.put(ENDPOINTS.services.byId(eventId, id), body);
+export const createService = (body) => apiClient.post(ENDPOINTS.services.base, body);
+export const updateService = (id, body) => apiClient.put(ENDPOINTS.services.byId(id), body);
+export const deleteService = (id) => apiClient.delete(ENDPOINTS.services.byId(id));
 
-export const deleteService = (eventId, id) =>
-  apiClient.delete(ENDPOINTS.services.byId(eventId, id));
+// Every guest in an event holding this service — the operational listings.
+// params: { eventId, pageNumber, pageSize, searchTerm }
+export const getServiceEntries = (serviceId, params) =>
+  apiClient.get(ENDPOINTS.services.entries(serviceId), { params });
 
-// ── Service levels (guest grades) ────────────────────────────────────────────
-// Row shape: { id, eventId, name, nameAr, code, description, color, sortOrder,
-//              capacity, requiredGuestFields: [...], guestCount,
-//              services: [{ serviceId, serviceName, fields: [...], values: {} }] }
-export const getServiceLevels = (eventId) => apiClient.get(ENDPOINTS.serviceLevels.base(eventId));
+// ── Service levels ──────────────────────────────────────────────────────────
+// Row: { id, code, name, nameAr, description, color, sortOrder, isActive,
+//        requiredGuestFields: [...], guestCount,
+//        services: [{ serviceId, code, name, icon, sortOrder }] }
+//
+// `serviceIds` order IS the completion sequence a Fixed event enforces.
+export const getServiceLevels = (includeInactive = false) =>
+  apiClient.get(ENDPOINTS.serviceLevels.base, { params: { includeInactive } });
 
-export const getServiceLevel = (eventId, id) => apiClient.get(ENDPOINTS.serviceLevels.byId(eventId, id));
+export const getServiceLevel = (id) => apiClient.get(ENDPOINTS.serviceLevels.byId(id));
 
-// body: { name, nameAr?, code?, description?, color?, sortOrder?, capacity?,
-//         requiredGuestFields: [...], services: [{ serviceId, values: {} }] }
-// Omitting `services` entirely leaves the level's existing set untouched.
-export const createServiceLevel = (eventId, body) =>
-  apiClient.post(ENDPOINTS.serviceLevels.base(eventId), body);
+export const createServiceLevel = (body) => apiClient.post(ENDPOINTS.serviceLevels.base, body);
+export const updateServiceLevel = (id, body) => apiClient.put(ENDPOINTS.serviceLevels.byId(id), body);
+export const deleteServiceLevel = (id) => apiClient.delete(ENDPOINTS.serviceLevels.byId(id));
 
-export const updateServiceLevel = (eventId, id, body) =>
-  apiClient.put(ENDPOINTS.serviceLevels.byId(eventId, id), body);
+// ── A guest's service plan ──────────────────────────────────────────────────
+// { guestId, serviceLevelId, serviceLevelName, guestModel, isComplete,
+//   slots: [{ serviceId, name, icon, form, entries: [...], status,
+//             isUnlocked, isRequired, lockedReason }] }
+export const getGuestServicePlan = (guestId) =>
+  apiClient.get(ENDPOINTS.guestServices.base(guestId));
 
-export const deleteServiceLevel = (eventId, id) =>
-  apiClient.delete(ENDPOINTS.serviceLevels.byId(eventId, id));
+// body: { id?, serviceId, values: {key: value}, markCompleted }
+export const saveGuestServiceEntry = (guestId, body) =>
+  apiClient.post(ENDPOINTS.guestServices.base(guestId), body);
 
-// Dry-run of the assignment rules so the guest form can warn (and offer an
-// override) before saving. Returns { passes, violations[], missingFields[] }.
-// `excludeGuestId` stops a guest already on the level counting against its own
-// capacity when editing.
-export const checkServiceLevelRules = (eventId, levelId, { excludeGuestId } = {}) =>
-  apiClient.get(ENDPOINTS.serviceLevels.ruleCheck(eventId, levelId), {
-    params: { excludeGuestId: excludeGuestId || undefined },
-  });
+export const deleteGuestServiceEntry = (guestId, entryId) =>
+  apiClient.delete(ENDPOINTS.guestServices.entry(guestId, entryId));

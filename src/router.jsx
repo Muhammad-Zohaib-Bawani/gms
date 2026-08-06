@@ -8,6 +8,7 @@ import { KEY_PATH } from './nav';
 import DashboardView from './views/DashboardView';
 import InvitationsView from './views/InvitationsView';
 import GuestsView from './views/GuestsView';
+import ServiceOpsView from './views/ServiceOpsView';
 import TravelView from './views/TravelView';
 import AccreditationView from './views/AccreditationView';
 import SeatingView from './views/SeatingView';
@@ -37,7 +38,10 @@ const MODULE_ROUTES = [
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
   { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
   { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
-  { key: 'travel',          Component: TravelView,          permission: 'Travel.View' },
+  // Service-driven listings; the old fixed Flights/Hotel/Transfers page is
+  // kept at /travel-legacy until phase 4 retires the relational tables.
+  { key: 'travel',          Component: ServiceOpsView,      permission: 'Travel.View' },
+  { key: 'travelLegacy',    Component: TravelView,          permission: 'Travel.View' },
   { key: 'accreditation',   Component: AccreditationView,   permission: 'Accreditation.View' },
   { key: 'seating',         Component: SeatingView,         permission: 'Seating.View' },
   { key: 'meetings',        Component: MeetingsView,        permission: 'Meetings.View' },

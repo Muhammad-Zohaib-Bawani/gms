@@ -8,6 +8,7 @@ export const KEY_PATH = {
   guests:          '/guests',
   serviceLevels:   '/service-levels',
   travel:          '/travel',
+  travelLegacy:    '/travel-legacy',
   accreditation:   '/accreditation',
   seating:         '/seating',
   meetings:        '/meetings',

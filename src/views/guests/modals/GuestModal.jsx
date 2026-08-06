@@ -26,6 +26,9 @@ import TravelAccordion, {
   validateTravel,
 } from "./TravelAccordion";
 import ImportGuestsPanel from "./ImportGuestsPanel";
+import GuestServicesPanel from "../GuestServicesPanel";
+import { DynamicFormInputs, missingRequired } from "../../../components/ui/DynamicFields";
+import { getServices, saveGuestServiceEntry } from "../../../api/services/serviceCatalogService";
 import ExistingGuestPicker from "./ExistingGuestPicker";
 
 const GUEST_TYPES = [
@@ -219,12 +222,9 @@ export default function GuestModal({
   const { events, activeEvent } = useEvents();
   const canOverrideRules = can("ServiceLevels.OverrideRules");
 
-  // Which flow this event runs. A guest always belongs to one event, so the
-  // model is read from that event rather than passed down through every call
-  // site of this modal.
-  const eventForGuest =
-    (guest?.eventId && (events || []).find((e) => e.id === guest.eventId)) || activeEvent;
-  const usesServiceLevels = eventForGuest?.guestModel === "fixed";
+  // Every event uses service levels in v2; the fixed/flexible model only
+  // governs how the level's services must be completed, which is handled on the
+  // guest's Services tab. See docs/service-levels-v2.md.
 
   // Tabs (Add Guest only — editing always goes straight into the "new"
   // wizard on the existing guest). "existing" is a self-contained
@@ -256,6 +256,14 @@ export default function GuestModal({
   const [travel, setTravel] = useState(EMPTY_TRAVEL);
   const [travelLookups, setTravelLookups] = useState({});
 
+  // Service forms live on the catalogue, not on the level's assignment rows, so
+  // the wizard needs the full list to render them.
+  const [servicesCatalog, setServicesCatalog] = useState([]);
+  // Filled in during creation and POSTed once the guest exists:
+  // { [serviceId]: { values, completed } }
+  const [pendingServices, setPendingServices] = useState({});
+  const [openService, setOpenService] = useState(null);
+
   // Reset/prefill whenever the modal opens for a (possibly different) guest —
   // covers switching between two different edit targets and going from edit
   // back to create.
@@ -268,6 +276,8 @@ export default function GuestModal({
     setStep1Errors({});
     setRawTravel(null);
     setMode(initialMode);
+    setPendingServices({});
+    setOpenService(null);
     if (guest?.id) {
       getGuestTravel(guest.id)
         .then(setRawTravel)
@@ -293,7 +303,7 @@ export default function GuestModal({
           guestType: e.guestType,
           organizationId: e.organizationId || null,
           nationalityId: e.nationalityId || null,
-          tier: e.tier,
+          serviceLevelId: e.serviceLevelId || null,
           photoUrl: e.photoUrl ? stripSasToken(e.photoUrl) : null,
           accreditationRequired: !!e.accreditationRequired,
           invitationTemplateId: invitationTemplateId || null,
@@ -337,6 +347,7 @@ export default function GuestModal({
   useEffect(() => {
     if (!open) return;
     getGuestEnums().then(setEnums).catch(() => setEnums({}));
+    getServices(false).then(setServicesCatalog).catch(() => setServicesCatalog([]));
   }, [open]);
 
   useEffect(() => {
@@ -468,7 +479,7 @@ export default function GuestModal({
         nationalityId: form.nationalityId || null,
         // Omitted on a flexible event: the server ignores it there, and
         // sending one would imply an assignment nothing enforces.
-        serviceLevelId: usesServiceLevels ? (form.serviceLevelId || null) : null,
+        serviceLevelId: form.serviceLevelId || null,
         // Only sent when there's actually something to waive, so a stale tick
         // can't record a phantom override on a clean save.
         overrideServiceLevelRules: ruleViolations.length > 0 && form.overrideServiceLevelRules,
@@ -511,6 +522,27 @@ export default function GuestModal({
                 ? "تم حفظ الضيف لكن تعذّر حفظ بيانات السفر"
                 : "Guest saved, but travel details failed to save",
           );
+        }
+      }
+
+      // Services the wizard collected. Sequential on purpose: on a Fixed event
+      // the server rejects a service whose predecessor is not yet complete, so
+      // they have to go in order, and awaiting each keeps that true.
+      if (guestId && !isEdit) {
+        for (const slot of wizardSlots) {
+          const filled = pendingServices[slot.serviceId];
+          if (!filled || Object.keys(filled.values || {}).length === 0) continue;
+          try {
+            await saveGuestServiceEntry(guestId, {
+              serviceId: slot.serviceId,
+              values: filled.values,
+              markCompleted: !!filled.completed,
+            });
+          } catch {
+            toast.error(isAr
+              ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}"`
+              : `Guest saved, but "${slot.name}" could not be saved`);
+          }
         }
       }
 
@@ -582,10 +614,6 @@ export default function GuestModal({
   // as you type instead of only on submit. The backend re-validates on save —
   // this is a convenience, never the enforcement point.
   const ruleViolations = useMemo(() => {
-    // A flexible event enforces nothing. This matters on an event switched from
-    // fixed to flexible: its guests keep their old serviceLevelId, so a level
-    // would still resolve here and its rules would still block the save.
-    if (!usesServiceLevels) return [];
     if (!selectedLevel) return [];
     const out = [];
 
@@ -616,25 +644,40 @@ export default function GuestModal({
     }
 
     return out;
-  }, [usesServiceLevels, selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
+  }, [selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
 
   // Step 2 is named after whichever classifier the event actually uses, so the
   // stepper doesn't promise a Service Level on a flexible event. Steps 2 and 3
   // are labelled for what they actually render ("Sessions, Tier & Accreditation"
   // and "Travel & Stay") rather than the older "Matches & Tier"/"Services".
   const allStepLabels = isAr
-    ? ["المعلومات الشخصية", usesServiceLevels ? "مستوى الخدمة والجلسات" : "التصنيف والجلسات", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", usesServiceLevels ? "Service Level & Sessions" : "Tier & Sessions", "Travel", "Invitation"];
+    ? ["المعلومات الشخصية", "مستوى الخدمة والجلسات", "الخدمات", "الدعوة"]
+    : ["Personal Info", "Service Level & Sessions", "Services", "Invitation"];
   // Mapped through activeSteps (from main) because the wizard can now skip
   // steps — the label list is no longer a fixed 1:1 with what's rendered.
   const stepLabels = activeSteps.map((s) => allStepLabels[s - 1]);
+
+  // The level's services, joined to their form schemas, in completion order.
+  const wizardSlots = useMemo(() => {
+    const byId = new Map((servicesCatalog || []).map((x) => [x.id, x]));
+    return (selectedLevel?.services || []).map((a) => ({
+      ...a,
+      form: byId.get(a.serviceId)?.form || { sections: [] },
+    }));
+  }, [selectedLevel, servicesCatalog]);
+
+  // On a Fixed event the order is a rule, so the wizard mirrors the server's
+  // gate locally — nothing is saved yet, but you still cannot fill service 2
+  // before service 1.
+  const isFixedEvent = activeEvent?.guestModel === "fixed";
+  const firstIncomplete = wizardSlots.findIndex((x) => !pendingServices[x.serviceId]?.completed);
 
   const inputStyle = {
     width: "100%",
     background: "var(--surface-soft-3)",
     border: "1px solid var(--glass-border)",
     borderRadius: 8,
-    padding: "9px 12px",
+    padding: "7px 12px",
     color: "var(--ink)",
     fontSize: 13,
   };
@@ -1129,21 +1172,9 @@ export default function GuestModal({
                 </div>
                 <div>
                   <SectionLabel>
-                    {usesServiceLevels
-                      ? (isAr ? "مستوى الخدمة" : "Service Level")
-                      : (isAr ? "التصنيف" : "Tier")}
+                    {isAr ? "مستوى الخدمة" : "Service Level"}
                   </SectionLabel>
-                  {/* A flexible event has no service levels, so it gets the
-                      original tier picker back: a plain label with no bundled
-                      services, no capacity and no required-field rules. */}
-                  {!usesServiceLevels ? (
-                    <LegacyTierPicker
-                      value={form.tier}
-                      onChange={(v) => setF("tier", v)}
-                      isAr={isAr}
-                      options={enums?.GuestTier}
-                    />
-                  ) : (serviceLevels || []).length === 0 ? (
+                  {(serviceLevels || []).length === 0 ? (
                     <div style={{
                       padding: "12px 14px", borderRadius: 10, fontSize: 12.5, color: "#e0c47e",
                       background: "rgba(224,196,126,0.12)", border: "1px solid rgba(224,196,126,0.4)",
@@ -1210,11 +1241,13 @@ export default function GuestModal({
                             {isAr ? "يشمل" : "Includes"}
                           </div>
                           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                            {selectedLevel.services.map((s) => (
-                              <span key={s.serviceId} className="chip" style={{ fontSize: 10.5 }}>
-                                <Icon name="check" size={10} style={{ color: "#5abf6e" }} />
-                                {(isAr ? s.serviceNameAr : null) || s.serviceName}
-                              </span>
+                            {selectedLevel.services.map((s, i) => (
+                              <React.Fragment key={s.serviceId}>
+                                {i > 0 && <Icon name="chevronRight" size={10} style={{ color: "var(--ink-faint)" }} />}
+                                <span className="chip" style={{ fontSize: 10.5 }}>
+                                  {(isAr ? s.nameAr : null) || s.name}
+                                </span>
+                              </React.Fragment>
                             ))}
                           </div>
                         </div>
@@ -1317,20 +1350,157 @@ export default function GuestModal({
               </>
             )}
 
-            {/* STEP 3 — Travel & Stay */}
+            {/* STEP 3 — Services from the guest's level */}
             {showWizard && step === 3 && (
               <>
-                <TravelAccordion
-                  travel={travel}
-                  onChange={setTravel}
-                  lookups={travelLookups}
-                  isAr={isAr}
-                  dateMinDate={dateWindowMin}
-                  dateMaxDate={dateWindowMax}
-                  eventMinDate={eventStartDate}
-                  eventMaxDate={eventEndDate}
-                  eventId={activeEventId}
-                />
+                {isEdit && guest?.id ? (
+                  // The guest exists, so entries can be saved against them here.
+                  <GuestServicesPanel guestId={guest.id} lang={lang}
+                    eventStart={eventStartDate} eventEnd={eventEndDate} />
+                ) : !selectedLevel ? (
+                  <div className="alert alert-info" style={{ fontSize: 12.5 }}>
+                    <Icon name="alert" size={14} />
+                    <div>
+                      {isAr
+                        ? "اختر مستوى خدمة في الخطوة السابقة لعرض الخدمات."
+                        : "Pick a service level on the previous step to see its services."}
+                    </div>
+                  </div>
+                ) : wizardSlots.length === 0 ? (
+                  <div className="alert alert-warn" style={{ fontSize: 12.5 }}>
+                    <Icon name="alert" size={14} />
+                    <div>
+                      {isAr
+                        ? `لا توجد خدمات مُسنَدة إلى "${selectedLevel.name}" بعد.`
+                        : `No services are assigned to "${selectedLevel.name}" yet. Add some on the Service Levels page.`}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
+                      {isFixedEvent
+                        ? (isAr
+                          ? "أكمل الخدمات بالترتيب. يمكنك تخطّيها الآن وإضافتها لاحقاً من زر الحجز الجديد."
+                          : "Complete these in order. You can also skip them now and add them later from New Booking.")
+                        : (isAr
+                          ? "كل الخدمات اختيارية — املأ ما تحتاجه الآن أو أضفه لاحقاً."
+                          : "All optional — fill in what you need now, or add them later.")}
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {wizardSlots.map((slot, i) => {
+                        const filled = pendingServices[slot.serviceId];
+                        const done = !!filled?.completed;
+                        // Mirrors the server's gate: on a Fixed event only the
+                        // first unfinished service is open.
+                        const locked = isFixedEvent && firstIncomplete !== -1 && i > firstIncomplete;
+                        const expanded = openService === slot.serviceId;
+
+                        return (
+                          <div key={slot.serviceId} style={{
+                            borderRadius: 10,
+                            border: `1px solid ${expanded ? "var(--accent)" : "var(--glass-border)"}`,
+                            background: "var(--surface-soft-2)",
+                            opacity: locked ? 0.55 : 1,
+                            overflow: "hidden",
+                          }}>
+                            <div
+                              onClick={() => !locked && setOpenService(expanded ? null : slot.serviceId)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 9, padding: "10px 12px",
+                                cursor: locked ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              <span style={{
+                                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                                display: "grid", placeItems: "center", fontSize: 10.5, fontWeight: 700,
+                                background: done ? "var(--ok)" : "var(--surface-soft-4)",
+                                color: done ? "#fff" : "var(--ink-mute)",
+                              }}>
+                                {done ? <Icon name="check" size={11} /> : i + 1}
+                              </span>
+                              {slot.icon && <Icon name={slot.icon} size={14} style={{ color: "var(--accent)" }} />}
+                              <span style={{ fontSize: 13, fontWeight: 550, flex: 1 }}>
+                                {(isAr ? slot.nameAr : null) || slot.name}
+                              </span>
+                              <span className={`chip ${done ? "confirmed" : "draft"}`} style={{ fontSize: 10.5 }}>
+                                {done
+                                  ? (isAr ? "مكتمل" : "Completed")
+                                  : locked
+                                    ? (isAr ? "مقفل" : "Locked")
+                                    : (isAr ? "قيد الانتظار" : "Pending")}
+                              </span>
+                              {!locked && (
+                                <Icon name={expanded ? "chevronDown" : "chevronRight"} size={13}
+                                  style={{ color: "var(--ink-mute)" }} />
+                              )}
+                            </div>
+
+                            {locked && (
+                              <div style={{ fontSize: 11, color: "var(--ink-faint)", padding: "0 12px 10px 41px" }}>
+                                {isAr
+                                  ? `أكمل "${wizardSlots[firstIncomplete]?.name}" أولاً.`
+                                  : `Complete "${wizardSlots[firstIncomplete]?.name}" first.`}
+                              </div>
+                            )}
+
+                            {expanded && !locked && (
+                              <div style={{ padding: "12px", borderTop: "1px solid var(--glass-border)" }}>
+                                <DynamicFormInputs
+                                  eventStart={eventStartDate}
+                                  eventEnd={eventEndDate}
+                                  form={slot.form}
+                                  values={filled?.values || {}}
+                                  onChange={(vals) => setPendingServices((prev) => ({
+                                    ...prev,
+                                    [slot.serviceId]: { ...(prev[slot.serviceId] || {}), values: vals },
+                                  }))}
+                                  lang={lang}
+                                />
+                                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => {
+                                      setPendingServices((prev) => ({
+                                        ...prev,
+                                        [slot.serviceId]: { values: {}, completed: false },
+                                      }));
+                                      setOpenService(null);
+                                    }}
+                                  >
+                                    {isAr ? "مسح" : "Clear"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn primary"
+                                    onClick={() => {
+                                      const vals = pendingServices[slot.serviceId]?.values || {};
+                                      const missing = missingRequired(slot.form, vals);
+                                      if (missing.length > 0) {
+                                        toast.warning(isAr
+                                          ? `أكمل: ${missing.join("، ")}`
+                                          : `Fill in ${missing.join(", ")} first`);
+                                        return;
+                                      }
+                                      setPendingServices((prev) => ({
+                                        ...prev,
+                                        [slot.serviceId]: { values: vals, completed: true },
+                                      }));
+                                      setOpenService(null);
+                                    }}
+                                  >
+                                    <Icon name="check" size={13} /> {isAr ? "تم" : "Done"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </>
             )}
 

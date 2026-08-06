@@ -3,6 +3,7 @@ import { Icon } from '../../../components/Icons';
 import { Avatar, StatusChip } from '../../../components/UI';
 import Select from '../../../components/ui/Select';
 import { getGuestsFromOtherEvents } from '../../../api/services/guestService';
+import { getServiceLevels } from '../../../api/services/serviceCatalogService';
 
 const rowKey = (row) => `${row.id}::${row.eventId}`;
 
@@ -37,7 +38,8 @@ export default function ExistingGuestPicker({
   const [totalCount, setTotalCount] = useState(0);
 
   const [selected, setSelected] = useState(new Set());
-  const [rowTier, setRowTier] = useState({});
+  const [rowLevel, setRowLevel] = useState({});
+  const [levels, setLevels] = useState([]);
   const [rowSessions, setRowSessions] = useState(new Map()); // key -> Set<sessionId>
   const [rowAccred, setRowAccred] = useState(new Map()); // key -> bool
 
@@ -66,9 +68,15 @@ export default function ExistingGuestPicker({
     return () => { cancelled = true; clearTimeout(debounce); };
   }, [activeEventId, search, pageNumber]);
 
-  const tierOpts = useMemo(
-    () => (enums?.GuestTier || []).map((t) => ({ value: t.code, label: t.name })),
-    [enums],
+  // Service levels replace the old free-text Tier column — a guest is placed
+  // on a real level, the same as the New Guest wizard, rather than a string.
+  useEffect(() => {
+    getServiceLevels(false).then(setLevels).catch(() => setLevels([]));
+  }, []);
+
+  const levelOpts = useMemo(
+    () => (levels || []).map((l) => ({ value: l.id, label: (isAr ? l.nameAr : null) || l.name })),
+    [levels, isAr],
   );
 
   const allVisibleSelected = rows.length > 0 && rows.every((r) => selected.has(rowKey(r)));
@@ -154,7 +162,7 @@ export default function ExistingGuestPicker({
         organizationId: row.organizationId,
         nationalityId: row.nationalityId,
         photoUrl: row.photoUrl,
-        tier: rowTier[key] ?? row.tier ?? tierOpts[0]?.value,
+        serviceLevelId: rowLevel[key] ?? row.serviceLevelId ?? null,
         sessionIds: Array.from(rowSessions.get(key) || []),
         accreditationRequired: !!rowAccred.get(key),
       };
@@ -258,7 +266,7 @@ export default function ExistingGuestPicker({
                 <input type="checkbox" style={checkboxStyle} checked={allVisibleSelected} onChange={toggleAllVisible}/>
               </th>
               <th style={thStyle}>{isAr ? 'الضيف' : 'Guest'}</th>
-              <th style={{ ...thStyle, width: 150 }}>{isAr ? 'الفئة' : 'Tier'}</th>
+              <th style={{ ...thStyle, width: 170 }}>{isAr ? 'مستوى الخدمة' : 'Service Level'}</th>
               {/* <th style={thStyle}>{isAr ? 'الجنسية' : 'Nationality'}</th>
               <th style={thStyle}>{isAr ? 'الدعوة' : 'Invite'}</th> */}
               <th style={{ ...thStyle, textAlign: 'center' }}>
@@ -314,10 +322,12 @@ export default function ExistingGuestPicker({
                   </td>
                   <td style={{ padding: '4px 10px' }}>
                     <Select
-                      value={rowTier[key] ?? g.tier}
-                      onChange={(v) => setRowTier((p) => ({ ...p, [key]: v }))}
-                      options={tierOpts}
+                      value={rowLevel[key] ?? g.serviceLevelId ?? ''}
+                      onChange={(v) => setRowLevel((p) => ({ ...p, [key]: v || null }))}
+                      options={levelOpts}
+                      isClearable
                       isDisabled={!isSel}
+                      placeholder={isAr ? '— بدون —' : '— None —'}
                     />
                   </td>
                   {/* <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>

@@ -80,17 +80,21 @@ export const ENDPOINTS = {
     base: '/v1/nationality',
   },
 
-  // Per-event service catalog + the guest grades built from it (replaces the old
-  // hardcoded 6-value tier list). Nested under the event because neither is
-  // global — event A's catalog is independent of event B's.
+  // Service catalogue + the guest grades built from it. Global in v2: a service
+  // and a level are defined once and available to every event, Fixed or
+  // Flexible. See docs/service-levels-v2.md.
   services: {
-    base: (eventId) => `/v1/events/${eventId}/services`,
-    byId: (eventId, id) => `/v1/events/${eventId}/services/${id}`,
+    base: '/v1/services',
+    byId: (id) => `/v1/services/${id}`,
+    entries: (id) => `/v1/services/${id}/entries`,
   },
   serviceLevels: {
-    base: (eventId) => `/v1/events/${eventId}/service-levels`,
-    byId: (eventId, id) => `/v1/events/${eventId}/service-levels/${id}`,
-    ruleCheck: (eventId, id) => `/v1/events/${eventId}/service-levels/${id}/rule-check`,
+    base: '/v1/service-levels',
+    byId: (id) => `/v1/service-levels/${id}`,
+  },
+  guestServices: {
+    base: (guestId) => `/v1/guests/${guestId}/services`,
+    entry: (guestId, entryId) => `/v1/guests/${guestId}/services/${entryId}`,
   },
 
   // Reads are open to any signed-in user (so any module can fill an org

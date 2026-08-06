@@ -9,14 +9,17 @@ import { Icon } from '../components/Icons';
 import Modal from '../components/ui/Modal';
 import DataTable from '../components/ui/DataTable';
 import ActionMenu from '../components/ui/ActionMenu';
-import { FieldSchemaBuilder, keyFromLabel } from '../components/ui/DynamicFields';
+import { FormSchemaBuilder, keyFromLabel, allFormFields } from '../components/ui/DynamicFields';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
 import {
   getServices, createService, updateService, deleteService,
 } from '../api/services/serviceCatalogService';
 
-const EMPTY_FORM = { name: '', nameAr: '', description: '', sortOrder: 0, fields: [] };
+const EMPTY_FORM = {
+  name: '', nameAr: '', description: '', icon: '', sortOrder: 0, isActive: true,
+  form: { sections: [] },
+};
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -78,7 +81,7 @@ export default function ServicesView({ lang, activeEventId }) {
   const load = useCallback(async () => {
     if (!activeEventId) { setRows([]); return; }
     setLoading(true);
-    try { setRows((await getServices(activeEventId)) || []); }
+    try { setRows((await getServices(true)) || []); }
     catch { setRows([]); }
     finally { setLoading(false); }
   }, [activeEventId]);
@@ -103,8 +106,13 @@ export default function ServicesView({ lang, activeEventId }) {
       name: row.name || '',
       nameAr: row.nameAr || '',
       description: row.description || '',
+      icon: row.icon || '',
       sortOrder: row.sortOrder ?? 0,
-      fields: (row.fields || []).map((f) => ({ ...f, options: f.options || [] })),
+      isActive: row.isActive !== false,
+      form: { sections: (row.form?.sections || []).map((sec) => ({
+        ...sec,
+        fields: (sec.fields || []).map((f) => ({ ...f, options: f.options || [] })),
+      })) },
     });
     setErrors({});
     setShowForm(true);
@@ -114,16 +122,37 @@ export default function ServicesView({ lang, activeEventId }) {
     const errs = {};
     if (!form.name.trim()) errs.name = isAr ? 'الاسم مطلوب' : 'Name is required';
 
-    // Mirror the backend's field validation so the user sees it inline rather
-    // than as a generic API error.
-    const fields = (form.fields || []).map((f) => ({
-      ...f,
-      key: (f.key || keyFromLabel(f.label)).trim(),
-      label: (f.label || '').trim(),
+    // Mirrors ServiceFormSchema.ValidateForm so the user sees the problem
+    // inline instead of as a generic API error.
+    const sections = (form.form?.sections || []).map((sec) => ({
+      ...sec,
+      key: (sec.key || keyFromLabel(sec.label) || '').trim(),
+      label: (sec.label || '').trim(),
+      fields: (sec.fields || []).map((f) => ({
+        ...f,
+        key: (f.key || keyFromLabel(f.label)).trim(),
+        label: (f.label || '').trim(),
+      })),
     }));
 
+    if (sections.length === 0) {
+      errs.fields = isAr ? 'أضف قسماً واحداً على الأقل' : 'Add at least one section';
+    }
+
+    const namelessSection = sections.find((sec) => !sec.label);
+    if (!errs.fields && namelessSection)
+      errs.fields = isAr ? 'كل قسم يحتاج اسماً' : 'Every section needs a name';
+
+    const emptySection = sections.find((sec) => sec.fields.length === 0);
+    if (!errs.fields && emptySection)
+      errs.fields = isAr
+        ? `القسم "${emptySection.label}" لا يحتوي على حقول`
+        : `Section "${emptySection.label}" has no fields`;
+
+    const fields = sections.flatMap((sec) => sec.fields);
+
     const badField = fields.find((f) => !f.key || !f.label);
-    if (badField) errs.fields = isAr ? 'كل حقل يحتاج تسمية' : 'Every field needs a label';
+    if (!errs.fields && badField) errs.fields = isAr ? 'كل حقل يحتاج تسمية' : 'Every field needs a label';
 
     const emptySelect = fields.find((f) => f.type === 'select' && (f.options || []).length === 0);
     if (!errs.fields && emptySelect)
@@ -131,10 +160,14 @@ export default function ServicesView({ lang, activeEventId }) {
         ? `الحقل "${emptySelect.label}" قائمة — يحتاج خياراً واحداً على الأقل`
         : `"${emptySelect.label}" is a dropdown, so it needs at least one option`;
 
+    // Unique across the whole form, not per section: values are stored flat, so
+    // two sections sharing a key would overwrite each other.
     const keys = fields.map((f) => f.key.toLowerCase());
     const dupe = keys.find((k, i) => keys.indexOf(k) !== i);
     if (!errs.fields && dupe)
-      errs.fields = isAr ? `مُعرِّف مكرر "${dupe}"` : `Duplicate field key "${dupe}"`;
+      errs.fields = isAr
+        ? `مُعرِّف مكرر "${dupe}" — يجب أن تكون المعرفات فريدة في النموذج كله`
+        : `Duplicate field key "${dupe}" — keys must be unique across the whole form`;
 
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
@@ -142,17 +175,19 @@ export default function ServicesView({ lang, activeEventId }) {
       name: form.name.trim(),
       nameAr: form.nameAr.trim() || null,
       description: form.description.trim() || null,
+      icon: form.icon?.trim() || null,
       sortOrder: Number(form.sortOrder) || 0,
-      fields,
+      isActive: form.isActive !== false,
+      form: { sections },
     };
 
     setSaving(true);
     try {
       if (editing) {
-        await updateService(activeEventId, editing.id, body);
+        await updateService(editing.id, body);
         toast.success(isAr ? 'تم التحديث' : 'Service updated');
       } else {
-        await createService(activeEventId, body);
+        await createService(body);
         toast.success(isAr ? 'تمت الإضافة' : 'Service added');
       }
       setShowForm(false);
@@ -167,7 +202,7 @@ export default function ServicesView({ lang, activeEventId }) {
   async function handleDelete() {
     setDeleting(true);
     try {
-      const res = await deleteService(activeEventId, toDelete.id);
+      const res = await deleteService(toDelete.id);
       toast.success(res?.message || (isAr ? 'تم الحذف' : 'Service deleted'));
       setToDelete(null);
       load();
@@ -196,7 +231,7 @@ export default function ServicesView({ lang, activeEventId }) {
       {
         id: 'fields', header: STR.fields, enableSorting: false,
         cell: ({ row: { original: r } }) => {
-          const fields = r.fields || [];
+          const fields = allFormFields(r.form);
           if (fields.length === 0)
             return <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>{STR.noFields}</span>;
           return (
@@ -325,9 +360,9 @@ export default function ServicesView({ lang, activeEventId }) {
           {errors.fields && (
             <div style={{ fontSize: 11.5, color: '#e05050', marginBottom: 8 }}>{errors.fields}</div>
           )}
-          <FieldSchemaBuilder
-            fields={form.fields}
-            onChange={(fields) => setF('fields', fields)}
+          <FormSchemaBuilder
+            form={form.form}
+            onChange={(next) => setF('form', next)}
             lang={lang}
           />
         </div>

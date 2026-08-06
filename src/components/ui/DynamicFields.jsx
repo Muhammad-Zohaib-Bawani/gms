@@ -1,20 +1,33 @@
-// Two halves of the dynamic-field story for the per-event Services catalog:
+// The dynamic-form story for the global Services catalogue.
 //
-//   <FieldSchemaBuilder>  — admin DEFINES a service's fields (key/label/type/…)
-//   <DynamicFieldInputs>  — someone FILLS those fields in (on a Service Level)
+//   <FormSchemaBuilder>   — admin DEFINES a service's form (sections of fields)
+//   <DynamicFormInputs>   — someone FILLS that form in, for a guest
 //
-// Field definition shape matches Core.Constants.ServiceFieldDefinition exactly:
-//   { key, label, labelAr, type, required, options[] }
+// The two inner pieces (<FieldSchemaBuilder>, <DynamicFieldInputs>) handle one
+// section's worth of fields and are exported for reuse.
+//
+// Shapes mirror Core.Constants exactly:
+//   form  { sections: [{ key, label, labelAr, fields: [...] }] }
+//   field { key, label, labelAr, type, required, placeholder, helpText,
+//           options: [{ value, label, labelAr }] }
+//
+// Field keys are unique across the WHOLE form, not per section, because values
+// are stored as one flat { key: value } map. See docs/service-levels-v2.md.
 import React from 'react';
 import { Icon } from '../Icons';
 import Select from './Select';
 import DateField from './DateField';
+import { LOOKUP_SOURCE_KEYS, lookupSourceLabel, loadLookupOptions } from './lookupSources';
 
-export const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'select', 'checkbox'];
+export const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'datetime', 'time', 'select', 'lookup', 'checkbox'];
 
 const TYPE_LABELS = {
-  en: { text: 'Text', textarea: 'Long text', number: 'Number', date: 'Date', select: 'Dropdown', checkbox: 'Yes / No' },
-  ar: { text: 'نص', textarea: 'نص طويل', number: 'رقم', date: 'تاريخ', select: 'قائمة', checkbox: 'نعم / لا' },
+  en: { text: 'Text', textarea: 'Long text', number: 'Number', date: 'Date',
+        datetime: 'Date & time', time: 'Time', select: 'Dropdown (fixed list)',
+        lookup: 'Dropdown (from existing data)', checkbox: 'Yes / No' },
+  ar: { text: 'نص', textarea: 'نص طويل', number: 'رقم', date: 'تاريخ',
+        datetime: 'تاريخ ووقت', time: 'وقت', select: 'قائمة ثابتة',
+        lookup: 'قائمة من البيانات', checkbox: 'نعم / لا' },
 };
 
 const inputStyle = {
@@ -34,6 +47,82 @@ export function keyFromLabel(label) {
   const words = (label || '').trim().toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   if (words.length === 0) return '';
   return words[0] + words.slice(1).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+}
+
+
+// ─── Constraints ─────────────────────────────────────────────────────────────
+// Mirrors ServiceFormSchema.ConstraintErrors on the server, which re-checks
+// every one of these on save. Here they exist to fail early and in place.
+
+function toDateOrNull(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** min/max the calendar should enforce for a date field. */
+export function dateBounds(field, values, eventStart, eventEnd) {
+  if (field.type !== 'date' && field.type !== 'datetime') return {};
+  const out = {};
+  if (field.withinEventDates) {
+    out.min = eventStart || undefined;
+    out.max = eventEnd || undefined;
+  }
+  // "after X" narrows the floor further — you cannot land before you took off.
+  if (field.afterField) {
+    const other = toDateOrNull((values || {})[field.afterField]);
+    if (other) {
+      const iso = field.type === 'datetime' ? other.toISOString().slice(0, 16) : other.toISOString().slice(0, 10);
+      if (!out.min || iso > out.min) out.min = iso;
+    }
+  }
+  return out;
+}
+
+/** One message for a single field, or null. */
+export function fieldError(field, values, eventStart, eventEnd) {
+  const v = values || {};
+  const raw = v[field.key];
+  if (raw == null || String(raw).trim() === '') return null;
+
+  if (field.type === 'number') {
+    const n = Number(raw);
+    if (Number.isNaN(n)) return 'Must be a number';
+    if (field.min != null && n < field.min) return `Must be at least ${field.min}`;
+    if (field.max != null && n > field.max) return `Must be at most ${field.max}`;
+  }
+
+  if (field.type === 'text' || field.type === 'textarea') {
+    const len = String(raw).trim().length;
+    if (field.minLength && len < field.minLength) return `At least ${field.minLength} characters`;
+    if (field.maxLength && len > field.maxLength) return `At most ${field.maxLength} characters`;
+  }
+
+  if (field.type === 'date' || field.type === 'datetime') {
+    const when = toDateOrNull(raw);
+    if (!when) return 'Not a valid date';
+    if (field.afterField) {
+      const other = toDateOrNull(v[field.afterField]);
+      if (other && when < other) return 'Must be later than the previous date';
+    }
+    if (field.withinEventDates) {
+      if (eventStart && toDateOrNull(eventStart) && when < toDateOrNull(eventStart)) return 'Before the event starts';
+      if (eventEnd && toDateOrNull(eventEnd) && when > new Date(`${eventEnd}T23:59:59`)) return 'After the event ends';
+    }
+  }
+
+  return null;
+}
+
+/** Every constraint message across the visible sections. */
+export function formErrors(form, values, eventStart, eventEnd) {
+  return visibleSections(form, values)
+    .flatMap((s) => s.fields || [])
+    .map((f) => {
+      const e = fieldError(f, values, eventStart, eventEnd);
+      return e ? `${f.label || f.key}: ${e}` : null;
+    })
+    .filter(Boolean);
 }
 
 // ─── Admin: define a service's fields ────────────────────────────────────────
@@ -114,7 +203,11 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
               <label style={labelStyle}>{isAr ? 'النوع' : 'Type'}</label>
               <Select
                 value={f.type || 'text'}
-                onChange={(v) => update(i, { type: v || 'text', options: v === 'select' ? (f.options || []) : [] })}
+                onChange={(v) => update(i, {
+                  type: v || 'text',
+                  options: v === 'select' ? (f.options || []) : [],
+                  sourceKey: v === 'lookup' ? (f.sourceKey || '') : null,
+                })}
                 options={FIELD_TYPES.map((t) => ({ value: t, label: types[t] }))}
               />
             </div>
@@ -134,16 +227,100 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
             </div>
           </div>
 
+          {f.type === 'lookup' && (
+            <div>
+              <label style={labelStyle}>{isAr ? 'المصدر' : 'Options from'} *</label>
+              <select
+                style={{ ...inputStyle, padding: '7px 10px' }}
+                value={f.sourceKey || ''}
+                onChange={(e) => update(i, { sourceKey: e.target.value })}
+              >
+                <option value="">{isAr ? '— اختر —' : '— Select —'}</option>
+                {LOOKUP_SOURCE_KEYS.map((k) => (
+                  <option key={k} value={k}>{lookupSourceLabel(k, isAr)}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginTop: 4 }}>
+                {isAr
+                  ? 'تُحفظ القيمة كمعرّف، لذا لا تتأثر الحجوزات عند إعادة التسمية.'
+                  : 'Stores the record\'s id, so renaming it later will not affect saved bookings.'}
+              </div>
+            </div>
+          )}
+
           {f.type === 'select' && (
             <div>
               <label style={labelStyle}>{isAr ? 'الخيارات (سطر لكل خيار)' : 'Options (one per line)'} *</label>
               <textarea
                 rows={3}
                 style={{ ...inputStyle, resize: 'vertical' }}
-                value={(f.options || []).join('\n')}
+                // Typed as one label per line; stored as {value,label} objects so a
+                // later label edit never orphans values already saved against it.
+                value={(f.options || []).map((o) => o.label ?? o.value ?? '').join('\n')}
                 placeholder={isAr ? 'سيدان\nليموزين' : 'Sedan\nLimousine'}
-                onChange={(e) => update(i, { options: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
+                onChange={(e) => update(i, {
+                  options: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean)
+                    .map((label) => (f.options || []).find((o) => o.label === label)
+                                    || { value: keyFromLabel(label) || label, label }),
+                })}
               />
+            </div>
+          )}
+
+          {/* Optional rules. Kept to a short fixed list on purpose — each is one
+              control that produces a sentence the person filling the form can
+              act on, rather than an expression language nobody will maintain. */}
+          {(f.type === 'number') && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div>
+                <label style={labelStyle}>{isAr ? 'أقل قيمة' : 'Min value'}</label>
+                <input type="number" style={inputStyle} value={f.min ?? ''}
+                  onChange={(e) => update(i, { min: e.target.value === '' ? null : Number(e.target.value) })} />
+              </div>
+              <div>
+                <label style={labelStyle}>{isAr ? 'أكبر قيمة' : 'Max value'}</label>
+                <input type="number" style={inputStyle} value={f.max ?? ''}
+                  onChange={(e) => update(i, { max: e.target.value === '' ? null : Number(e.target.value) })} />
+              </div>
+            </div>
+          )}
+
+          {(f.type === 'text' || f.type === 'textarea') && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div>
+                <label style={labelStyle}>{isAr ? 'أقل عدد أحرف' : 'Min length'}</label>
+                <input type="number" style={inputStyle} value={f.minLength ?? ''}
+                  onChange={(e) => update(i, { minLength: e.target.value === '' ? null : Number(e.target.value) })} />
+              </div>
+              <div>
+                <label style={labelStyle}>{isAr ? 'أكبر عدد أحرف' : 'Max length'}</label>
+                <input type="number" style={inputStyle} value={f.maxLength ?? ''}
+                  onChange={(e) => update(i, { maxLength: e.target.value === '' ? null : Number(e.target.value) })} />
+              </div>
+            </div>
+          )}
+
+          {(f.type === 'date' || f.type === 'datetime') && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div>
+                <label style={labelStyle}>{isAr ? 'يجب أن يكون بعد' : 'Must be after'}</label>
+                <select
+                  style={{ ...inputStyle, padding: '7px 10px' }}
+                  value={f.afterField || ''}
+                  onChange={(e) => update(i, { afterField: e.target.value || null })}
+                >
+                  <option value="">{isAr ? '— لا شيء —' : '— No rule —'}</option>
+                  {list
+                    .filter((o, oi) => oi !== i && (o.type === 'date' || o.type === 'datetime') && o.key)
+                    .map((o) => <option key={o.key} value={o.key}>{o.label || o.key}</option>)}
+                </select>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, cursor: 'pointer', paddingTop: 18 }}>
+                <input type="checkbox" checked={!!f.withinEventDates}
+                  onChange={(e) => update(i, { withinEventDates: e.target.checked })}
+                  style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                {isAr ? 'ضمن تواريخ الفعالية' : 'Within event dates'}
+              </label>
             </div>
           )}
 
@@ -165,7 +342,7 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
 
 // ─── Fill in the values for a set of field definitions ───────────────────────
 
-export function DynamicFieldInputs({ fields, values, onChange, lang }) {
+export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart, eventEnd }) {
   const isAr = lang === 'ar';
   const list = fields || [];
   const v = values || {};
@@ -185,6 +362,10 @@ export function DynamicFieldInputs({ fields, values, onChange, lang }) {
       {list.map((f) => {
         const label = (isAr ? f.labelAr : null) || f.label || f.key;
         const val = v[f.key] ?? '';
+        // The calendar itself refuses out-of-range days, so a bad date is
+        // usually unpickable rather than merely rejected after the fact.
+        const bounds = dateBounds(f, v, eventStart, eventEnd);
+        const err = fieldError(f, v, eventStart, eventEnd);
         return (
           <div key={f.key}>
             <label style={labelStyle}>{label}{f.required ? ' *' : ''}</label>
@@ -194,18 +375,49 @@ export function DynamicFieldInputs({ fields, values, onChange, lang }) {
                 onChange={(e) => set(f.key, e.target.value)} />
             )}
 
+            {f.type === 'lookup' && (
+              <LookupSelect
+                field={f}
+                value={val}
+                onChange={(x) => set(f.key, x || '')}
+                isAr={isAr}
+              />
+            )}
+
             {f.type === 'select' && (
               <Select
                 value={val}
                 onChange={(x) => set(f.key, x || '')}
-                options={(f.options || []).map((o) => ({ value: o, label: o }))}
+                options={(f.options || []).map((o) => ({ value: o.value, label: (isAr ? o.labelAr : null) || o.label || o.value }))}
                 placeholder={isAr ? '— اختر —' : '— Select —'}
                 isClearable={!f.required}
               />
             )}
 
             {f.type === 'date' && (
-              <DateField value={val} onChange={(d) => set(f.key, d || '')} />
+              <DateField
+                value={val}
+                onChange={(d) => set(f.key, d || '')}
+                clearable={!f.required}
+                minDate={bounds.min}
+                maxDate={bounds.max}
+              />
+            )}
+
+            {f.type === 'datetime' && (
+              <DateField
+                value={val}
+                onChange={(d) => set(f.key, d || '')}
+                showTime
+                clearable={!f.required}
+                minDate={bounds.min}
+                maxDate={bounds.max}
+              />
+            )}
+
+            {f.type === 'time' && (
+              <input type="time" style={inputStyle} value={val}
+                onChange={(e) => set(f.key, e.target.value)} />
             )}
 
             {f.type === 'checkbox' && (
@@ -220,14 +432,307 @@ export function DynamicFieldInputs({ fields, values, onChange, lang }) {
             {(f.type === 'text' || f.type === 'number' || !f.type) && (
               <input
                 type={f.type === 'number' ? 'number' : 'text'}
-                style={inputStyle}
+                style={err ? { ...inputStyle, borderColor: 'var(--danger)' } : inputStyle}
                 value={val}
+                min={f.type === 'number' && f.min != null ? f.min : undefined}
+                max={f.type === 'number' && f.max != null ? f.max : undefined}
+                maxLength={f.maxLength || undefined}
+                placeholder={f.placeholder || undefined}
                 onChange={(e) => set(f.key, e.target.value)}
               />
+            )}
+
+            {(f.helpText || err) && (
+              <div style={{ fontSize: 10.5, marginTop: 4, color: err ? 'var(--danger)' : 'var(--ink-faint)' }}>
+                {err || f.helpText}
+              </div>
             )}
           </div>
         );
       })}
     </div>
   );
+}
+
+
+/**
+ * A dropdown backed by an existing lookup table. Options are fetched once per
+ * source and shared across fields (From and To are both airports), so a form
+ * with several lookup fields still makes one request per table.
+ */
+function LookupSelect({ field, value, onChange, isAr }) {
+  const [options, setOptions] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!field.sourceKey) return;
+    let cancelled = false;
+    setLoading(true);
+    loadLookupOptions(field.sourceKey)
+      .then((o) => { if (!cancelled) setOptions(o); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [field.sourceKey]);
+
+  if (!field.sourceKey) {
+    return (
+      <div style={{ fontSize: 11.5, color: 'var(--danger)' }}>
+        {isAr ? 'لم يتم ضبط مصدر لهذا الحقل' : 'No source configured for this field'}
+      </div>
+    );
+  }
+
+  return (
+    <Select
+      value={value}
+      onChange={(x) => onChange(x || '')}
+      options={options}
+      isClearable={!field.required}
+      placeholder={loading
+        ? (isAr ? 'جارٍ التحميل…' : 'Loading…')
+        : (isAr ? '— اختر —' : '— Select —')}
+    />
+  );
+}
+
+// ─── Admin: define a whole form, as sections of fields ───────────────────────
+
+/**
+ * `form` is { sections: [...] }. A service always has at least one section;
+ * single-section forms render without visible section chrome so a simple
+ * service does not look bureaucratic.
+ */
+export function FormSchemaBuilder({ form, onChange, lang }) {
+  const isAr = lang === 'ar';
+  const sections = form?.sections?.length ? form.sections : [];
+
+  const setSections = (next) => onChange({ ...(form || {}), sections: next });
+
+  const updateSection = (i, patch) =>
+    setSections(sections.map((sec, idx) => (idx === i ? { ...sec, ...patch } : sec)));
+
+  const addSection = () =>
+    setSections([...sections, { key: `section${sections.length + 1}`, label: '', labelAr: '', fields: [] }]);
+
+  const removeSection = (i) => setSections(sections.filter((_, idx) => idx !== i));
+
+  const moveSection = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= sections.length) return;
+    const next = [...sections];
+    [next[i], next[j]] = [next[j], next[i]];
+    setSections(next);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {sections.length === 0 && (
+        <div style={{
+          padding: '14px 16px', borderRadius: 10, fontSize: 12.5, color: 'var(--ink-mute)',
+          border: '1px dashed var(--glass-border)', textAlign: 'center',
+        }}>
+          {isAr
+            ? 'لا يوجد نموذج بعد — أضف قسماً للبدء.'
+            : 'No form yet — add a section to start.'}
+        </div>
+      )}
+
+      {sections.map((sec, i) => (
+        <div key={i} style={{
+          border: '1px solid var(--glass-border)', borderRadius: 12, padding: 12,
+          background: 'var(--surface-soft-2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <input
+              style={{ ...inputStyle, fontWeight: 600, flex: 1 }}
+              value={sec.label || ''}
+              placeholder={isAr ? 'اسم القسم، مثل: الذهاب' : 'Section name, e.g. Outbound'}
+              onChange={(e) => updateSection(i, {
+                label: e.target.value,
+                key: sec.key || keyFromLabel(e.target.value) || `section${i + 1}`,
+              })}
+            />
+            <button type="button" className="icon-btn" title={isAr ? 'أعلى' : 'Move up'}
+              onClick={() => moveSection(i, -1)} disabled={i === 0}>↑</button>
+            <button type="button" className="icon-btn" title={isAr ? 'أسفل' : 'Move down'}
+              onClick={() => moveSection(i, 1)} disabled={i === sections.length - 1}>↓</button>
+            <button type="button" className="icon-btn" title={isAr ? 'حذف القسم' : 'Delete section'}
+              style={{ color: 'var(--danger)' }} onClick={() => removeSection(i)}>
+              <Icon name="trash" size={13} />
+            </button>
+          </div>
+
+          <SectionCondition
+            section={sec}
+            allSections={sections}
+            index={i}
+            onChange={(visibleWhen) => updateSection(i, { visibleWhen })}
+            isAr={isAr}
+          />
+
+          <FieldSchemaBuilder
+            fields={sec.fields || []}
+            onChange={(fields) => updateSection(i, { fields })}
+            lang={lang}
+          />
+        </div>
+      ))}
+
+      <button type="button" className="btn" onClick={addSection} style={{ alignSelf: 'flex-start' }}>
+        <Icon name="plus" size={13} /> {isAr ? 'إضافة قسم' : 'Add section'}
+      </button>
+    </div>
+  );
+}
+
+
+/**
+ * "Show this section only when <field> is <values>". Only dropdown fields from
+ * EARLIER sections can drive it — a later field would not be answered yet, and
+ * a non-dropdown has no fixed set of values to pick from.
+ */
+function SectionCondition({ section, allSections, index, onChange, isAr }) {
+  const candidates = allSections
+    .slice(0, index)
+    .flatMap((s) => (s.fields || []).filter((f) => f.type === 'select' && (f.options || []).length));
+
+  if (candidates.length === 0) return null;
+
+  const cond = section.visibleWhen || null;
+  const driver = candidates.find((f) => f.key === cond?.field) || null;
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+      marginBottom: 10, padding: '8px 10px', borderRadius: 8,
+      background: 'var(--surface-soft-3)', border: '1px dashed var(--glass-border)',
+    }}>
+      <span style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
+        {isAr ? 'أظهر هذا القسم عندما' : 'Show this section when'}
+      </span>
+
+      <select
+        style={{ ...inputStyle, width: 'auto', padding: '5px 8px', fontSize: 12 }}
+        value={cond?.field || ''}
+        onChange={(e) => onChange(e.target.value ? { field: e.target.value, values: [] } : null)}
+      >
+        <option value="">{isAr ? 'دائماً' : 'Always'}</option>
+        {candidates.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+      </select>
+
+      {driver && (
+        <>
+          <span style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{isAr ? 'يساوي' : 'is'}</span>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {driver.options.map((o) => {
+              const on = (cond.values || []).includes(o.value);
+              return (
+                <button
+                  key={o.value}
+                  type="button"
+                  className="chip"
+                  style={{
+                    cursor: 'pointer', fontSize: 11,
+                    background: on ? 'var(--accent-soft)' : 'var(--bg-1)',
+                    color: on ? 'var(--accent)' : 'var(--ink-mute)',
+                    borderColor: on ? 'var(--accent)' : 'var(--glass-border)',
+                  }}
+                  onClick={() => onChange({
+                    field: cond.field,
+                    values: on
+                      ? cond.values.filter((v) => v !== o.value)
+                      : [...(cond.values || []), o.value],
+                  })}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Fill in a whole form ────────────────────────────────────────────────────
+
+export function DynamicFormInputs({ form, values, onChange, lang, eventStart, eventEnd }) {
+  const isAr = lang === 'ar';
+  // Recomputed on every change so toggling the controlling field shows and
+  // hides its dependent sections immediately.
+  const sections = visibleSections(form, values);
+
+  if (sections.length === 0) {
+    return (
+      <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+        {isAr ? 'لا يوجد نموذج لهذه الخدمة' : 'This service has no form configured'}
+      </div>
+    );
+  }
+
+  const single = sections.length === 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {sections.map((sec, i) => (
+        <div key={sec.key || i}>
+          {/* A one-section form needs no heading — the dialog title already says
+              which service this is. */}
+          {!single && (sec.label || sec.labelAr) && (
+            <div style={{
+              fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase',
+              letterSpacing: '0.1em', marginBottom: 8, paddingBottom: 5,
+              borderBottom: '1px solid var(--glass-border)',
+            }}>
+              {(isAr ? sec.labelAr : null) || sec.label}
+            </div>
+          )}
+          <DynamicFieldInputs
+            fields={sec.fields || []}
+            values={values}
+            onChange={onChange}
+            lang={lang}
+            eventStart={eventStart}
+            eventEnd={eventEnd}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Every field across every section, in render order. */
+export function allFormFields(form) {
+  return (form?.sections || []).flatMap((s) => s.fields || []);
+}
+
+/**
+ * A section with a `visibleWhen` shows only while another field holds one of
+ * the listed values — e.g. the Outbound leg for trip type outbound or return.
+ * Mirrors ServiceFormSchema.IsSectionVisible on the server, which re-checks it.
+ */
+export function isSectionVisible(section, values) {
+  const c = section?.visibleWhen;
+  if (!c?.field || !(c.values || []).length) return true;
+  const actual = String((values || {})[c.field] ?? '').toLowerCase();
+  return c.values.some((v) => String(v).toLowerCase() === actual);
+}
+
+export function visibleSections(form, values) {
+  return (form?.sections || []).filter((s) => isSectionVisible(s, values));
+}
+
+/**
+ * Labels of required fields left blank — empty means the form may be completed.
+ * Hidden sections are skipped: an inbound-only booking must not be blocked by
+ * the outbound leg's required fields.
+ */
+export function missingRequired(form, values) {
+  const v = values || {};
+  return visibleSections(form, v)
+    .flatMap((s) => s.fields || [])
+    .filter((f) => f.required)
+    .filter((f) => !String(v[f.key] ?? '').trim())
+    .map((f) => f.label || f.key);
 }

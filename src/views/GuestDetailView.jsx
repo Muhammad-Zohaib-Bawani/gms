@@ -19,6 +19,7 @@ import { getGuestSeatAssignments } from '../api/services/seatingService';
 import GuestModal from './guests/modals/GuestModal';
 import { flightTypeLabel, legTitle } from './guests/modals/TravelAccordion';
 import DeleteGuestsModal from './guests/modals/DeleteGuestsModal';
+import GuestServicesPanel from './guests/GuestServicesPanel';
 
 // Each guest's own travel rows out of the event-wide lists — those already
 // carry resolved display names (hotel, vehicle, driver...), unlike
@@ -379,75 +380,14 @@ export default function GuestDetailView({ guestId, lang }) {
           )}
         </Section>
 
-        <Section icon="flight" title={isAr ? 'الطيران' : 'Flight'}>
-          {flights.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز طيران' : 'No flight booked'}</Empty>
-          ) : (
-            <BookingCarousel items={flights} renderItem={(f) => (
-              <>
-                <div style={fieldGrid}>
-                  <Field label={isAr ? 'النوع' : 'Type'} value={flightTypeLabel(f.flightType, isAr)} />
-                  <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
-                  <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
-                  <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
-                </div>
-                {/* One block per leg — a return booking has two. */}
-                {(f.legs || []).map((l, i) => (
-                  <div key={l.id || i} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
-                    {(f.legs.length > 1) && (
-                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent)', marginBottom: 6 }}>
-                        {legTitle(f.flightType, i, isAr)}
-                      </div>
-                    )}
-                    <div style={fieldGrid}>
-                      <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={l.flightNumber} />
-                      <Field label={isAr ? 'من' : 'From'} value={[l.departureCity, l.departureCode].filter(Boolean).join(' · ')} />
-                      <Field label={isAr ? 'إلى' : 'To'} value={[l.arrivalCity, l.arrivalCode].filter(Boolean).join(' · ')} />
-                      <Field label={isAr ? 'الإقلاع' : 'Departure'} value={fmtDateTime(l.startTime, isAr)} />
-                      <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(l.endTime, isAr)} />
-                    </div>
-                  </div>
-                ))}
-              </>
-            )} />
-          )}
+        <Section icon="star" title={isAr ? 'الخدمات' : 'Services'}>
+          <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
+            eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate} />
         </Section>
 
-        <Section icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
-          {accommodations.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز إقامة' : 'No accommodation booked'}</Empty>
-          ) : (
-            <BookingCarousel items={accommodations} renderItem={(a) => (
-              <div style={fieldGrid}>
-                {a.hotelImageUrl && (
-                  <img src={a.hotelImageUrl} alt="" style={{ gridColumn: '1 / -1', width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }}
-                    onError={e => { e.target.style.display = 'none'; }}/>
-                )}
-                <Field label={isAr ? 'الفندق' : 'Hotel'} value={a.hotel} />
-                <Field label={isAr ? 'نوع الغرفة' : 'Room Type'} value={a.roomType} />
-                <Field label={isAr ? 'تسجيل الوصول' : 'Check-in'} value={fmtDate(a.checkIn, isAr)} />
-                <Field label={isAr ? 'تسجيل المغادرة' : 'Check-out'} value={fmtDate(a.checkOut, isAr)} />
-              </div>
-            )} />
-          )}
-        </Section>
-
-        <Section icon="car" title={isAr ? 'النقل' : 'Transport'}>
-          {transports.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز نقل' : 'No transport booked'}</Empty>
-          ) : (
-            <BookingCarousel items={transports} renderItem={(t) => (
-              <div style={fieldGrid}>
-                <Field label={isAr ? 'المركبة' : 'Vehicle'} value={t.vehicle} />
-                <Field label={isAr ? 'السائق' : 'Driver'} value={t.driverName} />
-                <Field label={isAr ? 'الاستلام' : 'Pickup'} value={t.pickup} />
-                <Field label={isAr ? 'التوصيل' : 'Dropoff'} value={t.dropoff} />
-                <Field label={isAr ? 'وقت الاستلام' : 'Pickup Time'} value={fmtDateTime(t.pickupTime, isAr)} />
-                <Field label={isAr ? 'الحالة' : 'Status'} value={t.tripStatus} />
-              </div>
-            )} />
-          )}
-        </Section>
+        {/* The fixed Flight / Accommodation / Transport sections were removed:
+            what a guest receives is now whatever their service level assigns,
+            rendered by the Services section above. */}
       </div>
 
       {showEdit && (

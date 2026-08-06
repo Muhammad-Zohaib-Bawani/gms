@@ -3,7 +3,7 @@
 // Pass isMulti={true} for multi-select — value becomes string[] and onChange
 // receives string[].
 import React from 'react';
-import ReactSelect from 'react-select';
+import ReactSelect, { components as RSComponents } from 'react-select';
 
 const styles = {
   control: (base, state) => ({
@@ -52,6 +52,22 @@ const styles = {
   clearIndicator: (base) => ({ ...base, color: 'var(--ink-mute)', padding: 6 }),
 };
 
+// A long option list (e.g. Nationality) didn't scroll when opened inside a
+// dialog. Radix's Dialog locks background scroll by listening for `wheel` on
+// `document` and calling preventDefault() on anything outside the dialog's own
+// portal — and this menu is portaled separately, straight to <body>, as a
+// SIBLING of the dialog rather than a descendant (see the pointerEvents note
+// below for why it's portaled at all: escaping the modal's motion.div, which
+// sets a CSS transform and would otherwise trap a position:fixed/absolute
+// menu inside its bounds). Radix's listener never learns this menu exists, so
+// it treats every wheel tick over it as background scroll and blocks it.
+// Stopping propagation here keeps the native scroll (nothing calls
+// preventDefault) while stopping the event from ever reaching Radix's
+// document-level listener.
+function ScrollableMenuList(props) {
+  return <RSComponents.MenuList {...props} innerProps={{ ...props.innerProps, onWheel: (e) => e.stopPropagation() }} />;
+}
+
 export default function Select({
   value,
   onChange,
@@ -60,6 +76,7 @@ export default function Select({
   isDisabled = false,
   isClearable = false,
   isMulti = false,
+  components: componentsOverride,
   ...rest
 }) {
   const selected = isMulti
@@ -85,6 +102,7 @@ export default function Select({
       isClearable={isClearable}
       isMulti={isMulti}
       menuPortalTarget={document.body}
+      components={{ MenuList: ScrollableMenuList, ...componentsOverride }}
       styles={{
     ...styles,
     // Radix Dialog sets `pointer-events: none` on <body> while open, only

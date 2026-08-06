@@ -2,7 +2,7 @@
 // bundle: pick which Services it includes, fill in each service's dynamic field
 // VALUES once, and every guest on the level inherits them.
 //
-// Also carries the assignment rules (capacity cap, required guest fields) that
+// Also carries the required-guest-fields rule that
 // the guest form enforces — overridably, for anyone with
 // ServiceLevels.OverrideRules.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -10,7 +10,6 @@ import { Icon } from '../components/Icons';
 import Modal from '../components/ui/Modal';
 import Select from '../components/ui/Select';
 import { ServiceLevelChip } from '../components/UI';
-import { DynamicFieldInputs } from '../components/ui/DynamicFields';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
 import {
@@ -32,7 +31,7 @@ const PRESET_COLORS = ['#e0b864', '#a78bda', '#8d0134', '#5abf6e', 'var(--danger
 
 const EMPTY_FORM = {
   name: '', nameAr: '', code: '', description: '', color: PRESET_COLORS[0],
-  sortOrder: 0, capacity: '', requiredGuestFields: [], services: [],
+  sortOrder: 0, requiredGuestFields: [], serviceIds: [],
 };
 
 const inputStyle = {
@@ -54,8 +53,7 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
     title: 'مستويات الخدمة', sub: 'درجات الضيوف لهذه الفعالية — كل مستوى يجمع خدمات وقواعد',
     add: 'إضافة مستوى', edit: 'تعديل', del: 'حذف',
     name: 'الاسم', nameAr: 'الاسم بالعربية', code: 'الرمز', desc: 'الوصف',
-    color: 'اللون', order: 'الترتيب', capacity: 'السعة',
-    capacityHint: 'اتركه فارغاً لسعة غير محدودة',
+    color: 'اللون', order: 'الترتيب',
     included: 'الخدمات المضمّنة', rules: 'القواعد',
     requiredFields: 'حقول مطلوبة للضيف',
     requiredHint: 'لا يمكن إضافة ضيف لهذا المستوى قبل تعبئة هذه الحقول (يمكن تجاوزها بصلاحية).',
@@ -64,16 +62,14 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
     save: 'حفظ', cancel: 'إلغاء', saving: 'جارٍ الحفظ…',
     addTitle: 'إضافة مستوى خدمة', editTitle: 'تعديل مستوى الخدمة',
     noServices: 'لا توجد خدمات في هذه الفعالية بعد — أضفها من صفحة الخدمات أولاً.',
-    pickServices: 'اختر الخدمات', unlimited: 'غير محدود',
+    pickServices: 'اختر الخدمات',
     delTitle: 'حذف المستوى', delBody: (n) => `هل أنت متأكد من حذف "${n}"؟`,
-    atCapacity: 'ممتلئ', overCapacity: 'تجاوز السعة',
     noneIncluded: 'لا خدمات مضمّنة',
   } : {
     title: 'Service Levels', sub: 'This event\'s guest grades — each bundles services and carries its own rules',
     add: 'Add Level', edit: 'Edit', del: 'Delete',
     name: 'Name', nameAr: 'Arabic name', code: 'Code', desc: 'Description',
-    color: 'Colour', order: 'Order', capacity: 'Capacity',
-    capacityHint: 'Leave blank for unlimited',
+    color: 'Colour', order: 'Order',
     included: 'Included services', rules: 'Rules',
     requiredFields: 'Required guest fields',
     requiredHint: 'A guest can\'t be placed on this level until these are filled in (overridable with permission).',
@@ -82,9 +78,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
     save: 'Save', cancel: 'Cancel', saving: 'Saving…',
     addTitle: 'Add Service Level', editTitle: 'Edit Service Level',
     noServices: 'This event has no services yet — add some on the Services page first.',
-    pickServices: 'Select services', unlimited: 'Unlimited',
+    pickServices: 'Select services',
     delTitle: 'Delete Service Level', delBody: (n) => `Are you sure you want to delete "${n}"?`,
-    atCapacity: 'Full', overCapacity: 'Over capacity',
     noneIncluded: 'No services included',
   };
 
@@ -104,8 +99,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
     setLoading(true);
     try {
       const [lv, sv] = await Promise.all([
-        getServiceLevels(activeEventId).catch(() => []),
-        getServices(activeEventId).catch(() => []),
+        getServiceLevels(true).catch(() => []),
+        getServices(false).catch(() => []),
       ]);
       setLevels(lv || []);
       setServices(sv || []);
@@ -137,23 +132,29 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
       description: level.description || '',
       color: level.color || PRESET_COLORS[0],
       sortOrder: level.sortOrder ?? 0,
-      capacity: level.capacity ?? '',
       requiredGuestFields: level.requiredGuestFields || [],
-      services: (level.services || []).map((s) => ({ serviceId: s.serviceId, values: { ...(s.values || {}) } })),
+      // Already ordered by SortOrder from the API; that order IS the sequence.
+      serviceIds: (level.services || []).map((s) => s.serviceId),
     });
     setErrors({});
     setShowForm(true);
   }
 
   const toggleService = (serviceId) => {
-    const existing = form.services.find((s) => s.serviceId === serviceId);
-    setF('services', existing
-      ? form.services.filter((s) => s.serviceId !== serviceId)
-      : [...form.services, { serviceId, values: {} }]);
+    setF('serviceIds', form.serviceIds.includes(serviceId)
+      ? form.serviceIds.filter((id) => id !== serviceId)
+      : [...form.serviceIds, serviceId]);
   };
 
-  const setServiceValues = (serviceId, values) =>
-    setF('services', form.services.map((s) => (s.serviceId === serviceId ? { ...s, values } : s)));
+  // Order matters: on a Fixed event this is the sequence guests must complete
+  // the services in, so it is reorderable rather than implicit.
+  const moveService = (index, dir) => {
+    const next = [...form.serviceIds];
+    const j = index + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[index], next[j]] = [next[j], next[index]];
+    setF('serviceIds', next);
+  };
 
   const toggleRequiredField = (key) => {
     const has = form.requiredGuestFields.includes(key);
@@ -165,19 +166,6 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
   async function handleSave() {
     const errs = {};
     if (!form.name.trim()) errs.name = isAr ? 'الاسم مطلوب' : 'Name is required';
-    if (form.capacity !== '' && !(Number(form.capacity) >= 0))
-      errs.capacity = isAr ? 'رقم غير صالح' : 'Must be a positive number';
-
-    // Same required-value check the backend runs, surfaced inline.
-    for (const sel of form.services) {
-      const svc = services.find((s) => s.id === sel.serviceId);
-      if (!svc) continue;
-      const missing = (svc.fields || []).find((f) => f.required && !String(sel.values?.[f.key] ?? '').trim());
-      if (missing) {
-        errs.services = `${svc.name}: "${(isAr ? missing.labelAr : null) || missing.label}" ${isAr ? 'مطلوب' : 'is required'}`;
-        break;
-      }
-    }
 
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
@@ -188,16 +176,15 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
       description: form.description.trim() || null,
       color: form.color || null,
       sortOrder: Number(form.sortOrder) || 0,
-      capacity: form.capacity === '' ? null : Number(form.capacity),
       requiredGuestFields: form.requiredGuestFields,
-      services: form.services,
+      serviceIds: form.serviceIds,
     };
 
     setSaving(true);
     try {
       const res = editing
-        ? await updateServiceLevel(activeEventId, editing.id, body)
-        : await createServiceLevel(activeEventId, body);
+        ? await updateServiceLevel(editing.id, body)
+        : await createServiceLevel(body);
       toast.success(isAr ? 'تم الحفظ' : (editing ? 'Service level updated' : 'Service level added'));
       setShowForm(false);
       load();
@@ -212,7 +199,7 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
   async function handleDelete() {
     setDeleting(true);
     try {
-      await deleteServiceLevel(activeEventId, toDelete.id);
+      await deleteServiceLevel(toDelete.id);
       toast.success(isAr ? 'تم الحذف' : 'Service level deleted');
       setToDelete(null);
       load();
@@ -274,8 +261,6 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {sorted.map((level) => {
-            const full = level.capacity != null && level.guestCount >= level.capacity;
-            const over = level.capacity != null && level.guestCount > level.capacity;
             return (
               <div key={level.id} className="card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ height: 4, background: level.color || 'var(--ink-mute)' }} />
@@ -300,35 +285,12 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                     )}
                   </div>
 
-                  {/* Headcount / capacity */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{STR.guests}</span>
-                      <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: over ? 'var(--danger)' : full ? '#e0c47e' : 'var(--ink)' }}>
-                        {level.guestCount}{level.capacity != null ? ` / ${level.capacity}` : ''}
-                        {level.capacity == null && (
-                          <span style={{ color: 'var(--ink-faint)', fontSize: 10.5 }}> · {STR.unlimited}</span>
-                        )}
-                      </span>
-                    </div>
-                    {level.capacity != null && (
-                      <div style={{ height: 5, borderRadius: 10, background: 'var(--surface-soft-3)', overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%', borderRadius: 10,
-                          width: `${Math.min(100, (level.guestCount / Math.max(1, level.capacity)) * 100)}%`,
-                          background: over ? 'var(--danger)' : full ? '#e0c47e' : (level.color || 'var(--accent)'),
-                          transition: 'width 0.3s ease',
-                        }} />
-                      </div>
-                    )}
-                    {(full || over) && (
-                      <div style={{ fontSize: 10.5, color: over ? 'var(--danger)' : '#e0c47e', marginTop: 4 }}>
-                        {over ? STR.overCapacity : STR.atCapacity}
-                      </div>
-                    )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{STR.guests}</span>
+                    <span style={{ fontSize: 12, fontFamily: 'var(--mono)' }}>{level.guestCount}</span>
                   </div>
 
-                  {/* Included services + their configured values */}
+                  {/* Included services, in completion order */}
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
                       {STR.included}
@@ -336,47 +298,18 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                     {(level.services || []).length === 0 ? (
                       <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>{STR.noneIncluded}</div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {level.services.map((s) => (
-                          <div key={s.serviceId} style={{
-                            padding: '8px 10px', borderRadius: 8,
-                            background: 'var(--surface-soft-2)', border: '1px solid var(--glass-border)',
-                          }}>
-                            <div style={{ fontSize: 12.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <Icon name="check" size={11} style={{ color: '#5abf6e' }} />
-                              {(isAr ? s.serviceNameAr : null) || s.serviceName}
-                            </div>
-                            {Object.keys(s.values || {}).length > 0 && (
-                              <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                {(s.fields || []).filter((f) => s.values?.[f.key]).map((f) => (
-                                  <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11 }}>
-                                    <span style={{ color: 'var(--ink-mute)' }}>{(isAr ? f.labelAr : null) || f.label}</span>
-                                    <span style={{ color: 'var(--ink)', fontWeight: 500, textAlign: isAr ? 'left' : 'right' }}>
-                                      {s.values[f.key]}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {level.services.map((s, i) => (
+                          <React.Fragment key={s.serviceId}>
+                            {i > 0 && <Icon name="chevronRight" size={11} style={{ color: 'var(--ink-faint)' }} />}
+                            <span className="chip" style={{ fontSize: 10.5 }}>
+                              {(isAr ? s.nameAr : null) || s.name}
+                            </span>
+                          </React.Fragment>
                         ))}
                       </div>
                     )}
                   </div>
-
-                  {/* Rules */}
-                  {(level.requiredGuestFields || []).length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-                        {STR.requiredFields}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {level.requiredGuestFields.map((k) => (
-                          <span key={k} className="chip" style={{ fontSize: 10.5 }}>{requiredFieldLabel(k)}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             );
@@ -427,15 +360,6 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
               onChange={(e) => setF('sortOrder', e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>{STR.capacity}</label>
-            <input type="number" min="0" style={errors.capacity ? errorStyle : inputStyle} value={form.capacity}
-              placeholder={STR.unlimited}
-              onChange={(e) => setF('capacity', e.target.value)} />
-            <div style={{ fontSize: 10.5, color: errors.capacity ? '#e05050' : 'var(--ink-faint)', marginTop: 3 }}>
-              {errors.capacity || STR.capacityHint}
-            </div>
-          </div>
-          <div>
             <label style={labelStyle}>{STR.color}</label>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', paddingTop: 4 }}>
               {PRESET_COLORS.map((c) => (
@@ -466,44 +390,53 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
               {errors.services && (
                 <div style={{ fontSize: 11.5, color: '#e05050', marginBottom: 8 }}>{errors.services}</div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {services.map((svc) => {
-                  const selected = form.services.find((s) => s.serviceId === svc.id);
-                  return (
-                    <div key={svc.id} style={{
-                      borderRadius: 10, border: `1px solid ${selected ? 'var(--accent)' : 'var(--glass-border)'}`,
-                      background: selected ? 'rgba(141,1,52,0.06)' : 'var(--surface-soft-2)',
-                      overflow: 'hidden',
-                    }}>
-                      <label style={{
-                        display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', cursor: 'pointer',
+              {/* Chosen services first, in sequence, then the rest to add.
+                  On a Fixed event this order is what guests must follow. */}
+              {form.serviceIds.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                  {form.serviceIds.map((id, i) => {
+                    const svc = services.find((x) => x.id === id);
+                    if (!svc) return null;
+                    return (
+                      <div key={id} style={{
+                        display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px',
+                        borderRadius: 10, border: '1px solid var(--accent)',
+                        background: 'var(--accent-soft)',
                       }}>
-                        <input type="checkbox" checked={!!selected}
-                          onChange={() => toggleService(svc.id)}
-                          style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
-                        <span style={{ fontSize: 13, fontWeight: selected ? 600 : 400, flex: 1 }}>
+                        <span style={{
+                          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                          display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700,
+                          background: 'var(--accent)', color: '#fff',
+                        }}>{i + 1}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
                           {(isAr ? svc.nameAr : null) || svc.name}
                         </span>
-                        {(svc.fields || []).length > 0 && (
-                          <span style={{ fontSize: 10.5, color: 'var(--ink-faint)' }}>
-                            {svc.fields.length} {isAr ? 'حقل' : svc.fields.length === 1 ? 'field' : 'fields'}
-                          </span>
-                        )}
-                      </label>
+                        <button type="button" className="icon-btn" onClick={() => moveService(i, -1)}
+                          disabled={i === 0} title={isAr ? 'أعلى' : 'Move up'}>↑</button>
+                        <button type="button" className="icon-btn" onClick={() => moveService(i, 1)}
+                          disabled={i === form.serviceIds.length - 1} title={isAr ? 'أسفل' : 'Move down'}>↓</button>
+                        <button type="button" className="icon-btn" style={{ color: 'var(--danger)' }}
+                          onClick={() => toggleService(id)} title={isAr ? 'إزالة' : 'Remove'}>
+                          <Icon name="close" size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      {selected && (svc.fields || []).length > 0 && (
-                        <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--glass-border)', paddingTop: 10 }}>
-                          <DynamicFieldInputs
-                            fields={svc.fields}
-                            values={selected.values}
-                            onChange={(vals) => setServiceValues(svc.id, vals)}
-                            lang={lang}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {services.filter((svc) => !form.serviceIds.includes(svc.id)).map((svc) => (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 12 }}
+                    onClick={() => toggleService(svc.id)}
+                  >
+                    <Icon name="plus" size={12} /> {(isAr ? svc.nameAr : null) || svc.name}
+                  </button>
+                ))}
               </div>
             </>
           )}
