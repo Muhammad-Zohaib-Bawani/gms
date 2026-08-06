@@ -219,35 +219,61 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
               <LanyardSlot/>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '20px 22px' }}>
-              <div style={{
-                background: '#fff', padding: 12, borderRadius: 16,
-                border: '1px solid rgba(20,10,20,0.08)', boxShadow: '0 4px 14px -4px rgba(20,0,10,0.16)',
-              }}>
-                <QRCodeSVG
-                  value={`gms://accreditation/${guest.id}`}
-                  size={140}
-                  bgColor="#ffffff"
-                  fgColor="#5e0022"
-                  level="M"
-                />
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(26,20,32,0.45)' }}>
-                  {isAr ? 'رقم البطاقة' : 'Badge No.'}
-                </div>
-                <div style={{ fontSize: 15, fontFamily: 'var(--mono)', fontWeight: 600, marginTop: 3, color: '#1a1420' }}>{badgeNo}</div>
-              </div>
-              {dateRange && (
-                <div style={{ fontSize: 11.5, color: 'rgba(26,20,32,0.55)', textAlign: 'center' }}>{dateRange}</div>
+              {issued ? (
+                <>
+                  <div style={{
+                    background: '#fff', padding: 12, borderRadius: 16,
+                    border: '1px solid rgba(20,10,20,0.08)', boxShadow: '0 4px 14px -4px rgba(20,0,10,0.16)',
+                  }}>
+                    <QRCodeSVG
+                      value={`gms://accreditation/${guest.id}`}
+                      size={140}
+                      bgColor="#ffffff"
+                      fgColor="#5e0022"
+                      level="M"
+                    />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(26,20,32,0.45)' }}>
+                      {isAr ? 'رقم البطاقة' : 'Badge No.'}
+                    </div>
+                    <div style={{ fontSize: 15, fontFamily: 'var(--mono)', fontWeight: 600, marginTop: 3, color: '#1a1420' }}>{badgeNo}</div>
+                  </div>
+                  {dateRange && (
+                    <div style={{ fontSize: 11.5, color: 'rgba(26,20,32,0.55)', textAlign: 'center' }}>{dateRange}</div>
+                  )}
+                  <div style={{
+                    fontSize: 10, color: 'rgba(26,20,32,0.4)', textAlign: 'center', lineHeight: 1.5,
+                    borderTop: '1px solid rgba(20,10,20,0.1)', paddingTop: 12, maxWidth: 210,
+                  }}>
+                    {isAr
+                      ? 'هذه البطاقة ملك اللجنة الأولمبية القطرية. عند العثور عليها يرجى إعادتها إلى مكتب التسجيل.'
+                      : 'Property of Qatar Olympic Committee. If found, please return to registration.'}
+                  </div>
+                </>
+              ) : (
+                // Same card, empty QR space — the badge simply hasn't been
+                // issued yet, so there's nothing to scan.
+                <>
+                  <div style={{
+                    width: 140, height: 140, borderRadius: 16, flexShrink: 0,
+                    border: '1.5px dashed rgba(20,10,20,0.18)', background: 'rgba(20,10,20,0.03)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}>
+                    <Icon name="badge" size={26} style={{ color: 'rgba(20,10,20,0.22)' }}/>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1420' }}>
+                      {isAr ? 'لم يُصدر الاعتماد بعد' : 'Accreditation not issued yet'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(26,20,32,0.5)', marginTop: 3, maxWidth: 210 }}>
+                      {isAr
+                        ? 'سيظهر رمز QR هنا بعد إصدار الاعتماد لهذا الضيف.'
+                        : "This guest's QR code will appear here once their badge is issued."}
+                    </div>
+                  </div>
+                </>
               )}
-              <div style={{
-                fontSize: 10, color: 'rgba(26,20,32,0.4)', textAlign: 'center', lineHeight: 1.5,
-                borderTop: '1px solid rgba(20,10,20,0.1)', paddingTop: 12, maxWidth: 210,
-              }}>
-                {isAr
-                  ? 'هذه البطاقة ملك اللجنة الأولمبية القطرية. عند العثور عليها يرجى إعادتها إلى مكتب التسجيل.'
-                  : 'Property of Qatar Olympic Committee. If found, please return to registration.'}
-              </div>
             </div>
             <div style={{ height: 6, background: accent, flexShrink: 0 }}/>
           </div>

@@ -1,13 +1,18 @@
-// Full accreditation-card viewer — opened from the "View Card" action on an
-// issued guest. Kept separate from AccreditationView's quick-glance preview
-// modal (which still handles issue/revoke); this one is purely the card.
+// Full accreditation-card viewer — this is now THE view for a guest's
+// accreditation on click, issued or not (see AccreditationView), not just a
+// "View Card" action on already-issued guests. Issue/Revoke are optional so
+// this stays usable as a pure viewer wherever the caller doesn't need them.
 import React from 'react';
 import { Icon } from '../../components/Icons';
 import AccreditationCard from './AccreditationCard';
 
-export default function AccreditationCardModal({ open, guest, event, lang, onClose }) {
+export default function AccreditationCardModal({
+  open, guest, event, lang, onClose,
+  onIssue, onRevoke, canIssue = true, busy = false, notAcceptedTitle,
+}) {
   const isAr = lang === 'ar';
   if (!open || !guest) return null;
+  const issued = guest.accreditationStatus === 'issued';
 
   return (
     <div
@@ -30,12 +35,28 @@ export default function AccreditationCardModal({ open, guest, event, lang, onClo
           guest={guest}
           event={event}
           lang={lang}
-          issued={guest.accreditationStatus === 'issued'}
+          issued={issued}
         />
 
-        <button className="btn" style={{ marginTop: 16 }} onClick={() => window.print()}>
-          <Icon name="download" size={13}/> {isAr ? 'طباعة البطاقة' : 'Print card'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          {issued
+            ? onRevoke && (
+              <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={onRevoke}>
+                <Icon name="x" size={13}/> {isAr ? 'سحب' : 'Revoke'}
+              </button>
+            )
+            : onIssue && (
+              <button className="btn primary" disabled={busy || !canIssue}
+                title={!canIssue ? notAcceptedTitle : undefined}
+                style={canIssue ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}
+                onClick={onIssue}>
+                <Icon name="badge" size={13}/> {isAr ? 'إصدار' : 'Issue'}
+              </button>
+            )}
+          <button className="btn" onClick={() => window.print()}>
+            <Icon name="download" size={13}/> {isAr ? 'طباعة البطاقة' : 'Print card'}
+          </button>
+        </div>
       </div>
     </div>
   );
