@@ -4,6 +4,7 @@ import { toArDigits } from '../i18n/translations.js';
 import { Avatar, ServiceLevelChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import FlagIcon from '../components/FlagIcon.jsx';
+import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getGuestEnums } from '../api/services/lookupService';
@@ -24,7 +25,7 @@ export default function AccreditationView({ lang, activeEventId }) {
     total: 'يتطلب اعتماد', issued: 'صدر الاعتماد', pending: 'قيد الانتظار',
     rate: 'نسبة الإصدار', searchPlaceholder: 'بحث عن ضيف أو جهة…',
     filterAll: 'الكل', filterIssued: 'صادر', filterPending: 'قيد الانتظار',
-    tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', tier: 'الفئة',
+    tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', serviceLevel: 'الفئة',
     arrival: 'تاريخ الوصول', status: 'الاعتماد', actions: 'إجراءات',
     issue: 'إصدار', revoke: 'سحب', viewCard: 'عرض البطاقة', issueSelected: 'إصدار المحدد',
     revokeSelected: 'سحب المحدد', selected: 'محدد',
@@ -43,7 +44,7 @@ export default function AccreditationView({ lang, activeEventId }) {
     total: 'Require accreditation', issued: 'Badges issued', pending: 'Pending',
     rate: 'Issue rate', searchPlaceholder: 'Search guest or organisation…',
     filterAll: 'All', filterIssued: 'Issued', filterPending: 'Pending',
-    tierAll: 'All tiers', guest: 'Guest', org: 'Organisation', tier: 'Tier',
+    serviceLevelAll: 'All service levels', guest: 'Guest', org: 'Organisation', serviceLevel: 'Service Level',
     arrival: 'Arrival', status: 'Accreditation', actions: 'Actions',
     issue: 'Issue', revoke: 'Revoke', viewCard: 'View card', issueSelected: 'Issue selected',
     revokeSelected: 'Revoke selected', selected: 'selected',
@@ -183,17 +184,19 @@ export default function AccreditationView({ lang, activeEventId }) {
 
   const kpis = [
     { label: STR.total,   value: ad(guests.length),  icon: 'guests',  color: 'var(--ink)' },
-    { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--accent)' },
+    { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--ok)' },
     { label: STR.pending, value: ad(totalPending),   icon: 'clock',   color: '#e0b864' },
     { label: STR.rate,    value: `${ad(issueRate)}%`, icon: 'reports', color: '#5abf6e' },
   ];
 
+  // Issued reads as green everywhere (chips, dots) — matches the same
+  // success tokens used for "Accepted"/"Confirmed" elsewhere in the app.
   const chipStyle = issued => ({
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-    background: issued ? 'rgba(141, 1, 52,0.15)' : 'rgba(224,184,100,0.15)',
-    color: issued ? 'var(--accent)' : '#e0b864',
-    border: `1px solid ${issued ? 'rgba(141, 1, 52,0.3)' : 'rgba(224,184,100,0.3)'}`,
+    background: issued ? 'var(--ok-bg)' : 'rgba(224,184,100,0.15)',
+    color: issued ? 'var(--ok)' : '#e0b864',
+    border: `1px solid ${issued ? 'var(--ok-border)' : 'rgba(224,184,100,0.3)'}`,
   });
 
   return (
@@ -304,8 +307,8 @@ export default function AccreditationView({ lang, activeEventId }) {
                     </th>
                     <th>{STR.guest}</th>
                     <th>{STR.org}</th>
-                    <th>{STR.tier}</th>
-                    <th>{STR.arrival}</th>
+                    <th>{STR.serviceLevel}</th>
+                    {/* <th>{STR.arrival}</th> */}
                     <th>{STR.status}</th>
                     <th>{STR.actions}</th>
                   </tr>
@@ -343,35 +346,20 @@ export default function AccreditationView({ lang, activeEventId }) {
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         </td>
                         <td><ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/></td>
-                        <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td>
+                        {/* <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td> */}
                         <td>
                           <span style={chipStyle(isIssued)}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864', flexShrink: 0 }}/>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--ok)' : '#e0b864', flexShrink: 0 }}/>
                             {isIssued ? STR.badgeIssued : STR.badgePending}
                           </span>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {isIssued && (
-                              <button className="btn" style={{ fontSize: 11, padding: '4px 12px' }}
-                                onClick={() => setCardGuest(g)}>
-                                <Icon name="badge" size={12}/> {STR.viewCard}
-                              </button>
-                            )}
-                            {isIssued ? (
-                              <button className="btn" disabled={busy} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '4px 12px' }}
-                                onClick={() => revoke(g.id)}>
-                                <Icon name="x" size={12}/> {STR.revoke}
-                              </button>
-                            ) : (
-                              <button className="btn primary" disabled={busy || !canIssue(g)}
-                                title={!canIssue(g) ? STR.notAccepted : undefined}
-                                style={{ fontSize: 11, padding: '4px 12px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
-                                onClick={() => issue(g.id)}>
-                                <Icon name="badge" size={12}/> {STR.issue}
-                              </button>
-                            )}
-                          </div>
+                          <ActionMenu items={[
+                            isIssued && { label: STR.viewCard, icon: 'badge', onClick: () => setCardGuest(g) },
+                            isIssued
+                              ? { label: STR.revoke, icon: 'x', danger: true, disabled: busy, onClick: () => revoke(g.id) }
+                              : { label: STR.issue, icon: 'badge', disabled: busy || !canIssue(g), onClick: () => issue(g.id) },
+                          ]}/>
                         </td>
                       </tr>
                     );
@@ -422,32 +410,19 @@ export default function AccreditationView({ lang, activeEventId }) {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/>
                           <span style={chipStyle(isIssued)}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--ok)' : '#e0b864' }}/>
                             {isIssued ? STR.badgeIssued : STR.badgePending}
                           </span>
                         </div>
                       </div>
-                      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}
+                      <div style={{ padding: '6px 10px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
                         onClick={e => e.stopPropagation()}>
-                        {isIssued && (
-                          <button className="btn" style={{ fontSize: 10.5, padding: '3px 10px' }}
-                            onClick={() => setCardGuest(g)}>
-                            <Icon name="badge" size={11}/> {STR.viewCard}
-                          </button>
-                        )}
-                        {isIssued ? (
-                          <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '3px 10px' }}
-                            onClick={() => revoke(g.id)}>
-                            <Icon name="x" size={11}/> {STR.revoke}
-                          </button>
-                        ) : (
-                          <button className="btn primary" disabled={busy || !canIssue(g)}
-                            title={!canIssue(g) ? STR.notAccepted : undefined}
-                            style={{ fontSize: 10.5, padding: '3px 10px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
-                            onClick={() => issue(g.id)}>
-                            <Icon name="badge" size={11}/> {STR.issue}
-                          </button>
-                        )}
+                        <ActionMenu items={[
+                          isIssued && { label: STR.viewCard, icon: 'badge', onClick: () => setCardGuest(g) },
+                          isIssued
+                            ? { label: STR.revoke, icon: 'x', danger: true, disabled: busy, onClick: () => revoke(g.id) }
+                            : { label: STR.issue, icon: 'badge', disabled: busy || !canIssue(g), onClick: () => issue(g.id) },
+                        ]}/>
                       </div>
                     </div>
                   );
@@ -509,7 +484,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)', gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <span style={chipStyle(isIssued)}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--ok)' : '#e0b864' }}/>
                           {isIssued ? STR.badgeIssued : STR.badgePending}
                         </span>
                       </div>

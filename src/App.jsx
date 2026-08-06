@@ -45,7 +45,7 @@ const NAV = [
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
   // The three built-in relational services (flight / accommodation / transport)
   // live here; every other service is listed under "Other Services".
-  { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
+  { key: "travel",         icon: "travel",     label: { en: "Services",  ar: "الخدمات" }, section: "EVENT",  permission: "Travel.View"            },
   { key: "serviceOps",     icon: "star",       label: { en: "Other Services",      ar: "الخدمات الأخرى"         }, section: "EVENT",  permission: "Travel.View"            },
   { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
@@ -61,7 +61,7 @@ const NAV = [
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
     { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "ADMIN",    permission: "ServiceLevels.View"     },
-  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View"          },
+  { key: "services",       icon: "star",       label: { en: "Manage Services",     ar: "إدارة الخدمات"          }, section: "ADMIN",    permission: "Services.View"          },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },

@@ -32,6 +32,8 @@
   --teal: #8d0134;
   --rose: #c25c4e;
 
+  /*green success chip  */
+  --success: #20ba5871;
   --card-bg: rgba(255, 255, 255, 0.55);
 
   /* Panel surfaces (cards, stat cards, tables) sit ON the page gradient, so
@@ -1155,7 +1157,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .lang-opt:hover { color: var(--ink); }
-.lang-opt.active { background: var(--card-bg); color: var(--accent); box-shadow: var(--shadow-xs); }
+.lang-opt.active { background: #dedede; color: var(--accent); box-shadow: var(--shadow-xs); }
 
 /* Notification + profile dropdown shell */
 .notif-menu {

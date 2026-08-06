@@ -182,7 +182,7 @@ function DriverTypeChip({ driverType, isAr }) {
 }
 
 const STATUS_COLOR = {
-  approved:'var(--accent)', confirmed:'var(--accent)', scheduled:'var(--accent)',
+  approved:'var(--ok)', confirmed:'var(--ok)', scheduled:'var(--ok)',
   submitted:'#e0c47e', pending:'#e0c47e',
   rejected:'var(--danger)', completed:'var(--ink-mute)',
 };
