@@ -382,7 +382,8 @@ export default function GuestDetailView({ guestId, lang }) {
 
         <Section icon="star" title={isAr ? 'الخدمات' : 'Services'}>
           <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
-            eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate} />
+            eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
+            eventId={guest?.eventId} />
         </Section>
 
         {/* The fixed Flight / Accommodation / Transport sections were removed:

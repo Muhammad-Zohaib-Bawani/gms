@@ -1,13 +1,16 @@
-// Operational listings, driven by the service catalogue.
+// Operational listings for the DYNAMIC services — everything except the three
+// built-in relational ones. The tab strip is built from whatever services exist,
+// and each table's columns come from that service's form, so creating a service
+// in admin puts it here automatically with no code change.
 //
-// Replaces the fixed Flights / Hotel / Ground Transfers tabs: the tab strip is
-// built from whatever services exist, and each table's columns come from that
-// service's form. Creating a new service in admin puts it here automatically —
-// no code change. See docs/service-levels-v2.md.
+// Flight / Accommodation / Transport are deliberately absent: they keep their own
+// tables and their own page (Travel & Logistics / TravelView), because the VIP
+// app, the driver app, dispatch, inventory and conflict checking all read those
+// tables by foreign key. See Core/Constants/SystemServices.cs and
+// docs/service-levels-v2.md §11.
 //
-// A service whose form contains datetime fields also gets a schedule tab
-// ("Arrivals & Departures" for Flight), listing every dated movement one row
-// per date rather than one row per guest.
+// A service whose form contains datetime fields also gets a schedule tab,
+// listing every dated movement one row per date rather than one row per guest.
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PageHeader, Card, EmptyState } from '../components/ds';
 import { Icon } from '../components/Icons';
@@ -54,8 +57,12 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
   useEffect(() => {
     getServices(false)
       .then((list) => {
-        setServices(list || []);
-        if ((list || []).length) setTab((t) => t || String(list[0].id));
+        // Flight / Accommodation / Transport are built-in and relational — they
+        // have no form to build columns from and no GuestServiceEntry rows to
+        // list. Travel & Logistics owns those three.
+        const dynamic = (list || []).filter((s) => !s.isSystem);
+        setServices(dynamic);
+        if (dynamic.length) setTab((t) => t || String(dynamic[0].id));
       })
       .catch(() => setServices([]));
   }, []);
@@ -278,10 +285,10 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
       <div>
         <PageHeader title={isAr ? 'الخدمات' : 'Services'} />
         <Card>
-          <EmptyState icon="star" title={isAr ? 'لا توجد خدمات' : 'No services yet'}>
+          <EmptyState icon="star" title={isAr ? 'لا توجد خدمات إضافية' : 'No other services yet'}>
             {isAr
-              ? 'أنشئ خدمة من صفحة الخدمات لتظهر هنا.'
-              : 'Create a service on the Services page and it appears here automatically.'}
+              ? 'الرحلات والإقامة والنقل في صفحة السفر واللوجستيات. أنشئ خدمة جديدة من صفحة الخدمات لتظهر هنا.'
+              : 'Flight, Accommodation and Transport live on Travel & Logistics. Create any other service on the Services page and it appears here automatically.'}
           </EmptyState>
         </Card>
       </div>

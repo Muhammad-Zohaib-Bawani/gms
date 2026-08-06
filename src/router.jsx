@@ -38,10 +38,11 @@ const MODULE_ROUTES = [
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
   { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
   { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
-  // Service-driven listings; the old fixed Flights/Hotel/Transfers page is
-  // kept at /travel-legacy until phase 4 retires the relational tables.
-  { key: 'travel',          Component: ServiceOpsView,      permission: 'Travel.View' },
-  { key: 'travelLegacy',    Component: TravelView,          permission: 'Travel.View' },
+  // Flight / Accommodation / Transport are built in and relational, so they keep
+  // their own page and their own tables. /service-ops lists every OTHER service,
+  // driven by its dynamic form. See Core/Constants/SystemServices.cs.
+  { key: 'travel',          Component: TravelView,          permission: 'Travel.View' },
+  { key: 'serviceOps',      Component: ServiceOpsView,      permission: 'Travel.View' },
   { key: 'accreditation',   Component: AccreditationView,   permission: 'Accreditation.View' },
   { key: 'seating',         Component: SeatingView,         permission: 'Seating.View' },
   { key: 'meetings',        Component: MeetingsView,        permission: 'Meetings.View' },

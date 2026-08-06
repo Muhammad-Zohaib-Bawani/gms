@@ -16,11 +16,11 @@
 // Trip status and the actual pickup/dropoff times are dispatch-side only — the
 // backend owns them, this form neither shows nor sends them.
 //   }
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
-import { useAvailableVehicles } from '../../../lib/useAvailableVehicles';
+import { useAvailableVehicles, useAvailableDrivers } from '../../../lib/useAvailableVehicles';
 import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
 import { addDaysIso, fmtDate } from '../../../lib/date';
 
@@ -428,8 +428,25 @@ export default function TravelAccordion({
   // Narrows the vehicle dropdown to this event's fleet. Optional — omitting it
   // only means the whole fleet is offered.
   eventId,
+  // Render only these sections ('flight' | 'accommodation' | 'transport'), with
+  // no enable/disable chrome — the guest's service checklist already decided
+  // which ones apply, so a checkbox there would just be a second answer to the
+  // same question. Omit for the wizard's pick-what-you-want accordion.
+  only,
 }) {
   const selPlaceholder = isAr ? '— اختر —' : '— Select —';
+
+  const pinned = only ? (Array.isArray(only) ? only : [only]) : null;
+
+  // A pinned section is always on: nothing offers to turn it off, so leaving
+  // `enabled` false would silently drop everything typed into it on save.
+  useEffect(() => {
+    if (!pinned) return;
+    const off = pinned.filter((s) => travel[s] && !travel[s].enabled);
+    if (off.length === 0) return;
+    onChange((p) => off.reduce((acc, s) => ({ ...acc, [s]: { ...acc[s], enabled: true } }), p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned?.join(','), travel.flight.enabled, travel.accommodation.enabled, travel.transport.enabled]);
 
   const setField = (section, key, value) =>
     onChange((p) => ({ ...p, [section]: { ...p[section], [key]: value } }));
@@ -471,9 +488,17 @@ export default function TravelAccordion({
     fallback: lookups.vehicles,
   });
   const vehicleOpts = mapOpts(freeVehicles, vehicleLabel);
+
+  // Same for drivers: a driver already on a ride in that window is not offered.
+  const freeDrivers = useAvailableDrivers({
+    pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
+    dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
+    excludeTransportId: travel.transport.id,
+    fallback: lookups.drivers,
+  });
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
-  const driverOpts = mapOpts(lookups.drivers, driverLabel);
+  const driverOpts = mapOpts(freeDrivers, driverLabel);
 
   // ── field renderers (plain functions → stable element types, no focus loss) ──
   // eslint-disable-next-line no-unused-vars
@@ -535,9 +560,24 @@ export default function TravelAccordion({
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>
   );
 
+  // Pinned mode drops the collapsible chrome and renders the fields bare. A plain
+  // function, not a component: an inline component would be a new element type on
+  // every render and remount its children, losing focus mid-typing.
+  const section = (key, icon, title, children) => {
+    if (pinned && !pinned.includes(key)) return null;
+    if (pinned) {
+      return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>;
+    }
+    return (
+      <Section enabled={travel[key].enabled} onToggle={() => toggle(key)} icon={icon} title={title}>
+        {children}
+      </Section>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Section enabled={travel.flight.enabled} onToggle={() => toggle('flight')} icon="flight" title={isAr ? 'الرحلة الجوية' : 'Flight'}>
+      {section('flight', 'flight', isAr ? 'الرحلة الجوية' : 'Flight', (
         <FlightFields
           flight={travel.flight}
           setFlight={(patch) => onChange((p) => ({ ...p, flight: { ...p.flight, ...patch } }))}
@@ -546,9 +586,9 @@ export default function TravelAccordion({
           eventMinDate={eventMinDate}
           eventMaxDate={eventMaxDate}
         />
-      </Section>
+      ))}
 
-      <Section enabled={travel.accommodation.enabled} onToggle={() => toggle('accommodation')} icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
+      {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
         {grid(<>
           {sel('accommodation', 'hotelId', isAr ? 'الفندق' : 'Hotel', hotelOpts, { required: true })}
           {/* Required once the event holds rooms at this hotel — capacity is
@@ -591,9 +631,9 @@ export default function TravelAccordion({
           {txt('accommodation', 'conciergeName', isAr ? 'اسم الكونسيرج' : 'Concierge Name')}
           {txt('accommodation', 'conciergePhone', isAr ? 'هاتف الكونسيرج' : 'Concierge Phone')}
         </>)} */}
-      </Section>
+      </>))}
 
-      <Section enabled={travel.transport.enabled} onToggle={() => toggle('transport')} icon="car" title={isAr ? 'النقل' : 'Transport'}>
+      {section('transport', 'car', isAr ? 'النقل' : 'Transport', (<>
         {/* Guest-level permission, not part of this booking — kept in `travel`
             root state (not travel.transport), so unticking the section afterwards
             clears the booking fields but keeps the permission. */}
@@ -628,7 +668,7 @@ export default function TravelAccordion({
               : 'Vehicles already booked in this window are left out of the list'}
           </div>
         )}
-      </Section>
+      </>))}
     </div>
   );
 }

@@ -3,6 +3,9 @@
 Status: **design agreed, implementation in progress**
 Supersedes the per-event Service Level feature shipped in `AddServiceLevelsAndServiceCatalog`.
 
+> **Amendment:** Flight, Accommodation and Transport are **not** dynamic services. They stay
+> relational and static — see **§11**, which supersedes §7. §8 records why.
+
 ---
 
 ## 1. What changed and why
@@ -208,47 +211,43 @@ data change ships as SQL inside the EF migration, following
 
 ---
 
-## 7. Travel & Logistics
+## 7. Travel & Logistics — **superseded, see §11**
 
-Flight, Accommodation and Transport become Services with dynamic forms. This is the largest
-part of the change: eight backend services read the relational travel tables today
-(`TravelService`, `AccommodationInventoryService`, `TransportationConflictValidator`,
-`TransportationScheduleService`, `TransportAppService`, `VehicleService`, `VipAppService`,
-`DashboardService`), and the arrivals & departures view, VIP app itinerary and dashboard
-travel analytics all depend on them.
-
-Sequencing it as a swap would break all of that at once, so it runs as a migration:
-
-1. **Build** — global catalogue, dynamic forms, guest entries, ordering and status. The
-   travel tables are untouched and everything continues to work. **Done.**
-2. **Author** — Flight / Accommodation / Transport defined as Services with their field
-   configuration.
-3. **Backfill and dual-read** — existing travel rows projected into `GuestServiceEntry`;
-   downstream readers moved across one at a time, each verified.
-4. **Retire** — the old tables and `TravelAccordion` removed once nothing reads them.
-
-Phase 1 is what this branch delivers. Phases 2–4 are tracked separately, because each
-downstream reader losing its foreign keys (airport, hotel, vehicle, driver) needs its own
-decision about how that reference survives as JSON.
+The original plan was to make Flight, Accommodation and Transport dynamic services like any
+other, migrating in four phases (build → author → backfill/dual-read → retire the tables).
+Phase 1 shipped. **Phases 2–4 were then cancelled**: the three keep their relational tables
+permanently. §11 is the design that replaced this section, and §8 explains why.
 
 ---
 
-## 8. Open risk
+## 8. Why the three stayed relational (resolved risk)
 
-Dropping relational travel data for JSON loses referential integrity: an airport or vehicle
-referenced by a completed form becomes a stored string, so renaming or deleting one no
-longer cascades and cannot be detected. Conflict detection and inventory counting currently
-rely on those foreign keys. Phase 3 has to answer this per reader — most likely by keeping
-`select` options bound to a lookup id and storing the id in `ValuesJson`.
+Moving travel data to JSON loses referential integrity: an airport or vehicle referenced by a
+completed form becomes a stored string, so renaming or deleting one no longer cascades and
+cannot be detected. Eight backend services read those tables by foreign key today —
+`TravelService`, `AccommodationInventoryService`, `TransportationConflictValidator`,
+`TransportationScheduleService`, `TransportAppService`, `VehicleService`, `VipAppService`,
+`DashboardService` — and so do the arrivals & departures board, the VIP app itinerary, the
+driver app, room-inventory counting and vehicle/driver double-booking checks.
+
+Storing an id in `ValuesJson` (the mitigation §3 describes) preserves *meaning*, but not the
+things those readers actually need: a foreign key to join on, and a column to filter a
+window of bookings by. `JSON_VALUE` computed columns per field would have to be added for
+vehicle, driver, hotel, room type, pickup time, dropoff time — at which point the JSON is a
+worse-performing version of the table it replaced.
+
+So the risk was resolved by not taking it. The dynamic catalogue is for services that have
+no such readers, which is every service except these three.
 
 
 ---
 
 ## 9. Operational listings
 
-`ServiceOpsView` replaces the fixed Flights / Hotel / Ground Transfers tabs at `/travel`.
-The tab strip is built from the service catalogue, so a newly created service appears there
-with no code change. The previous page remains at `/travel-legacy` until phase 4.
+`ServiceOpsView` lists the **dynamic** services, at `/service-ops` ("Other Services"). The
+tab strip is built from the service catalogue minus the three built-ins, so a newly created
+service appears there with no code change. Flight / Accommodation / Transport keep
+`TravelView` at `/travel` ("Travel & Logistics") — see §11.
 
 Two rules keep a generated table readable:
 
@@ -277,3 +276,54 @@ service being booked (`ServiceLevelService` joined to `Guest.ServiceLevelId`). A
 no level, or a level that doesn't carry this service, is not offered — picking them would
 just produce a server rejection. Give the guest a level first (via the guest form or the
 "Existing Guest" flow), then book their services from here.
+
+---
+
+## 11. Two kinds of service: built-in and dynamic
+
+**Built-in (three, fixed):** `flight`, `accommodation`, `transport`. Static hand-written
+forms, data in the `Flights` / `Accommodations` / `Transports` tables, all the existing
+conflict and inventory rules, and every downstream reader unchanged. Listed in
+`Core/Constants/SystemServices.cs`, recognised by `Service.Code` — no schema column, since
+the codes are reserved and the catalogue refuses to rename or delete them.
+
+**Dynamic (everything else):** `FormSchemaJson` + `GuestServiceEntry.ValuesJson`, exactly as
+§2–§3 describe.
+
+They share one catalogue, one `ServiceLevel` assignment table and one checklist, so a level
+can mix them freely and Fixed-event sequencing spans both.
+
+### What each layer does with a built-in
+
+| | Built-in | Dynamic |
+|---|---|---|
+| `Service` row | seeded (`DomainPersistence/Scripts/SeedSystemServices.sql`) | created in admin |
+| `FormSchemaJson` | always null — form is in the client | the configured form |
+| Assignable to a level | yes | yes |
+| Where guest data goes | Flights / Accommodations / Transports | `GuestServiceEntry.ValuesJson` |
+| Written by | `POST /v1/travel/guest/{id}` (`TravelService`) | `POST /v1/guests/{id}/services` |
+| Deleted by | `DELETE /v1/travel/{flight\|accommodation\|transport}/{id}` | `DELETE …/services/{entryId}` |
+| Slot status | a booking row exists ⇒ completed (no draft state) | pending until an entry is completed |
+| Ops listing | `TravelView` at `/travel` | `ServiceOpsView` at `/service-ops` |
+| Editable in admin | name, Arabic name, description, order, active | everything, including the form |
+| Deletable | no | yes, if unused |
+
+`ServiceCatalogService.BuildPlanAsync` fills a built-in slot from the relational tables
+(`LoadSystemBookingsAsync`) and sets `IsSystem = true`; the entry's `Id` is the **booking's**
+public id, which is what the client passes to `GET /v1/travel/guest/{id}?bookingId=` to
+prefill and to the travel `DELETE` to remove. `SaveGuestServiceEntryAsync` and
+`GetServiceEntriesAsync` refuse a built-in outright (`ErrorCode = "SERVICE_STATIC"`) — writing
+one as JSON is precisely how a booking becomes invisible to the VIP and driver apps.
+
+Client side, `TravelAccordion` gained an `only` prop that renders a single section with no
+enable/disable chrome; `GuestServicesPanel` and the guest wizard's step 3 use it for built-in
+slots and save through `saveGuestTravel`.
+
+### Deploying this
+
+`DataSeeder.SeedAsync` is still commented out, so the three `Service` rows do not exist until
+`DomainPersistence/Scripts/SeedSystemServices.sql` is run (or pasted into a migration's
+`Up()`). Until then those services simply cannot be assigned to a level. If a dynamic service
+was already created under one of the three codes, the script leaves it in place and it becomes
+the built-in — its level assignments carry over, but its old `ValuesJson` entries stop being
+displayed, because that slot now reads from the booking tables.

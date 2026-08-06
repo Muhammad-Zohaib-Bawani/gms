@@ -13,7 +13,7 @@ import DataTable from '../components/ui/DataTable.jsx';
 import ActionMenu from '../components/ui/ActionMenu.jsx';
 import DateField from '../components/ui/DateField.jsx';
 import { addDaysIso, fmtDate } from '../lib/date.js';
-import { useAvailableVehicles } from '../lib/useAvailableVehicles.js';
+import { useAvailableVehicles, useAvailableDrivers } from '../lib/useAvailableVehicles.js';
 import { useHotelRoomTypes, useRoomAvailability } from '../lib/useRoomInventory.js';
 import TravelAccordion, {
   driverLabel,
@@ -448,6 +448,14 @@ export default function TravelView({ lang, activeEventId }) {
     eventId: activeEventId,
     excludeTransportId: editModal?.form?.id,
     fallback: travelLookups.vehicles,
+  });
+
+  // Same for its driver dropdown — drivers with no ride in that window.
+  const editDrivers = useAvailableDrivers({
+    pickupTime: isTransferEdit ? editModal?.form?.pickupTime : '',
+    dropoffTime: isTransferEdit ? editModal?.form?.dropoffTime : '',
+    excludeTransportId: editModal?.form?.id,
+    fallback: travelLookups.drivers,
   });
 
   // Same for the hotel Edit modal: room types held at the chosen hotel, and that
@@ -1121,7 +1129,7 @@ export default function TravelView({ lang, activeEventId }) {
                         <Select value={f.vehicleId} onChange={v => set('vehicleId', v)} options={mapOpts(editVehicles, vehicleLabel)} placeholder={isAr?'— اختر —':'— Select —'}/>
                       </div>
                       <div><label style={lSt}>{isAr ? 'السائق' : 'Driver'}</label>
-                        <Select value={f.driverId} onChange={v => set('driverId', v)} options={mapOpts(travelLookups.drivers, driverLabel)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
+                        <Select value={f.driverId} onChange={v => set('driverId', v)} options={mapOpts(editDrivers, driverLabel)} placeholder={isAr?'— اختر —':'— Select —'} isClearable/>
                       </div>
                     </>)}
                   </>

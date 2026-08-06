@@ -31,6 +31,12 @@ import { DynamicFormInputs, missingRequired } from "../../../components/ui/Dynam
 import { getServices, saveGuestServiceEntry } from "../../../api/services/serviceCatalogService";
 import ExistingGuestPicker from "./ExistingGuestPicker";
 
+// Service code → the TravelAccordion section that owns it. Those three services
+// are built in and relational: their fields are static and their data goes to
+// the Flights / Accommodations / Transports tables via saveGuestTravel, not into
+// a service entry's JSON. See Core/Constants/SystemServices.cs.
+const TRAVEL_SECTION = { flight: "flight", accommodation: "accommodation", transport: "transport" };
+
 const GUEST_TYPES = [
   "dignitary",
   "delegate",
@@ -530,6 +536,9 @@ export default function GuestModal({
       // they have to go in order, and awaiting each keeps that true.
       if (guestId && !isEdit) {
         for (const slot of wizardSlots) {
+          // The built-ins went to the travel endpoint above; the server refuses
+          // them here on purpose (SERVICE_STATIC).
+          if (slot.isSystem) continue;
           const filled = pendingServices[slot.serviceId];
           if (!filled || Object.keys(filled.values || {}).length === 0) continue;
           try {
@@ -663,6 +672,9 @@ export default function GuestModal({
     return (selectedLevel?.services || []).map((a) => ({
       ...a,
       form: byId.get(a.serviceId)?.form || { sections: [] },
+      // Flight / Accommodation / Transport are built in: static fields, own
+      // tables, saved by saveGuestTravel below rather than as a service entry.
+      isSystem: byId.get(a.serviceId)?.isSystem ?? !!TRAVEL_SECTION[a.code],
     }));
   }, [selectedLevel, servicesCatalog]);
 
@@ -1363,7 +1375,8 @@ export default function GuestModal({
                 {isEdit && guest?.id ? (
                   // The guest exists, so entries can be saved against them here.
                   <GuestServicesPanel guestId={guest.id} lang={lang}
-                    eventStart={eventStartDate} eventEnd={eventEndDate} />
+                    eventStart={eventStartDate} eventEnd={eventEndDate}
+                    eventId={activeEventId} />
                 ) : !selectedLevel ? (
                   <div className="alert alert-info" style={{ fontSize: 12.5 }}>
                     <Icon name="alert" size={14} />
@@ -1453,9 +1466,27 @@ export default function GuestModal({
 
                             {expanded && !locked && (
                               <div style={{ padding: "12px", borderTop: "1px solid var(--glass-border)" }}>
+                                {slot.isSystem ? (
+                                  // Writes into the shared `travel` state, which is
+                                  // POSTed to the travel endpoint once the guest
+                                  // exists — see saveGuestTravel in handleSubmit.
+                                  <TravelAccordion
+                                    travel={travel}
+                                    onChange={setTravel}
+                                    lookups={travelLookups}
+                                    isAr={isAr}
+                                    only={TRAVEL_SECTION[slot.code]}
+                                    eventId={activeEventId}
+                                    eventMinDate={eventStartDate}
+                                    eventMaxDate={eventEndDate}
+                                    dateMinDate={dateWindowMin}
+                                    dateMaxDate={dateWindowMax}
+                                  />
+                                ) : (
                                 <DynamicFormInputs
                                   eventStart={eventStartDate}
                                   eventEnd={eventEndDate}
+                                  eventId={activeEventId}
                                   form={slot.form}
                                   values={filled?.values || {}}
                                   onChange={(vals) => setPendingServices((prev) => ({
@@ -1464,11 +1495,19 @@ export default function GuestModal({
                                   }))}
                                   lang={lang}
                                 />
+                                )}
                                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
                                   <button
                                     type="button"
                                     className="btn"
                                     onClick={() => {
+                                      // Clearing a built-in has to empty its travel
+                                      // section too, or the fields stay filled in and
+                                      // get saved anyway.
+                                      if (slot.isSystem) {
+                                        const key = TRAVEL_SECTION[slot.code];
+                                        setTravel((p) => ({ ...p, [key]: { ...EMPTY_TRAVEL[key] } }));
+                                      }
                                       setPendingServices((prev) => ({
                                         ...prev,
                                         [slot.serviceId]: { values: {}, completed: false },
@@ -1482,6 +1521,21 @@ export default function GuestModal({
                                     type="button"
                                     className="btn primary"
                                     onClick={() => {
+                                      // A built-in's data lives in `travel`, so it
+                                      // is validated by the travel rules and marked
+                                      // done with no values — which is also what
+                                      // makes the save loop below skip it.
+                                      if (slot.isSystem) {
+                                        const travelErr = validateTravel(travel, isAr);
+                                        if (travelErr) { toast.warning(travelErr); return; }
+                                        setPendingServices((prev) => ({
+                                          ...prev,
+                                          [slot.serviceId]: { values: {}, completed: true },
+                                        }));
+                                        setOpenService(null);
+                                        return;
+                                      }
+
                                       const vals = pendingServices[slot.serviceId]?.values || {};
                                       const missing = missingRequired(slot.form, vals);
                                       if (missing.length > 0) {
