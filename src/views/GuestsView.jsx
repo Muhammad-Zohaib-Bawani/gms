@@ -468,7 +468,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             <em>{t.guests?.title?.[1]}</em>
           </h1>
           <div className="page-sub">
-            {fmtN(totalCount)} guest{totalCount !== 1 ? "s" : ""}
+            {/* {fmtN(totalCount)} guest{totalCount !== 1 ? "s" : ""} */}
+            <span style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>
+              {isAr ? "متوافق مع نظام هيّا" : "Registry Compliant with Hayya"}
+            </span>
           </div>
         </div>
         <div className="page-actions">
@@ -692,6 +695,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           getRowId={(g) => g.id}
         />
       </div>
+
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
       {/* Mounted only while open — GuestModal fetches enums/travel lookups

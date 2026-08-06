@@ -32,6 +32,11 @@
   --teal: #8d0134;
   --rose: #c25c4e;
 
+  /* Italic compliance sub-text (Guests/Travel page-sub) — primary colour on
+     the light page background; overridden to white in the dark block below,
+     since accent-on-dark-maroon loses contrast. */
+  --hayya-sub-color: var(--accent);
+
   /*green success chip  */
   --success: #20ba5871;
   --card-bg: rgba(255, 255, 255, 0.55);
@@ -95,6 +100,10 @@
 /* ── Dark (opt-in via the topbar theme toggle) ───────────────────────────── */
 html[data-theme="dark"] {
   --bg-0: #14000a;
+
+  /* White here, not accent — maroon text on the dark maroon page background
+     loses contrast; see the light-theme definition above. */
+  --hayya-sub-color: #ffffff;
 
   --page-bg:
     radial-gradient(1100px 620px at 10% -12%, #360019 0%, rgba(54,0,25,0) 62%),

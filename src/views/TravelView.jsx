@@ -26,6 +26,7 @@ import TravelAccordion, {
   FlightFields,
   flightTypeLabel,
 } from './guests/modals/TravelAccordion.jsx';
+import { color } from 'framer-motion';
 
 // A return booking is listed under both directions on the arrivals/departures
 // board, so each column reads its own leg — first for the departure, last for
@@ -187,7 +188,6 @@ const STATUS_COLOR = {
   rejected:'var(--danger)', completed:'var(--ink-mute)',
 };
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
 
 function StatusChip({ status, label }) {
   if (!status) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
@@ -287,7 +287,7 @@ export default function TravelView({ lang, activeEventId }) {
     guestSearch:'بحث عن ضيف…',back:'السابق',next:'التالي',
   } : {
     title:['Services',''],
-    sub:'Flights, visa applications, hotels and ground transfers',
+    sub:' Registry Compliant with Hayya',
     tabs:[
       // 'Overview',
       'Flights','Hotel','Ground Transfers','Arrivals & Departures'],
@@ -864,7 +864,7 @@ export default function TravelView({ lang, activeEventId }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">{STR.title[0]} <em>{STR.title[1]}</em></h1>
-          <div className="page-sub">{STR.sub}</div>
+          <div className="page-sub" style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>{STR.sub}</div>
         </div>
         <div className="page-actions">
           <button className="btn primary" onClick={openNewBooking}>
