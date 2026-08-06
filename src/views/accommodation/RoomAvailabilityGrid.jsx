@@ -2,17 +2,21 @@ import React, { useMemo } from 'react';
 import { Icon } from '../../components/Icons';
 import { fmtDayMonth } from '../../lib/date';
 
-// Rooms held × nights. One column per night, one row per hotel + room type, with
-// an all-hotels row on top — so "how many rooms exist on the 7th, how many are
-// left, how many are taken" is one glance rather than three lookups.
+// Rooms held × nights, for ONE hotel and one month at a time. Each room type is
+// three rows — Total, Booked, Available — because that is the question being
+// asked, and three labelled rows beat one cell holding three numbers.
+//
+// One hotel, not all of them: an all-hotels column sum mixes room types that have
+// nothing to do with each other, so the number it printed was never actionable.
+// One month, because the date axis spans every block in the event and a long
+// event pushed 60+ columns through a sideways scroll.
 //
 // Every series shares the response's date axis, so the columns line up without
 // the grid having to reconcile windows itself.
 
 const CELL_W = 62;
-const LABEL_W = 200;
+const LABEL_W = 190;
 
-// Tight, so a two-week event fits without the numbers colliding.
 const cellBase = {
   width: CELL_W, minWidth: CELL_W, boxSizing: 'border-box',
   padding: '6px 4px', textAlign: 'center', borderInlineStart: '1px solid var(--glass-border)',
@@ -31,8 +35,10 @@ const labelCell = {
   borderInlineEnd: '1px solid var(--glass-border-strong)',
 };
 
-// Sold out reads red, nearly gone amber, the rest neutral. A night with nothing
-// held AND nobody booked is blank — it was never on offer, so it isn't "full".
+// Only the Available row is coloured — Total and Booked are facts, Available is
+// the one that needs reading at a glance. Sold out red, nearly gone amber. A
+// night with nothing held AND nobody booked was never on offer, so it is blank
+// rather than "full".
 function tone(night) {
   if (night.available < 0) return { fg: '#e57373', bg: 'rgba(229,115,115,0.22)' };
   if (!night.total) return { fg: 'var(--ink-faint)', bg: 'transparent' };
@@ -42,39 +48,16 @@ function tone(night) {
 }
 
 // Weekday is a word, so it does follow the locale. The date itself uses the
-// portal's DD-MM, clipped of the year — a 62px column has no room for it, and
-// every column is inside one event anyway.
+// portal's DD-MM, clipped of the year — a 62px column has no room for it.
 const weekday = (iso, isAr) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(isAr ? 'ar' : 'en-GB', { weekday: 'short' });
-
-function Cell({ night, isAr, strong = false }) {
-  const { fg, bg } = tone(night);
-  // Nothing held and nobody in it: blank. Nothing held but somebody in it is a
-  // real overbooking, so it still shows (as a negative) rather than reading empty.
-  const idle = !night.total && !night.booked;
-  const title = isAr
-    ? `${night.total} غرفة · ${night.booked} محجوزة · ${night.available} متاحة`
-    : `${night.total} held · ${night.booked} booked · ${night.available} available`;
-  return (
-    <td style={{ ...cellBase, background: bg }} title={title}>
-      <div style={{ fontSize: strong ? 14 : 13, fontWeight: strong ? 700 : 600, color: fg, lineHeight: 1.2, direction: 'ltr' }}>
-        {idle ? '—' : night.available}
-      </div>
-      {!idle && (
-        <div style={{ fontSize: 10, color: 'var(--ink-mute)', direction: 'ltr' }}>
-          {night.booked}/{night.total}
-        </div>
-      )}
-    </td>
-  );
-}
 
 // Column-wise sum of a set of series. All series share one date axis, so index i
 // is the same night in every one of them.
 function sumNights(rows) {
   const out = [];
-  rows.forEach((r) => r.nights.forEach((n, i) => {
-    const acc = out[i] || { date: n.date, total: 0, booked: 0, available: 0 };
+  rows.forEach((r) => (r.nights || []).forEach((n, i) => {
+    const acc = out[i] || { total: 0, booked: 0, available: 0 };
     out[i] = {
       date: n.date,
       total: acc.total + n.total,
@@ -85,33 +68,85 @@ function sumNights(rows) {
   return out;
 }
 
-export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr = false }) {
+/** Every 'YYYY-MM' present on the axis, in order — the month filter's options. */
+export function monthsOf(data) {
+  const nights = data?.series?.[0]?.nights || [];
+  return [...new Set(nights.map((n) => String(n.date).slice(0, 7)))];
+}
+
+const inMonth = (nights, month) =>
+  (month ? (nights || []).filter((n) => String(n.date).startsWith(month)) : (nights || []));
+
+// One metric row. `metric` picks which number this row prints.
+function MetricRow({ label, nights, metric, strong = false, coloured = false }) {
+  return (
+    <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
+      <td style={{
+        ...labelCell,
+        fontSize: 11.5,
+        color: coloured ? 'var(--ink)' : 'var(--ink-mute)',
+        fontWeight: coloured ? 600 : 500,
+        paddingInlineStart: 26,
+      }}>
+        {label}
+      </td>
+      {nights.map((n) => {
+        const { fg, bg } = coloured ? tone(n) : {};
+        // Nothing held and nobody in it: blank. Nothing held but somebody in it is
+        // a real overbooking, so it still shows (as a negative) rather than empty.
+        const idle = !n.total && !n.booked;
+        return (
+          <td key={n.date} style={{ ...cellBase, background: coloured ? bg : 'transparent' }}>
+            <div style={{
+              fontSize: coloured || strong ? 13.5 : 12.5,
+              fontWeight: coloured || strong ? 700 : 500,
+              color: coloured ? fg : 'var(--ink-dim)',
+              direction: 'ltr', lineHeight: 1.2,
+            }}>
+              {idle ? '—' : n[metric]}
+            </div>
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+// The three rows one scope (a room type, or the hotel as a whole) expands into.
+function ScopeRows({ title, subtitle, nights, isAr, colSpan }) {
+  return (
+    <>
+      <tr style={{ background: 'var(--surface-soft-2)', borderBottom: '1px solid var(--glass-border)' }}>
+        <td style={{ ...labelCell, fontSize: 12.5, fontWeight: 700 }}>
+          {title}
+          {subtitle && (
+            <div style={{ fontSize: 10.5, fontWeight: 400, color: 'var(--ink-mute)' }}>{subtitle}</div>
+          )}
+        </td>
+        {/* The group header carries no numbers — the three rows under it do. */}
+        <td colSpan={colSpan} style={{ ...cellBase, textAlign: 'start', borderInlineStart: '1px solid var(--glass-border)' }} />
+      </tr>
+      <MetricRow label={isAr ? 'الإجمالي' : 'Total'} nights={nights} metric="total" />
+      <MetricRow label={isAr ? 'محجوز' : 'Booked'} nights={nights} metric="booked" />
+      <MetricRow label={isAr ? 'متاح' : 'Available'} nights={nights} metric="available" coloured />
+    </>
+  );
+}
+
+export default function RoomAvailabilityGrid({ data, loading, hotelId = '', month = '', isAr = false }) {
   const all = data?.series || [];
 
   // Filtered on the client: the response already holds every hotel, so switching
   // costs nothing and the date axis stays put between hotels.
   const series = useMemo(
-    () => (hotelId ? all.filter((s) => s.hotelId === hotelId) : all),
+    () => all.filter((s) => s.hotelId === hotelId),
     [all, hotelId],
   );
 
-  // Derived, never read off the response — with a hotel filter on, a server-side
-  // total would be the wrong subtotal.
-  const totals = useMemo(() => sumNights(series), [series]);
-
-  // Hotel rows are only worth showing when a hotel has more than one room type —
-  // otherwise the room-type row already says it.
-  const hotelSubtotals = useMemo(() => {
-    const byHotel = new Map();
-    series.forEach((s) => {
-      const bucket = byHotel.get(s.hotelId) || { name: s.hotelName, rows: [] };
-      bucket.rows.push(s);
-      byHotel.set(s.hotelId, bucket);
-    });
-    return new Map([...byHotel].map(([id, b]) => [id, {
-      name: b.name, count: b.rows.length, nights: sumNights(b.rows),
-    }]));
-  }, [series]);
+  // Derived, never read off the response — scoped to one hotel and one month, a
+  // server-side total would be the wrong subtotal.
+  const hotelNights = useMemo(() => inMonth(sumNights(series), month), [series, month]);
+  const axis = hotelNights;
 
   if (loading) {
     return <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: 'var(--ink-mute)' }}>
@@ -119,25 +154,28 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr
     </div>;
   }
 
-  if (!totals.length) {
+  if (!hotelId) {
     return <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: 'var(--ink-mute)' }}>
-      {hotelId
-        ? (isAr ? 'لا توجد غرف محجوزة في هذا الفندق' : 'No rooms held at this hotel')
-        : (isAr ? 'لا توجد غرف محجوزة بعد' : 'No rooms held yet')}
+      {isAr ? 'اختر فندقاً لعرض التوفّر' : 'Pick a hotel to see its availability'}
     </div>;
   }
 
-  // Grouped by hotel so a hotel's room types sit together under its subtotal.
-  // Filtered to one hotel, its subtotal IS the top row — don't print it twice.
-  const grouped = [];
-  [...hotelSubtotals.entries()].forEach(([id, bucket]) => {
-    if (!hotelId) grouped.push({ kind: 'hotel', hotelId: id, ...bucket });
-    series.filter((s) => s.hotelId === id).forEach((s) => grouped.push({ kind: 'roomType', ...s }));
-  });
+  if (!axis.length) {
+    return <div style={{ padding: 28, textAlign: 'center', fontSize: 13, color: 'var(--ink-mute)' }}>
+      {series.length
+        ? (isAr ? 'لا توجد ليالٍ في هذا الشهر' : 'No nights held in this month')
+        : (isAr ? 'لا توجد غرف محجوزة في هذا الفندق' : 'No rooms held at this hotel')}
+    </div>;
+  }
+
+  const hotelName = series[0]?.hotelName || '';
+  // The hotel block only earns its rows when there is more than one room type to
+  // add up — with one type it would repeat the rows directly beneath it.
+  const showHotelRows = series.length > 1;
 
   return (
     <div>
-      {/* The table scrolls, not the page — a month-long event would otherwise push
+      {/* The table scrolls, not the page — a month of columns would otherwise push
           the whole layout sideways. */}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
@@ -145,9 +183,9 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr
             <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
               <th style={{ ...labelCell, textAlign: 'start', fontSize: 10.5, color: 'var(--ink-mute)',
                 textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 500 }}>
-                {isAr ? 'الفندق / نوع الغرفة' : 'Hotel / Room Type'}
+                {isAr ? 'نوع الغرفة' : 'Room Type'}
               </th>
-              {totals.map((n) => (
+              {axis.map((n) => (
                 <th key={n.date} style={{ ...cellBase, fontWeight: 500 }}>
                   <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase' }}>{weekday(n.date, isAr)}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', direction: 'ltr' }}>{fmtDayMonth(n.date)}</div>
@@ -156,37 +194,24 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr
             </tr>
           </thead>
           <tbody>
-            {/* Headline row: every room type in scope — all hotels, or the one
-                the filter is on. */}
-            <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}>
-              <td style={{ ...labelCell, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {hotelId
-                  ? (series[0]?.hotelName || (isAr ? 'الإجمالي' : 'Total'))
-                  : (isAr ? 'كل الفنادق' : 'All Hotels')}
-              </td>
-              {totals.map((n) => <Cell key={n.date} night={n} isAr={isAr} strong />)}
-            </tr>
+            {showHotelRows && (
+              <ScopeRows
+                title={hotelName}
+                subtitle={isAr ? 'كل أنواع الغرف' : 'All room types'}
+                nights={hotelNights}
+                isAr={isAr}
+                colSpan={axis.length}
+              />
+            )}
 
-            {grouped.map((row) => (
-              row.kind === 'hotel' ? (
-                // Skipped when the hotel has a single room type: the row below it
-                // would repeat these exact numbers.
-                row.count > 1 && (
-                  <tr key={`h-${row.hotelId}`} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                    <td style={{ ...labelCell, fontSize: 12.5, fontWeight: 600 }}>{row.name}</td>
-                    {row.nights.map((n) => <Cell key={n.date} night={n} isAr={isAr} />)}
-                  </tr>
-                )
-              ) : (
-                <tr key={`${row.hotelId}-${row.roomTypeId}`} style={{ borderBottom: '1px solid var(--glass-border)' }}>
-                  <td style={labelCell}>
-                    <div style={{ fontSize: 12.5 }}>{row.roomTypeName}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', whiteSpace: 'nowrap',
-                      overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.hotelName}</div>
-                  </td>
-                  {row.nights.map((n) => <Cell key={n.date} night={n} isAr={isAr} />)}
-                </tr>
-              )
+            {series.map((s) => (
+              <ScopeRows
+                key={`${s.hotelId}-${s.roomTypeId}`}
+                title={s.roomTypeName}
+                nights={inMonth(s.nights, month)}
+                isAr={isAr}
+                colSpan={axis.length}
+              />
             ))}
           </tbody>
         </table>
@@ -196,9 +221,7 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', isAr
         padding: '10px 14px', borderTop: '1px solid var(--glass-border)', fontSize: 11, color: 'var(--ink-mute)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <Icon name="alert" size={12} />
-          {isAr
-            ? 'الرقم الكبير = المتاح، والصغير = محجوز / إجمالي'
-            : 'Big number = available, small = booked / held'}
+          {isAr ? 'متاح = الإجمالي − المحجوز' : 'Available = Total − Booked'}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: 'rgba(229,115,115,0.5)' }} />

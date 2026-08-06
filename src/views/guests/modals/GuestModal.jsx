@@ -24,6 +24,7 @@ import TravelAccordion, {
   anyTravelEnabled,
   buildTravelPayload,
   validateTravel,
+  sectionHasData,
 } from "./TravelAccordion";
 import ImportGuestsPanel from "./ImportGuestsPanel";
 import GuestServicesPanel from "../GuestServicesPanel";
@@ -444,6 +445,10 @@ export default function GuestModal({
         return;
       }
     }
+    // Services are never required to move on: only a half-filled travel section
+    // stops you, and an untouched one doesn't count as started. Anything skipped
+    // here is added later from the guest's Services list, which shows exactly the
+    // services their level assigns.
     if (step === 3) {
       const travelErr = validateTravel(travel, isAr);
       if (travelErr) {
@@ -512,7 +517,11 @@ export default function GuestModal({
         guestId = created?.id;
       }
 
-      if (guestId && anyTravelEnabled(travel)) {
+      // New guests only. When editing, step 3 is GuestServicesPanel, which saves
+      // each booking through the travel endpoint itself — re-POSTing the state
+      // hydrated at open time would overwrite whatever was just changed there
+      // (and hydrateTravel only ever holds the most recent booking of each kind).
+      if (guestId && !isEdit && anyTravelEnabled(travel)) {
         try {
           await saveGuestTravel(
             guestId,
@@ -1526,11 +1535,18 @@ export default function GuestModal({
                                       // done with no values — which is also what
                                       // makes the save loop below skip it.
                                       if (slot.isSystem) {
-                                        const travelErr = validateTravel(travel, isAr);
+                                        const key = TRAVEL_SECTION[slot.code];
+                                        const travelErr = validateTravel(travel, isAr, key);
                                         if (travelErr) { toast.warning(travelErr); return; }
+                                        // Nothing typed in = skipped, not done. The
+                                        // guest can be created without it and it can
+                                        // be added later from their Services list.
                                         setPendingServices((prev) => ({
                                           ...prev,
-                                          [slot.serviceId]: { values: {}, completed: true },
+                                          [slot.serviceId]: {
+                                            values: {},
+                                            completed: sectionHasData(travel, key),
+                                          },
                                         }));
                                         setOpenService(null);
                                         return;

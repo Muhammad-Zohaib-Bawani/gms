@@ -8,6 +8,7 @@ import { addDaysIso, fmtDate, fmtTime } from '../lib/date';
 import { getVehicles, getVehicleBookings } from '../api/services/vehicleService';
 import { getDrivers } from '../api/services/travelService';
 import { vehicleLabel, driverLabel } from './guests/modals/TravelAccordion';
+import FleetBookingsGrid from './fleet/FleetBookingsGrid';
 
 const labelStyle = {
   display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase',
@@ -40,6 +41,10 @@ export default function FleetBookingsView({ lang, activeEventId }) {
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
+
+  // The list answers "show me every booking"; the grid answers "what's happening
+  // at 09:00 on the 7th". Same rows, same filters — only the shape differs.
+  const [view, setView] = useState('list');
 
   // Filters. Empty = no bound, i.e. every booking for the event.
   const [vehicleId, setVehicleId] = useState('');
@@ -192,6 +197,19 @@ export default function FleetBookingsView({ lang, activeEventId }) {
               : 'When each vehicle is booked, and with which driver'}
           </div>
         </div>
+        {activeEventId && (
+          <div className="page-actions">
+            {[
+              { key: 'list', label: isAr ? 'قائمة' : 'List', icon: 'reports' },
+              { key: 'grid', label: isAr ? 'شبكة' : 'Grid', icon: 'meetings' },
+            ].map((v) => (
+              <button key={v.key} className={`btn${view === v.key ? ' primary' : ''}`}
+                style={{ fontSize: 12 }} onClick={() => setView(v.key)}>
+                <Icon name={v.icon} size={13} /> {v.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {!activeEventId ? (
@@ -203,16 +221,26 @@ export default function FleetBookingsView({ lang, activeEventId }) {
         </div>
       ) : (
         <div className="card" style={{ padding: 0 }}>
-          <DataTable
-            columns={columns}
-            data={rows}
-            loading={loading}
-            showSearch
-            toolbar={toolbar}
-            pageSize={15}
-            searchPlaceholder={isAr ? 'بحث بالمركبة أو السائق أو الضيف…' : 'Search vehicle, driver or guest…'}
-            emptyText={isAr ? 'لا توجد حجوزات' : 'No bookings'}
-          />
+          {view === 'grid' ? (
+            <>
+              {/* The grid has no DataTable to host the filters, so they sit above it. */}
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--glass-border)' }}>
+                {toolbar}
+              </div>
+              <FleetBookingsGrid rows={rows} loading={loading} isAr={isAr} />
+            </>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={rows}
+              loading={loading}
+              showSearch
+              toolbar={toolbar}
+              pageSize={15}
+              searchPlaceholder={isAr ? 'بحث بالمركبة أو السائق أو الضيف…' : 'Search vehicle, driver or guest…'}
+              emptyText={isAr ? 'لا توجد حجوزات' : 'No bookings'}
+            />
+          )}
         </div>
       )}
     </div>

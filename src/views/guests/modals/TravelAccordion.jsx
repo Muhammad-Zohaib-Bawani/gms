@@ -20,6 +20,8 @@ import React, { useEffect } from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
+import ImageField from '../../../components/ui/ImageField';
+import { stripSasToken } from '../../../api/services/uploadService';
 import { useAvailableVehicles, useAvailableDrivers } from '../../../lib/useAvailableVehicles';
 import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
 import { addDaysIso, fmtDate } from '../../../lib/date';
@@ -42,11 +44,17 @@ export const EMPTY_TRAVEL = {
   flight: {
     enabled: false, id: '',
     flightType: 'inbound', flightClassId: '', status: 'confirmed', seat: '',
+    // Ticket / boarding pass. A blob url from the upload endpoint, stored on
+    // Flights.ImageUrl — see ImageField below.
+    imageUrl: '',
     legs: [{ ...EMPTY_LEG }],
   },
   accommodation: {
     enabled: false, id: '',
     hotelId: '', roomTypeId: '', checkIn: '', checkOut: '',
+    // Voucher or room photo, stored on Accommodations.ImageUrl. Not the hotel's
+    // own picture — that lives on the hotel lookup.
+    imageUrl: '',
     roomView: '', guestCount: '', conciergeName: '', conciergePhone: '',
   },
   transport: {
@@ -117,17 +125,55 @@ export function hydrateTravel(data) {
   };
 }
 
+const isBlank = (v) => v === '' || v == null;
+
+/**
+ * Has anything actually been typed into this section?
+ *
+ * An open-but-untouched section is "not added yet", not "added and invalid" —
+ * that is what lets the guest wizard walk past a service the user intends to fill
+ * in later, without a service being required at creation time. A section with
+ * SOME fields filled is still validated in full: a half-booking is an error.
+ *
+ * Compared against the empty shape rather than tested for falsiness, because
+ * flightType/status carry defaults that are not user input.
+ */
+export function sectionHasData(travel, key) {
+  const sec = travel?.[key];
+  const empty = EMPTY_TRAVEL[key];
+  if (!sec || !empty) return false;
+
+  return Object.keys(empty).some((k) => {
+    if (k === 'enabled' || k === 'id') return false;
+    if (k === 'legs') {
+      return (sec.legs || []).some((leg) => Object.keys(EMPTY_LEG).some(
+        (lk) => lk !== 'id' && !isBlank(leg?.[lk]) && leg[lk] !== EMPTY_LEG[lk],
+      ));
+    }
+    return !isBlank(sec[k]) && sec[k] !== empty[k];
+  });
+}
+
+/** Sections that will actually be saved: switched on AND filled in. */
+const activeSections = (t) =>
+  ['flight', 'accommodation', 'transport'].filter((k) => t?.[k]?.enabled && sectionHasData(t, k));
+
 // Allowing the guest to book their own transport counts as something to save —
 // it's the whole point of the toggle that it needs no booking alongside it.
 export const anyTravelEnabled = (t) =>
-  !!(t.flight.enabled || t.accommodation.enabled || t.transport.enabled || t.allowTransportRequest);
+  activeSections(t).length > 0 || !!t.allowTransportRequest;
 
 // Returns an error message for the first missing required field, or null if OK.
-// A checked-but-empty section is what this guards against: once a section is
-// enabled, its core identifying fields become required — fill them in, or
-// uncheck the section to skip it entirely.
-export function validateTravel(t, isAr = false) {
-  if (t.flight.enabled) {
+// A PARTLY filled section is what this guards against: start one and its core
+// fields become required. An untouched section is skipped entirely — nothing here
+// forces a guest to be given travel at all.
+//
+// `only` narrows it to a single section ('flight' | 'accommodation' | 'transport'),
+// so confirming one service's form doesn't report a problem in another's.
+export function validateTravel(t, isAr = false, only = null) {
+  const active = (key) => (!only || only === key) && t?.[key]?.enabled && sectionHasData(t, key);
+
+  if (active('flight')) {
     if (!t.flight.flightType) return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
     // Every leg is required in full — a return booking is only useful with both
     // halves filled in.
@@ -141,7 +187,7 @@ export function validateTravel(t, isAr = false) {
       if (!leg.startTime) return (isAr ? 'وقت الإقلاع مطلوب' : 'Departure time is required') + n;
     }
   }
-  if (t.accommodation.enabled) {
+  if (active('accommodation')) {
     if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
     if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
     if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
@@ -150,7 +196,7 @@ export function validateTravel(t, isAr = false) {
     if (t.accommodation.checkOut <= t.accommodation.checkIn)
       return isAr ? 'تاريخ المغادرة يجب أن يكون بعد الوصول' : 'Check-out must be after check-in';
   }
-  if (t.transport.enabled) {
+  if (active('transport')) {
     if (!t.transport.vehicleId) return isAr ? 'المركبة مطلوبة' : 'Vehicle is required';
     if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
     if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
@@ -184,21 +230,29 @@ export function legTitle(type, i, isAr = false) {
   return isAr ? 'قادمة' : 'Inbound';
 }
 
+// `imageUrl` keeps its empty string rather than collapsing to null: the API reads
+// null as "not sent, leave the stored image alone" and "" as an explicit clear, so
+// removing an image has to survive this step as ''.
+const KEEP_EMPTY = ['imageUrl'];
+
 function cleanSection(sec, numericKeys = []) {
   const out = {};
   for (const [k, v] of Object.entries(sec)) {
     if (k === 'enabled') continue;
-    if (v === '' || v == null) { out[k] = null; continue; }
+    if (v === '' || v == null) { out[k] = KEEP_EMPTY.includes(k) ? '' : null; continue; }
     out[k] = numericKeys.includes(k) ? Number(v) : v;
   }
   return out;
 }
 
-// Build the POST body — only the enabled sections, with the `enabled` flag
-// stripped. Every id field is sent as-is (already the real lookup public id).
+// Build the POST body — only the sections that were switched on AND filled in,
+// with the `enabled` flag stripped. Every id field is sent as-is (already the real
+// lookup public id). An untouched section is left out rather than POSTed empty.
 export function buildTravelPayload(travel) {
   const body = {};
-  if (travel.flight.enabled) {
+  const active = activeSections(travel);
+
+  if (active.includes('flight')) {
     const { legs, ...rest } = travel.flight;
     body.flight = cleanSection(rest);
     body.flight.legs = (legs || []).map((l) => cleanSection(l));
@@ -212,8 +266,8 @@ export function buildTravelPayload(travel) {
     body.flight.flightClassId = body.flight.legs[0]?.flightClassId ?? null;
     body.flight.seat = body.flight.legs[0]?.seat ?? null;
   }
-  if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
-  if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
+  if (active.includes('accommodation')) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
+  if (active.includes('transport')) body.transport = cleanSection(travel.transport);
   // Only when it was actually set — see EMPTY_TRAVEL.allowTransportRequest.
   if (typeof travel.allowTransportRequest === 'boolean')
     body.allowTransportRequest = travel.allowTransportRequest;
@@ -560,6 +614,22 @@ export default function TravelAccordion({
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>
   );
 
+  // Optional attachment for the booking. The SAS token is stripped before it goes
+  // into state: it expires within minutes, and the backend re-signs the bare URL
+  // on every read (BlobSasMiddleware). '' clears it, which the API treats as an
+  // explicit "remove" — null there would mean "leave whatever is stored".
+  const image = (section, label, hint) => (
+    <div>
+      <Label>{label}</Label>
+      <ImageField
+        value={travel[section].imageUrl || ''}
+        onChange={(url) => setField(section, 'imageUrl', stripSasToken(url) || '')}
+        isAr={isAr}
+      />
+      <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>{hint}</div>
+    </div>
+  );
+
   // Pinned mode drops the collapsible chrome and renders the fields bare. A plain
   // function, not a component: an inline component would be a new element type on
   // every render and remount its children, losing focus mid-typing.
@@ -577,7 +647,7 @@ export default function TravelAccordion({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {section('flight', 'flight', isAr ? 'الرحلة الجوية' : 'Flight', (
+      {section('flight', 'flight', isAr ? 'الرحلة الجوية' : 'Flight', (<>
         <FlightFields
           flight={travel.flight}
           setFlight={(patch) => onChange((p) => ({ ...p, flight: { ...p.flight, ...patch } }))}
@@ -586,7 +656,12 @@ export default function TravelAccordion({
           eventMinDate={eventMinDate}
           eventMaxDate={eventMaxDate}
         />
-      ))}
+        {image('flight',
+          isAr ? 'صورة التذكرة' : 'Ticket Image',
+          isAr
+            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة، يراها الضيف في التطبيق'
+            : 'Optional — ticket or boarding pass; the guest sees it in the app')}
+      </>))}
 
       {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
         {grid(<>
@@ -631,6 +706,11 @@ export default function TravelAccordion({
           {txt('accommodation', 'conciergeName', isAr ? 'اسم الكونسيرج' : 'Concierge Name')}
           {txt('accommodation', 'conciergePhone', isAr ? 'هاتف الكونسيرج' : 'Concierge Phone')}
         </>)} */}
+        {image('accommodation',
+          isAr ? 'صورة الحجز' : 'Booking Image',
+          isAr
+            ? 'اختياري — قسيمة الحجز أو صورة الغرفة، يراها الضيف في التطبيق'
+            : 'Optional — booking voucher or a photo of the room; the guest sees it in the app')}
       </>))}
 
       {section('transport', 'car', isAr ? 'النقل' : 'Transport', (<>

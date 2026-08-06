@@ -14,7 +14,7 @@ import {
   getGuestServicePlan, saveGuestServiceEntry, deleteGuestServiceEntry,
 } from '../../api/services/serviceCatalogService';
 import TravelAccordion, {
-  EMPTY_TRAVEL, hydrateTravel, buildTravelPayload, validateTravel,
+  EMPTY_TRAVEL, hydrateTravel, buildTravelPayload, validateTravel, sectionHasData,
 } from './modals/TravelAccordion';
 import {
   getTravelLookups, getGuestTravel, saveGuestTravel,
@@ -111,7 +111,15 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
   // A booking either exists or it doesn't — the static forms have no draft state,
   // so saving one is always "completed" as far as the checklist is concerned.
   async function saveTravelSection() {
-    const err = validateTravel(travel, isAr);
+    const key = TRAVEL_SECTION[editing.slot.code];
+
+    if (!sectionHasData(travel, key)) {
+      setError(isAr ? 'لم يتم إدخال أي بيانات' : 'Nothing filled in yet');
+      return;
+    }
+    // Scoped to this section: another one being half-finished is not this form's
+    // problem, and each booking is saved on its own.
+    const err = validateTravel(travel, isAr, key);
     if (err) { setError(err); return; }
 
     setSaving(true);
