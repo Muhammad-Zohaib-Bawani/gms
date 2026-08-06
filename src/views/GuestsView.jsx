@@ -469,7 +469,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           </h1>
           <div className="page-sub">
             {/* {fmtN(totalCount)} guest{totalCount !== 1 ? "s" : ""} */}
-            <span style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>
+            <span style={{ color: "var(--hayya-sub-color)" }}>
               {isAr ? "متوافق مع نظام هيّا" : "Registry Compliant with Hayya"}
             </span>
           </div>

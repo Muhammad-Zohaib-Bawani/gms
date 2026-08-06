@@ -935,7 +935,7 @@ export default function TravelView({ lang, activeEventId }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">{STR.title[0]} <em>{STR.title[1]}</em></h1>
-          <div className="page-sub" style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>{STR.sub}</div>
+          <div className="page-sub" style={{ color: "var(--hayya-sub-color)" }}>{STR.sub}</div>
         </div>
         {/* New Booking moved down to the end of the tab strip — see below. */}
       </div>

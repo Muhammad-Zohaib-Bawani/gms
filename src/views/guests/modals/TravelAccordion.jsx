@@ -657,10 +657,10 @@ export default function TravelAccordion({
           eventMaxDate={eventMaxDate}
         />
         {image('flight',
-          isAr ? 'صورة التذكرة' : 'Ticket Image',
+          isAr ? 'صورة التذكرة' : 'Upload Itinerary' ,
           isAr
             ? 'اختياري — تذكرة أو بطاقة صعود الطائرة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
-            : 'Optional — ticket or boarding pass. A clear, straight scan reads best with OCR, and the guest sees it in the app')}
+            : 'Optional — ticket or boarding pass.')}
       </>))}
 
       {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
@@ -707,10 +707,10 @@ export default function TravelAccordion({
           {txt('accommodation', 'conciergePhone', isAr ? 'هاتف الكونسيرج' : 'Concierge Phone')}
         </>)} */}
         {image('accommodation',
-          isAr ? 'صورة الحجز' : 'Booking Image',
+          isAr ? 'صورة الحجز' : 'Upload Itinerary',
           isAr
             ? 'اختياري — قسيمة الحجز أو صورة الغرفة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
-            : 'Optional — booking voucher or a photo of the room. A clear, straight scan reads best with OCR, and the guest sees it in the app')}
+            : 'Optional — Upload itinerary')}
       </>))}
 
       {section('transport', 'car', isAr ? 'النقل' : 'Transport', (<>

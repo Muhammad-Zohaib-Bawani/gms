@@ -41,6 +41,59 @@ const labelStyle = {
   letterSpacing: '0.08em', marginBottom: 4,
 };
 
+// ─── A dropdown's option list, typed one per line ────────────────────────────
+
+const joinOptions = (options) => (options || []).map((o) => o.label ?? o.value ?? '').join('\n');
+
+// Blank lines are dropped and labels trimmed, so what's stored is always clean.
+// Existing options are reused by label, so editing one line never re-keys the
+// others — a value already saved against an option keeps pointing at it.
+const parseOptions = (text, existing) =>
+  String(text).split('\n').map((line) => line.trim()).filter(Boolean)
+    .map((label) => (existing || []).find((o) => o.label === label)
+                    || { value: keyFromLabel(label) || label, label });
+
+/**
+ * The textarea holds the raw text while you type, rather than being re-derived
+ * from `options` on every keystroke.
+ *
+ * That derivation is why Enter did nothing: pressing it added a trailing blank
+ * line, `parseOptions` dropped it, and the value handed back to the textarea was
+ * the text without the newline — so the caret could never reach the next line.
+ * Options still update on every keystroke; only the display text is local.
+ */
+function OptionsField({ options, onChange, isAr }) {
+  const [text, setText] = React.useState(() => joinOptions(options));
+  // The last text WE pushed up, normalised. Anything else arriving on the prop
+  // came from outside (prefilling an existing service) and should replace what's
+  // in the box; our own keystrokes must not.
+  const pushed = React.useRef(joinOptions(options));
+
+  React.useEffect(() => {
+    const incoming = joinOptions(options);
+    if (incoming !== pushed.current) {
+      pushed.current = incoming;
+      setText(incoming);
+    }
+  }, [options]);
+
+  return (
+    <textarea
+      rows={3}
+      style={{ ...inputStyle, resize: 'vertical' }}
+      value={text}
+      placeholder={isAr ? 'سيدان\nليموزين' : 'Sedan\nLimousine'}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        const parsed = parseOptions(raw, options);
+        pushed.current = joinOptions(parsed);
+        onChange(parsed);
+      }}
+    />
+  );
+}
+
 /** "Lounge Name" -> "loungeName". Keys are the stable machine identifier that
  *  stored values are keyed by, so they're derived once from the label and then
  *  left alone — renaming a label must not orphan existing values. */
@@ -262,18 +315,10 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
           {f.type === 'select' && (
             <div>
               <label style={labelStyle}>{isAr ? 'الخيارات (سطر لكل خيار)' : 'Options (one per line)'} *</label>
-              <textarea
-                rows={3}
-                style={{ ...inputStyle, resize: 'vertical' }}
-                // Typed as one label per line; stored as {value,label} objects so a
-                // later label edit never orphans values already saved against it.
-                value={(f.options || []).map((o) => o.label ?? o.value ?? '').join('\n')}
-                placeholder={isAr ? 'سيدان\nليموزين' : 'Sedan\nLimousine'}
-                onChange={(e) => update(i, {
-                  options: e.target.value.split('\n').map((line) => line.trim()).filter(Boolean)
-                    .map((label) => (f.options || []).find((o) => o.label === label)
-                                    || { value: keyFromLabel(label) || label, label }),
-                })}
+              <OptionsField
+                options={f.options}
+                onChange={(options) => update(i, { options })}
+                isAr={isAr}
               />
             </div>
           )}
