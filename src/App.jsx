@@ -62,7 +62,7 @@ const NAV = [
   { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
     { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "ADMIN",    permission: "ServiceLevels.View"     },
-  { key: "services",       icon: "star",       label: { en: "Services",            ar: "الخدمات"               }, section: "ADMIN",    permission: "Services.View"          },
+  { key: "services",       icon: "star",       label: { en: "Manage Services",     ar: "إدارة الخدمات"          }, section: "ADMIN",    permission: "Services.View"          },
   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },

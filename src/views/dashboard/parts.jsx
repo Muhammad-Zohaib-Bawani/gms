@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { Card, CardHead, Progress, EmptyState, fadeUpItem } from '../../components/ds';
 import { Icon } from '../../components/Icons';
+import { fmtDate } from '../../lib/date';
 
 /**
  * Same markup/classes as the ds `StatCard` (`.stat-card`/`.stat-top`/
@@ -336,8 +337,10 @@ export function FunnelPanel({ title, subtitle, data, seriesName }) {
   );
 }
 
-/** A compact "time — title — detail" list, used for sessions and meetings. */
-export function AgendaPanel({ title, icon, items, emptyText, action }) {
+/** A compact "time — title — detail" list, used for sessions and meetings.
+ * `quickActions`, when given, adds a row of action buttons fixed under the
+ * list (same box as the meetings list — not a separate card). */
+export function AgendaPanel({ title, icon, items, emptyText, action, quickActions }) {
   return (
     <Card padded={false}>
       <div style={{ padding: '16px 18px 0' }}>
@@ -364,6 +367,17 @@ export function AgendaPanel({ title, icon, items, emptyText, action }) {
           </div>
         ))}
       </div>
+      {quickActions?.length > 0 && (
+        <div style={{
+          display: 'flex', gap: 6, padding: '9px 12px', borderTop: '1px solid var(--glass-border)', flexWrap: 'wrap',
+        }}>
+          {quickActions.map((qa) => (
+            <button key={qa.label} type="button" className="btn sm" onClick={qa.onClick} style={{ flex: '1 1 auto', justifyContent: 'center' }}>
+              <Icon name={qa.icon} size={12} /> {qa.label}
+            </button>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
@@ -412,6 +426,48 @@ export function AgendaTabsPanel({ title, icon, tabs, active, onChange, quickActi
               <Icon name={qa.icon} size={12} /> {qa.label}
             </button>
           ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Full listing of every session on the event — name, date, time, room — as a
+ * plain table rather than the short "time — title" agenda list, since this
+ * is the dedicated sessions section (moved to the bottom of the page) rather
+ * than a compact "what's on today" glance.
+ */
+export function SessionsListPanel({ title, subtitle, icon = 'calendar', sessions, emptyText, isAr }) {
+  return (
+    <Card padded={false}>
+      <div style={{ padding: '16px 18px 0' }}>
+        <CardHead title={title} subtitle={subtitle} icon={icon} />
+      </div>
+      {(!sessions || sessions.length === 0) ? (
+        <EmptyState icon={icon} title={emptyText} />
+      ) : (
+        <div style={{ overflowX: 'auto', padding: '10px 4px 14px' }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>{isAr ? 'الجلسة' : 'Session'}</th>
+                <th>{isAr ? 'التاريخ' : 'Date'}</th>
+                <th>{isAr ? 'الوقت' : 'Time'}</th>
+                <th>{isAr ? 'القاعة' : 'Room'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sessions.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ fontSize: 12.5, fontWeight: 550 }}>{s.title}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-mute)' }}>{s.date ? fmtDate(s.date) : '—'}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-mute)' }}>{s.time || '—'}</td>
+                  <td style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{s.room || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </Card>

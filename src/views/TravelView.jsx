@@ -188,12 +188,11 @@ function DriverTypeChip({ driverType, isAr }) {
 }
 
 const STATUS_COLOR = {
-  approved:'var(--accent)', confirmed:'var(--accent)', scheduled:'var(--accent)',
+  approved:'var(--ok)', confirmed:'var(--ok)', scheduled:'var(--ok)',
   submitted:'#e0c47e', pending:'#e0c47e',
   rejected:'var(--danger)', completed:'var(--ink-mute)',
 };
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
 
 function StatusChip({ status, label }) {
   if (!status) return <span style={{ color:'var(--ink-faint)' }}>—</span>;
@@ -293,7 +292,7 @@ export default function TravelView({ lang, activeEventId }) {
     guestSearch:'بحث عن ضيف…',back:'السابق',next:'التالي',
   } : {
     title:['Services',''],
-    sub:'Flights, visa applications, hotels and ground transfers',
+    sub:' Registry Compliant with Hayya',
     tabs:[
       // 'Overview',
       'Flights','Hotel','Ground Transfers','Arrivals & Departures'],
@@ -918,7 +917,7 @@ export default function TravelView({ lang, activeEventId }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">{STR.title[0]} <em>{STR.title[1]}</em></h1>
-          <div className="page-sub">{STR.sub}</div>
+          <div className="page-sub" style={{ color: "var(--hayya-sub-color)", fontStyle: "italic" }}>{STR.sub}</div>
         </div>
         {/* A dynamic service's own New Booking button lives in its embedded panel
             — this one books the three relational services. */}

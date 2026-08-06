@@ -15,7 +15,7 @@ import {
   EmptyState, Skeleton, Alert, staggerParent,
 } from '../components/ds';
 import {
-  DonutTabsPanel, BreakdownTabsPanel, ReadinessPanel, FunnelPanel, AgendaTabsPanel, StatCardBreakdown,
+  DonutTabsPanel, BreakdownTabsPanel, FunnelPanel, AgendaPanel, StatCardBreakdown,
 } from './dashboard/parts';
 import toast from '../lib/toast';
 import { getDashboard } from '../api/services/dashboardService';
@@ -81,7 +81,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   // it's pure UI state, not data.
   const [donutTab, setDonutTab] = useState('rsvp');
   const [breakdownTab, setBreakdownTab] = useState('levels');
-  const [agendaTab, setAgendaTab] = useState('today');
 
   useEffect(() => {
     if (!activeEventId) { setDashboard(null); setLoadError(false); return; }
@@ -109,11 +108,13 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     levelsTitle: 'مستويات الخدمة', levelsSub: 'الضيوف حسب المستوى',
     natTitle: 'الجنسيات', natSub: 'الأكثر تمثيلاً',
     orgTitle: 'المؤسسات', orgSub: 'الأكثر تمثيلاً',
-    readyTitle: 'جاهزية التشغيل', readySub: 'تقدّم كل مسار عمل',
     moveTitle: 'الوصول والمغادرة', moveSub: 'حسب اليوم',
     recentTitle: 'آخر نشاط الضيوف', recentSub: 'أحدث الإضافات والتحديثات',
     todayTitle: 'برنامج اليوم', meetingsTitle: 'الاجتماعات القادمة',
+    sessionsTitle: 'الجلسات', sessionsSub: 'كل جلسات الفعالية', noSessions: 'لا توجد جلسات لهذه الفعالية',
     quickTitle: 'إجراءات سريعة',
+    flightBookings: 'حجوزات الطيران', accommodationBookings: 'حجوزات الفنادق', transportBookings: 'حجوزات النقل',
+    ofGuests: 'من إجمالي الضيوف',
     cols: { guest: 'الضيف', level: 'المستوى', org: 'المؤسسة', status: 'الحالة', arrival: 'الوصول' },
     noSessionsToday: 'لا توجد جلسات اليوم', noMeetings: 'لا توجد اجتماعات قادمة',
     noGuests: 'لا يوجد ضيوف بعد', noGuestsHint: 'أضف ضيوفاً لتظهر هنا',
@@ -124,7 +125,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     arrivals: 'الوصول', departures: 'المغادرة',
     accredIssued: 'اعتماد صادر', travelArranged: 'سفر مُرتَّب', seated: 'مقاعد مخصّصة', invited: 'دعوات مُرسلة',
     daysToGo: 'يوم متبقٍ', inProgress: 'جارية الآن',
-    qa: { addGuest: 'إضافة ضيف', invite: 'إرسال دعوة', accredit: 'الاعتماد', seating: 'الجلوس' },
+    qa: { addGuest: 'إضافة ضيف',addMeeting: 'إضافة اجتماع', invite: 'إرسال دعوة', accredit: 'الاعتماد', seating: 'الجلوس' },
     rsvp: { accepted: 'مقبولة', awaiting: 'في الانتظار', declined: 'مرفوضة', notSent: 'لم تُرسل' },
     accredLabels: { issued: 'صادرة', pending: 'قيد الانتظار', revoked: 'ملغاة', notRequired: 'غير مطلوبة' },
   } : {
@@ -137,11 +138,13 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     levelsTitle: 'Service levels', levelsSub: 'Guests per level',
     natTitle: 'Nationalities', natSub: 'Most represented',
     orgTitle: 'Organisations', orgSub: 'Most represented',
-    readyTitle: 'Operational readiness', readySub: 'Progress across each workstream',
     moveTitle: 'Arrivals & departures', moveSub: 'By day',
     recentTitle: 'Recent guest activity', recentSub: 'Latest additions and updates',
     todayTitle: "Today's programme", meetingsTitle: 'Upcoming meetings',
+    sessionsTitle: 'Sessions', sessionsSub: 'Every session on this event', noSessions: 'No sessions for this event yet',
     quickTitle: 'Quick actions',
+    flightBookings: 'Flight Bookings', accommodationBookings: 'Accommodation Bookings', transportBookings: 'Transport Bookings',
+    ofGuests: 'of total guests',
     cols: { guest: 'Guest', level: 'Service Level', org: 'Organisation', status: 'Status', arrival: 'Arrival' },
     noSessionsToday: 'No sessions today', noMeetings: 'No upcoming meetings',
     noGuests: 'No guests yet', noGuestsHint: 'Guests you add to this event will appear here.',
@@ -152,7 +155,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     arrivals: 'Arrivals', departures: 'Departures',
     accredIssued: 'Accreditation issued', travelArranged: 'Travel arranged', seated: 'Seats assigned', invited: 'Invitations sent',
     daysToGo: 'days to go', inProgress: 'In progress',
-    qa: { addGuest: 'Add guest', invite: 'Send invitation', accredit: 'Accreditation', seating: 'Seating' },
+    qa: { addGuest: 'Add guest', invite: 'Send invitation', accredit: 'Accreditation', seating: 'Seating',addMeeting: 'Add meeting' },
     rsvp: { accepted: 'Accepted', awaiting: 'Awaiting', declined: 'Declined', notSent: 'Not sent' },
     accredLabels: { issued: 'Issued', pending: 'Pending', revoked: 'Revoked', notRequired: 'Not required' },
   };
@@ -163,7 +166,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const rsvp = dashboard?.rsvp || { accepted: 0, declined: 0, awaiting: 0, notSent: 0, responseRate: 0 };
   const accred = dashboard?.accreditation || { issued: 0, pending: 0, revoked: 0, notRequired: 0 };
   const travel = dashboard?.travel || { flightsBooked: 0, accommodationBooked: 0, transportBooked: 0, guestsWithTravel: 0 };
-  const seating = dashboard?.seating || { assigned: 0, unassigned: 0 };
   const total = funnel.totalGuests || 0;
 
   const funnelData = useMemo(() => ([
@@ -199,20 +201,11 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
     departures: m.departures,
   })), [dashboard, isAr]);
 
-  // Denominators differ per workstream on purpose: accreditation is measured
-  // against guests who actually need a badge, not the whole list.
-  const readinessRows = useMemo(() => {
-    const needsAccred = accred.issued + accred.pending + accred.revoked;
-    return [
-      { label: STR.invited, icon: 'invitation', tint: '#8d0134', value: total - rsvp.notSent, max: total },
-      { label: STR.accredIssued, icon: 'badge', tint: '#4a9edd', value: accred.issued, max: needsAccred },
-      { label: STR.travelArranged, icon: 'travel', tint: '#a78bda', value: travel.guestsWithTravel, max: total },
-      { label: STR.seated, icon: 'seating', tint: '#5abf6e', value: seating.assigned, max: total },
-    ];
-  }, [accred, travel, seating, rsvp, total, STR]);
-
   const today = todayStr();
-  const todaySessions = (dashboard?.sessions || []).filter((s) => s.date === today);
+  // Full listing (all sessions, any date) for the SessionsListPanel at the
+  // bottom of the page — not just "today's", now that it's its own section
+  // rather than a compact glance.
+  const allSessions = dashboard?.sessions || [];
   const upcomingMeetings = (dashboard?.meetings || []).filter((m) => m.date >= today).slice(0, 5);
   // Keep the dashboard's table short — full history is one click away via
   // "All guests"; the server already caps this feed at 8, this trims further.
@@ -311,35 +304,34 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               <StatCardBreakdown label={STR.totalGuests} value={fmtN(total)} icon="guests" tint="#8d0134"
                 lines={[
                   { label: STR.rsvp.accepted, value: fmtN(rsvp.accepted), tint: 'var(--ok)' },
-                  { label: STR.rsvp.awaiting, value: fmtN(rsvp.awaiting), tint: '#e0b864' },
-                  { label: STR.rsvp.declined, value: fmtN(rsvp.declined), tint: 'var(--danger)' },
+                  // { label: STR.rsvp.awaiting, value: fmtN(rsvp.awaiting), tint: '#e0b864' },
+                  // { label: STR.rsvp.declined, value: fmtN(rsvp.declined), tint: 'var(--danger)' },
                 ]}
               />
-              <StatCardBreakdown label={STR.confirmed} value={fmtN(rsvp.accepted)} icon="check" tint="#5abf6e"
+              {/* Flight/Accommodation/Transport booking counts — real numbers
+                  from the Travel module, instead of three more cards that
+                  just repeated the guest-response stats above. */}
+              <StatCardBreakdown label={STR.flightBookings} value={fmtN(travel.flightsBooked)} icon="flight" tint="#4a9edd"
                 lines={[
-                  { label: STR.travelArranged, value: fmtN(travel.guestsWithTravel) },
-                  { label: STR.seated, value: fmtN(seating.assigned) },
+                  { label: STR.ofGuests, value: `${ad(total ? Math.round((travel.flightsBooked / total) * 100) : 0)}%` },
                 ]}
               />
-              <StatCardBreakdown label={STR.responseRate} value={`${ad(rsvp.responseRate)}%`} icon="invitation" tint="#e0b864"
+              <StatCardBreakdown label={STR.accommodationBookings} value={fmtN(travel.accommodationBooked)} icon="hotel" tint="#e0b864"
                 lines={[
-                  { label: isAr ? 'مدعوّون' : 'Invited', value: fmtN(total - rsvp.notSent) },
-                  { label: isAr ? 'ردّوا' : 'Responded', value: fmtN(rsvp.accepted + rsvp.declined) },
+                  { label: STR.ofGuests, value: `${ad(total ? Math.round((travel.accommodationBooked / total) * 100) : 0)}%` },
                 ]}
               />
-              <StatCardBreakdown label={STR.accred} value={fmtN(accred.issued)} icon="badge" tint="#4a9edd"
+              <StatCardBreakdown label={STR.transportBookings} value={fmtN(travel.transportBooked)} icon="car" tint="#a78bda"
                 lines={[
-                  { label: STR.accredLabels.pending, value: fmtN(accred.pending), tint: '#e0b864' },
-                  { label: STR.accredLabels.revoked, value: fmtN(accred.revoked), tint: 'var(--danger)' },
-                  { label: STR.accredLabels.notRequired, value: fmtN(accred.notRequired) },
+                  { label: STR.ofGuests, value: `${ad(total ? Math.round((travel.transportBooked / total) * 100) : 0)}%` },
                 ]}
               />
             </Grid>
           </motion.div>
 
-          {/* ── Row 1: funnel · RSVP/Accreditation (tabbed) · readiness ──
-                 Three cards, not five — RSVP and Accreditation used to be two
-                 separate donut cards; they now share one behind a tab. ── */}
+          {/* ── Row 1: funnel · RSVP/Accreditation (tabbed) · upcoming meetings
+                 (Operational Readiness dropped — it just repeated numbers the
+                 KPI row and donuts already show). ── */}
           <Grid min={260} gap={12} style={{ marginBottom: 12 }}>
             <FunnelPanel title={STR.funnelTitle} subtitle={STR.funnelSub} data={funnelData} seriesName={STR.guests} />
             <DonutTabsPanel
@@ -359,12 +351,24 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                 },
               ]}
             />
-            <ReadinessPanel title={STR.readyTitle} subtitle={STR.readySub} rows={readinessRows} fmtN={fmtN} ad={ad} />
+            <AgendaPanel
+              title={STR.meetingsTitle} icon="meetings" emptyText={STR.noMeetings}
+              items={upcomingMeetings.map((m) => ({
+                id: m.id,
+                time: m.startTime ? String(m.startTime).slice(0, 5) : null,
+                title: m.name,
+                detail: [m.date, m.location].filter(Boolean).join(' · '),
+              }))}
+              quickActions={[
+                { label: STR.qa.addMeeting, icon: 'plus', onClick: () => gotoView?.('meetings') },
+                { label: STR.qa.invite, icon: 'invitation', onClick: () => gotoView?.('invitations') },
+                { label: STR.qa.accredit, icon: 'badge', onClick: () => gotoView?.('accreditation') },
+                { label: STR.qa.seating, icon: 'seating', onClick: () => gotoView?.('seating') },
+              ]}
+            />
           </Grid>
 
-          {/* ── Row 2: recent guests · composition breakdown (tabbed) ·
-                 today/meetings + quick actions (tabbed) — mirrors the second
-                 row of the reference layout exactly: three cards, no more. ── */}
+          {/* ── Row 2: recent guests · composition breakdown (tabbed). ── */}
           <Grid min={280} gap={12}>
             <Card padded={false}>
               <div style={{ padding: '14px 16px 0' }}>
@@ -444,31 +448,15 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
               ]}
             />
 
-            <AgendaTabsPanel
-              title={agendaTab === 'meetings' ? STR.meetingsTitle : STR.todayTitle}
-              icon={agendaTab === 'meetings' ? 'meetings' : 'calendar'}
-              active={agendaTab} onChange={setAgendaTab}
-              tabs={[
-                {
-                  value: 'today', label: STR.todayTitle, emptyText: STR.noSessionsToday,
-                  items: todaySessions.map((s) => ({ id: s.id, time: s.time || '—', title: s.title, detail: s.room })),
-                },
-                {
-                  value: 'meetings', label: STR.meetingsTitle, emptyText: STR.noMeetings,
-                  items: upcomingMeetings.map((m) => ({
-                    id: m.id,
-                    time: m.startTime ? String(m.startTime).slice(0, 5) : null,
-                    title: m.name,
-                    detail: [m.date, m.location].filter(Boolean).join(' · '),
-                  })),
-                },
-              ]}
-              quickActions={[
-                { label: STR.qa.addGuest, icon: 'plus', onClick: () => gotoView?.('guests') },
-                { label: STR.qa.invite, icon: 'invitation', onClick: () => gotoView?.('invitations') },
-                { label: STR.qa.accredit, icon: 'badge', onClick: () => gotoView?.('accreditation') },
-                { label: STR.qa.seating, icon: 'seating', onClick: () => gotoView?.('seating') },
-              ]}
+            {/* Compact sessions glance — name first, date/time below — instead
+                of the full table that used to sit at the bottom of the page. */}
+            <AgendaPanel
+              title={STR.sessionsTitle} icon="calendar" emptyText={STR.noSessions}
+              items={allSessions.map((s) => ({
+                id: s.id,
+                title: s.title,
+                detail: [s.date ? fmtDate(s.date) : null, s.time || null].filter(Boolean).join(' · '),
+              }))}
             />
           </Grid>
         </>

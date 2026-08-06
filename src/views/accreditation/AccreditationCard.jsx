@@ -149,7 +149,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
               <div style={{
                 width: 84, height: 84, borderRadius: '50%', flexShrink: 0,
                 border: '4px solid #fffdfb', boxShadow: '0 8px 18px -4px rgba(20,0,10,0.28)',
-                overflow: 'hidden', background: 'var(--surface-soft-4, #f3e6ea)',
+                overflow: 'hidden', background: '#fff',
                 display: 'grid', placeItems: 'center',
               }}>
                 {guest.photoUrl ? (
@@ -174,35 +174,35 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                 </div>
               )}
 
-              <div style={{ flex: 1 }}/>
-
-              <Perforation/>
-
-              {/* Status strip + a small QR preview — the full-size one is on
-                  the back, this is just enough for a quick glance/scan. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, marginBottom: 14, width: '100%' }}>
-                <div style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '7px 0', borderRadius: 20, minWidth: 0,
-                  background: issued ? 'rgba(90,191,110,0.12)' : 'rgba(224,196,126,0.16)',
-                  border: `1px solid ${issued ? 'rgba(90,191,110,0.35)' : 'rgba(224,196,126,0.4)'}`,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: issued ? '#3fa85c' : '#c99a3a', flexShrink: 0 }}/>
-                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: issued ? '#2f8a49' : '#a17c2e' }}>
-                    {issued ? (isAr ? 'معتمد' : 'Accredited') : (isAr ? 'قيد الانتظار' : 'Pending')}
-                  </span>
-                </div>
-
+              {/* A small QR preview, centred in the middle of the card — the
+                  full-size one is on the back; this is just enough for a
+                  quick glance/scan without flipping. */}
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                 {issued ? (
-                  <div style={{ background: '#fff', padding: 4, borderRadius: 8, border: '1px solid rgba(20,10,20,0.08)', flexShrink: 0 }}>
-                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={40} bgColor="#ffffff" fgColor="#5e0022" level="M"/>
+                  <div style={{ background: '#fff', padding: 6, borderRadius: 10, border: '1px solid rgba(20,10,20,0.08)' }}>
+                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={72} bgColor="#ffffff" fgColor="#5e0022" level="M"/>
                   </div>
                 ) : (
                   <div style={{
-                    width: 48, height: 48, borderRadius: 8, flexShrink: 0,
+                    width: 84, height: 84, borderRadius: 10,
                     border: '1px dashed rgba(20,10,20,0.18)', background: 'rgba(20,10,20,0.03)',
                   }}/>
                 )}
+              </div>
+
+              <Perforation/>
+
+              {/* Status strip */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '7px 0', borderRadius: 20, marginTop: 14, marginBottom: 14, width: '100%',
+                background: issued ? 'rgba(90,191,110,0.12)' : 'rgba(224,196,126,0.16)',
+                border: `1px solid ${issued ? 'rgba(90,191,110,0.35)' : 'rgba(224,196,126,0.4)'}`,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: issued ? '#3fa85c' : '#c99a3a', flexShrink: 0 }}/>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: issued ? '#2f8a49' : '#a17c2e' }}>
+                  {issued ? (isAr ? 'معتمد' : 'Accredited') : (isAr ? 'قيد الانتظار' : 'Pending')}
+                </span>
               </div>
             </div>
 
