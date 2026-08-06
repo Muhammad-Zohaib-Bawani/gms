@@ -1,6 +1,6 @@
 // Themed date picker. Works with ISO 'YYYY-MM-DD' (or 'YYYY-MM-DDTHH:mm')
 // strings in and out, and shows DD-MM-YYYY — the portal's one display format.
-import React, { useRef } from 'react';
+import React from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import './datefield.css';
@@ -30,14 +30,10 @@ export default function DateField({
 }) {
   const parse = showTime ? toDateTime : toDate;
   const format = showTime ? toIsoDateTime : toIsoDate;
-  // Needed to close the calendar from the Done button — `open` stays
-  // uncontrolled so Escape, outside clicks and tabbing keep working as shipped.
-  const picker = useRef(null);
 
   return (
     <>
     <DatePicker
-      ref={picker}
       selected={parse(value)}
       onChange={(d) => onChange(format(d))}
       minDate={minDate ? toDate(minDate) : undefined}
@@ -51,9 +47,10 @@ export default function DateField({
       timeInputLabel={showTime ? 'Time' : undefined}
       dateFormat={showTime ? DISPLAY_DATETIME_FORMAT : DISPLAY_DATE_FORMAT}
       // Date-only closes on pick. With a time input it must stay open — the time
-      // isn't set yet — so a Done button below closes it instead. NOT auto-close
-      // on time change: a native time input fires per segment, so stepping the
-      // hour would shut the calendar before the minutes were touched.
+      // isn't set yet — closing instead on outside click/Escape/tab, same as any
+      // other open popover. NOT auto-close on time change: a native time input
+      // fires per segment, so stepping the hour would shut the calendar before
+      // the minutes were touched.
       shouldCloseOnSelect={!showTime}
       // Jumping years/months one arrow-click at a time is the other half of the
       // pain — give the header real dropdowns.
@@ -80,15 +77,7 @@ export default function DateField({
       className="gms-datefield-input"
       popperClassName="gms-datepicker-popper"
       wrapperClassName="gms-datefield-wrap"
-    >
-      {showTime && (
-        <div className="gms-datefield-done">
-          <button type="button" className="btn primary" onClick={() => picker.current?.setOpen(false)}>
-            Done
-          </button>
-        </div>
-      )}
-    </DatePicker>
+    />
     {clearable && value && !disabled && (
       <button type="button" className="gms-datefield-clear" onClick={() => onChange('')}>
         {clearLabel}
