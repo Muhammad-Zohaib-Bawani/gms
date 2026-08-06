@@ -20,7 +20,7 @@ import React from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
-import { useAvailableVehicles } from '../../../lib/useAvailableVehicles';
+import { useAvailableVehicles, useAvailableDrivers } from '../../../lib/useAvailableVehicles';
 import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
 import { addDaysIso, fmtDate } from '../../../lib/date';
 
@@ -471,9 +471,17 @@ export default function TravelAccordion({
     fallback: lookups.vehicles,
   });
   const vehicleOpts = mapOpts(freeVehicles, vehicleLabel);
+
+  // Same for drivers: a driver already on a ride in that window is not offered.
+  const freeDrivers = useAvailableDrivers({
+    pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
+    dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
+    excludeTransportId: travel.transport.id,
+    fallback: lookups.drivers,
+  });
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
-  const driverOpts = mapOpts(lookups.drivers, driverLabel);
+  const driverOpts = mapOpts(freeDrivers, driverLabel);
 
   // ── field renderers (plain functions → stable element types, no focus loss) ──
   // eslint-disable-next-line no-unused-vars

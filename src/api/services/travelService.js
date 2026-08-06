@@ -46,7 +46,13 @@ export const getVehicleTypes  = () => apiClient.get(ENDPOINTS.lookups.vehicleTyp
 export const getHotels        = () => apiClient.get(ENDPOINTS.lookups.hotels);
 export const getLocations     = () => apiClient.get(ENDPOINTS.lookups.locations);
 export const getAirports      = () => apiClient.get(ENDPOINTS.lookups.airports);
-export const getDrivers       = () => apiClient.get(ENDPOINTS.lookups.drivers);
+// No args = the full fixed-driver roster. Pass from (+ optional to) to get only
+// drivers with no ride over that window, and excludeTransportId for the ride
+// being edited so its own driver stays in the list.
+export const getDrivers = ({ from, to, excludeTransportId } = {}) =>
+  apiClient.get(ENDPOINTS.lookups.drivers, {
+    params: { from: from || undefined, to: to || undefined, excludeTransportId: excludeTransportId || undefined },
+  });
 
 // Transport is assigned a concrete vehicle (not just a category) — the fleet
 // list comes from the vehicles module.
