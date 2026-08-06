@@ -7,6 +7,8 @@ import FlagIcon from '../components/FlagIcon.jsx';
 import toast from '../lib/toast';
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getGuestEnums } from '../api/services/lookupService';
+import { getEvent } from '../api/services/eventService';
+import AccreditationCardModal from './accreditation/AccreditationCardModal';
 
 const TIER_COLOR = {
   vvip: '#e0b864', vip: '#a78bda', speaker: 'var(--accent)',
@@ -24,7 +26,7 @@ export default function AccreditationView({ lang, activeEventId }) {
     filterAll: 'الكل', filterIssued: 'صادر', filterPending: 'قيد الانتظار',
     tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', tier: 'الفئة',
     arrival: 'تاريخ الوصول', status: 'الاعتماد', actions: 'إجراءات',
-    issue: 'إصدار', revoke: 'سحب', issueSelected: 'إصدار المحدد',
+    issue: 'إصدار', revoke: 'سحب', viewCard: 'عرض البطاقة', issueSelected: 'إصدار المحدد',
     revokeSelected: 'سحب المحدد', selected: 'محدد',
     issueAll: 'إصدار الكل', clearSel: 'إلغاء التحديد',
     badgeIssued: 'صادر', badgePending: 'قيد الانتظار',
@@ -43,7 +45,7 @@ export default function AccreditationView({ lang, activeEventId }) {
     filterAll: 'All', filterIssued: 'Issued', filterPending: 'Pending',
     tierAll: 'All tiers', guest: 'Guest', org: 'Organisation', tier: 'Tier',
     arrival: 'Arrival', status: 'Accreditation', actions: 'Actions',
-    issue: 'Issue', revoke: 'Revoke', issueSelected: 'Issue selected',
+    issue: 'Issue', revoke: 'Revoke', viewCard: 'View card', issueSelected: 'Issue selected',
     revokeSelected: 'Revoke selected', selected: 'selected',
     issueAll: 'Issue all pending', clearSel: 'Clear selection',
     badgeIssued: 'Issued', badgePending: 'Pending',
@@ -67,9 +69,16 @@ export default function AccreditationView({ lang, activeEventId }) {
   const [tierFilter, setTierFilter] = useState('all');
   const [sel, setSel] = useState(new Set());
   const [previewGuest, setPreviewGuest] = useState(null);
+  const [cardGuest, setCardGuest] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'cards'
+  const [activeEvent, setActiveEvent] = useState(null);
 
   useEffect(() => { getGuestEnums().then(setEnums).catch(() => {}); }, []);
+
+  useEffect(() => {
+    if (!activeEventId) { setActiveEvent(null); return; }
+    getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null));
+  }, [activeEventId]);
 
   const loadGuests = useCallback(async () => {
     if (!activeEventId) { setGuests([]); return; }
@@ -342,19 +351,27 @@ export default function AccreditationView({ lang, activeEventId }) {
                           </span>
                         </td>
                         <td>
-                          {isIssued ? (
-                            <button className="btn" disabled={busy} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '4px 12px' }}
-                              onClick={() => revoke(g.id)}>
-                              <Icon name="x" size={12}/> {STR.revoke}
-                            </button>
-                          ) : (
-                            <button className="btn primary" disabled={busy || !canIssue(g)}
-                              title={!canIssue(g) ? STR.notAccepted : undefined}
-                              style={{ fontSize: 11, padding: '4px 12px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
-                              onClick={() => issue(g.id)}>
-                              <Icon name="badge" size={12}/> {STR.issue}
-                            </button>
-                          )}
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {isIssued && (
+                              <button className="btn" style={{ fontSize: 11, padding: '4px 12px' }}
+                                onClick={() => setCardGuest(g)}>
+                                <Icon name="badge" size={12}/> {STR.viewCard}
+                              </button>
+                            )}
+                            {isIssued ? (
+                              <button className="btn" disabled={busy} style={{ fontSize: 11, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '4px 12px' }}
+                                onClick={() => revoke(g.id)}>
+                                <Icon name="x" size={12}/> {STR.revoke}
+                              </button>
+                            ) : (
+                              <button className="btn primary" disabled={busy || !canIssue(g)}
+                                title={!canIssue(g) ? STR.notAccepted : undefined}
+                                style={{ fontSize: 11, padding: '4px 12px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
+                                onClick={() => issue(g.id)}>
+                                <Icon name="badge" size={12}/> {STR.issue}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -410,8 +427,14 @@ export default function AccreditationView({ lang, activeEventId }) {
                           </span>
                         </div>
                       </div>
-                      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
+                      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}
                         onClick={e => e.stopPropagation()}>
+                        {isIssued && (
+                          <button className="btn" style={{ fontSize: 10.5, padding: '3px 10px' }}
+                            onClick={() => setCardGuest(g)}>
+                            <Icon name="badge" size={11}/> {STR.viewCard}
+                          </button>
+                        )}
                         {isIssued ? (
                           <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: 'var(--danger)', borderColor: 'var(--danger-border)', padding: '3px 10px' }}
                             onClick={() => revoke(g.id)}>
@@ -516,7 +539,12 @@ export default function AccreditationView({ lang, activeEventId }) {
               </div>
 
               <div style={{ padding: '12px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button className="btn" onClick={() => setPreviewGuest(null)}>{STR.close}</button>
+                {/* <button className="btn" onClick={() => setPreviewGuest(null)}>{STR.close}</button> */}
+                {isIssued && (
+                  <button className="btn" onClick={() => { setCardGuest(previewGuest); setPreviewGuest(null); }}>
+                    <Icon name="badge" size={13}/> {STR.viewCard}
+                  </button>
+                )}
                 {isIssued ? (
                   <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }}
                     onClick={() => { revoke(previewGuest.id); setPreviewGuest(null); }}>
@@ -538,6 +566,14 @@ export default function AccreditationView({ lang, activeEventId }) {
           </div>
         );
       })()}
+
+      <AccreditationCardModal
+        open={!!cardGuest}
+        guest={cardGuest}
+        event={activeEvent}
+        lang={lang}
+        onClose={() => setCardGuest(null)}
+      />
     </div>
   );
 }

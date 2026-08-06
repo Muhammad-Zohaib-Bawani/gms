@@ -12,9 +12,9 @@
      --bg-0: that one is the flat white used by cards, inputs, popovers and
      pager buttons, which must stay opaque and un-gradiented. */
   --page-bg:
-    radial-gradient(1100px 620px at 10% -12%, #fffdfb 0%, rgba(255,253,251,0) 60%),
-    radial-gradient(900px 720px at 102% 104%, #f0c9c5 0%, rgba(240,201,197,0) 66%),
-    linear-gradient(140deg,#fdf8f4 0%,#fbefe9 36%,#f7e0dc 72%,#f3d6d3 100%);
+    radial-gradient(1100px 620px at 10% -12%, #faf7f3 0%, rgba(250,247,243,0) 60%),
+    radial-gradient(900px 720px at 102% 104%, #f2ebe2 0%, rgba(242,235,226,0) 66%),
+    linear-gradient(140deg,#faf7f3 0%,#f6f1eb 36%,#f2ebe2 72%,#efe8df 100%);
   --bg-1: #f7f8fa;
   --bg-2: #f1f3f6;
   --bg: #f7f8fa;
@@ -39,10 +39,11 @@
      block on the warm gradient reads as a hole punched in the page. Separate
      from --card-bg, which still backs small controls (buttons, inputs, the
      pager) where crisp edges and full legibility matter more than depth. */
-  --surface-glass: rgba(255, 255, 255, 0.58);
+  --surface-glass: linear-gradient(158deg, rgba(255,255,255,.74) 0%, rgba(242,235,226,.60) 100%);
   --surface-glass-strong: rgba(255, 255, 255, 0.76);
   --surface-glass-border: rgba(141, 1, 52, 0.10);
   --surface-blur: saturate(150%) blur(14px);
+  --topbar-bg: linear-gradient(180deg, rgba(250,247,243,.86), rgba(242,235,226,.72));
 
   /* Floor-plan canvas: solid on purpose, so placed elements sit on a stable
      surface instead of the page gradient. The grid is a touch stronger than a
@@ -120,6 +121,7 @@ html[data-theme="dark"] {
   --surface-glass-strong: rgba(38, 0, 18, 0.72);
   --surface-glass-border: rgba(255, 255, 255, 0.12);
   --surface-blur: saturate(140%) blur(14px);
+  --topbar-bg: transparent;
 
   --canvas-bg: #170009;
   --canvas-grid: rgba(255, 255, 255, 0.07);
@@ -487,7 +489,7 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
 
 /* ── Topbar ──────────────────────────────────────────────────────────────── */
 .topbar {
-  background: transparent;
+  background: var(--topbar-bg);
   border: none;
   border-bottom: 1px solid var(--glass-border);
   border-radius: 0;
@@ -568,6 +570,7 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+  padding-top: 0;
 }
 .card-title { font-size: 14px; font-weight: 640; color: var(--ink); }
 .card-sub { font-size: 11.5px; color: var(--ink-mute); margin-top: 2px; }
@@ -769,7 +772,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   letter-spacing: -0.02em;
   color: var(--ink);
   line-height: 1.1;
-  margin-top: 10px;
+  /* margin-top: 10px; */
 }
 .stat-delta {
   display: inline-flex;
@@ -1400,26 +1403,23 @@ body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
 
 /* ==========================================================================
    WIZARD STEPS  (guest modal header)
-   Compact by necessity: four labelled steps do not fit across a 560px dialog,
-   so only the active step is labelled and the rest are numbered dots. The
-   active pill also gives the header a clear "you are here" anchor.
+   Every step carries its own label all the time — not just the active one —
+   and the connecting bars flex to fill whatever width the dialog has, so the
+   row reads as one continuous progress bar spanning the modal edge to edge
+   rather than a cluster of dots huddled on one side.
    ========================================================================== */
 .wizard-steps {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   /* Its own row below the mode switcher, so it carries the padding and the
      divider that used to belong to the header/seg row. */
   padding: 2px 24px 14px;
   border-bottom: 1px solid var(--glass-border);
-  flex-wrap: nowrap;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.wizard-steps::-webkit-scrollbar { display: none; }
 
-.wizard-step { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.wizard-step { display: flex; align-items: center; gap: 7px; min-width: 0; flex: none; }
 
 .wizard-dot {
   width: 22px; height: 22px;
@@ -1434,8 +1434,8 @@ body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
 .wizard-step.done .wizard-dot   { background: var(--accent-deep); color: #fff; }
 .wizard-step.active .wizard-dot { background: var(--accent); color: #fff; }
 
-/* The label rides inside a tinted pill so the active step reads as one unit
-   rather than a dot with loose text beside it. */
+/* The active label rides inside a tinted pill so it reads as one unit rather
+   than a dot with loose text beside it; done/upcoming labels sit plain. */
 .wizard-step.active {
   background: var(--accent-soft);
   border: 1px solid rgba(141, 1, 52, 0.16);
@@ -1446,23 +1446,30 @@ body div:has(> .modal-solid) { animation: modal-backdrop-in 0.2s linear both; }
 html[dir="rtl"] .wizard-step.active { padding: 3px 3px 3px 11px; }
 
 .wizard-label {
-  font-size: 11.5px; font-weight: 650;
-  color: var(--accent);
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-mute);
   white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
+  max-width: 108px;
 }
+.wizard-step.active .wizard-label { font-size: 11.5px; font-weight: 650; color: var(--accent); }
+.wizard-step.done .wizard-label   { color: var(--ink-dim); }
 
 .wizard-bar {
-  width: 16px; height: 2px;
+  flex: 1 1 auto;
+  min-width: 10px;
+  height: 2px;
   border-radius: 2px;
-  flex: none;
   background: var(--glass-border);
 }
 .wizard-bar.done { background: var(--accent-deep); }
 
 @media (max-width: 560px) {
-  /* Nothing to shrink further — drop the connectors before the labels. */
-  .wizard-bar { width: 8px; }
+  /* No room for full labels at this width — fall back to numbered dots with
+     just the active one named, the original compact behaviour. */
+  .wizard-label { display: none; }
+  .wizard-step.active .wizard-label { display: inline; }
+  .wizard-bar { flex: none; width: 8px; }
 }
 
 

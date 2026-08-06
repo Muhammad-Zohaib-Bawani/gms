@@ -778,10 +778,9 @@ export default function GuestModal({
 
 
           {showWizard && (
-            /* Only the current step is labelled. Four labels plus circles
-               and connectors need far more than the modal's 560px, so the
-               old row squeezed and wrapped; numbers carry the sequence and
-               the active label says where you are. */
+            /* Every step carries its label all the time, and the connecting
+               bars flex to fill the row — one continuous progress bar
+               spanning the full modal width, not a cluster of dots. */
             <div className="wizard-steps" role="group" aria-label="Progress">
               {stepLabels.map((label, i) => {
                 const s = activeSteps[i];
@@ -796,7 +795,7 @@ export default function GuestModal({
                       <span className="wizard-dot">
                         {done ? <Icon name="check" size={11} /> : s}
                       </span>
-                      {active && <span className="wizard-label">{label}</span>}
+                      <span className="wizard-label" title={label}>{label}</span>
                     </div>
                     {i < stepLabels.length - 1 && (
                       <span className={`wizard-bar${done ? " done" : ""}`} />
@@ -990,23 +989,31 @@ export default function GuestModal({
                     <div style={errMsg}>{isAr ? "مطلوب" : "Required"}</div>
                   )}
                 </div>
-                <div>
-                  <FieldLabel>{isAr ? "نوع الضيف" : "Guest Type"}</FieldLabel>
-                  <Select
-                    value={form.guestType}
-                    onChange={(v) => setF("guestType", v)}
-                    options={guestTypeOpts}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? "المؤسسة" : "Organization"}</FieldLabel>
-                  <Select
-                    value={form.organizationId}
-                    onChange={(v) => setF("organizationId", v)}
-                    options={organizationOpts}
-                    placeholder={isAr ? "— اختر —" : "— Select —"}
-                    isClearable
-                  />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <FieldLabel>{isAr ? "نوع الضيف" : "Guest Type"}</FieldLabel>
+                    <Select
+                      value={form.guestType}
+                      onChange={(v) => setF("guestType", v)}
+                      options={guestTypeOpts}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>{isAr ? "المؤسسة" : "Organization"}</FieldLabel>
+                    <Select
+                      value={form.organizationId}
+                      onChange={(v) => setF("organizationId", v)}
+                      options={organizationOpts}
+                      placeholder={isAr ? "— اختر —" : "— Select —"}
+                      isClearable
+                    />
+                  </div>
                 </div>
                 <div>
                   <FieldLabel>{isAr ? "الجنسية" : "Nationality"}</FieldLabel>

@@ -9,12 +9,13 @@ import { motion } from 'framer-motion';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { fmtDate, fmtDayMonth } from '../lib/date';
 import { Avatar, StatusChip, ServiceLevelChip } from '../components/UI';
+import { Icon } from '../components/Icons';
 import {
-  PageHeader, Card, CardHead, Grid, Button, StatCard,
+  PageHeader, Card, CardHead, Grid, Button, Badge,
   EmptyState, Skeleton, Alert, staggerParent,
 } from '../components/ds';
 import {
-  DonutPanel, BreakdownPanel, ReadinessPanel, MovementsPanel, FunnelPanel, AgendaPanel,
+  DonutTabsPanel, BreakdownTabsPanel, ReadinessPanel, FunnelPanel, AgendaTabsPanel, StatCardBreakdown,
 } from './dashboard/parts';
 import toast from '../lib/toast';
 import { getDashboard } from '../api/services/dashboardService';
@@ -75,6 +76,12 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+
+  // Which dataset each tabbed card is currently showing — kept local since
+  // it's pure UI state, not data.
+  const [donutTab, setDonutTab] = useState('rsvp');
+  const [breakdownTab, setBreakdownTab] = useState('levels');
+  const [agendaTab, setAgendaTab] = useState('today');
 
   useEffect(() => {
     if (!activeEventId) { setDashboard(null); setLoadError(false); return; }
@@ -158,7 +165,6 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const travel = dashboard?.travel || { flightsBooked: 0, accommodationBooked: 0, transportBooked: 0, guestsWithTravel: 0 };
   const seating = dashboard?.seating || { assigned: 0, unassigned: 0 };
   const total = funnel.totalGuests || 0;
-  const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
   const funnelData = useMemo(() => ([
     { stage: isAr ? 'الإجمالي' : 'Total', value: total },
@@ -208,21 +214,24 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   const today = todayStr();
   const todaySessions = (dashboard?.sessions || []).filter((s) => s.date === today);
   const upcomingMeetings = (dashboard?.meetings || []).filter((m) => m.date >= today).slice(0, 5);
-  const recentGuests = dashboard?.recentGuests || [];
+  // Keep the dashboard's table short — full history is one click away via
+  // "All guests"; the server already caps this feed at 8, this trims further.
+  const recentGuests = (dashboard?.recentGuests || []).slice(0, 6);
   const countdown = daysUntil(dashboard?.startDate);
 
-  const eventLine = dashboard
+  // Icon + text segments instead of one flat "A · B · C" string — each fact
+  // (event, venue, dates) gets its own glyph, same idea as the KPI cards'
+  // icon chips, rather than reading as an undifferentiated sentence.
+  const eventMeta = dashboard
     ? [
-        dashboard.title,
-        dashboard.venue,
-        dashboard.startDate
-          ? `${fmtDate(dashboard.startDate)}${dashboard.endDate && dashboard.endDate !== dashboard.startDate ? ` – ${fmtDate(dashboard.endDate)}` : ''}`
-          : null,
-        countdown != null
-          ? (countdown > 0 ? `${ad(countdown)} ${STR.daysToGo}` : STR.inProgress)
-          : null,
-      ].filter(Boolean).join(' · ')
-    : null;
+        dashboard.title && { icon: 'star', text: dashboard.title },
+        dashboard.venue && { icon: 'venue', text: dashboard.venue },
+        dashboard.startDate && {
+          icon: 'calendar',
+          text: `${fmtDate(dashboard.startDate)}${dashboard.endDate && dashboard.endDate !== dashboard.startDate ? ` – ${fmtDate(dashboard.endDate)}` : ''}`,
+        },
+      ].filter(Boolean)
+    : [];
 
   function handleExport() {
     const rows = recentGuests.map((g) =>
@@ -249,8 +258,31 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
   return (
     <div>
       <PageHeader
-        title={getGreeting(lang)}
-        subtitle={loading ? '…' : eventLine || STR.loadError}
+        title={
+          <>
+            {getGreeting(lang)}
+            {!loading && countdown != null && (
+              <Badge tone={countdown > 0 ? 'brand' : 'ok'} style={{ marginInlineStart: 10, verticalAlign: 'middle' }}>
+                {countdown > 0 ? `${ad(countdown)} ${STR.daysToGo}` : STR.inProgress}
+              </Badge>
+            )}
+          </>
+        }
+        subtitle={
+          loading ? '…' : eventMeta.length > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+              {eventMeta.map((m, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <span style={{ color: 'var(--ink-faint)' }}>·</span>}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <Icon name={m.icon} size={12.5} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    {m.text}
+                  </span>
+                </React.Fragment>
+              ))}
+            </div>
+          ) : STR.loadError
+        }
         actions={
           <>
             <Button icon="download" onClick={handleExport} disabled={!dashboard}>{STR.export}</Button>
@@ -271,147 +303,174 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
         </Grid>
       ) : (
         <>
-          {/* ── KPI row ── */}
+          {/* ── KPI row — each tile carries a couple of breakdown sublines
+                 (same numbers the panels below chart) so a bare total doesn't
+                 read as an empty tile at a glance. ── */}
           <motion.div {...staggerParent}>
-            <Grid min={216} style={{ marginBottom: 18 }}>
-              <StatCard label={STR.totalGuests} value={fmtN(total)} icon="guests" tint="#8d0134" />
-              <StatCard label={STR.confirmed} value={fmtN(rsvp.accepted)} icon="check" tint="#5abf6e"
-                delta={total ? pct(rsvp.accepted) : null} deltaLabel={`${STR.of} ${fmtN(total)}`} />
-              <StatCard label={STR.responseRate} value={`${ad(rsvp.responseRate)}%`} icon="invitation" tint="#e0b864"
-                deltaLabel={`${fmtN(rsvp.accepted + rsvp.declined)} ${STR.of} ${fmtN(total - rsvp.notSent)}`} />
-              <StatCard label={STR.accred} value={fmtN(accred.issued)} icon="badge" tint="#4a9edd"
-                deltaLabel={`${fmtN(accred.pending)} ${STR.accredLabels.pending.toLowerCase()}`} />
+            <Grid min={216} gap={12} style={{ marginBottom: 12 }}>
+              <StatCardBreakdown label={STR.totalGuests} value={fmtN(total)} icon="guests" tint="#8d0134"
+                lines={[
+                  { label: STR.rsvp.accepted, value: fmtN(rsvp.accepted), tint: 'var(--ok)' },
+                  { label: STR.rsvp.awaiting, value: fmtN(rsvp.awaiting), tint: '#e0b864' },
+                  { label: STR.rsvp.declined, value: fmtN(rsvp.declined), tint: 'var(--danger)' },
+                ]}
+              />
+              <StatCardBreakdown label={STR.confirmed} value={fmtN(rsvp.accepted)} icon="check" tint="#5abf6e"
+                lines={[
+                  { label: STR.travelArranged, value: fmtN(travel.guestsWithTravel) },
+                  { label: STR.seated, value: fmtN(seating.assigned) },
+                ]}
+              />
+              <StatCardBreakdown label={STR.responseRate} value={`${ad(rsvp.responseRate)}%`} icon="invitation" tint="#e0b864"
+                lines={[
+                  { label: isAr ? 'مدعوّون' : 'Invited', value: fmtN(total - rsvp.notSent) },
+                  { label: isAr ? 'ردّوا' : 'Responded', value: fmtN(rsvp.accepted + rsvp.declined) },
+                ]}
+              />
+              <StatCardBreakdown label={STR.accred} value={fmtN(accred.issued)} icon="badge" tint="#4a9edd"
+                lines={[
+                  { label: STR.accredLabels.pending, value: fmtN(accred.pending), tint: '#e0b864' },
+                  { label: STR.accredLabels.revoked, value: fmtN(accred.revoked), tint: 'var(--danger)' },
+                  { label: STR.accredLabels.notRequired, value: fmtN(accred.notRequired) },
+                ]}
+              />
             </Grid>
           </motion.div>
 
-          {/* ── Funnel + RSVP ── */}
-          <div className="dash-charts"
-            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 16, marginBottom: 18 }}>
+          {/* ── Row 1: funnel · RSVP/Accreditation (tabbed) · readiness ──
+                 Three cards, not five — RSVP and Accreditation used to be two
+                 separate donut cards; they now share one behind a tab. ── */}
+          <Grid min={260} gap={12} style={{ marginBottom: 12 }}>
             <FunnelPanel title={STR.funnelTitle} subtitle={STR.funnelSub} data={funnelData} seriesName={STR.guests} />
-            <DonutPanel
-              title={STR.rsvpTitle} subtitle={STR.rsvpSub} icon="invitation" data={rsvpData}
-              centerValue={fmtN(total)} centerLabel={STR.totalGuests}
-              emptyTitle={STR.noGuests} emptyHint={STR.noGuestsHint} fmtN={fmtN} ad={ad}
+            <DonutTabsPanel
+              title={donutTab === 'accred' ? STR.accredTitle : STR.rsvpTitle}
+              icon={donutTab === 'accred' ? 'badge' : 'invitation'}
+              active={donutTab} onChange={setDonutTab} fmtN={fmtN} ad={ad}
+              tabs={[
+                {
+                  value: 'rsvp', label: STR.rsvpTitle, subtitle: STR.rsvpSub, icon: 'invitation',
+                  data: rsvpData, centerValue: fmtN(total), centerLabel: STR.totalGuests,
+                  emptyTitle: STR.noGuests, emptyHint: STR.noGuestsHint,
+                },
+                {
+                  value: 'accred', label: STR.accredTitle, subtitle: STR.accredSub, icon: 'badge',
+                  data: accredData, centerValue: fmtN(accred.issued), centerLabel: STR.accredLabels.issued,
+                  emptyTitle: STR.noData, emptyHint: STR.noDataHint,
+                },
+              ]}
             />
-          </div>
-
-          {/* ── Readiness + accreditation ── */}
-          <div className="dash-charts"
-            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 16, marginBottom: 18 }}>
             <ReadinessPanel title={STR.readyTitle} subtitle={STR.readySub} rows={readinessRows} fmtN={fmtN} ad={ad} />
-            <DonutPanel
-              title={STR.accredTitle} subtitle={STR.accredSub} icon="badge" data={accredData}
-              centerValue={fmtN(accred.issued)} centerLabel={STR.accredLabels.issued}
-              emptyTitle={STR.noData} emptyHint={STR.noDataHint} fmtN={fmtN} ad={ad}
-            />
-          </div>
-
-          {/* ── Movements (only worth a chart with more than one dated day) ── */}
-          {movements.length > 1 && (
-            <div style={{ marginBottom: 18 }}>
-              <MovementsPanel title={STR.moveTitle} subtitle={STR.moveSub} data={movements}
-                labels={{ arrivals: STR.arrivals, departures: STR.departures }} />
-            </div>
-          )}
-
-          {/* ── Composition breakdowns ── */}
-          <Grid min={280} style={{ marginBottom: 18 }}>
-            <BreakdownPanel title={STR.levelsTitle} subtitle={STR.levelsSub} icon="star"
-              rows={dashboard?.serviceLevels} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
-              fmtN={fmtN} isAr={isAr} />
-            <BreakdownPanel title={STR.natTitle} subtitle={STR.natSub} icon="globe"
-              rows={dashboard?.nationalities} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
-              fmtN={fmtN} isAr={isAr} />
-            <BreakdownPanel title={STR.orgTitle} subtitle={STR.orgSub} icon="venue"
-              rows={dashboard?.organizations} emptyTitle={STR.noData} emptyHint={STR.noDataHint}
-              fmtN={fmtN} isAr={isAr} />
           </Grid>
 
-          {/* ── Programme / meetings / quick actions ── */}
-          <Grid min={280} style={{ marginBottom: 18 }}>
-            <AgendaPanel
-              title={STR.todayTitle} icon="calendar" emptyText={STR.noSessionsToday}
-              items={todaySessions.map((s) => ({ id: s.id, time: s.time || '—', title: s.title, detail: s.room }))}
-            />
-            <AgendaPanel
-              title={STR.meetingsTitle} icon="meetings" emptyText={STR.noMeetings}
-              items={upcomingMeetings.map((m) => ({
-                id: m.id,
-                time: m.startTime ? String(m.startTime).slice(0, 5) : null,
-                title: m.name,
-                detail: [m.date, m.location].filter(Boolean).join(' · '),
-              }))}
-            />
-            <Card>
-              <CardHead title={STR.quickTitle} icon="star" />
-              <div style={{ display: 'grid', gap: 8 }}>
-                <Button icon="plus" onClick={() => gotoView?.('guests')} style={{ justifyContent: 'flex-start' }}>
-                  {STR.qa.addGuest}
-                </Button>
-                <Button icon="invitation" onClick={() => gotoView?.('invitations')} style={{ justifyContent: 'flex-start' }}>
-                  {STR.qa.invite}
-                </Button>
-                <Button icon="badge" onClick={() => gotoView?.('accreditation')} style={{ justifyContent: 'flex-start' }}>
-                  {STR.qa.accredit}
-                </Button>
-                <Button icon="seating" onClick={() => gotoView?.('seating')} style={{ justifyContent: 'flex-start' }}>
-                  {STR.qa.seating}
-                </Button>
+          {/* ── Row 2: recent guests · composition breakdown (tabbed) ·
+                 today/meetings + quick actions (tabbed) — mirrors the second
+                 row of the reference layout exactly: three cards, no more. ── */}
+          <Grid min={280} gap={12}>
+            <Card padded={false}>
+              <div style={{ padding: '14px 16px 0' }}>
+                <CardHead
+                  title={STR.recentTitle}
+                  icon="guests"
+                  action={
+                    <Button size="sm" iconRight="arrow" onClick={() => gotoView?.('guests')}>
+                      {STR.viewGuests}
+                    </Button>
+                  }
+                />
               </div>
-            </Card>
-          </Grid>
-
-          {/* ── Recent guests ── */}
-          <Card padded={false}>
-            <div style={{ padding: '16px 18px 0' }}>
-              <CardHead
-                title={STR.recentTitle}
-                subtitle={STR.recentSub}
-                icon="guests"
-                action={
-                  <Button size="sm" iconRight="arrow" onClick={() => gotoView?.('guests')}>
-                    {STR.viewGuests}
-                  </Button>
-                }
-              />
-            </div>
-            {recentGuests.length === 0 ? (
-              <EmptyState icon="guests" title={STR.noGuests}>{STR.noGuestsHint}</EmptyState>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>{STR.cols.guest}</th>
-                      <th>{STR.cols.level}</th>
-                      <th>{STR.cols.org}</th>
-                      <th>{STR.cols.status}</th>
-                      {/* <th>{STR.cols.arrival}</th> */}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentGuests.map((g) => (
-                      <tr key={g.id} style={{ cursor: onOpenGuest ? 'pointer' : undefined }}
-                        onClick={() => onOpenGuest?.(g)}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                            <Avatar initials={initialsFromName(g.name)} size={30} tier={g.tier} />
-                            <span style={{ fontWeight: 550 }}>{g.name}</span>
-                          </div>
-                        </td>
-                        <td><ServiceLevelChip name={g.tier} lang={lang} /></td>
-                        <td style={{ color: 'var(--ink-mute)' }}>{g.organization || '—'}</td>
-                        <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang} /></td>
-                        {/* <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-mute)' }}>
-                          {g.arrivalDate || '—'}
-                        </td> */}
+              {recentGuests.length === 0 ? (
+                <EmptyState icon="guests" title={STR.noGuests}>{STR.noGuestsHint}</EmptyState>
+              ) : (
+                <div style={{ overflow: 'auto', maxHeight: 260, padding: '0 4px 4px' }}>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>{STR.cols.guest}</th>
+                        <th>{STR.cols.level}</th>
+                        <th>{STR.cols.status}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                    </thead>
+                    <tbody>
+                      {recentGuests.map((g) => (
+                        <tr key={g.id} style={{ cursor: onOpenGuest ? 'pointer' : undefined }}
+                          onClick={() => onOpenGuest?.(g)}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Avatar initials={initialsFromName(g.name)} size={26} tier={g.tier} />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 550, fontSize: 12.5 }}>{g.name}</div>
+                                {g.organization && (
+                                  <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                                    {g.organization}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td><ServiceLevelChip name={g.tier} lang={lang} /></td>
+                          <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            <BreakdownTabsPanel
+              title={{
+                levels: STR.levelsTitle, nationalities: STR.natTitle,
+                organizations: STR.orgTitle, movements: STR.moveTitle,
+              }[breakdownTab] || STR.levelsTitle}
+              icon={breakdownTab === 'nationalities' ? 'globe' : breakdownTab === 'organizations' ? 'venue' : breakdownTab === 'movements' ? 'travel' : 'star'}
+              active={breakdownTab} onChange={setBreakdownTab} fmtN={fmtN} isAr={isAr}
+              tabs={[
+                {
+                  value: 'levels', label: STR.levelsTitle, subtitle: STR.levelsSub, kind: 'bars',
+                  rows: dashboard?.serviceLevels, emptyTitle: STR.noData, emptyHint: STR.noDataHint,
+                },
+                {
+                  value: 'nationalities', label: STR.natTitle, subtitle: STR.natSub, kind: 'bars',
+                  rows: dashboard?.nationalities, emptyTitle: STR.noData, emptyHint: STR.noDataHint,
+                },
+                {
+                  value: 'organizations', label: STR.orgTitle, subtitle: STR.orgSub, kind: 'bars',
+                  rows: dashboard?.organizations, emptyTitle: STR.noData, emptyHint: STR.noDataHint,
+                },
+                ...(movements.length > 1 ? [{
+                  value: 'movements', label: STR.moveTitle, subtitle: STR.moveSub, kind: 'chart',
+                  data: movements, labels: { arrivals: STR.arrivals, departures: STR.departures },
+                }] : []),
+              ]}
+            />
+
+            <AgendaTabsPanel
+              title={agendaTab === 'meetings' ? STR.meetingsTitle : STR.todayTitle}
+              icon={agendaTab === 'meetings' ? 'meetings' : 'calendar'}
+              active={agendaTab} onChange={setAgendaTab}
+              tabs={[
+                {
+                  value: 'today', label: STR.todayTitle, emptyText: STR.noSessionsToday,
+                  items: todaySessions.map((s) => ({ id: s.id, time: s.time || '—', title: s.title, detail: s.room })),
+                },
+                {
+                  value: 'meetings', label: STR.meetingsTitle, emptyText: STR.noMeetings,
+                  items: upcomingMeetings.map((m) => ({
+                    id: m.id,
+                    time: m.startTime ? String(m.startTime).slice(0, 5) : null,
+                    title: m.name,
+                    detail: [m.date, m.location].filter(Boolean).join(' · '),
+                  })),
+                },
+              ]}
+              quickActions={[
+                { label: STR.qa.addGuest, icon: 'plus', onClick: () => gotoView?.('guests') },
+                { label: STR.qa.invite, icon: 'invitation', onClick: () => gotoView?.('invitations') },
+                { label: STR.qa.accredit, icon: 'badge', onClick: () => gotoView?.('accreditation') },
+                { label: STR.qa.seating, icon: 'seating', onClick: () => gotoView?.('seating') },
+              ]}
+            />
+          </Grid>
         </>
       )}
     </div>
