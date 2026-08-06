@@ -8,7 +8,8 @@ export const KEY_PATH = {
   guests:          '/guests',
   serviceLevels:   '/service-levels',
   travel:          '/travel',
-  travelLegacy:    '/travel-legacy',
+  // Every service that isn't one of the three built-in relational ones.
+  serviceOps:      '/service-ops',
   accreditation:   '/accreditation',
   seating:         '/seating',
   meetings:        '/meetings',

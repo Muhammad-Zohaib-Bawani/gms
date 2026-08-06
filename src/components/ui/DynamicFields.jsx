@@ -18,6 +18,7 @@ import { Icon } from '../Icons';
 import Select from './Select';
 import DateField from './DateField';
 import { LOOKUP_SOURCE_KEYS, lookupSourceLabel, loadLookupOptions } from './lookupSources';
+import { useRoomAvailability } from '../../lib/useRoomInventory';
 
 export const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'datetime', 'time', 'select', 'lookup', 'checkbox'];
 
@@ -76,6 +77,16 @@ export function dateBounds(field, values, eventStart, eventEnd) {
       if (!out.min || iso > out.min) out.min = iso;
     }
   }
+  return out;
+}
+
+// Tightens a date field's bounds to the nights the event actually holds. ISO
+// 'YYYY-MM-DD' compares lexicographically, so plain string min/max is correct.
+function narrowToStay(bounds, stay) {
+  if (!stay) return bounds;
+  const out = { ...bounds };
+  if (stay.min && (!out.min || stay.min > out.min)) out.min = stay.min;
+  if (stay.max && (!out.max || stay.max < out.max)) out.max = stay.max;
   return out;
 }
 
@@ -342,7 +353,12 @@ export function FieldSchemaBuilder({ fields, onChange, lang }) {
 
 // ─── Fill in the values for a set of field definitions ───────────────────────
 
-export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart, eventEnd }) {
+export function DynamicFieldInputs({
+  fields, values, onChange, lang, eventStart, eventEnd,
+  // Scoping for event-dependent lookups, and the held-room window for date
+  // fields — both supplied by DynamicFormInputs, both optional.
+  lookupCtx, stay,
+}) {
   const isAr = lang === 'ar';
   const list = fields || [];
   const v = values || {};
@@ -364,7 +380,12 @@ export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart,
         const val = v[f.key] ?? '';
         // The calendar itself refuses out-of-range days, so a bad date is
         // usually unpickable rather than merely rejected after the fact.
-        const bounds = dateBounds(f, v, eventStart, eventEnd);
+        // Held-room nights narrow a plain `date` further. Left off `datetime` on
+        // purpose: its bounds carry a time part, and room inventory is per night —
+        // mixing the two formats would compare 'YYYY-MM-DD' against
+        // 'YYYY-MM-DDTHH:mm'. Stay dates are `date` fields in practice.
+        const bounds = f.type === 'date' ? narrowToStay(dateBounds(f, v, eventStart, eventEnd), stay)
+                                         : dateBounds(f, v, eventStart, eventEnd);
         const err = fieldError(f, v, eventStart, eventEnd);
         return (
           <div key={f.key}>
@@ -381,6 +402,7 @@ export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart,
                 value={val}
                 onChange={(x) => set(f.key, x || '')}
                 isAr={isAr}
+                ctx={lookupCtx}
               />
             )}
 
@@ -401,6 +423,7 @@ export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart,
                 clearable={!f.required}
                 minDate={bounds.min}
                 maxDate={bounds.max}
+                excludeDates={stay?.fullDates}
               />
             )}
 
@@ -459,20 +482,27 @@ export function DynamicFieldInputs({ fields, values, onChange, lang, eventStart,
  * A dropdown backed by an existing lookup table. Options are fetched once per
  * source and shared across fields (From and To are both airports), so a form
  * with several lookup fields still makes one request per table.
+ *
+ * `ctx` scopes the event-dependent sources — hotels to the event's contracts,
+ * room types to the hotel picked on this form. Its parts are the effect's deps
+ * rather than the object itself, so re-rendering on every keystroke doesn't
+ * refetch.
  */
-function LookupSelect({ field, value, onChange, isAr }) {
+function LookupSelect({ field, value, onChange, isAr, ctx }) {
   const [options, setOptions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const eventId = ctx?.eventId || '';
+  const hotelId = ctx?.hotelId || '';
 
   React.useEffect(() => {
     if (!field.sourceKey) return;
     let cancelled = false;
     setLoading(true);
-    loadLookupOptions(field.sourceKey)
+    loadLookupOptions(field.sourceKey, { eventId, hotelId })
       .then((o) => { if (!cancelled) setOptions(o); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [field.sourceKey]);
+  }, [field.sourceKey, eventId, hotelId]);
 
   if (!field.sourceKey) {
     return (
@@ -657,11 +687,26 @@ function SectionCondition({ section, allSections, index, onChange, isAr }) {
 
 // ─── Fill in a whole form ────────────────────────────────────────────────────
 
-export function DynamicFormInputs({ form, values, onChange, lang, eventStart, eventEnd }) {
+export function DynamicFormInputs({ form, values, onChange, lang, eventStart, eventEnd, eventId }) {
   const isAr = lang === 'ar';
   // Recomputed on every change so toggling the controlling field shows and
   // hides its dependent sections immediately.
   const sections = visibleSections(form, values);
+
+  // Which field holds the hotel / room type is *detected* from the lookup source
+  // it draws on, not configured — a form has one hotel field in practice, and one
+  // less thing for an admin to wire up wrong. Same approach as the route strip in
+  // ServiceOpsView (docs/service-levels-v2.md §9).
+  const hotelId = values?.[fieldKeyBySource(form, 'hotels')] || '';
+  const roomTypeId = values?.[fieldKeyBySource(form, 'roomTypes')] || '';
+
+  // Rooms held for that hotel + type: bounds the date pickers to the held window
+  // and greys out nights with nothing left. Unmanaged (nothing held) → null, so
+  // a form with no accommodation fields is unaffected.
+  const rooms = useRoomAvailability({ eventId, hotelId, roomTypeId });
+  const stay = rooms.managed
+    ? { min: rooms.window?.min, max: rooms.window?.max, fullDates: rooms.fullDates }
+    : null;
 
   if (sections.length === 0) {
     return (
@@ -695,6 +740,8 @@ export function DynamicFormInputs({ form, values, onChange, lang, eventStart, ev
             lang={lang}
             eventStart={eventStart}
             eventEnd={eventEnd}
+            lookupCtx={{ eventId, hotelId }}
+            stay={stay}
           />
         </div>
       ))}
@@ -705,6 +752,13 @@ export function DynamicFormInputs({ form, values, onChange, lang, eventStart, ev
 /** Every field across every section, in render order. */
 export function allFormFields(form) {
   return (form?.sections || []).flatMap((s) => s.fields || []);
+}
+
+/** Key of the first lookup field drawing on `sourceKey`, or '' if the form has
+ *  none. How a dependent lookup finds what it depends on without configuration. */
+export function fieldKeyBySource(form, sourceKey) {
+  const hit = allFormFields(form).find((f) => f.type === 'lookup' && f.sourceKey === sourceKey);
+  return hit?.key || '';
 }
 
 /**

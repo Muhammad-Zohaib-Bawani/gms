@@ -162,6 +162,7 @@ export default function BookingModal({
           lang={lang}
           eventStart={eventStart}
           eventEnd={eventEnd}
+          eventId={activeEventId}
         />
       )}
     </Modal>

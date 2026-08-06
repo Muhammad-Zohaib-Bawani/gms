@@ -53,6 +53,7 @@ export default function ServicesView({ lang, activeEventId }) {
     delTitle: 'حذف الخدمة', delBody: (n) => `هل أنت متأكد من حذف "${n}"؟`,
     delUsed: (c) => `هذه الخدمة مستخدمة في ${c} مستوى — سيتم إزالتها منها.`,
     noFields: 'لا حقول',
+    systemFields: 'خدمة مدمجة: حقولها ثابتة وتُحفَظ في جدولها الخاص، لذا لا يمكن تعديل النموذج.',
   } : {
     title: 'Services', sub: 'This event\'s service catalog — bundled together into Service Levels',
     add: 'Add Service', edit: 'Edit', del: 'Delete',
@@ -66,6 +67,7 @@ export default function ServicesView({ lang, activeEventId }) {
     delTitle: 'Delete Service', delBody: (n) => `Are you sure you want to delete "${n}"?`,
     delUsed: (c) => `It's used by ${c} service level${c === 1 ? '' : 's'} and will be removed from ${c === 1 ? 'it' : 'them'}.`,
     noFields: 'No fields',
+    systemFields: 'Built-in service — its fields are fixed and its data is stored in its own table, so there is no form to configure.',
   };
 
   const [rows, setRows] = useState([]);
@@ -135,7 +137,8 @@ export default function ServicesView({ lang, activeEventId }) {
       })),
     }));
 
-    if (sections.length === 0) {
+    // A built-in has no configurable form, so "no sections" is correct for it.
+    if (sections.length === 0 && !editing?.isSystem) {
       errs.fields = isAr ? 'أضف قسماً واحداً على الأقل' : 'Add at least one section';
     }
 
@@ -268,7 +271,11 @@ export default function ServicesView({ lang, activeEventId }) {
         cell: ({ row: { original: r } }) => (
           <ActionMenu items={[
             { label: STR.edit, icon: 'edit', onClick: () => openEdit(r) },
-            { label: STR.del, icon: 'trash', danger: true, onClick: () => setToDelete(r) },
+            // A built-in cannot be deleted — the server refuses it too, since its
+            // relational table and everything reading it depend on the code.
+            ...(r.isSystem ? [] : [
+              { label: STR.del, icon: 'trash', danger: true, onClick: () => setToDelete(r) },
+            ]),
           ]} />
         ),
       });
@@ -354,17 +361,29 @@ export default function ServicesView({ lang, activeEventId }) {
             onChange={(e) => setF('sortOrder', e.target.value)} />
         </div>
 
+        {/* A built-in service has no configurable form: its fields are the ones
+            the travel forms have always had, and its data goes to its own table
+            rather than into a JSON value map. Name/order stay editable. */}
         <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--glass-border)' }}>
-          <label style={sectionLabel}>{STR.fields}</label>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', marginBottom: 10 }}>{STR.fieldsHint}</div>
-          {errors.fields && (
-            <div style={{ fontSize: 11.5, color: '#e05050', marginBottom: 8 }}>{errors.fields}</div>
+          {editing?.isSystem ? (
+            <div className="alert alert-info" style={{ fontSize: 12.5 }}>
+              <Icon name="alert" size={14} />
+              <div>{STR.systemFields}</div>
+            </div>
+          ) : (
+            <>
+              <label style={sectionLabel}>{STR.fields}</label>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', marginBottom: 10 }}>{STR.fieldsHint}</div>
+              {errors.fields && (
+                <div style={{ fontSize: 11.5, color: '#e05050', marginBottom: 8 }}>{errors.fields}</div>
+              )}
+              <FormSchemaBuilder
+                form={form.form}
+                onChange={(next) => setF('form', next)}
+                lang={lang}
+              />
+            </>
           )}
-          <FormSchemaBuilder
-            form={form.form}
-            onChange={(next) => setF('form', next)}
-            lang={lang}
-          />
         </div>
       </Modal>
 
