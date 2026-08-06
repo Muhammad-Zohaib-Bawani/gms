@@ -14,7 +14,7 @@ import {
   getRoomInventory, createRoomInventory, updateRoomInventory, deleteRoomInventory,
   getRoomAvailability,
 } from '../api/services/accommodationInventoryService';
-import RoomAvailabilityGrid from './accommodation/RoomAvailabilityGrid';
+import RoomAvailabilityGrid, { monthsOf } from './accommodation/RoomAvailabilityGrid';
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -51,7 +51,10 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
   // The grid answers "what's left"; the list answers "what did we contract for".
   const [roomsMode, setRoomsMode] = useState('grid');
   // Applies to both views on the Rooms tab. Client-side — everything is loaded.
+  // Availability is always scoped to ONE hotel (there is no all-hotels view: a
+  // column sum across hotels adds up unrelated room types), and to one month.
   const [roomsHotel, setRoomsHotel] = useState('');
+  const [roomsMonth, setRoomsMonth] = useState('');
 
   // One modal per tab — the two forms share nothing but their shape.
   const [contractModal, setContractModal] = useState(null); // { editing, form } | null
@@ -94,6 +97,45 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
     () => (roomsHotel ? blocks.filter((b) => b.hotelId === roomsHotel) : blocks),
     [blocks, roomsHotel],
   );
+
+  // Months the availability axis actually covers — the filter's options.
+  const months = useMemo(() => monthsOf(availability), [availability]);
+
+  // Availability needs a hotel picked; default to the first contract rather than
+  // showing an empty grid on arrival. Only while the grid is showing, so clearing
+  // the filter on the blocks list isn't undone a render later.
+  useEffect(() => {
+    if (roomsMode === 'grid' && !roomsHotel && contracts.length) setRoomsHotel(contracts[0].hotelId);
+  }, [contracts, roomsHotel, roomsMode]);
+
+  // Default to the month in view today when the event covers it, else the first.
+  useEffect(() => {
+    if (!months.length) { setRoomsMonth(''); return; }
+    if (months.includes(roomsMonth)) return;
+    const now = new Date().toISOString().slice(0, 7);
+    setRoomsMonth(months.includes(now) ? now : months[0]);
+  }, [months, roomsMonth]);
+
+  const monthLabel = (m) => {
+    const [y, mm] = m.split('-');
+    return new Date(Number(y), Number(mm) - 1, 1)
+      .toLocaleDateString(isAr ? 'ar' : 'en-GB', { month: 'long', year: 'numeric' });
+  };
+
+  // Nights already booked for a block's hotel + room type, over its own window.
+  // The peak is what bounds an edit: Total has to clear the worst night, not the
+  // average one. Read off the availability response, which is refetched with the
+  // blocks, so it can never disagree with the grid.
+  const bookedPeakFor = useCallback((row) => {
+    if (!row) return 0;
+    const s = (availability?.series || []).find(
+      (x) => x.hotelId === row.hotelId && x.roomTypeId === row.roomTypeId,
+    );
+    if (!s) return 0;
+    return (s.nights || [])
+      .filter((n) => n.date >= row.fromDate && n.date <= row.toDate)
+      .reduce((max, n) => Math.max(max, n.booked), 0);
+  }, [availability]);
 
   // ── Contracts ──────────────────────────────────────────────────────────────
 
@@ -163,6 +205,16 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
     if (!editing && !form.contractId) errs.contractId = isAr ? 'الفندق مطلوب' : 'Hotel is required';
     if (!form.roomTypeId) errs.roomTypeId = isAr ? 'نوع الغرفة مطلوب' : 'Room type is required';
     if (!(Number(form.roomCount) > 0)) errs.roomCount = isAr ? 'يجب أن يكون أكبر من صفر' : 'Must be greater than zero';
+    // Caught here as well as on the server (FindBreachAsync), because the message
+    // is far more useful next to the field than as a toast after a round trip.
+    if (editing) {
+      const booked = bookedPeakFor(editing);
+      if (!errs.roomCount && Number(form.roomCount) < booked) {
+        errs.roomCount = isAr
+          ? `${booked} غرفة محجوزة بالفعل — لا يمكن أن يقل الإجمالي عن ذلك`
+          : `${booked} room(s) are already booked — Total can't be lower than that`;
+      }
+    }
     if (!form.fromDate) errs.fromDate = isAr ? 'أول ليلة مطلوبة' : 'First night is required';
     if (!form.toDate) errs.toDate = isAr ? 'آخر ليلة مطلوبة' : 'Last night is required';
     if (form.fromDate && form.toDate && form.toDate < form.fromDate)
@@ -374,22 +426,38 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
                   <Icon name={m.icon} size={13} /> {m.label}
                 </button>
               ))}
-              <div style={{ minWidth: 210, marginInlineStart: 'auto' }}>
+              {/* Availability is per hotel per month, so neither filter clears to
+                  "everything" — the grid has nothing sensible to show without them. */}
+              <div style={{ minWidth: 200, marginInlineStart: 'auto' }}>
                 <Select
                   value={roomsHotel}
                   onChange={(v) => setRoomsHotel(v || '')}
                   // Only contracted hotels can hold rooms, so that's the whole list.
                   options={contracts.map((c) => ({ value: c.hotelId, label: c.hotelName }))}
-                  placeholder={isAr ? 'كل الفنادق' : 'All hotels'}
-                  isClearable
+                  placeholder={isAr ? '— الفندق —' : '— Hotel —'}
+                  // The blocks LIST is still fine unfiltered — it's one row per
+                  // block, not a column sum — so only the grid pins it.
+                  isClearable={roomsMode === 'list'}
                 />
               </div>
+              {roomsMode === 'grid' && (
+                <div style={{ minWidth: 170 }}>
+                  <Select
+                    value={roomsMonth}
+                    onChange={(v) => setRoomsMonth(v || '')}
+                    options={months.map((m) => ({ value: m, label: monthLabel(m) }))}
+                    placeholder={isAr ? '— الشهر —' : '— Month —'}
+                    isDisabled={!months.length}
+                  />
+                </div>
+              )}
             </div>
           )}
 
           <div className="card" style={{ padding: 0 }}>
             {!onContracts && roomsMode === 'grid' ? (
-              <RoomAvailabilityGrid data={availability} loading={loading} hotelId={roomsHotel} isAr={isAr} />
+              <RoomAvailabilityGrid data={availability} loading={loading}
+                hotelId={roomsHotel} month={roomsMonth} isAr={isAr} />
             ) : (
               <DataTable
                 columns={onContracts ? contractColumns : blockColumns}
@@ -509,16 +577,53 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
               {errors.roomTypeId && <div style={errText}>{errors.roomTypeId}</div>}
             </div>
 
-            <div>
-              <label style={labelStyle}>{isAr ? 'عدد الغرف' : 'Number of Rooms'} *</label>
-              <input type="number" min="1" style={errors.roomCount ? errorStyle : inputStyle}
-                value={blockModal.form.roomCount} onChange={(e) => setBF('roomCount', e.target.value)} />
-              <div style={errors.roomCount ? errText : hintStyle}>
-                {errors.roomCount || (isAr
-                  ? 'كم غرفة من هذا النوع محجوزة لكل ليلة'
-                  : 'How many rooms of this type are held, per night')}
-              </div>
-            </div>
+            {/* Total / Booked / Available. Booked is the PEAK night in this block's
+                window — Total has to clear the worst night, not the average one —
+                and it is read-only because it counts real guest stays. Available is
+                the same number as Total from the other side, so editing either one
+                moves the other; only Total is actually stored (RoomCount). */}
+            {(() => {
+              const booked = blockModal.editing ? bookedPeakFor(blockModal.editing) : 0;
+              const total = blockModal.form.roomCount === '' ? '' : Number(blockModal.form.roomCount);
+              const available = total === '' ? '' : total - booked;
+              return (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={labelStyle}>{isAr ? 'الإجمالي' : 'Total'} *</label>
+                      <input type="number" min={Math.max(1, booked)}
+                        style={errors.roomCount ? errorStyle : inputStyle}
+                        value={blockModal.form.roomCount}
+                        onChange={(e) => setBF('roomCount', e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>{isAr ? 'محجوز' : 'Booked'}</label>
+                      <input type="number" readOnly disabled value={booked}
+                        style={{ ...inputStyle, color: 'var(--ink-mute)', cursor: 'not-allowed' }} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>{isAr ? 'متاح' : 'Available'}</label>
+                      <input type="number" min="0"
+                        style={errors.roomCount ? errorStyle : inputStyle}
+                        value={available}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setBF('roomCount', v === '' ? '' : String(booked + Number(v)));
+                        }} />
+                    </div>
+                  </div>
+                  <div style={errors.roomCount ? errText : hintStyle}>
+                    {errors.roomCount || (booked > 0
+                      ? (isAr
+                        ? `لا يمكن أن يقل الإجمالي عن ${booked} — أعلى ليلة محجوزة في هذه الفترة`
+                        : `Total can't go below ${booked} — the busiest night already booked in this window`)
+                      : (isAr
+                        ? 'كم غرفة من هذا النوع محجوزة لكل ليلة'
+                        : 'How many rooms of this type are held, per night'))}
+                  </div>
+                </>
+              );
+            })()}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
