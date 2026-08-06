@@ -43,10 +43,11 @@ const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
-  // The three built-in relational services (flight / accommodation / transport)
-  // live here; every other service is listed under "Other Services".
+  // Every service lives on this one page: the three built-in relational ones
+  // (flight / accommodation / transport) get their own tabs, and each dynamic
+  // service from the catalogue gets a tab after them — ServiceOpsView embedded.
+  // Deliberately no second menu entry for those.
   { key: "travel",         icon: "travel",     label: { en: "Travel & Logistics",  ar: "السفر والخدمات اللوجستية" }, section: "EVENT",  permission: "Travel.View"            },
-  { key: "serviceOps",     icon: "star",       label: { en: "Other Services",      ar: "الخدمات الأخرى"         }, section: "EVENT",  permission: "Travel.View"            },
   { key: "supportChat",    icon: "message",    label: { en: "Support Chat",        ar: "الدعم الفني"           }, section: "EVENT",    permission: "SupportChat.View"       },
   { key: "accreditation",  icon: "badge",      label: { en: "Accreditation",       ar: "الاعتماد"              }, section: "ONSITE",   permission: "Accreditation.View"     },
   { key: "seating",        icon: "seating",    label: { en: "Seating",             ar: "الجلوس"                }, section: "ONSITE",   permission: "Seating.View"           },

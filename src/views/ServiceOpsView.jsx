@@ -37,8 +37,12 @@ function dateFieldsOf(form) {
   return allFormFields(form).filter((f) => f.type === 'datetime' || f.type === 'date');
 }
 
-export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
+// `embeddedServiceId` renders one service only, with no page header and no
+// service tab strip — that's how Travel & Logistics hosts the dynamic services on
+// its own tabs instead of them needing a second menu entry.
+export default function ServiceOpsView({ lang, activeEventId, gotoView, embeddedServiceId = null }) {
   const isAr = lang === 'ar';
+  const embedded = !!embeddedServiceId;
 
   const [services, setServices] = useState([]);
   const [tab, setTab] = useState(null);          // `${serviceId}` | `${serviceId}:schedule`
@@ -66,6 +70,12 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
       })
       .catch(() => setServices([]));
   }, []);
+
+  // Embedded: the host owns which service is showing, so follow its prop. Reset to
+  // the entries tab, not whatever schedule sub-tab the previous service was on.
+  useEffect(() => {
+    if (embeddedServiceId) setTab(String(embeddedServiceId));
+  }, [embeddedServiceId]);
 
   const serviceId = tab ? tab.split(':')[0] : null;
   const isSchedule = !!tab && tab.endsWith(':schedule');
@@ -270,7 +280,9 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
   if (!activeEventId) {
     return (
       <div>
-        <PageHeader title={isAr ? 'الخدمات' : 'Services'} />
+        {/* Embedded, the host already printed a page header — a second one here
+            would stack two titles on the same screen. */}
+        {!embedded && <PageHeader title={isAr ? 'الخدمات' : 'Services'} />}
         <Card>
           <EmptyState icon="calendar" title={isAr ? 'اختر فعالية' : 'No event selected'}>
             {isAr ? 'اختر فعالية من الشريط العلوي.' : 'Pick an event from the top bar.'}
@@ -283,7 +295,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
   if (services.length === 0) {
     return (
       <div>
-        <PageHeader title={isAr ? 'الخدمات' : 'Services'} />
+        {!embedded && <PageHeader title={isAr ? 'الخدمات' : 'Services'} />}
         <Card>
           <EmptyState icon="star" title={isAr ? 'لا توجد خدمات إضافية' : 'No other services yet'}>
             {isAr
@@ -297,19 +309,34 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
 
   return (
     <div>
-      <PageHeader
-        title={isAr ? 'الخدمات والعمليات' : 'Services & Logistics'}
-        subtitle={isAr
-          ? 'التبويبات تتبع الخدمات المُعرَّفة'
-          : 'Tabs follow the services defined in the catalogue'}
-        actions={service && (
-          <button className="btn primary" onClick={() => setBooking({ entry: null })}>
-            <Icon name="plus" size={14} />
-            {isAr ? 'حجز جديد' : 'New Booking'}
-          </button>
-        )}
-      />
+      {!embedded && (
+        <PageHeader
+          title={isAr ? 'الخدمات والعمليات' : 'Services & Logistics'}
+          subtitle={isAr
+            ? 'التبويبات تتبع الخدمات المُعرَّفة'
+            : 'Tabs follow the services defined in the catalogue'}
+          actions={service && (
+            <button className="btn primary" onClick={() => setBooking({ entry: null })}>
+              <Icon name="plus" size={14} />
+              {isAr ? 'حجز جديد' : 'New Booking'}
+            </button>
+          )}
+        />
+      )}
 
+      {/* Embedded, the host's tab strip already picked the service, so all this
+          adds is the service's own New Booking action. No schedule sub-tab: that
+          is a Flight-only concept, and Flight is a built-in that never reaches
+          this view. */}
+      {embedded && service && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <button className="btn primary" onClick={() => setBooking({ entry: null })}>
+            <Icon name="plus" size={14} /> {isAr ? 'حجز جديد' : 'New Booking'}
+          </button>
+        </div>
+      )}
+
+      {!embedded && (
       <div className="tabs" style={{ marginBottom: 14 }}>
         {services.map((s) => {
           // The schedule/"Arrivals & Departures" tab is a Flight-only concept —
@@ -340,6 +367,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView }) {
           );
         })}
       </div>
+      )}
 
       <Card padded={false}>
         {isSchedule ? (

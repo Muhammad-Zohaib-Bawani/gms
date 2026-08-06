@@ -488,8 +488,9 @@ export default function GuestModal({
         guestType: form.guestType,
         organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
-        // Omitted on a flexible event: the server ignores it there, and
-        // sending one would imply an assignment nothing enforces.
+        // Sent on both guest models — a level is what gives the guest a service
+        // checklist at all; the model only decides whether those services are
+        // mandatory and ordered (fixed) or optional (flexible).
         serviceLevelId: form.serviceLevelId || null,
         // Only sent when there's actually something to waive, so a stale tick
         // can't record a phantom override on a clean save.
@@ -549,7 +550,13 @@ export default function GuestModal({
           // them here on purpose (SERVICE_STATIC).
           if (slot.isSystem) continue;
           const filled = pendingServices[slot.serviceId];
-          if (!filled || Object.keys(filled.values || {}).length === 0) continue;
+          // A key existing is not the same as a value being there: opening a
+          // service and touching a field (or a date picker normalising itself)
+          // leaves blank keys behind. Only real input creates an entry — the
+          // others stay pending, which is what having no row already means.
+          const hasValue = Object.values(filled?.values || {})
+            .some((v) => String(v ?? '').trim() !== '');
+          if (!hasValue) continue;
           try {
             await saveGuestServiceEntry(guestId, {
               serviceId: slot.serviceId,

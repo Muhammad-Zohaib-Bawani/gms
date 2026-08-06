@@ -26,6 +26,12 @@ import TravelAccordion, {
   FlightFields,
   flightTypeLabel,
 } from './guests/modals/TravelAccordion.jsx';
+import { getGuestServicePlan, getServices } from '../api/services/serviceCatalogService.js';
+import ServiceOpsView from './ServiceOpsView.jsx';
+
+// Built-in service code → the TravelAccordion section it owns. These three are
+// relational, not dynamic — see Core/Constants/SystemServices.cs.
+const TRAVEL_SECTION = { flight: 'flight', accommodation: 'accommodation', transport: 'transport' };
 
 // A return booking is listed under both directions on the arrivals/departures
 // board, so each column reads its own leg — first for the departure, last for
@@ -364,6 +370,26 @@ export default function TravelView({ lang, activeEventId }) {
   // ── UI state ────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState(0);
 
+  // Dynamic services share this page's tab strip: the three built-in tabs (plus
+  // Arrivals & Departures) are relational and rendered here, everything else in
+  // the catalogue is rendered by ServiceOpsView embedded below. `svcId` set means
+  // a dynamic tab is showing, so none of the built-in panels do.
+  const [dynServices, setDynServices] = useState([]);
+  const [svcId, setSvcId] = useState(null);
+  const builtinTab = svcId ? -1 : activeTab;
+
+  useEffect(() => {
+    getServices(false)
+      .then((list) => setDynServices((list || []).filter((s) => !s.isSystem)))
+      .catch(() => setDynServices([]));
+  }, []);
+
+  // A service that stops existing (deactivated, deleted) must not leave the page
+  // showing an empty tab.
+  useEffect(() => {
+    if (svcId && !dynServices.some((s) => s.id === svcId)) setSvcId(null);
+  }, [dynServices, svcId]);
+
   // Fetch the active tab's rows the first time it's shown for this event.
   useEffect(() => {
     if (!activeEventId) {
@@ -582,18 +608,46 @@ export default function TravelView({ lang, activeEventId }) {
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) loadGuestPage(guestPage + 1);
   };
 
+  // Which of the three built-in services this guest's service level actually
+  // includes. A booking for a service their level doesn't carry isn't a booking
+  // they're entitled to, so the form only offers the ones it does — same rule
+  // BookingModal applies to dynamic services (docs/service-levels-v2.md §10).
+  const [bookPlan, setBookPlan] = useState(null);   // GuestServicePlanResponse | null
+  const [bookPlanLoading, setBookPlanLoading] = useState(false);
+
+  const bookSlots = useMemo(
+    () => (bookPlan?.slots || []).filter((s) => s.isSystem && TRAVEL_SECTION[s.code]),
+    [bookPlan],
+  );
+  const bookSections = useMemo(() => bookSlots.map((s) => TRAVEL_SECTION[s.code]), [bookSlots]);
+
+  // Fetched when the guest is chosen, not on every keystroke of the picker.
+  useEffect(() => {
+    if (!showNewBooking || !bookGuestId) { setBookPlan(null); return undefined; }
+    let cancelled = false;
+    setBookPlanLoading(true);
+    getGuestServicePlan(bookGuestId)
+      .then((p) => { if (!cancelled) setBookPlan(p); })
+      .catch(() => { if (!cancelled) setBookPlan(null); })
+      .finally(() => { if (!cancelled) setBookPlanLoading(false); });
+    return () => { cancelled = true; };
+  }, [showNewBooking, bookGuestId]);
+
   function openNewBooking() {
     setShowNewBooking(true); setBookStep(1);
     setBookGuest(''); setBookGuestId(''); setGuestSearch('');
     setTravel(EMPTY_TRAVEL);
+    setBookPlan(null);
   }
 
   async function saveBooking() {
     if (!activeEventId || !bookGuestId) return;
     const travelErr = validateTravel(travel, isAr);
     if (travelErr) { toast.error(travelErr); return; }
+    // "Enabled" isn't enough any more — a section the user opened but left blank
+    // is not a booking, so this checks something was actually filled in.
     if (!anyTravelEnabled(travel)) {
-      toast.error(isAr ? 'فعّل قسمًا واحدًا على الأقل' : 'Enable at least one section');
+      toast.error(isAr ? 'املأ قسمًا واحدًا على الأقل' : 'Fill in at least one section');
       return;
     }
 
@@ -866,11 +920,15 @@ export default function TravelView({ lang, activeEventId }) {
           <h1 className="page-title">{STR.title[0]} <em>{STR.title[1]}</em></h1>
           <div className="page-sub">{STR.sub}</div>
         </div>
-        <div className="page-actions">
-          <button className="btn primary" onClick={openNewBooking}>
-            <Icon name="plus" size={14}/> {STR.newBooking}
-          </button>
-        </div>
+        {/* A dynamic service's own New Booking button lives in its embedded panel
+            — this one books the three relational services. */}
+        {!svcId && (
+          <div className="page-actions">
+            <button className="btn primary" onClick={openNewBooking}>
+              <Icon name="plus" size={14}/> {STR.newBooking}
+            </button>
+          </div>
+        )}
       </div>
 
       {bookings.length > 0 && (
@@ -880,7 +938,9 @@ export default function TravelView({ lang, activeEventId }) {
         </div>
       )}
 
-      {/* KPI row */}
+      {/* KPI row — counts the three relational services, so it's hidden while a
+          dynamic service's tab is showing. */}
+      {!svcId && (
       <div className="kpi-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
         {[
           { icon:'flight', val:fmtN(flightRows.filter(f=>f.flightStatus==='confirmed').length),  label:STR.kpi.flights,   help:STR.kpi.flightsH,   tab:0 },
@@ -900,16 +960,35 @@ export default function TravelView({ lang, activeEventId }) {
           </div>
         ))}
       </div>
+      )}
 
-      {/* Tabs */}
+      {/* Tabs — the four built-in ones, then one per dynamic service so the whole
+          catalogue lives on this page rather than a second menu entry. */}
       <div className="tabs" style={{ marginBottom:16 }}>
         {STR.tabs.map((t, i) => (
-          <button key={i} className={`tab${activeTab===i?' active':''}`} onClick={() => setActiveTab(i)}>{t}</button>
+          <button key={i} className={`tab${builtinTab===i?' active':''}`}
+            onClick={() => { setSvcId(null); setActiveTab(i); }}>{t}</button>
+        ))}
+        {dynServices.map((s) => (
+          <button key={s.id} className={`tab${svcId===s.id?' active':''}`} onClick={() => setSvcId(s.id)}>
+            {s.icon && <Icon name={s.icon} size={13}/>}
+            {(isAr ? s.nameAr : null) || s.name}
+          </button>
         ))}
       </div>
 
+      {/* Dynamic service: its own table, columns built from its form, and its own
+          New Booking dialog — ServiceOpsView, minus the page chrome. */}
+      {svcId && (
+        <ServiceOpsView
+          lang={lang}
+          activeEventId={activeEventId}
+          embeddedServiceId={svcId}
+        />
+      )}
+
       {/* ── Tab 1: Flights ── */}
-      {activeTab === 0 && (
+      {builtinTab === 0 && (
         <div>
           <FilterBar
             search={fSearch} onSearch={setFSearch} searchPlaceholder={STR.searchPh}
@@ -932,7 +1011,7 @@ export default function TravelView({ lang, activeEventId }) {
       )}
 
       {/* ── Tab 2: Hotel ── */}
-      {activeTab === 1 && (
+      {builtinTab === 1 && (
         <div>
           <FilterBar
             search={hSearch} onSearch={setHSearch} searchPlaceholder={STR.searchPh}
@@ -955,7 +1034,7 @@ export default function TravelView({ lang, activeEventId }) {
       )}
 
       {/* ── Tab 3: Ground Transfers ── */}
-      {activeTab === 2 && (
+      {builtinTab === 2 && (
         <div>
           <FilterBar
             search={tSearch} onSearch={setTSearch} searchPlaceholder={STR.searchPh}
@@ -978,7 +1057,7 @@ export default function TravelView({ lang, activeEventId }) {
       )}
 
       {/* ── Tab 4: Arrivals & Departures (read-only) ── */}
-      {activeTab === 3 && (
+      {builtinTab === 3 && (
         <div>
           <FilterBar
             search={adSearchInput} onSearch={setAdSearchInput} searchPlaceholder={STR.searchPh}
@@ -1208,17 +1287,54 @@ export default function TravelView({ lang, activeEventId }) {
               )}
 
               {bookStep === 2 && (
-                <TravelAccordion
-                  travel={travel}
-                  onChange={setTravel}
-                  lookups={travelLookups}
-                  isAr={isAr}
-                  dateMinDate={dateWindowMin}
-                  dateMaxDate={dateWindowMax}
-                  eventMinDate={eventMinDate}
-                  eventMaxDate={eventMaxDate}
-                  eventId={activeEventId}
-                />
+                bookPlanLoading ? (
+                  <div style={{ padding:'14px', textAlign:'center', fontSize:12.5, color:'var(--ink-mute)' }}>
+                    {isAr ? 'جارٍ التحميل…' : 'Loading…'}
+                  </div>
+                ) : !bookPlan?.serviceLevelId ? (
+                  <div className="alert alert-warn" style={{ fontSize:12.5 }}>
+                    <Icon name="alert" size={14}/>
+                    <div>{isAr
+                      ? `${bookGuest} ليس لديه مستوى خدمة — عيّن مستوى أولاً من صفحة الضيوف.`
+                      : `${bookGuest} has no service level yet — assign one on the Guests page first.`}</div>
+                  </div>
+                ) : bookSections.length === 0 ? (
+                  <div className="alert alert-warn" style={{ fontSize:12.5 }}>
+                    <Icon name="alert" size={14}/>
+                    <div>{isAr
+                      ? `مستوى "${bookPlan.serviceLevelName}" لا يشمل الرحلات أو الإقامة أو النقل — أضِفها إلى المستوى من صفحة مستويات الخدمة.`
+                      : `"${bookPlan.serviceLevelName}" doesn't include Flight, Accommodation or Transport — add them to the level on the Service Levels page.`}</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize:11.5, color:'var(--ink-mute)' }}>
+                      {isAr
+                        ? `الخدمات المتاحة حسب مستوى "${bookPlan.serviceLevelName}"`
+                        : `Services available on "${bookPlan.serviceLevelName}"`}
+                    </div>
+                    {/* Fixed events complete services in order. The travel endpoints
+                        don't enforce that (only the service-entry API does), so this
+                        is a warning rather than a lock. */}
+                    {bookSlots.some((s) => !s.isUnlocked) && (
+                      <div className="alert alert-info" style={{ fontSize:12 }}>
+                        <Icon name="alert" size={13}/>
+                        <div>{bookSlots.filter((s) => !s.isUnlocked).map((s) => s.lockedReason).filter(Boolean).join(' ')}</div>
+                      </div>
+                    )}
+                    <TravelAccordion
+                      travel={travel}
+                      onChange={setTravel}
+                      lookups={travelLookups}
+                      isAr={isAr}
+                      only={bookSections}
+                      dateMinDate={dateWindowMin}
+                      dateMaxDate={dateWindowMax}
+                      eventMinDate={eventMinDate}
+                      eventMaxDate={eventMaxDate}
+                      eventId={activeEventId}
+                    />
+                  </>
+                )
               )}
             </div>
 

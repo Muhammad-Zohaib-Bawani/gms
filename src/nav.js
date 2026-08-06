@@ -8,7 +8,8 @@ export const KEY_PATH = {
   guests:          '/guests',
   serviceLevels:   '/service-levels',
   travel:          '/travel',
-  // Every service that isn't one of the three built-in relational ones.
+  // Not in the sidebar — the dynamic services show as tabs inside /travel. The
+  // route stays so an existing deep link still resolves.
   serviceOps:      '/service-ops',
   accreditation:   '/accreditation',
   seating:         '/seating',

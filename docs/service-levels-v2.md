@@ -244,10 +244,14 @@ no such readers, which is every service except these three.
 
 ## 9. Operational listings
 
-`ServiceOpsView` lists the **dynamic** services, at `/service-ops` ("Other Services"). The
-tab strip is built from the service catalogue minus the three built-ins, so a newly created
-service appears there with no code change. Flight / Accommodation / Transport keep
-`TravelView` at `/travel` ("Travel & Logistics") — see §11.
+Everything lives on **one** page: `TravelView` at `/travel` ("Travel & Logistics"). Its tab
+strip is the three built-in relational tabs plus Arrivals & Departures, then **one tab per
+dynamic service**, each rendering `ServiceOpsView` with `embeddedServiceId` — no page header,
+no service tab strip of its own, just that service's table and its New Booking dialog. A newly
+created service appears as a tab with no code change.
+
+There is deliberately no second menu entry. `/service-ops` still routes to the standalone
+`ServiceOpsView` so an old bookmark resolves, but nothing links to it.
 
 Two rules keep a generated table readable:
 

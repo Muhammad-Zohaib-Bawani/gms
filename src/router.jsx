@@ -38,9 +38,10 @@ const MODULE_ROUTES = [
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
   { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
   { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
-  // Flight / Accommodation / Transport are built in and relational, so they keep
-  // their own page and their own tables. /service-ops lists every OTHER service,
-  // driven by its dynamic form. See Core/Constants/SystemServices.cs.
+  // One page for every service: TravelView renders the three built-in relational
+  // ones (Core/Constants/SystemServices.cs) on its own tabs and embeds
+  // ServiceOpsView for each dynamic one. /service-ops is kept, unlinked, so an
+  // existing bookmark still lands somewhere sensible.
   { key: 'travel',          Component: TravelView,          permission: 'Travel.View' },
   { key: 'serviceOps',      Component: ServiceOpsView,      permission: 'Travel.View' },
   { key: 'accreditation',   Component: AccreditationView,   permission: 'Accreditation.View' },
