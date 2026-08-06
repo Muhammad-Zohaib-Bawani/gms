@@ -28,7 +28,20 @@ import {
 } from './guests/modals/TravelAccordion.jsx';
 import { getGuestServicePlan, getServices } from '../api/services/serviceCatalogService.js';
 import ServiceOpsView from './ServiceOpsView.jsx';
-import ServiceAccordion, { TRAVEL_SECTION, validateServices } from './guests/ServiceAccordion.jsx';
+import ServiceAccordion, {
+  TRAVEL_SECTION, validateServices, slotHasData,
+} from './guests/ServiceAccordion.jsx';
+import { getServiceEntries, saveGuestServiceEntry } from '../api/services/serviceCatalogService.js';
+import { allFormFields } from '../components/ui/DynamicFields.jsx';
+import { loadLookupOptions } from '../components/ui/lookupSources.js';
+
+// A dynamic service with this code covers the same ground as the built-in
+// Arrivals & Departures board, so the two are shown as one tab.
+const AD_SERVICE_CODE = 'arrivals-departures';
+
+// Per built-in tab, in STR.tabs order: flights, hotel, transfers, arrivals &
+// departures. The last is two arrows running opposite ways — in and out.
+const BUILTIN_TAB_ICONS = ['flight', 'hotel', 'car', 'arrowsExchange'];
 
 // A return booking is listed under both directions on the arrivals/departures
 // board, so each column reads its own leg — first for the departure, last for
@@ -385,11 +398,86 @@ export default function TravelView({ lang, activeEventId }) {
   const [svcId, setSvcId] = useState(null);
   const builtinTab = svcId ? -1 : activeTab;
 
+  // A dynamic service coded "arrivals-departures" is the same subject as the
+  // built-in board, so it does NOT get its own tab — two tabs with one name read
+  // as a bug. Its entries are joined onto the board instead, one row per guest.
+  const [adService, setAdService] = useState(null);
+
   useEffect(() => {
     getServices(false)
-      .then((list) => setDynServices((list || []).filter((s) => !s.isSystem)))
-      .catch(() => setDynServices([]));
+      .then((list) => {
+        const dynamic = (list || []).filter((s) => !s.isSystem);
+        const ad = dynamic.find((s) => (s.code || '').toLowerCase() === AD_SERVICE_CODE) || null;
+        setAdService(ad);
+        setDynServices(ad ? dynamic.filter((s) => s.id !== ad.id) : dynamic);
+      })
+      .catch(() => { setDynServices([]); setAdService(null); });
   }, []);
+
+  // That service's entries for this event, keyed by guest so the board can hang
+  // them off the flight rows. Fetched in one generous page rather than paged: the
+  // spine below pages by GUEST, so a page of entries wouldn't line up with it.
+  const [adEntries, setAdEntries] = useState({});
+  const [adLookups, setAdLookups] = useState({});
+
+  useEffect(() => {
+    if (!adService || !activeEventId) { setAdEntries({}); return undefined; }
+    let cancelled = false;
+    getServiceEntries(adService.id, { eventId: activeEventId, pageNumber: 1, pageSize: 500 })
+      .then((res) => {
+        if (cancelled) return;
+        const byGuest = {};
+        (res?.items || []).forEach((e) => {
+          if (!e.guestId) return;
+          // A guest may hold several entries; the board shows one row per guest,
+          // so they stack inside the cell.
+          byGuest[e.guestId] = [...(byGuest[e.guestId] || []), e];
+        });
+        setAdEntries(byGuest);
+      })
+      .catch(() => { if (!cancelled) setAdEntries({}); });
+    return () => { cancelled = true; };
+  }, [adService, activeEventId]);
+
+  // Lookup-backed fields store ids; these turn them back into labels, same cache
+  // the forms use.
+  useEffect(() => {
+    if (!adService) return;
+    const keys = [...new Set(allFormFields(adService.form)
+      .filter((f) => f.type === 'lookup' && f.sourceKey)
+      .map((f) => f.sourceKey))];
+    if (keys.length === 0) return;
+    let cancelled = false;
+    Promise.all(keys.map((k) => loadLookupOptions(k).then((opts) => [k, opts])))
+      .then((pairs) => { if (!cancelled) setAdLookups(Object.fromEntries(pairs)); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adService]);
+
+  // Entries whose guest has no flight row at all, so nothing on this board can
+  // carry them. Compared against the whole flights list rather than the current
+  // page, so paging doesn't make the number jump around.
+  const adOrphanEntries = useMemo(() => {
+    const withFlights = new Set(flightRows.map((f) => f.guestId).filter(Boolean));
+    return Object.entries(adEntries)
+      .filter(([guestId]) => !withFlights.has(guestId))
+      .reduce((n, [, list]) => n + list.length, 0);
+  }, [adEntries, flightRows]);
+
+  const adDisplay = useCallback((field, raw) => {
+    if (raw == null || raw === '') return '—';
+    if (field.type === 'lookup') {
+      const hit = (adLookups[field.sourceKey] || []).find((o) => o.value === String(raw));
+      return hit ? hit.label : String(raw);
+    }
+    if (field.type === 'select') {
+      const hit = (field.options || []).find((o) => o.value === String(raw));
+      return (isAr ? hit?.labelAr : null) || hit?.label || String(raw);
+    }
+    if (field.type === 'checkbox') return raw === 'true' ? (isAr ? 'نعم' : 'Yes') : (isAr ? 'لا' : 'No');
+    if (field.type === 'datetime') return String(raw).replace('T', ' ').slice(0, 16);
+    if (field.type === 'date') return fmtDate(raw);
+    return String(raw);
+  }, [adLookups, isAr]);
 
   // A service that stops existing (deactivated, deleted) must not leave the page
   // showing an empty tab.
@@ -629,10 +717,12 @@ export default function TravelView({ lang, activeEventId }) {
   // here, so their data lands in `travel`, not in these values.
   const [bookPending, setBookPending] = useState({});
 
-  const bookSlots = useMemo(
-    () => (bookPlan?.slots || []).filter((s) => s.isSystem && TRAVEL_SECTION[s.code]),
-    [bookPlan],
-  );
+  // EVERY service on the guest's level, built-in or dynamic. This used to keep
+  // only `isSystem` slots, on the assumption the dialog just wrote travel rows —
+  // which silently dropped every dynamic service the guest is entitled to (a
+  // service like "arrivals-departures" has isSystem: false). The two kinds save
+  // through different endpoints, handled in saveBooking.
+  const bookSlots = useMemo(() => bookPlan?.slots || [], [bookPlan]);
 
   // Fetched when the guest is chosen, not on every keystroke of the picker.
   useEffect(() => {
@@ -660,16 +750,34 @@ export default function TravelView({ lang, activeEventId }) {
     // optional, so this is what enforces its required fields.
     const travelErr = validateServices(bookSlots, bookPending, travel, isAr);
     if (travelErr) { toast.error(travelErr); return; }
-    // "Enabled" isn't enough any more — a section the user opened but left blank
-    // is not a booking, so this checks something was actually filled in.
-    if (!anyTravelEnabled(travel)) {
-      toast.error(isAr ? 'املأ قسمًا واحدًا على الأقل' : 'Fill in at least one section');
+
+    // Ticked AND filled in. Dynamic services live in bookPending, the built-ins in
+    // `travel` — so "nothing to save" has to consider both, or a booking made up
+    // purely of dynamic services would be refused.
+    const filledSlots = bookSlots.filter((s) => slotHasData(s, bookPending, travel));
+    if (filledSlots.length === 0) {
+      toast.error(isAr ? 'املأ خدمة واحدة على الأقل' : 'Fill in at least one service');
       return;
     }
 
     setSavingBooking(true);
     try {
-      await saveGuestTravel(bookGuestId, buildTravelPayload(travel));
+      // The three built-ins share one travel payload; everything else is a service
+      // entry of its own. Sequential on purpose: a Fixed event rejects a service
+      // whose predecessor is unfinished.
+      if (anyTravelEnabled(travel)) {
+        await saveGuestTravel(bookGuestId, buildTravelPayload(travel));
+      }
+      for (const slot of filledSlots) {
+        if (slot.isSystem) continue;
+        await saveGuestServiceEntry(bookGuestId, {
+          id: (slot.entries || [])[0]?.id || null,
+          serviceId: slot.serviceId,
+          values: bookPending[slot.serviceId]?.values || {},
+          // Past validateServices means the required fields are in.
+          markCompleted: true,
+        });
+      }
 
       // The tabs touched by this save may not be the active one — invalidate
       // all three so switching tabs picks up fresh data, and refetch the one
@@ -853,6 +961,22 @@ export default function TravelView({ lang, activeEventId }) {
     const showInbound  = adDirection !== 'outbound';
     const showOutbound = adDirection !== 'inbound';
 
+    // The service's own fields follow the same direction filter as the flight
+    // columns: with "Arrivals" selected, arrivalLounge stays and departureLounge
+    // goes, and the other way round. A field that names neither direction (a note,
+    // a contact) is relevant to both and always shows.
+    //
+    // Read off the field's key and label rather than configured, matching how the
+    // route strip and the hotel/room-type dependency are detected elsewhere. The
+    // cost of the heuristic: a field like "Departure notes" is treated as
+    // outbound-only. Rename it, or drop the direction word, to have it always show.
+    const directionFits = (f) => {
+      const t = `${f.key || ''} ${f.label || ''}`.toLowerCase();
+      if (/arriv|inbound/.test(t)) return showInbound;
+      if (/depart|outbound/.test(t)) return showOutbound;
+      return true;
+    };
+
     // One column per direction, each holding the whole leg. The flight number
     // used to live in its own column away from the route it belonged to, and
     // duration had a column per direction; both now sit inside the leg card.
@@ -892,8 +1016,34 @@ export default function TravelView({ lang, activeEventId }) {
       },
       ...(showInbound  ? [routeColumn('inbound',  STR.cols.inboundRoute,  r => r.inbound,  true)]  : []),
       ...(showOutbound ? [routeColumn('outbound', STR.cols.outboundRoute, r => r.outbound, false)] : []),
+      // The "arrivals-departures" service's own data: ONE COLUMN PER FIELD, its
+      // value in the row — not one column per section. A section cell packed
+      // several labelled values into one box, which reads fine as a summary but
+      // can't be scanned down a column or lined up between guests.
+      ...(allFormFields(adService?.form).filter(directionFits).map((f) => ({
+        id: `svc-${f.key}`,
+        header: (isAr ? f.labelAr : null) || f.label || f.key,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const entries = adEntries[row.original.guestId] || [];
+          if (entries.length === 0) {
+            return <span style={{ fontSize:11.5, color:'var(--ink-faint)' }}>—</span>;
+          }
+          // Several entries for one guest stack in the cell rather than splitting
+          // the guest across rows — the board is one line per traveller.
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {entries.map((e) => (
+                <span key={e.entryId} style={{ fontSize:12, whiteSpace:'nowrap' }}>
+                  {adDisplay(f, e.values?.[f.key])}
+                </span>
+              ))}
+            </div>
+          );
+        },
+      }))),
     ];
-  }, [STR, adDirection]);
+  }, [STR, adDirection, adService, adEntries, adDisplay, isAr]);
 
   const adDirectionOpts = useMemo(() => [
     { value: 'all',      label: STR.direction.all },
@@ -958,7 +1108,8 @@ export default function TravelView({ lang, activeEventId }) {
           { icon:'car',      val:transferRows.length,                                       label:STR.kpi.transfers, help:STR.kpi.transfersH, tab:2 },
           // Guests, not flights: the A&D board pages by guest, so one row there is
           // one traveller however many legs they have.
-          { icon:'calendar', val:travellingGuests,                                          label:STR.kpi.movements, tab:3 },
+          // Two arrows running opposite ways — in and out, which is what this tab is.
+          { icon:'arrowsExchange', val:travellingGuests,                                    label:STR.kpi.movements, tab:3 },
         ].map((k) => {
           const on = builtinTab === k.tab;
           return (
@@ -978,7 +1129,7 @@ export default function TravelView({ lang, activeEventId }) {
               </span>
               <div style={{ minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
-                  <span style={{ fontFamily:'var(--serif)', fontSize:19, fontStyle:'italic', lineHeight:1, direction:'ltr' }}>
+                  <span style={{ fontFamily:'var(--serif)', fontSize:19, lineHeight:1, direction:'ltr' }}>
                     {fmtN(k.val)}
                   </span>
                   <span style={{ fontSize:10.5, color:'var(--ink-mute)', textTransform:'uppercase', letterSpacing:'0.09em',
@@ -1006,9 +1157,14 @@ export default function TravelView({ lang, activeEventId }) {
         {/* The strip scrolls on its own once the catalogue outgrows the width —
             the button must stay reachable, not be pushed off the edge. */}
         <div className="tabs" style={{ marginBottom:0, minWidth:0, overflowX:'auto' }}>
+          {/* Icons match the KPI cards above, and the dynamic tabs beside them
+              already carry one — a text-only built-in tab looked like a different
+              kind of control. Arrivals & Departures gets the two opposed arrows. */}
           {STR.tabs.map((t, i) => (
             <button key={i} className={`tab${builtinTab===i?' active':''}`}
-              onClick={() => { setSvcId(null); setActiveTab(i); }}>{t}</button>
+              onClick={() => { setSvcId(null); setActiveTab(i); }}>
+              <Icon name={BUILTIN_TAB_ICONS[i]} size={13}/> {t}
+            </button>
           ))}
           {dynServices.map((s) => (
             <button key={s.id} className={`tab${svcId===s.id?' active':''}`} onClick={() => setSvcId(s.id)}>
@@ -1151,6 +1307,18 @@ export default function TravelView({ lang, activeEventId }) {
               onPageSizeChange={setAdPageSize}
             />
           </div>
+          {/* The board's rows come from the flight tables, so a guest whose only
+              record is an "arrivals-departures" service entry has no row to join
+              onto. Called out rather than dropped silently — a board that quietly
+              omitted them would read as complete. */}
+          {adOrphanEntries > 0 && (
+            <div style={{ marginTop:8, fontSize:11.5, color:'#e0c47e', display:'flex', alignItems:'center', gap:6 }}>
+              <Icon name="alert" size={13}/>
+              {isAr
+                ? `${ad(adOrphanEntries)} إدخال في "${adService?.name}" لضيوف بلا رحلات — لن تظهر حتى تُضاف رحلة لهم`
+                : `${adOrphanEntries} "${adService?.name}" entr${adOrphanEntries === 1 ? 'y' : 'ies'} belong to guests with no flights — they appear here once a flight is added`}
+            </div>
+          )}
         </div>
       )}
 
@@ -1352,8 +1520,8 @@ export default function TravelView({ lang, activeEventId }) {
                   <div className="alert alert-warn" style={{ fontSize:12.5 }}>
                     <Icon name="alert" size={14}/>
                     <div>{isAr
-                      ? `مستوى "${bookPlan.serviceLevelName}" لا يشمل الرحلات أو الإقامة أو النقل — أضِفها إلى المستوى من صفحة مستويات الخدمة.`
-                      : `"${bookPlan.serviceLevelName}" doesn't include Flight, Accommodation or Transport — add them to the level on the Service Levels page.`}</div>
+                      ? `مستوى "${bookPlan.serviceLevelName}" لا يحتوي على أي خدمة — أضِف خدمات إليه من صفحة مستويات الخدمة.`
+                      : `"${bookPlan.serviceLevelName}" has no services assigned to it — add some on the Service Levels page.`}</div>
                   </div>
                 ) : (
                   <>

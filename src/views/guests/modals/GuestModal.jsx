@@ -23,12 +23,12 @@ import {
   hydrateTravel,
   anyTravelEnabled,
   buildTravelPayload,
-  validateTravel,
 } from "./TravelAccordion";
 import ImportGuestsPanel from "./ImportGuestsPanel";
-import GuestServicesPanel from "../GuestServicesPanel";
 import ServiceAccordion, { TRAVEL_SECTION, validateServices } from "../ServiceAccordion";
-import { getServices, saveGuestServiceEntry } from "../../../api/services/serviceCatalogService";
+import {
+  getServices, saveGuestServiceEntry, getGuestServicePlan,
+} from "../../../api/services/serviceCatalogService";
 import ExistingGuestPicker from "./ExistingGuestPicker";
 
 const GUEST_TYPES = [
@@ -261,8 +261,15 @@ export default function GuestModal({
   const [servicesCatalog, setServicesCatalog] = useState([]);
   // Filled in during creation and POSTed once the guest exists. ServiceAccordion
   // owns the shape and which row is expanded:
-  // { [serviceId]: { selected, values, completed } }
+  // { [serviceId]: { selected, values, completed, entryId } }
+  // entryId is set only when editing an entry that already exists, so the save
+  // updates that row instead of adding a second one.
   const [pendingServices, setPendingServices] = useState({});
+
+  // Editing: the guest's existing service plan, used both for the slot list and to
+  // prefill step 3. Everything is managed in THIS modal — the same accordion the
+  // create flow uses — rather than opening a second dialog per service.
+  const [editPlan, setEditPlan] = useState(null);
 
   // Reset/prefill whenever the modal opens for a (possibly different) guest —
   // covers switching between two different edit targets and going from edit
@@ -277,12 +284,41 @@ export default function GuestModal({
     setRawTravel(null);
     setMode(initialMode);
     setPendingServices({});
+    setEditPlan(null);
     if (guest?.id) {
       getGuestTravel(guest.id)
         .then(setRawTravel)
         .catch(() => setRawTravel(null));
+      // Prefills step 3 with what the guest already has, so editing a service is
+      // the same accordion as adding one rather than a nested dialog.
+      getGuestServicePlan(guest.id)
+        .then(setEditPlan)
+        .catch(() => setEditPlan(null));
     }
   }, [open, guest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Seed the accordion from the plan's existing entries — dynamic services only.
+  // The built-ins live in `travel`, hydrated from getGuestTravel above.
+  //
+  // Only the FIRST entry per service is loaded: this accordion is one form per
+  // service, so a guest holding two flights can't have both represented here. The
+  // Services list on the guest's detail page manages the extras.
+  useEffect(() => {
+    if (!editPlan?.slots) return;
+    const seeded = {};
+    editPlan.slots.forEach((s) => {
+      if (s.isSystem) return;
+      const first = (s.entries || [])[0];
+      if (!first) return;
+      seeded[s.serviceId] = {
+        selected: true,
+        values: { ...(first.values || {}) },
+        completed: first.status === 'completed',
+        entryId: first.id,
+      };
+    });
+    if (Object.keys(seeded).length) setPendingServices((p) => ({ ...seeded, ...p }));
+  }, [editPlan]);
 
   // "Existing Guest" tab bulk-add — each entry is a brand-new guest for this
   // event (Guest is per-event, no cross-event identity to link to). Personal
@@ -424,9 +460,8 @@ export default function GuestModal({
   // Both the step-3 "Next" and the final Save run this — Save has to as well,
   // since the wizard can be finished from any step.
   function servicesError() {
-    // Editing hands step 3 to GuestServicesPanel, which saves each service on its
-    // own; there is no pending set to validate here.
-    if (isEdit) return validateTravel(travel, isAr);
+    // Same rule in both flows now: a ticked service has to be complete, whether it
+    // was ticked just now or was already there when the modal opened.
     return validateServices(wizardSlots, pendingServices, travel, isAr);
   }
 
@@ -519,11 +554,10 @@ export default function GuestModal({
         guestId = created?.id;
       }
 
-      // New guests only. When editing, step 3 is GuestServicesPanel, which saves
-      // each booking through the travel endpoint itself — re-POSTing the state
-      // hydrated at open time would overwrite whatever was just changed there
-      // (and hydrateTravel only ever holds the most recent booking of each kind).
-      if (guestId && !isEdit && anyTravelEnabled(travel)) {
+      // Both flows now, because step 3 edits travel in THIS modal either way. Each
+      // section carries the booking's own id when it was hydrated, so a save
+      // updates that booking rather than adding a second one.
+      if (guestId && anyTravelEnabled(travel)) {
         try {
           await saveGuestTravel(
             guestId,
@@ -545,7 +579,7 @@ export default function GuestModal({
       // Services the wizard collected. Sequential on purpose: on a Fixed event
       // the server rejects a service whose predecessor is not yet complete, so
       // they have to go in order, and awaiting each keeps that true.
-      if (guestId && !isEdit) {
+      if (guestId) {
         for (const slot of wizardSlots) {
           // The built-ins went to the travel endpoint above; the server refuses
           // them here on purpose (SERVICE_STATIC).
@@ -560,6 +594,9 @@ export default function GuestModal({
           if (!hasValue) continue;
           try {
             await saveGuestServiceEntry(guestId, {
+              // Set when this service already had an entry, so editing updates
+              // that row instead of leaving the guest with two of them.
+              id: filled.entryId || null,
               serviceId: slot.serviceId,
               values: filled.values,
               // Ticked and past servicesError() means every required field is in,
@@ -690,8 +727,22 @@ export default function GuestModal({
   const stepLabels = activeSteps.map((s) => allStepLabels[s - 1]);
 
   // The level's services, joined to their form schemas, in completion order.
+  //
+  // Editing prefers the guest's PLAN: same slots, but it also carries the entries
+  // they already hold, so step 3 can open pre-filled instead of blank. It falls
+  // back to the level while the plan is loading, or if the level was just changed
+  // on step 2 (the plan still describes the old one).
   const wizardSlots = useMemo(() => {
     const byId = new Map((servicesCatalog || []).map((x) => [x.id, x]));
+    const levelUnchanged = isEdit && guest?.serviceLevelId === form.serviceLevelId;
+
+    if (levelUnchanged && editPlan?.slots?.length) {
+      return editPlan.slots.map((s) => ({
+        ...s,
+        form: s.form?.sections?.length ? s.form : (byId.get(s.serviceId)?.form || { sections: [] }),
+      }));
+    }
+
     return (selectedLevel?.services || []).map((a) => ({
       ...a,
       form: byId.get(a.serviceId)?.form || { sections: [] },
@@ -699,7 +750,7 @@ export default function GuestModal({
       // tables, saved by saveGuestTravel below rather than as a service entry.
       isSystem: byId.get(a.serviceId)?.isSystem ?? !!TRAVEL_SECTION[a.code],
     }));
-  }, [selectedLevel, servicesCatalog]);
+  }, [selectedLevel, servicesCatalog, isEdit, editPlan, guest?.serviceLevelId, form.serviceLevelId]);
 
   // On a Fixed event the order is a rule, so the wizard mirrors the server's
   // gate locally — nothing is saved yet, but you still cannot fill service 2
@@ -1395,12 +1446,7 @@ export default function GuestModal({
             {/* STEP 3 — Services from the guest's level */}
             {showWizard && step === 3 && (
               <>
-                {isEdit && guest?.id ? (
-                  // The guest exists, so entries can be saved against them here.
-                  <GuestServicesPanel guestId={guest.id} lang={lang}
-                    eventStart={eventStartDate} eventEnd={eventEndDate}
-                    eventId={activeEventId} />
-                ) : !selectedLevel ? (
+                {!selectedLevel ? (
                   <div className="alert alert-info" style={{ fontSize: 12.5 }}>
                     <Icon name="alert" size={14} />
                     <div>
@@ -1421,7 +1467,11 @@ export default function GuestModal({
                 ) : (
                   <>
                     <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
-                      {isFixedEvent
+                      {isEdit
+                        ? (isAr
+                          ? "الخدمات المُضافة تظهر معلَّمة ومملوءة — عدّلها هنا، أو ضع علامة على خدمة جديدة لإضافتها."
+                          : "Services already added are ticked and filled in — edit them here, or tick another to add it.")
+                        : isFixedEvent
                         ? (isAr
                           ? "ضع علامة على الخدمة لإضافتها الآن — بالترتيب. ما تتركه يمكن إضافته لاحقاً من زر الحجز الجديد."
                           : "Tick a service to add it now, in order. Anything you leave unticked can be added later from New Booking.")

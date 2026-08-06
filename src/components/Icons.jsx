@@ -23,6 +23,9 @@ export const ICON_PATHS = {
   check: <><path d="M5 12l4 4 10-10"/></>,
   arrow: <><path d="M5 12h14M13 5l7 7-7 7"/></>,
   arrowLeft: <><path d="M19 12H5M11 5l-7 7 7 7"/></>,
+  // Two arrows running opposite ways (⇄) — arrivals and departures, in and out.
+  // Stroke only, no baked colour, so it inherits currentColor like the rest.
+  arrowsExchange: <><path d="M4 9h13"/><path d="M14 6l3 3-3 3"/><path d="M20 15H7"/><path d="M10 12l-3 3 3 3"/></>,
   chevronDown: <><path d="M6 9l6 6 6-6"/></>,
   chevronRight: <><path d="M9 6l6 6-6 6"/></>,
   more: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,

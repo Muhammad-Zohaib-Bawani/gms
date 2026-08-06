@@ -48,6 +48,7 @@ export default function BookingModal({
   // The guest's own service list, and the two state bags the accordion writes to.
   const [plan, setPlan] = useState(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState(null);
   const [pending, setPending] = useState({});
   const [travel, setTravel] = useState(EMPTY_TRAVEL);
   const [travelLookups, setTravelLookups] = useState({});
@@ -76,14 +77,23 @@ export default function BookingModal({
   // The guest's plan is what decides which services this dialog offers — the
   // level, not the tab it was opened from.
   useEffect(() => {
-    if (!open || !guestId) { setPlan(null); return undefined; }
+    if (!open || !guestId) { setPlan(null); setPlanError(null); return undefined; }
     let cancelled = false;
     setPlanLoading(true);
+    setPlanError(null);
     getGuestServicePlan(guestId)
       .then((p) => { if (!cancelled) setPlan(p); })
-      .catch(() => { if (!cancelled) setPlan(null); })
+      // Kept and shown, not swallowed: a failed fetch and a level with no services
+      // both left `slots` empty, so one warning covered two very different causes
+      // and neither was diagnosable.
+      .catch((err) => {
+        if (cancelled) return;
+        setPlan(null);
+        setPlanError(err?.message || (isAr ? 'تعذّر تحميل خدمات الضيف' : "Could not load this guest's services"));
+      })
       .finally(() => { if (!cancelled) setPlanLoading(false); });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, guestId]);
 
   const slots = useMemo(() => (plan?.slots || []).map((s) => ({ ...s })), [plan]);
@@ -246,12 +256,25 @@ export default function BookingModal({
           <div style={{ padding: 14, textAlign: 'center', fontSize: 12.5, color: 'var(--ink-mute)' }}>
             {isAr ? 'جارٍ التحميل…' : 'Loading…'}
           </div>
+        ) : planError ? (
+          <div className="alert alert-warn" style={{ fontSize: 12.5 }}>
+            <Icon name="alert" size={14} /><div>{planError}</div>
+          </div>
         ) : slots.length === 0 ? (
           <div className="alert alert-warn" style={{ fontSize: 12.5 }}>
             <Icon name="alert" size={14} />
-            <div>{isAr
-              ? 'لا توجد خدمات مُسنَدة إلى مستوى هذا الضيف.'
-              : "No services are assigned to this guest's service level."}</div>
+            <div>
+              {/* Names the level, because "no services" nearly always means the
+                  services were never ASSIGNED to it — entries alone don't create
+                  slots, the level's assignment list does. */}
+              {plan?.serviceLevelId
+                ? (isAr
+                  ? `مستوى "${plan.serviceLevelName}" لا يحتوي على أي خدمة — أضِف الخدمات إليه من صفحة مستويات الخدمة.`
+                  : `"${plan.serviceLevelName}" has no services assigned to it — add them on the Service Levels page.`)
+                : (isAr
+                  ? 'هذا الضيف بلا مستوى خدمة، لذا لا توجد خدمات لعرضها.'
+                  : 'This guest has no service level, so there are no services to show.')}
+            </div>
           </div>
         ) : (
           <>

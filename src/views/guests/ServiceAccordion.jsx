@@ -25,6 +25,18 @@ import TravelAccordion, {
 
 export const TRAVEL_SECTION = { flight: 'flight', accommodation: 'accommodation', transport: 'transport' };
 
+// Icon fallback by service code, for services whose Icon column is empty (there
+// is no icon picker in the catalogue admin yet). "arrivals-departures" gets two
+// arrows running opposite ways, the same one the Travel board's tab uses.
+const CODE_ICON = {
+  flight: 'flight',
+  accommodation: 'hotel',
+  transport: 'car',
+  'arrivals-departures': 'arrowsExchange',
+};
+
+const iconFor = (slot) => slot.icon || CODE_ICON[(slot.code || '').toLowerCase()] || null;
+
 /** Anything actually typed into this slot — blank keys don't count as input. */
 export function slotHasData(slot, pending, travel) {
   if (slot.isSystem) return sectionHasData(travel, TRAVEL_SECTION[slot.code]);
@@ -203,7 +215,7 @@ export default function ServiceAccordion({
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}
               >
-                {slot.icon && <Icon name={slot.icon} size={14} style={{ color: 'var(--accent)' }} />}
+                {iconFor(slot) && <Icon name={iconFor(slot)} size={14} style={{ color: 'var(--accent)' }} />}
                 <span style={{ fontSize: 13, fontWeight: 550, flex: 1 }}>
                   {(isAr ? slot.nameAr : null) || slot.name}
                 </span>
