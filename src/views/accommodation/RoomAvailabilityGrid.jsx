@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Icon } from '../../components/Icons';
+import toast from '../../lib/toast';
 import { fmtDayMonth } from '../../lib/date';
 
 // Rooms held × nights, for ONE hotel and one month at a time. Each room type is
@@ -13,6 +14,13 @@ import { fmtDayMonth } from '../../lib/date';
 //
 // Every series shares the response's date axis, so the columns line up without
 // the grid having to reconcile windows itself.
+//
+// Total and Available are click-to-edit when the parent passes `blockAt` +
+// `onSaveNight`, and an edit changes THAT NIGHT only. The DB holds one count per
+// (room type, from..to) window rather than one per night, so the server splits
+// the block around the edited night — that's the whole reason this posts a night
+// instead of a room count. Available is the same number seen from the other
+// side, so it writes Total = value + that night's Booked.
 
 const CELL_W = 62;
 const LABEL_W = 190;
@@ -77,8 +85,20 @@ export function monthsOf(data) {
 const inMonth = (nights, month) =>
   (month ? (nights || []).filter((n) => String(n.date).startsWith(month)) : (nights || []));
 
-// One metric row. `metric` picks which number this row prints.
-function MetricRow({ label, nights, metric, strong = false, coloured = false }) {
+const editInput = {
+  width: '100%', boxSizing: 'border-box', textAlign: 'center', direction: 'ltr',
+  background: 'var(--surface-soft-3)', border: '1px solid var(--brand, #8d0134)',
+  borderRadius: 5, padding: '2px 3px', color: 'var(--ink)', fontSize: 13, fontWeight: 700,
+  // A number spinner inside a 62px cell is all spinner and no number.
+  MozAppearance: 'textfield',
+};
+
+// One metric row. `metric` picks which number this row prints. `editor` (see the
+// grid below) makes Total/Available cells click-to-edit; without it, or on the
+// all-room-types aggregate row (no roomTypeId → no single block to write to),
+// the row stays read-only.
+function MetricRow({ label, nights, metric, strong = false, coloured = false, roomTypeId = null, editor = null }) {
+  const editable = !!(editor && roomTypeId && (metric === 'total' || metric === 'available'));
   return (
     <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>
       <td style={{
@@ -95,16 +115,39 @@ function MetricRow({ label, nights, metric, strong = false, coloured = false }) 
         // Nothing held and nobody in it: blank. Nothing held but somebody in it is
         // a real overbooking, so it still shows (as a negative) rather than empty.
         const idle = !n.total && !n.booked;
+        // A night no block covers has no count to write to — it stays read-only
+        // even on an editable row.
+        const hit = editable ? editor.blockAt(roomTypeId, n.date) : null;
+        const editing = hit && editor.isActive(roomTypeId, metric, n.date);
         return (
           <td key={n.date} style={{ ...cellBase, background: coloured ? bg : 'transparent' }}>
-            <div style={{
-              fontSize: coloured || strong ? 13.5 : 12.5,
-              fontWeight: coloured || strong ? 700 : 500,
-              color: coloured ? fg : 'var(--ink-dim)',
-              direction: 'ltr', lineHeight: 1.2,
-            }}>
-              {idle ? '—' : n[metric]}
-            </div>
+            {editing ? (
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                value={editor.value}
+                disabled={editor.saving}
+                onChange={(e) => editor.setValue(e.target.value)}
+                onKeyDown={editor.onKeyDown}
+                onBlur={editor.onBlur}
+                style={editInput}
+              />
+            ) : (
+              <div
+                onClick={hit ? () => editor.start(roomTypeId, metric, n, hit) : undefined}
+                style={{
+                  fontSize: coloured || strong ? 13.5 : 12.5,
+                  fontWeight: coloured || strong ? 700 : 500,
+                  color: coloured ? fg : 'var(--ink-dim)',
+                  direction: 'ltr', lineHeight: 1.2,
+                  cursor: hit ? 'pointer' : 'default',
+                  borderBottom: hit ? '1px dashed var(--glass-border-strong)' : '1px solid transparent',
+                }}
+              >
+                {idle ? '—' : n[metric]}
+              </div>
+            )}
           </td>
         );
       })}
@@ -113,7 +156,7 @@ function MetricRow({ label, nights, metric, strong = false, coloured = false }) 
 }
 
 // The three rows one scope (a room type, or the hotel as a whole) expands into.
-function ScopeRows({ title, subtitle, nights, isAr, colSpan }) {
+function ScopeRows({ title, subtitle, nights, isAr, colSpan, roomTypeId = null, editor = null }) {
   return (
     <>
       <tr style={{ background: 'var(--surface-soft-2)', borderBottom: '1px solid var(--glass-border)' }}>
@@ -126,15 +169,88 @@ function ScopeRows({ title, subtitle, nights, isAr, colSpan }) {
         {/* The group header carries no numbers — the three rows under it do. */}
         <td colSpan={colSpan} style={{ ...cellBase, textAlign: 'start', borderInlineStart: '1px solid var(--glass-border)' }} />
       </tr>
-      <MetricRow label={isAr ? 'الإجمالي' : 'Total'} nights={nights} metric="total" />
+      <MetricRow label={isAr ? 'الإجمالي' : 'Total'} nights={nights} metric="total" roomTypeId={roomTypeId} editor={editor} />
+      {/* Booked is never editable here — it's guests' actual stays, not inventory. */}
       <MetricRow label={isAr ? 'محجوز' : 'Booked'} nights={nights} metric="booked" />
-      <MetricRow label={isAr ? 'متاح' : 'Available'} nights={nights} metric="available" coloured />
+      <MetricRow label={isAr ? 'متاح' : 'Available'} nights={nights} metric="available" coloured roomTypeId={roomTypeId} editor={editor} />
     </>
   );
 }
 
-export default function RoomAvailabilityGrid({ data, loading, hotelId = '', month = '', isAr = false }) {
+export default function RoomAvailabilityGrid({
+  data, loading, hotelId = '', month = '', isAr = false,
+  // Both required to make the grid editable — omit either (no permission, no
+  // blocks loaded) and it renders exactly as before.
+  //   blockAt(roomTypeId, date) → { id, fromDate, toDate, roomCount } | null
+  //   onSaveNight(block, date, roomCount) → Promise, rejects on failure (parent toasts)
+  blockAt = null, onSaveNight = null,
+}) {
   const all = data?.series || [];
+
+  // { roomTypeId, metric, date, night, block, value, saving } | null
+  const [edit, setEdit] = useState(null);
+  // Escape unmounts the input, which fires onBlur on the way out — without this
+  // the cancel would immediately be undone by a commit.
+  const skipBlur = useRef(false);
+
+  const editable = !!(blockAt && onSaveNight);
+
+  const commit = async () => {
+    if (!edit || edit.saving) return;
+    const raw = Number(edit.value);
+    // Available is Total seen from the other side: the booked half is fixed, so
+    // typing there is really typing Total − Booked for that night.
+    const total = edit.metric === 'total' ? raw : raw + edit.night.booked;
+
+    if (!Number.isInteger(raw) || raw < 0 || !Number.isInteger(total) || total < 0) {
+      toast.error(isAr ? 'أدخل رقماً صحيحاً' : 'Enter a whole number');
+      return;
+    }
+    // The guard the whole feature is for. Only THIS night's bookings matter —
+    // the edit touches this night alone. The server enforces the same rule
+    // (FindBreachAsync) — this just says so before the round trip.
+    if (total < edit.night.booked) {
+      toast.error(isAr
+        ? `${edit.night.booked} غرفة محجوزة في هذه الليلة — لا يمكن أن يقل الإجمالي عن ذلك`
+        : `${edit.night.booked} room(s) booked on this night — Total can't go below that`);
+      return;
+    }
+    if (total === edit.night.total) { setEdit(null); return; }
+
+    setEdit((e) => ({ ...e, saving: true }));
+    try {
+      await onSaveNight(edit.block, edit.date, total);
+      setEdit(null);
+    } catch {
+      // Parent already reported it; keep the value on screen to be fixed.
+      setEdit((e) => (e ? { ...e, saving: false } : null));
+    }
+  };
+
+  const editor = editable ? {
+    blockAt,
+    value: edit?.value ?? '',
+    saving: !!edit?.saving,
+    isActive: (roomTypeId, metric, date) =>
+      !!edit && edit.roomTypeId === roomTypeId && edit.metric === metric && edit.date === date,
+    start: (roomTypeId, metric, night, block) => {
+      if (edit?.saving) return;
+      setEdit({
+        roomTypeId, metric, date: night.date, night, block,
+        value: String(metric === 'total' ? night.total : night.available),
+        saving: false,
+      });
+    },
+    setValue: (v) => setEdit((e) => (e ? { ...e, value: v } : null)),
+    onKeyDown: (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { skipBlur.current = true; setEdit(null); }
+    },
+    onBlur: () => {
+      if (skipBlur.current) { skipBlur.current = false; return; }
+      commit();
+    },
+  } : null;
 
   // Filtered on the client: the response already holds every hotel, so switching
   // costs nothing and the date axis stays put between hotels.
@@ -211,6 +327,8 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', mont
                 nights={inMonth(s.nights, month)}
                 isAr={isAr}
                 colSpan={axis.length}
+                roomTypeId={s.roomTypeId}
+                editor={editor}
               />
             ))}
           </tbody>
@@ -232,6 +350,14 @@ export default function RoomAvailabilityGrid({ data, loading, hotelId = '', mont
           {isAr ? 'يكاد ينتهي' : 'Almost gone'}
         </span>
         <span>{isAr ? 'كل عمود = ليلة واحدة' : 'Each column is one night'}</span>
+        {editable && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Icon name="edit" size={12} />
+            {isAr
+              ? 'انقر الإجمالي أو المتاح لتعديل تلك الليلة وحدها'
+              : 'Click Total or Available to edit that night only'}
+          </span>
+        )}
       </div>
     </div>
   );

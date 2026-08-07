@@ -136,6 +136,7 @@ export const ENDPOINTS = {
     contract: (eventId, id) => `/v1/events/${eventId}/accommodation/contracts/${id}`,
     inventory: (eventId) => `/v1/events/${eventId}/accommodation/inventory`,
     inventoryById: (eventId, id) => `/v1/events/${eventId}/accommodation/inventory/${id}`,
+    inventoryNight: (eventId, id) => `/v1/events/${eventId}/accommodation/inventory/${id}/night`,
     // Booking-form feeds: contracted hotels, that hotel's held room types, and
     // the per-night availability the calendar greys out.
     hotels: (eventId) => `/v1/events/${eventId}/accommodation/hotels`,

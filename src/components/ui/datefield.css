@@ -94,6 +94,98 @@ html[data-theme="dark"] .react-datepicker__day:hover { background: rgba(255,255,
   outline: none; border-color: var(--accent);
 }
 
+/* Inline range calendar (DateRangeCalendar). Same skin as the popper — it just
+   sits in the form instead of over it, so it loses the float and fills its
+   column.
+
+   Every rule below is scoped to .gms-daterange AND repeats react-datepicker's
+   own `:not([aria-disabled=true])` where it has one: the stock stylesheet ships
+   a full blue palette at that specificity, and a plainer selector loses to it on
+   hover no matter how late this file is imported. */
+.gms-daterange .react-datepicker {
+  width: 100%;
+  box-shadow: none;
+  background: var(--surface-soft-2);
+}
+.gms-daterange .react-datepicker__month-container { width: 100%; float: none; }
+
+/* Fill the width instead of leaving a gutter: the stock day is a fixed-width
+   inline-block, so the row is laid out as flex and each day takes an equal
+   share. */
+.gms-daterange .react-datepicker__month { margin: 6px 10px 12px; }
+.gms-daterange .react-datepicker__day-names { margin-bottom: 0; }
+.gms-daterange .react-datepicker__week,
+.gms-daterange .react-datepicker__day-names {
+  display: flex;
+  justify-content: space-between;
+}
+.gms-daterange .react-datepicker__day,
+.gms-daterange .react-datepicker__day-name {
+  flex: 1 1 0;
+  width: auto;
+  margin: 1px;
+  line-height: 2.2rem;
+  border-radius: 6px;
+}
+
+/* The nav arrows sit at top:2px by default, which puts them on the header's own
+   border. Drop the header a little and centre them in the new space. */
+.gms-daterange .react-datepicker__header { padding-top: 12px; }
+.gms-daterange .react-datepicker__navigation { top: 10px; }
+
+/* Preselection is keyboard-navigation feedback, not a choice the user made —
+   here it lands on whatever day the calendar opened to, so it must not look
+   picked. Stock paints it light blue at rest, dark blue on hover.
+
+   ORDER MATTERS below: the plain-day hover and this one tie on specificity with
+   the range rules that follow, so they have to come FIRST or they would repaint
+   a selected day grey on hover. */
+.gms-daterange .react-datepicker__day--keyboard-selected {
+  background: transparent;
+  color: inherit;
+}
+.gms-daterange .react-datepicker__day--keyboard-selected:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day:not([aria-disabled=true]):hover {
+  background: var(--surface-soft-3);
+}
+/* No html[data-theme="dark"] variant of the hover above: that prefix would
+   outweigh the range rules below and repaint a selected day grey on hover in
+   dark mode. --surface-soft-3 already reads as a light tint there. */
+
+/* The stay: ends solid, the nights between them tinted. --selected covers the
+   check-in day while the check-out is still unpicked (see DateRangeCalendar). */
+.gms-daterange .react-datepicker__day--in-range,
+.gms-daterange .react-datepicker__day--in-selecting-range,
+.gms-daterange .react-datepicker__day--in-range:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--in-selecting-range:not([aria-disabled=true]):hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--ink);
+}
+.gms-daterange .react-datepicker__day--selected,
+.gms-daterange .react-datepicker__day--range-start,
+.gms-daterange .react-datepicker__day--range-end,
+.gms-daterange .react-datepicker__day--selecting-range-start,
+.gms-daterange .react-datepicker__day--selecting-range-end,
+.gms-daterange .react-datepicker__day--selected:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--range-start:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--range-end:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--selecting-range-end:not([aria-disabled=true]):hover {
+  background: var(--accent);
+  color: #fff;
+}
+html[data-theme="dark"] .gms-daterange .react-datepicker__day--in-range,
+html[data-theme="dark"] .gms-daterange .react-datepicker__day--in-selecting-range { color: #fff; }
+
+/* A sold-out night has to read as struck out, not merely dim — dim is what an
+   out-of-month day already looks like. */
+.gms-daterange .react-datepicker__day--excluded,
+.gms-daterange .react-datepicker__day--excluded:hover {
+  background: transparent;
+  text-decoration: line-through;
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 /* Opt-in clear, for genuinely optional dates. A quiet text link under the field
    rather than react-datepicker's unthemed blue × pinned inside it. */
 .gms-datefield-clear {

@@ -20,6 +20,7 @@ import React, { useEffect } from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
+import DateRangeCalendar from '../../../components/ui/DateRangeCalendar';
 import ImageField from '../../../components/ui/ImageField';
 import { stripSasToken } from '../../../api/services/uploadService';
 import { useAvailableVehicles, useAvailableDrivers } from '../../../lib/useAvailableVehicles';
@@ -189,8 +190,10 @@ export function validateTravel(t, isAr = false, only = null) {
   }
   if (active('accommodation')) {
     if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
-    if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
-    if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
+    // Half a range is as unusable as none — the calendar leaves it that way
+    // between the two clicks, so both are checked.
+    if (!t.accommodation.checkIn || !t.accommodation.checkOut)
+      return isAr ? 'ليالي الإقامة مطلوبة' : 'Pick the stay dates on the calendar';
     // A stay occupies the nights from check-in up to (not including) check-out, so
     // a same-day pair is zero nights — nothing to book a room for.
     if (t.accommodation.checkOut <= t.accommodation.checkIn)
@@ -503,7 +506,20 @@ export default function TravelAccordion({
   }, [pinned?.join(','), travel.flight.enabled, travel.accommodation.enabled, travel.transport.enabled]);
 
   const setField = (section, key, value) =>
-    onChange((p) => ({ ...p, [section]: { ...p[section], [key]: value } }));
+    onChange((p) => ({
+      ...p,
+      [section]: {
+        ...p[section],
+        [key]: value,
+        // Both of these move the room block the stay calendar is bounded by, so
+        // dates picked against the old one no longer mean anything — and a room
+        // type belongs to its hotel, so that goes with it too.
+        ...(section === 'accommodation' && key === 'hotelId'
+          ? { roomTypeId: '', checkIn: '', checkOut: '' } : {}),
+        ...(section === 'accommodation' && key === 'roomTypeId'
+          ? { checkIn: '', checkOut: '' } : {}),
+      },
+    }));
 
   // Closing a section clears its fields rather than just hiding them — so
   // reopening it (or leaving it closed) never silently resubmits stale data.
@@ -550,6 +566,10 @@ export default function TravelAccordion({
     excludeTransportId: travel.transport.id,
     fallback: lookups.drivers,
   });
+  // The stay calendar is bounded by the room block for this hotel + room type, so
+  // it has nothing to draw until both are chosen.
+  const accommodationDatesReady = !!(travel.accommodation.hotelId && travel.accommodation.roomTypeId);
+
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
   const driverOpts = mapOpts(freeDrivers, driverLabel);
@@ -569,7 +589,7 @@ export default function TravelAccordion({
     </div>
   );
 
-  const sel = (section, key, label, options, { required = false } = {}) => (
+  const sel = (section, key, label, options, { required = false, disabled = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
       <Select
@@ -578,20 +598,7 @@ export default function TravelAccordion({
         options={options}
         placeholder={selPlaceholder}
         isClearable={!required}
-      />
-    </div>
-  );
-
-  const date = (section, key, label, { minDate, maxDate, excludeDates, required = false } = {}) => (
-    <div>
-      <Label>{label}{required ? ' *' : ''}</Label>
-      <DateField
-        value={travel[section][key]}
-        onChange={(v) => setField(section, key, v || '')}
-        minDate={minDate}
-        maxDate={maxDate}
-        excludeDates={excludeDates}
-        placeholder="DD-MM-YYYY"
+        isDisabled={disabled}
       />
     </div>
   );
@@ -666,38 +673,73 @@ export default function TravelAccordion({
       {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
         {grid(<>
           {sel('accommodation', 'hotelId', isAr ? 'الفندق' : 'Hotel', hotelOpts, { required: true })}
-          {/* Required once the event holds rooms at this hotel — capacity is
-              tracked per room type, so there's nothing to check without one. */}
-          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts, { required: rooms.managed })}
-        </>)}
-        {/* Dates are held to the room block's window, and nights with nothing left
-            are greyed out. Check-out is the morning after the last night slept, so
-            it may fall one day past the window and is never itself "full". */}
-        {grid(<>
-          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', {
-            minDate: rooms.window?.min || dateMinDate,
-            maxDate: rooms.window?.max || dateMaxDate,
-            excludeDates: rooms.fullDates,
-            required: true,
-          })}
-          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', {
-            minDate: addDaysIso(travel.accommodation.checkIn, 1) || travel.accommodation.checkIn || dateMinDate,
-            maxDate: (rooms.window && addDaysIso(rooms.window.max, 1)) || dateMaxDate,
-            required: true,
+          {/* Which room types exist at all depends on the hotel, and capacity is
+              tracked per type — so there is nothing to offer until one is picked. */}
+          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts, {
+            required: rooms.managed,
+            disabled: !travel.accommodation.hotelId,
           })}
         </>)}
-        {rooms.managed && travel.accommodation.checkIn && (
-          <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
-            {(() => {
-              const left = rooms.availableOn(travel.accommodation.checkIn);
-              if (left === null) return isAr ? 'لا غرف محجوزة في هذا التاريخ' : 'No rooms held on that date';
-              const night = fmtDate(travel.accommodation.checkIn);
-              return isAr
-                ? `${left} غرفة متاحة ليلة ${night}`
-                : `${left} room(s) left on the night of ${night}`;
-            })()}
-          </div>
-        )}
+
+        {/* One calendar instead of two date fields: the stay is a range, and which
+            nights are free depends on the hotel + room type above — so the dates
+            only appear once both are chosen, with the room block's window as the
+            bounds and sold-out nights struck out. */}
+        <div>
+          <Label>{isAr ? 'ليالي الإقامة *' : 'Stay Dates *'}</Label>
+          {!accommodationDatesReady ? (
+            <div style={{
+              padding: '14px 12px', borderRadius: 8, fontSize: 12, color: 'var(--ink-faint)',
+              background: 'var(--surface-soft-2)', border: '1px dashed var(--glass-border)',
+            }}>
+              {isAr
+                ? 'اختر الفندق ونوع الغرفة لعرض الليالي المتاحة'
+                : 'Pick a hotel and room type to see the nights available'}
+            </div>
+          ) : (
+            <>
+              <DateRangeCalendar
+                start={travel.accommodation.checkIn}
+                end={travel.accommodation.checkOut}
+                onChange={(checkIn, checkOut) => onChange((p) => ({
+                  ...p, accommodation: { ...p.accommodation, checkIn, checkOut },
+                }))}
+                minDate={rooms.window?.min || dateMinDate}
+                maxDate={rooms.window?.max || dateMaxDate}
+                excludeDates={rooms.fullDates}
+                // Check-out is the morning after the last night slept, so it may
+                // fall one day past the window — and it can't reach past the first
+                // sold-out night, which is what caps the stay.
+                endMaxFor={(s) => rooms.firstFullAfter(s)
+                  || (rooms.window && addDaysIso(rooms.window.max, 1))
+                  || dateMaxDate}
+                isAr={isAr}
+              />
+              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6 }}>
+                {(() => {
+                  const { checkIn, checkOut } = travel.accommodation;
+                  if (!checkIn) {
+                    return isAr ? 'اختر ليلة الوصول' : 'Pick the check-in night';
+                  }
+                  if (!checkOut) {
+                    return isAr ? 'اختر تاريخ المغادرة' : 'Now pick the check-out date';
+                  }
+                  const nights = Math.max(0, Math.round(
+                    (new Date(`${checkOut}T00:00:00`) - new Date(`${checkIn}T00:00:00`)) / 86400000,
+                  ));
+                  const left = rooms.managed ? rooms.availableOn(checkIn) : null;
+                  const stay = isAr
+                    ? `${fmtDate(checkIn)} ← ${fmtDate(checkOut)} · ${nights} ليلة`
+                    : `${fmtDate(checkIn)} → ${fmtDate(checkOut)} · ${nights} night${nights === 1 ? '' : 's'}`;
+                  if (left === null) return stay;
+                  return isAr
+                    ? `${stay} · ${left} غرفة متاحة ليلة الوصول`
+                    : `${stay} · ${left} room(s) left on the first night`;
+                })()}
+              </div>
+            </>
+          )}
+        </div>
         {/* {grid(<>
           {txt('accommodation', 'roomView', isAr ? 'إطلالة الغرفة' : 'Room View', { ph: isAr ? 'إطلالة بحرية' : 'Sea view' })}
           {txt('accommodation', 'guestCount', isAr ? 'عدد النزلاء' : 'Guest Count', { type: 'number' })}

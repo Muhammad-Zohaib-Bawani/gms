@@ -1392,7 +1392,7 @@ export default function TravelView({ lang, activeEventId }) {
                         it may sit one day past the window. */}
                     {grid2(<>
                       <div><label style={lSt}>{STR.cols.checkIn} *</label><DateField value={f.checkIn} onChange={v => set('checkIn', v||'')} minDate={editRooms.window?.min || dateWindowMin} maxDate={editRooms.window?.max || dateWindowMax} excludeDates={editRooms.fullDates} placeholder="DD-MM-YYYY"/></div>
-                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={addDaysIso(f.checkIn, 1) || f.checkIn || dateWindowMin} maxDate={(editRooms.window && addDaysIso(editRooms.window.max, 1)) || dateWindowMax} placeholder="DD-MM-YYYY"/></div>
+                      <div><label style={lSt}>{STR.cols.checkOut} *</label><DateField value={f.checkOut} onChange={v => set('checkOut', v||'')} minDate={addDaysIso(f.checkIn, 1) || f.checkIn || dateWindowMin} maxDate={editRooms.firstFullAfter(f.checkIn) || (editRooms.window && addDaysIso(editRooms.window.max, 1)) || dateWindowMax} placeholder="DD-MM-YYYY"/></div>
                     </>)}
                     {editRooms.managed && f.checkIn && (
                       <div style={{ fontSize:11, color:'var(--ink-faint)' }}>

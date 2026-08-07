@@ -37,6 +37,13 @@ export const updateRoomInventory = (eventId, id, body) =>
 export const deleteRoomInventory = (eventId, id) =>
   apiClient.delete(ENDPOINTS.accommodationInventory.inventoryById(eventId, id));
 
+// Body: { date, roomCount } — set ONE night of a block, the availability grid's
+// editable cells. The server splits the block around that night so its
+// neighbours keep their count; roomCount 0 leaves the night unheld. The block
+// list changes shape as a result, so refetch after this.
+export const setRoomInventoryNight = (eventId, id, body) =>
+  apiClient.put(ENDPOINTS.accommodationInventory.inventoryNight(eventId, id), body);
+
 // ── Booking-form feeds ────────────────────────────────────────────────────────
 
 // Hotels contracted for the event, in the same shape as the global hotel lookup.

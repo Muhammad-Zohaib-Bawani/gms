@@ -12,7 +12,7 @@ import { getHotels, getRoomTypes } from '../api/services/travelService';
 import {
   getHotelContracts, createHotelContract, updateHotelContract, deleteHotelContract,
   getRoomInventory, createRoomInventory, updateRoomInventory, deleteRoomInventory,
-  getRoomAvailability,
+  setRoomInventoryNight, getRoomAvailability,
 } from '../api/services/accommodationInventoryService';
 import RoomAvailabilityGrid, { monthsOf } from './accommodation/RoomAvailabilityGrid';
 
@@ -136,6 +136,32 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
       .filter((n) => n.date >= row.fromDate && n.date <= row.toDate)
       .reduce((max, n) => Math.max(max, n.booked), 0);
   }, [availability]);
+
+  // The block a grid cell writes to: one room type, one night, the hotel in
+  // view. Editable only when exactly ONE block covers that night — overlapping
+  // blocks add up server-side (Held()), so the cell's number is a sum and there
+  // is no single count to write it back to. Those nights (and nights nothing
+  // covers) stay read-only; the Room Blocks list edits them one by one.
+  const blockAt = useCallback((roomTypeId, date) => {
+    const hits = blocks.filter((x) => x.hotelId === roomsHotel && x.roomTypeId === roomTypeId
+      && x.fromDate <= date && date <= x.toDate);
+    return hits.length === 1 ? hits[0] : null;
+  }, [blocks, roomsHotel]);
+
+  // One night, not the whole block: the server splits the block around that
+  // night so its neighbours keep their count. The block list therefore changes
+  // shape on every such edit, which is why this reloads rather than patching
+  // state.
+  const saveGridNight = useCallback(async (block, date, roomCount) => {
+    try {
+      await setRoomInventoryNight(activeEventId, block.id, { date, roomCount });
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر الحفظ' : 'Could not save the room block');
+      throw err;   // keeps the cell open on the bad value
+    }
+    toast.success(isAr ? 'تم التحديث' : 'Rooms updated');
+    await load();
+  }, [activeEventId, isAr, load]);
 
   // ── Contracts ──────────────────────────────────────────────────────────────
 
@@ -457,7 +483,9 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
           <div className="card" style={{ padding: 0 }}>
             {!onContracts && roomsMode === 'grid' ? (
               <RoomAvailabilityGrid data={availability} loading={loading}
-                hotelId={roomsHotel} month={roomsMonth} isAr={isAr} />
+                hotelId={roomsHotel} month={roomsMonth} isAr={isAr}
+                blockAt={canManage ? blockAt : null}
+                onSaveNight={canManage ? saveGridNight : null} />
             ) : (
               <DataTable
                 columns={onContracts ? contractColumns : blockColumns}

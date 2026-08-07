@@ -30,6 +30,8 @@ export function useHotelRoomTypes({ eventId, hotelId, fallback = [] }) {
 //   fullDates   — nights with no rooms left, for DateField's excludeDates
 //   window      — { min, max } first and last night held, to bound the pickers
 //   availableOn — rooms left on a given 'YYYY-MM-DD', or null if outside the window
+//   firstFullAfter — first sold-out night after a given date, i.e. the furthest
+//                 check-out a stay from that date can reach
 //
 // `excludeAccommodationId` is deliberately absent: the endpoint counts every stay,
 // so editing a booking sees its own night as taken. That errs toward showing a
@@ -60,6 +62,13 @@ export function useRoomAvailability({ eventId, hotelId, roomTypeId }) {
       fullDates: nights.filter((n) => n.available <= 0).map((n) => n.date),
       window: nights.length ? { min: nights[0].date, max: nights[nights.length - 1].date } : null,
       availableOn: (date) => (byDate.has(date) ? byDate.get(date) : null),
+      // Check-out is never itself a night, so it's never "full" — but the stay
+      // can't run THROUGH a full night either. The first sold-out night after
+      // check-in is therefore the last check-out that's still bookable.
+      // ponytail: nights are returned ascending, so a plain find is enough.
+      firstFullAfter: (date) => (date
+        ? nights.find((n) => n.date > date && n.available <= 0)?.date || null
+        : null),
     };
   }, [data]);
 }
