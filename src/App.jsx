@@ -56,6 +56,7 @@ const NAV = [
   // { key: "protocol",       icon: "protocol",   label: { en: "Protocol",            ar: "البروتوكول"            }, section: "ONSITE",   permission: "Protocol.View"          },
   // { key: "financials",     icon: "finance",    label: { en: "Financials",          ar: "الماليات"              }, section: "INSIGHTS", permission: "Financials.View"        },
   // { key: "reports",        icon: "reports",    label: { en: "Reports",             ar: "التقارير"              }, section: "INSIGHTS", permission: "Reports.View"           },
+   { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
   // { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
   { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
@@ -64,7 +65,6 @@ const NAV = [
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
     { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "ADMIN",    permission: "ServiceLevels.View"     },
   { key: "services",       icon: "star",       label: { en: "Manage Services",     ar: "إدارة الخدمات"          }, section: "ADMIN",    permission: "Services.View"          },
-  { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "vehicles",       icon: "car",        label: { en: "Vehicles",            ar: "المركبات"              }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetProviders", icon: "venue",      label: { en: "Fleet Providers",     ar: "مزوّدو الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
   { key: "fleetBookings",  icon: "meetings",   label: { en: "Bookings",            ar: "حجوزات الأسطول"        }, section: "FLEET",    permission: "Travel.View"            },
@@ -1425,7 +1425,7 @@ export default function App() {
           <div className="notif-wrap" ref={notifRef}>
             <button className="icon-btn" title={lang === 'ar' ? 'الإشعارات' : 'Notifications'}
               onClick={() => setShowNotifications(o => !o)}>
-              <Icon name="bell" size={16}/>{unreadCount > 0 && <span className="dot"/>}
+              <Icon name="bell" size={16}/>{unreadCount > 0 && <span className="dot notif-dot-blink"/>}
             </button>
             {showNotifications && (
               <div className="notif-menu">

@@ -121,7 +121,14 @@ export default function ServiceAccordion({
   const [open, setOpen] = useState(singleSlotId);
 
   const visible = singleSlotId ? slots.filter((s) => s.serviceId === singleSlotId) : slots;
-  const firstIncomplete = slots.findIndex((s) => !pending[s.serviceId]?.completed);
+  // `pending` only knows what's been touched in THIS dialog session — a slot
+  // finished earlier (Create Guest, or a previous New Booking) is still done
+  // even though nothing here marked it so. Without slot.status in the mix, an
+  // already-completed slot reads as "still first incomplete" and blocks every
+  // slot after it forever, and a slot just finished in this session (not yet
+  // saved) can't unlock the next one either.
+  const isSlotDone = (s) => !!pending[s.serviceId]?.completed || s.status === 'completed';
+  const firstIncomplete = slots.findIndex((s) => !isSlotDone(s));
 
   const patch = (id, next) =>
     onPendingChange((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...next } }));
@@ -169,15 +176,23 @@ export default function ServiceAccordion({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {visible.map((slot) => {
         const state = pending[slot.serviceId];
-        const done = !!state?.completed;
+        // Done either because this session marked it so, or the server already
+        // has it (see isSlotDone above).
+        const done = isSlotDone(slot);
         // Ticked either because the user ticked it, or because data is already
-        // there (prefilled edit, or a booking typed before this render).
-        const ticked = !!state?.selected || slotHasData(slot, pending, travel) || slot.serviceId === singleSlotId;
+        // there (prefilled edit, a booking typed before this render, or it was
+        // completed outside this dialog entirely).
+        const ticked = !!state?.selected || slotHasData(slot, pending, travel) || slot.serviceId === singleSlotId || done;
         const index = slots.indexOf(slot);
-        const locked = !singleSlotId && (
-          slot.isUnlocked === false
-          || (isFixed && firstIncomplete !== -1 && index > firstIncomplete)
-        );
+        const locked = !singleSlotId && isFixed && firstIncomplete !== -1 && index > firstIncomplete;
+        // Every locked slot down the chain is blocked by the SAME incomplete
+        // one — repeating "Complete X first" on each of them just duplicates
+        // the same sentence, so only the row right after it explains why.
+        const showLockedHint = locked && index === firstIncomplete + 1;
+        // A slot finished outside this dialog (nothing ticked here) has nothing
+        // to edit or untick in this session — shown as done, not clickable, so
+        // it can't be accidentally "unticked" with no real data behind it here.
+        const readOnlyDone = !singleSlotId && done && !state?.selected;
         const expanded = open === slot.serviceId;
 
         return (
@@ -185,29 +200,29 @@ export default function ServiceAccordion({
             borderRadius: 10,
             border: `1px solid ${expanded ? 'var(--accent)' : 'var(--glass-border)'}`,
             background: 'var(--surface-soft-2)',
-            opacity: locked ? 0.55 : 1,
+            opacity: (locked || readOnlyDone) ? 0.55 : 1,
             overflow: 'hidden',
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px',
-              cursor: locked ? 'not-allowed' : 'pointer',
+              cursor: (locked || readOnlyDone) ? 'not-allowed' : 'pointer',
             }}>
               {/* The checkbox includes/excludes the service; the rest of the row
                   just expands it, so ticking never has to mean two things. */}
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (locked || singleSlotId) return;
+                  if (locked || readOnlyDone || singleSlotId) return;
                   toggle(slot, !ticked);
                 }}
                 style={{ display: 'grid', placeItems: 'center' }}
               >
-                <Checkbox checked={ticked} disabled={locked || !!singleSlotId} />
+                <Checkbox checked={ticked} disabled={locked || readOnlyDone || !!singleSlotId} />
               </span>
 
               <div
                 onClick={() => {
-                  if (locked) return;
+                  if (locked || readOnlyDone) return;
                   // Opening a service is also choosing it — otherwise you could
                   // fill in a form that nothing saves.
                   if (!ticked) { toggle(slot, true); return; }
@@ -228,19 +243,19 @@ export default function ServiceAccordion({
                         ? (isAr ? 'قيد الإدخال' : 'In progress')
                         : (isAr ? 'غير مُضاف' : 'Not added')}
                 </span>
-                {!locked && (
+                {!locked && !readOnlyDone && (
                   <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={13}
                     style={{ color: 'var(--ink-mute)' }} />
                 )}
               </div>
             </div>
 
-            {locked && slot.lockedReason && (
+            {showLockedHint && slot.lockedReason && (
               <div style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '0 12px 10px 41px' }}>
                 {slot.lockedReason}
               </div>
             )}
-            {locked && !slot.lockedReason && firstIncomplete !== -1 && (
+            {showLockedHint && !slot.lockedReason && firstIncomplete !== -1 && (
               <div style={{ fontSize: 11, color: 'var(--ink-faint)', padding: '0 12px 10px 41px' }}>
                 {isAr
                   ? `أكمل "${slots[firstIncomplete]?.name}" أولاً.`
@@ -248,7 +263,7 @@ export default function ServiceAccordion({
               </div>
             )}
 
-            {expanded && !locked && (
+            {expanded && !locked && !readOnlyDone && (
               <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
                 {slot.isSystem ? (
                   // Writes into the shared `travel` state, saved through the travel

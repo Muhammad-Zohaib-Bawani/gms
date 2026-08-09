@@ -654,6 +654,14 @@ html[dir="rtl"] .nav-item.active::before { border-radius: 3px 0 0 3px; }
   border: 2px solid var(--card-bg);
 }
 
+/* Notification bell dot — a slow, gentle pulse (not a hard blink) so an
+   unread notification stays noticeable without being distracting. */
+@keyframes notifDotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.notif-dot-blink { animation: notifDotBlink 2s ease-in-out infinite; }
+
 /* ── Inputs ──────────────────────────────────────────────────────────────── */
 .field { display: block; margin-bottom: 14px; }
 .field-label {

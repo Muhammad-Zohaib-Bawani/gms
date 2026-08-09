@@ -789,11 +789,12 @@ export default function TravelView({ lang, activeEventId }) {
         });
       }
 
-      // The tabs touched by this save may not be the active one — invalidate
-      // all three so switching tabs picks up fresh data, and refetch the one
-      // that's visible right now.
-      loadedRef.current = { 0: null, 1: null, 2: null };
-      await refetchTab(activeTab);
+      // A booking can touch a tab that isn't the one currently open (e.g. a
+      // hotel booked while the Flights tab is active), and nothing refetches a
+      // tab just because it's switched to — only its own load-once check does,
+      // and that already thinks it's loaded. Refetch all three outright rather
+      // than guessing which ones this save actually reached.
+      await Promise.all([0, 1, 2].map((idx) => refetchTab(idx)));
 
       setBookings(prev => [...prev, { guest: bookGuest }]);
       setShowNewBooking(false); setBookStep(1); setBookGuest(''); setBookGuestId(''); setGuestSearch('');
@@ -1550,7 +1551,7 @@ export default function TravelView({ lang, activeEventId }) {
                     {bookSlots.some((s) => !s.isUnlocked) && (
                       <div className="alert alert-info" style={{ fontSize:12 }}>
                         <Icon name="alert" size={13}/>
-                        <div>{bookSlots.filter((s) => !s.isUnlocked).map((s) => s.lockedReason).filter(Boolean).join(' ')}</div>
+                       <div>{[...new Set(bookSlots.filter((s) => !s.isUnlocked).map((s) => s.lockedReason).filter(Boolean))].join(' ')}</div>
                       </div>
                     )}
                     {/* Same tick-list as the guest wizard's step 3: one collapsible
