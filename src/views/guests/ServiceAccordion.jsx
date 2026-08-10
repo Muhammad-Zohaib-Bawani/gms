@@ -217,11 +217,16 @@ export default function ServiceAccordion({
   function addAnother(slot) {
     const p = pending[slot.serviceId] || {};
     let extra = p.extra || [];
+    // Only ever folds a PREVIOUSLY DONE entry (`p.completed`) into `extra` —
+    // never whatever happens to be sitting unconfirmed in the form. That's the
+    // one thing that guarantees a draft never becomes a real entry without
+    // Done actually being clicked on it, no matter how "Add another" gets
+    // triggered.
     if (slot.isSystem) {
       const key = TRAVEL_SECTION[slot.code];
-      if (sectionHasData(travel, key)) extra = [...extra, cloneTravelSection(travel[key])];
+      if (p.completed && sectionHasData(travel, key)) extra = [...extra, cloneTravelSection(travel[key])];
       onTravelChange((prev) => ({ ...prev, [key]: { ...EMPTY_TRAVEL[key] } }));
-    } else if (slotHasData(slot, pending, travel)) {
+    } else if (p.completed && slotHasData(slot, pending, travel)) {
       extra = [...extra, { values: { ...(p.values || {}) } }];
     }
     patch(slot.serviceId, { selected: true, values: {}, completed: false, entryId: null, extra });
@@ -272,15 +277,19 @@ export default function ServiceAccordion({
         const showLockedHint = locked && index === firstIncomplete + 1;
         const expanded = open === slot.serviceId;
         const isAddingNew = expanded && addingNew;
-        // Read-only once done — `pending` may be stale/empty for a slot done
-        // outside this dialog. `singleSlotId` and an open "Add another" both
-        // opt out; `lockOnDone=false` callers skip the lock entirely.
-        const viewOnly = lockOnDone && done && !singleSlotId && !isAddingNew;
+        // Anything touched THIS session (ticked, filled, just confirmed) stays
+        // its live form when reopened — Done only locks what's already on the
+        // server from before. Without this, a slot done here via "Add another"
+        // would immediately relock as soon as it's confirmed, since the slot's
+        // OWN status was already "completed" from its original entry.
+        const hasSessionState = !!state?.selected || !!state?.completed;
+        const viewOnly = lockOnDone && slot.status === 'completed' && !hasSessionState
+          && !singleSlotId && !isAddingNew;
 
-        // Every recorded entry — server's, this session's `extra`, and the
-        // current one if confirmed — shown together, never hidden by opening
-        // "Add another". Skipped for `lockOnDone=false`: there's only ever one
-        // entry there, already visible in the live form below.
+        // Only entries genuinely saved elsewhere — the server's own, and
+        // earlier ones this session already folded into `extra` via "Add
+        // another" — get a read-only card. The current, still-unsaved entry
+        // never does; it stays the live form above.
         const key = slot.isSystem ? TRAVEL_SECTION[slot.code] : null;
         const groups = !lockOnDone ? [] : [
           ...(slot.entries || []).map((e) => Object.entries(e.values || {})
@@ -288,12 +297,6 @@ export default function ServiceAccordion({
           ...(state?.extra || []).map((snap) => (slot.isSystem
             ? travelSectionFacts(key, snap, travelLookups, isAr)
             : Object.entries(snap.values || {}).filter(([, v]) => v != null && String(v).trim() !== ''))),
-          ...(state?.completed && !isAddingNew
-            ? [slot.isSystem
-              ? (sectionHasData(travel, key) ? travelSectionFacts(key, travel[key], travelLookups, isAr) : null)
-              : Object.entries(state.values || {}).filter(([, v]) => v != null && String(v).trim() !== '')]
-              .filter(Boolean)
-            : []),
         ].filter((g) => g.length > 0);
 
         return (
@@ -349,7 +352,7 @@ export default function ServiceAccordion({
                         ? (isAr ? 'قيد الإدخال' : 'In progress')
                         : (isAr ? 'غير مُضاف' : 'Not added')}
                 </span>
-                {done && !locked && !singleSlotId && allowAddAnother && (
+                {done && !locked && !singleSlotId && allowAddAnother && !isAddingNew && (
                   <button
                     type="button"
                     className="icon-btn"
