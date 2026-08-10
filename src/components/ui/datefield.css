@@ -50,6 +50,18 @@ html[data-theme="dark"] .react-datepicker__day:hover { background: rgba(255,255,
 .react-datepicker__triangle { display: none; }
 .react-datepicker__navigation-icon::before { border-color: var(--ink-mute); }
 
+/* Light theme: solid white rather than --popover-bg's translucent tint — the
+   calendar floats over all sorts of busy content (tables, other fields), and
+   a flat white reads cleaner there than a frosted one. Dark theme keeps the
+   shared --popover-bg as-is. */
+html[data-theme="light"] .react-datepicker,
+html[data-theme="light"] .react-datepicker select.react-datepicker__month-select,
+html[data-theme="light"] .react-datepicker select.react-datepicker__year-select {
+  background: #ffffff;
+  background-color: #ffffff;
+}
+html[data-theme="light"] .gms-daterange .react-datepicker { background: #ffffff; }
+
 /* Keep the popper above modals (Radix dialogs sit at z-index 1001). */
 .gms-datepicker-popper { z-index: 99999; }
 

@@ -1318,7 +1318,7 @@ export default function TravelView({ lang, activeEventId }) {
                 i > 0
                   ? {
                       paddingTop: 10,
-                      borderTop: "1px solid var(--glass-border)",
+                      borderTop: "1px dotted #14161a45",
                     }
                   : undefined
               }
