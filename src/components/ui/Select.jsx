@@ -52,18 +52,6 @@ const styles = {
   clearIndicator: (base) => ({ ...base, color: 'var(--ink-mute)', padding: 6 }),
 };
 
-// A long option list (e.g. Nationality) didn't scroll when opened inside a
-// dialog. Radix's Dialog locks background scroll by listening for `wheel` on
-// `document` and calling preventDefault() on anything outside the dialog's own
-// portal — and this menu is portaled separately, straight to <body>, as a
-// SIBLING of the dialog rather than a descendant (see the pointerEvents note
-// below for why it's portaled at all: escaping the modal's motion.div, which
-// sets a CSS transform and would otherwise trap a position:fixed/absolute
-// menu inside its bounds). Radix's listener never learns this menu exists, so
-// it treats every wheel tick over it as background scroll and blocks it.
-// Stopping propagation here keeps the native scroll (nothing calls
-// preventDefault) while stopping the event from ever reaching Radix's
-// document-level listener.
 function ScrollableMenuList(props) {
   return <RSComponents.MenuList {...props} innerProps={{ ...props.innerProps, onWheel: (e) => e.stopPropagation() }} />;
 }
@@ -76,6 +64,7 @@ export default function Select({
   isDisabled = false,
   isClearable = false,
   isMulti = false,
+  placeMenu = 'auto',
   components: componentsOverride,
   ...rest
 }) {
@@ -104,19 +93,14 @@ export default function Select({
       menuPortalTarget={document.body}
       components={{ MenuList: ScrollableMenuList, ...componentsOverride }}
       styles={{
-    ...styles,
-    // Radix Dialog sets `pointer-events: none` on <body> while open, only
-    // re-enabling it on the dialog's own content node. This menu is portaled
-    // straight to <body> as a sibling, so without an explicit override here
-    // it inherits `none` and becomes unclickable while still visible.
-    menuPortal: (base) => ({
+    ...styles,    menuPortal: (base) => ({
       ...base,
       zIndex: 999999,
       pointerEvents: 'auto',
     }),
   }}
       // menuPosition="fixed"
-      menuPlacement="auto"
+      menuPlacement={placeMenu}
       maxMenuHeight={200}
       menuShouldScrollIntoView={true}
       {...rest}

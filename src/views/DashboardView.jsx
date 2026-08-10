@@ -8,8 +8,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { fmtDate, fmtDayMonth } from '../lib/date';
-import { Avatar, StatusChip, ServiceLevelChip } from '../components/UI';
+import { StatusChip, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
+import GuestCell from '../components/GuestCell';
 import {
   PageHeader, Card, CardHead, Grid, Button, Badge,
   EmptyState, Skeleton, Alert, staggerParent,
@@ -19,11 +20,6 @@ import {
 } from './dashboard/parts';
 import toast from '../lib/toast';
 import { getDashboard } from '../api/services/dashboardService';
-
-function initialsFromName(name) {
-  const parts = (name || '').trim().split(/\s+/);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
-}
 
 // The shared StatusChip was built around a mock vocabulary
 // (confirmed/pending/declined); map the real InvitationStatus onto it.
@@ -389,9 +385,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                   <table className="table">
                     <thead>
                       <tr>
-                        <th>{STR.cols.guest}</th>
-                        <th>{STR.cols.level}</th>
-                        <th>{STR.cols.status}</th>
+                        <th style={{ background: 'var(--page-bg)' }}>{STR.cols.guest}</th>
+                        <th style={{ background: 'var(--page-bg)' }}>{STR.cols.level}</th>
+                        <th style={{ background: 'var(--page-bg)' }}>{STR.cols.status}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -399,17 +395,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                         <tr key={g.id} style={{ cursor: onOpenGuest ? 'pointer' : undefined }}
                           onClick={() => onOpenGuest?.(g)}>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <Avatar initials={initialsFromName(g.name)} size={26} tier={g.tier} />
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontWeight: 550, fontSize: 12.5 }}>{g.name}</div>
-                                {g.organization && (
-                                  <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
-                                    {g.organization}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                            <GuestCell name={g.name} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={26} />
                           </td>
                           <td><ServiceLevelChip name={g.tier} lang={lang} /></td>
                           <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang} /></td>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import FlightLegCell from './travel/FlightLegCell.jsx';
 import { useNavigate } from 'react-router-dom';
 import { fmtNum, toArDigits } from '../i18n/translations.js';
-import { Avatar } from '../components/UI.jsx';
+import SharedGuestCell from '../components/GuestCell.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { getGuestPicker } from '../api/services/guestService.js';
@@ -124,6 +124,7 @@ function mapFlight(r) {
     bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
+    email: r.email || '',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
@@ -154,6 +155,7 @@ function mapHotel(r) {
     guestId: r.guestId,
     name: r.guestName || '—',
   photoUrl: r.photoUrl || '',
+    email: r.email || '',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
@@ -170,6 +172,7 @@ function mapTransfer(r) {
     bookingId: r.id,
     guestId: r.guestId,
     name: r.guestName || '—',
+    email: r.email || '',
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     vehicle: r.vehicle || '—',
@@ -246,29 +249,20 @@ function FilterBar({ search, onSearch, searchPlaceholder, filter, onFilter, filt
   );
 }
 
-// Guest identity cell — shared by all three tabs; the transfers tab omits the
-// organisation line to keep its wider row readable. The name opens that guest's
+// Guest identity cell — shared by all three tabs. The name opens that guest's
 // detail page (/guests/:id), which lists every one of their bookings together.
-function GuestCell({ g, withOrg = true, onOpen }) {
-  const name = (
-    <span
-      onClick={onOpen}
-      style={{ fontSize:12.5, fontWeight:500, cursor:onOpen ? 'pointer' : undefined }}
-      title={onOpen ? g.name : undefined}
-    >
-      {g.name}
-    </span>
-  );
+// `withOrg` is unused now — kept as a no-op param so existing call sites don't
+// need touching — the identity line is always name + email (see GuestCell).
+function GuestCell({ g, withOrg, onOpen }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-      <Avatar initials={g.initials} size={28} tier={g.tier} src={g.photoUrl}/>
-      {withOrg ? (
-        <div>
-          <div>{name}</div>
-          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.org}</div>
-        </div>
-      ) : name}
-    </div>
+    <SharedGuestCell
+      name={g.name}
+      email={g.email}
+      photoUrl={g.photoUrl}
+      tier={g.tier}
+      size={28}
+      onOpen={onOpen}
+    />
   );
 }
 
@@ -574,7 +568,7 @@ export default function TravelView({ lang, activeEventId }) {
   const [editModal, setEditModal] = useState(null); // { type, guestId, guestName, form } | { type, loading: true }
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Vehicle dropdown for the transfer Edit modal — cars free in the edited ride's
+  // Vehicle dropdown for the transfer Edit modal - cars free in the edited ride's
   // window. The ride excludes itself, or it would report its own car as busy.
   const isTransferEdit = editModal?.type === 'transfer';
   const editVehicles = useAvailableVehicles({
@@ -1013,19 +1007,7 @@ export default function TravelView({ lang, activeEventId }) {
         cell: ({ row }) => {
           const g = row.original;
           return (
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <Avatar initials={initialsFromName(g.guestName)} size={28} tier={g.tier} src={g.photoUrl}/>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:12.5, fontWeight:500 }}>{g.guestName || '—'}</div>
-                <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.email || '—'}</div>
-                {/* Organisation folds under the name rather than taking a
-                    column of its own — it is context for the guest, not a
-                    field anyone scans down. */}
-                {g.organization && (
-                  <div style={{ fontSize:11, color:'var(--ink-faint)' }}>{g.organization}</div>
-                )}
-              </div>
-            </div>
+            <SharedGuestCell name={g.guestName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
           );
         },
       },
@@ -1496,11 +1478,7 @@ export default function TravelView({ lang, activeEventId }) {
                           style={{ padding:'8px 12px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:10,
                             border:`1px solid ${selected?'var(--accent)':'var(--glass-border)'}`,
                             background:selected?'rgba(141, 1, 52,0.12)':'var(--surface-soft-2)' }}>
-                          <Avatar initials={initialsFromName(fullName)} size={28} tier={g.tier} src={g.photoUrl}/>
-                          <div>
-                            <div style={{ fontSize:13, fontWeight:500 }}>{fullName}</div>
-                            <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
-                          </div>
+                          <SharedGuestCell name={fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
                           {selected && <Icon name="check" size={13} style={{ marginLeft:'auto', color:'var(--accent)' }}/>}
                         </div>
                       );

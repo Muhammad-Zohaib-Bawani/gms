@@ -18,3 +18,16 @@ export default function FlagIcon({ code, size = 16, style }) {
     />
   );
 }
+
+// Drop-in `formatOptionLabel` for a nationality <Select> — pass options shaped
+// as { value, label, code } (code = ISO alpha-2) and this renders the real
+// flag image next to the label instead of a dropdown full of raw emoji/text
+// codes. `label` still does the keyboard-search matching react-select expects.
+export function nationalityOptionLabel(opt) {
+  return opt?.code ? (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <FlagIcon code={opt.code} size={14} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+    </span>
+  ) : opt?.label;
+}

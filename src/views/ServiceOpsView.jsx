@@ -14,7 +14,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PageHeader, Card, EmptyState } from '../components/ds';
 import { Icon } from '../components/Icons';
-import { Avatar } from '../components/UI';
+import GuestCell from '../components/GuestCell';
 import DataTable from '../components/ui/DataTable';
 import { getServices, getServiceEntries } from '../api/services/serviceCatalogService';
 import { allFormFields } from '../components/ui/DynamicFields';
@@ -26,11 +26,6 @@ import ActionMenu from '../components/ui/ActionMenu';
 import { deleteGuestServiceEntry } from '../api/services/serviceCatalogService';
 import { useEvents } from '../events/EventsContext';
 import toast from '../lib/toast';
-
-function initials(name) {
-  const p = (name || '').trim().split(/\s+/);
-  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
-}
 
 /** Datetime fields are what a schedule can be built from. */
 function dateFieldsOf(form) {
@@ -144,14 +139,10 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
     enableSorting: false,
     cell: ({ row: { original: r } }) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Avatar initials={initials(r.guestName)} size={28} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 550 }}>{r.guestName}</div>
-          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{r.email || '—'}</div>
-          {r.serviceLevelName && (
-            <span className="chip" style={{ fontSize: 10, marginTop: 2 }}>{r.serviceLevelName}</span>
-          )}
-        </div>
+        <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
+        {r.serviceLevelName && (
+          <span className="chip" style={{ fontSize: 10 }}>{r.serviceLevelName}</span>
+        )}
       </div>
     ),
   };
@@ -240,14 +231,10 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
       id: 'guest', header: isAr ? 'الضيف' : 'Guest', enableSorting: false,
       cell: ({ row: { original: r } }) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Avatar initials={initials(r.guestName)} size={28} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 550 }}>{r.guestName}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{r.email || '—'}</div>
-            {r.serviceLevelName && (
-              <span className="chip" style={{ fontSize: 10, marginTop: 2 }}>{r.serviceLevelName}</span>
-            )}
-          </div>
+          <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
+          {r.serviceLevelName && (
+            <span className="chip" style={{ fontSize: 10 }}>{r.serviceLevelName}</span>
+          )}
         </div>
       ),
     },

@@ -130,6 +130,16 @@ export default function ServiceAccordion({
   const isSlotDone = (s) => !!pending[s.serviceId]?.completed || s.status === 'completed';
   const firstIncomplete = slots.findIndex((s) => !isSlotDone(s));
 
+  // What to show for an already-completed slot's read-only view. `entries[0]`
+  // comes straight from the server (for a system slot it's already display
+  // strings — see ServiceCatalogService.LoadSystemBookingsAsync) and is right
+  // even when this dialog never touched the slot itself; `pending` values are
+  // the fallback for a slot just confirmed THIS session, before it's saved.
+  const readOnlyFacts = (slot) => {
+    const values = slot.entries?.[0]?.values || pending[slot.serviceId]?.values || {};
+    return Object.entries(values).filter(([, v]) => v != null && String(v).trim() !== '');
+  };
+
   const patch = (id, next) =>
     onPendingChange((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...next } }));
 
@@ -189,43 +199,49 @@ export default function ServiceAccordion({
         // one — repeating "Complete X first" on each of them just duplicates
         // the same sentence, so only the row right after it explains why.
         const showLockedHint = locked && index === firstIncomplete + 1;
-        // A slot finished outside this dialog (nothing ticked here) has nothing
-        // to edit or untick in this session — shown as done, not clickable, so
-        // it can't be accidentally "unticked" with no real data behind it here.
-        const readOnlyDone = !singleSlotId && done && !state?.selected;
+        // A completed slot can still be opened — worth seeing what was already
+        // recorded — but not edited here: this accordion writes to `pending`,
+        // which for an already-done slot may hold nothing (a sibling booking
+        // never touched in this dialog) or a stale copy of what's on the
+        // server, so re-editing it here isn't safe. `singleSlotId` is the one
+        // exception: the caller opened this dialog specifically to EDIT that
+        // one entry, done or not.
+        const viewOnly = done && !singleSlotId;
         const expanded = open === slot.serviceId;
+        const facts = readOnlyFacts(slot);
 
         return (
           <div key={slot.serviceId} style={{
             borderRadius: 10,
             border: `1px solid ${expanded ? 'var(--accent)' : 'var(--glass-border)'}`,
             background: 'var(--surface-soft-2)',
-            opacity: (locked || readOnlyDone) ? 0.55 : 1,
+            opacity: locked ? 0.55 : viewOnly ? 0.85 : 1,
             overflow: 'hidden',
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px',
-              cursor: (locked || readOnlyDone) ? 'not-allowed' : 'pointer',
+              cursor: locked ? 'not-allowed' : 'pointer',
             }}>
               {/* The checkbox includes/excludes the service; the rest of the row
                   just expands it, so ticking never has to mean two things. */}
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (locked || readOnlyDone || singleSlotId) return;
+                  if (locked || viewOnly || singleSlotId) return;
                   toggle(slot, !ticked);
                 }}
                 style={{ display: 'grid', placeItems: 'center' }}
               >
-                <Checkbox checked={ticked} disabled={locked || readOnlyDone || !!singleSlotId} />
+                <Checkbox checked={ticked} disabled={locked || viewOnly || !!singleSlotId} />
               </span>
 
               <div
                 onClick={() => {
-                  if (locked || readOnlyDone) return;
-                  // Opening a service is also choosing it — otherwise you could
-                  // fill in a form that nothing saves.
-                  if (!ticked) { toggle(slot, true); return; }
+                  if (locked) return;
+                  // Opening an untouched service is also choosing it — otherwise
+                  // you could fill in a form that nothing saves. A completed one
+                  // just opens straight to its (read-only) details.
+                  if (!viewOnly && !ticked) { toggle(slot, true); return; }
                   setOpen(expanded ? null : slot.serviceId);
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}
@@ -243,7 +259,7 @@ export default function ServiceAccordion({
                         ? (isAr ? 'قيد الإدخال' : 'In progress')
                         : (isAr ? 'غير مُضاف' : 'Not added')}
                 </span>
-                {!locked && !readOnlyDone && (
+                {!locked && (
                   <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={13}
                     style={{ color: 'var(--ink-mute)' }} />
                 )}
@@ -263,7 +279,34 @@ export default function ServiceAccordion({
               </div>
             )}
 
-            {expanded && !locked && !readOnlyDone && (
+            {expanded && !locked && viewOnly && (
+              <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
+                {facts.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px 16px' }}>
+                    {facts.map(([k, v]) => (
+                      <div key={k}>
+                        <div style={{
+                          fontSize: 9.5, color: 'var(--ink-faint)', textTransform: 'uppercase',
+                          letterSpacing: '0.09em', marginBottom: 3,
+                        }}>
+                          {k}
+                        </div>
+                        <div style={{ fontSize: 12.5, color: 'var(--ink)' }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                    {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 10 }}>
+                  {isAr ? 'مكتملة بالفعل — لا يمكن تعديلها من هنا.' : "Already completed - can't be edited here."}
+                </div>
+              </div>
+            )}
+
+            {expanded && !locked && !viewOnly && (
               <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
                 {slot.isSystem ? (
                   // Writes into the shared `travel` state, saved through the travel

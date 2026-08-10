@@ -13,6 +13,7 @@ import { Icon } from '../components/Icons';
 import { fmtDate, fmtDayMonth } from '../lib/date';
 import MessageList from './supportChat/MessageList.jsx';
 import { Avatar } from '../components/UI';
+import GuestCell from '../components/GuestCell';
 import Select from '../components/ui/Select';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
@@ -529,9 +530,9 @@ export default function SupportChatView({ lang, activeEventId }) {
   ], [nationalities, isAr]);
 
   const threadGuest = activeConversation
-    ? { name: activeConversation.guestName, email: activeConversation.guestEmail }
+    ? { name: activeConversation.guestName, email: activeConversation.guestEmail, photoUrl: activeConversation.guestPhotoUrl }
     : pendingGuest
-      ? { name: pendingGuest.fullName, email: pendingGuest.organization }
+      ? { name: pendingGuest.fullName, email: pendingGuest.email, photoUrl: pendingGuest.photoUrl }
       : null;
 
   return (
@@ -671,7 +672,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                         borderBottom: '1px solid var(--glass-border)',
                       }}
                     >
-                      <Avatar initials={initialsFromName(c.guestName)} size={34} />
+                      <Avatar initials={initialsFromName(c.guestName)} size={34} src={c.guestPhotoUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
@@ -730,12 +731,8 @@ export default function SupportChatView({ lang, activeEventId }) {
                           borderBottom: '1px solid var(--glass-border)',
                         }}
                       >
-                        <Avatar initials={initialsFromName(g.fullName)} size={34} src={g.photoUrl} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.fullName || '—'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {[g.organization, g.tier].filter(Boolean).join(' · ') || '—'}
-                          </div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={34} />
                         </div>
                         <Icon name="message" size={14} style={{ color: 'var(--ink-faint)', flexShrink: 0 }} />
                       </div>
@@ -759,7 +756,7 @@ export default function SupportChatView({ lang, activeEventId }) {
             <>
               {/* Thread header */}
               <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
-                <Avatar initials={initialsFromName(threadGuest.name)} size={36} />
+                <Avatar initials={initialsFromName(threadGuest.name)} size={36} src={threadGuest.photoUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{threadGuest.name || '—'}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{threadGuest.email || '—'}</div>

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getTranslations, fmtNum } from "../i18n/translations";
-import { Avatar, StatusChip, ServiceLevelChip } from "../components/UI";
+import { StatusChip, ServiceLevelChip } from "../components/UI";
 import { Icon } from "../components/Icons";
-import FlagIcon from "../components/FlagIcon";
+import FlagIcon, { nationalityOptionLabel } from "../components/FlagIcon";
+import GuestCell from "../components/GuestCell";
 import DataTable from "../components/ui/DataTable";
 import ActionMenu from "../components/ui/ActionMenu";
 import Select from "../components/ui/Select";
@@ -242,7 +243,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const nationalityFilterOpts = useMemo(
     () => [
       { value: "All", label: isAr ? "كل الجنسيات" : "All Nationalities" },
-      ...nationalities.map((n) => ({ value: n.id, label: `${n.flag} ${isAr ? n.nameAr : n.name}` })),
+      ...nationalities.map((n) => ({ value: n.id, label: (isAr ? n.nameAr : n.name) || n.name, code: n.code })),
     ],
     [nationalities, isAr],
   );
@@ -264,35 +265,15 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         id: "guest",
         header: isAr ? "الضيف" : "Guest",
         accessorKey: "fullName",
-        cell: ({ row: { original: g } }) => {
-          const initials = (
-            (g.firstName?.[0] || "") + (g.lastName?.[0] || "")
-          ).toUpperCase();
-          return (
-            <div
-              style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenGuest?.(g);
-              }}
-            >
-              <Avatar
-                initials={initials}
-                size={32}
-                tier={g.tier}
-                src={g.photoUrl}
-              />
-              <div>
-                <div style={{ fontWeight: 500, fontSize: 13 }}>
-                  {g.fullName}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>
-                  {g.email} { g.organization && ` - ${g.organization}`}
-                </div>
-              </div>
-            </div>
-          );
-        },
+        cell: ({ row: { original: g } }) => (
+          <GuestCell
+            name={g.fullName}
+            email={g.email}
+            photoUrl={g.photoUrl}
+            tier={g.tier}
+            onOpen={(e) => { e.stopPropagation(); onOpenGuest?.(g); }}
+          />
+        ),
       },
       {
         id: "serviceLevel",
@@ -632,6 +613,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                   value={nationalityFilter}
                   onChange={(v) => setNationalityFilter(v || "All")}
                   options={nationalityFilterOpts}
+                  formatOptionLabel={nationalityOptionLabel}
                   placeholder={isAr ? "الجنسية" : "Nationality"}
                 />
               </div>

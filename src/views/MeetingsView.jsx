@@ -5,6 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
+import GuestCell from '../components/GuestCell.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
@@ -35,7 +36,7 @@ function mapMeeting(m) {
     location: m.location || '',
     notes: m.meetingAgenda || '',
     color: '#8d0134',
-    guests: (m.guests || []).map(g => ({ id: g.id, name: g.name || '' })),
+    guests: (m.guests || []).map(g => ({ id: g.id, name: g.name || '', email: g.email || '', photoUrl: g.photoUrl || '' })),
   };
 }
 
@@ -346,9 +347,8 @@ export default function MeetingsView({ lang, activeEventId }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {selectedMeeting.guests.map(g => (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
-                    <Avatar initials={initialsFromName(g.name)} size={28}/>
-                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{g.name}</div>
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
+                    <GuestCell name={g.name} email={g.email} photoUrl={g.photoUrl} size={28} />
                   </div>
                 ))}
               </div>
@@ -425,7 +425,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {newAttendees.map(g => (
                         <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(141, 1, 52,0.15)', border: '1px solid rgba(141, 1, 52,0.3)', fontSize: 11.5 }}>
-                          <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18}/>
+                          <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18} src={g.photoUrl}/>
                           {g.firstName} {g.lastName}
                           <button onClick={() => setNewAttendees(a => a.filter(x => x.id !== g.id))}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-mute)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
@@ -441,10 +441,8 @@ export default function MeetingsView({ lang, activeEventId }) {
                         style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}>
-                        <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={28}/>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{g.firstName} {g.lastName}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{[g.tier, g.organization].filter(Boolean).join(' · ')}</div>
+                          <GuestCell name={`${g.firstName} ${g.lastName}`} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
                         </div>
                         <Icon name="plus" size={13} style={{ color: 'var(--accent)', flexShrink: 0 }}/>
                       </div>

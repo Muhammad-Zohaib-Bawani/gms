@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar } from '../components/UI.jsx';
-import FlagIcon from '../components/FlagIcon.jsx';
+import GuestCell from '../components/GuestCell.jsx';
 import { Icon } from '../components/Icons.jsx';
 import Select from '../components/ui/Select.jsx';
 import toast from '../lib/toast.js';
@@ -15,10 +14,6 @@ import {
 import CanvasElement from './venue/canvas/CanvasElement.jsx';
 
 const MIN_ZOOM = 0.3, MAX_ZOOM = 2.5;
-
-function guestInitials(g) {
-  return ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase() || '?';
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -435,13 +430,7 @@ export default function SeatingView({ lang, activeEventId }) {
                 return (
                   <tr key={g.id}>
                     <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={guestInitials(g)} size={26} tier={g.tier}/>
-                        <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.fullName}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
-                        </div>
-                      </div>
+                      <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={26} />
                     </td>
                     <td style={{ fontSize:12, fontFamily:'var(--mono)' }}>
                       {info ? info.table.label : <span style={{ color:'var(--ink-faint)' }}>—</span>}
@@ -500,14 +489,7 @@ export default function SeatingView({ lang, activeEventId }) {
               ) : assignedGuest ? (
                 <>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18, padding:'10px 14px', background:'var(--surface-soft-2)', borderRadius:10 }}>
-                    <Avatar initials={guestInitials(assignedGuest)} size={36} tier={assignedGuest.tier} src={assignedGuest.photoUrl}/>
-                    <div>
-                      <div style={{ fontWeight:600 }}>{assignedGuest.fullName}</div>
-                      <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{assignedGuest.guestType} · {assignedGuest.organization}</div>
-                      <div style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
-                        {assignedGuest.tier} · <FlagIcon code={assignedGuest.nationalityCode} size={12} /> {assignedGuest.nationalityName}
-                      </div>
-                    </div>
+                    <GuestCell name={assignedGuest.fullName} email={assignedGuest.email} photoUrl={assignedGuest.photoUrl} tier={assignedGuest.tier} size={36} />
                   </div>
                   <div style={{ display:'flex', gap:8 }}>
                     <button className="btn" style={{ flex:1 }} onClick={() => setAssignModal(null)} disabled={assigning}>{STR.cancel}</button>
@@ -526,10 +508,8 @@ export default function SeatingView({ lang, activeEventId }) {
                         style={{ padding:'8px 10px', borderRadius:8, cursor: assigning ? 'default' : 'pointer', opacity: assigning ? 0.6 : 1, display:'flex', alignItems:'center', gap:10, border:'1px solid var(--glass-border)', background:'var(--surface-soft-2)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}>
-                        <Avatar initials={guestInitials(g)} size={28} tier={g.tier} src={g.photoUrl}/>
                         <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:13, fontWeight:500 }}>{g.fullName}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{g.guestType} · {g.organization}</div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
                         </div>
                         <Icon name="plus" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
                       </div>

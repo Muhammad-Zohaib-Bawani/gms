@@ -13,9 +13,11 @@
 // table ships a readable default set, every other column is available from
 // the Columns picker, and the full detail lives in the expanded row.
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Grid, StatCard, EmptyState } from '../components/ds';
 import { Icon } from '../components/Icons';
 import Select from '../components/ui/Select';
+import { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
@@ -65,6 +67,7 @@ const INITIAL_FILTERS = {
 const YES_NO = [{ value: ALL, label: 'Any' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }];
 
 export default function GuestOverviewView({ lang }) {
+  const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -370,7 +373,8 @@ export default function GuestOverviewView({ lang }) {
             <Filter label="Nationality">
               <Select value={f.nationality} onChange={(v) => set('nationality', v || ALL)}
                 options={[{ value: ALL, label: 'Any' },
-                  ...nationalities.map((n) => ({ value: n.id, label: `${n.flag || ''} ${n.name}` }))]} />
+                  ...nationalities.map((n) => ({ value: n.id, label: n.name, code: n.code }))]}
+                formatOptionLabel={nationalityOptionLabel} />
             </Filter>
             <Filter label="Organisation">
               <Select value={f.organisation} onChange={(v) => set('organisation', v || ALL)}
@@ -447,9 +451,17 @@ export default function GuestOverviewView({ lang }) {
                           <td className="dt-td" onClick={(e) => e.stopPropagation()}>
                             <ActionMenu
                               items={[
-                                { label: 'View profile', icon: 'guests', onClick: () => toast.info('Coming soon') },
-                                { label: 'Edit guest', icon: 'edit', onClick: () => toast.info('Coming soon') },
-                                { label: 'Message', icon: 'message', onClick: () => toast.info('Coming soon') },
+                                { label: 'View profile', icon: 'guests', onClick: () => navigate(`/guests/${g.id}`) },
+                                {
+                                  label: 'Message', icon: 'message',
+                                  onClick: () => navigate('/support-chat', {
+                                    state: {
+                                      guestId: g.id,
+                                      guestName: `${g.firstName} ${g.lastName}`.trim(),
+                                      guestOrganization: g.organization || '',
+                                    },
+                                  }),
+                                },
                               ]}
                             />
                           </td>

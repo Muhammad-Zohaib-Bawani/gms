@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar, ServiceLevelChip } from '../components/UI.jsx';
+import { ServiceLevelChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import FlagIcon from '../components/FlagIcon.jsx';
+import GuestCell from '../components/GuestCell.jsx';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
@@ -319,7 +320,6 @@ export default function AccreditationView({ lang, activeEventId }) {
                     const isIssued = g.accreditationStatus === 'issued';
                     const isChecked = sel.has(g.id);
                     const busy = busyIds.has(g.id);
-                    const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
                     return (
                       <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
                         <td style={{ paddingRight: 0 }}>
@@ -327,18 +327,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                             style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                            <Avatar initials={initials} size={30} tier={g.tier} src={g.photoUrl}/>
-                            <div>
-                              <button onClick={() => setCardGuest(g)}
-                                style={{ fontSize: 13, fontWeight: 500, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: isAr ? 'right' : 'left' }}>
-                                {g.fullName}
-                              </button>
-                              <div style={{ fontSize: 11, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                {g.guestType} · <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName}
-                              </div>
-                            </div>
-                          </div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={30} onOpen={() => setCardGuest(g)} />
                         </td>
                         <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
@@ -386,7 +375,6 @@ export default function AccreditationView({ lang, activeEventId }) {
                   const isIssued = g.accreditationStatus === 'issued';
                   const busy = busyIds.has(g.id);
                   const tierCol = TIER_COLOR[g.tier] || 'var(--ink-mute)';
-                  const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
                   return (
                     <div key={g.id} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
                       onClick={() => setCardGuest(g)}
@@ -394,14 +382,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                       onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
                       <div style={{ height: 5, background: tierCol }}/>
                       <div style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                          <Avatar initials={initials} size={38} tier={g.tier} src={g.photoUrl}/>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.fullName}</div>
-                            <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.guestType}</div>
-                          </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={38} />
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
                           <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName} · {g.arrivalDate || '—'}
                         </div>

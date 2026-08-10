@@ -650,7 +650,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
 
         <div className="divider"/>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        {/* <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontSize: 11, letterSpacing: isAr ? "0.04em" : "0.18em", textTransform: "uppercase", color: "var(--ink-mute)" }}>
             {D.travelTitle}
           </div>
@@ -693,7 +693,7 @@ function GuestDrawer({ guest, onClose, lang, activeEventId, activeEvent, onGuest
           </>
         )}
 
-        <div className="divider"/>
+        <div className="divider"/> */}
 
         {/* Sessions section */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>

@@ -13,6 +13,7 @@ import { fmtDate } from '../lib/date';
 import DataTable from '../components/ui/DataTable';
 import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
+import { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import { Icon } from '../components/Icons';
 // Country-code picker + validation (libphonenumber-js under the hood).
@@ -138,7 +139,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
   const isDriver = selectedRole?.code === 'driver';
 
   const roleOpts = roles.map((r) => ({ value: r.id, label: r.name }));
-  const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: `${n.flag || ''} ${n.name}`.trim() }));
+  const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: n.name, code: n.code }));
   const driverTypeOpts = driverTypes.map((d) => ({ value: d.value, label: d.name }));
 
   // Upload happens immediately on pick; only the resulting URL is sent with the
@@ -254,7 +255,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
               </div>
               <div>
                 <label style={labelStyle}>Nationality</label>
-                <Select value={form.driverNationalityId} onChange={(v) => setF('driverNationalityId', v)} options={nationalityOpts} placeholder="— Select —" isClearable />
+                <Select value={form.driverNationalityId} onChange={(v) => setF('driverNationalityId', v)} options={nationalityOpts} formatOptionLabel={nationalityOptionLabel} placeholder="— Select —" isClearable />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
