@@ -24,8 +24,8 @@ export function listGuests({
   });
 }
 
-// Picker rows: { id, fullName, organization, tier, photoUrl }. Declined guests are
-// excluded server-side, so no flag for it. Page size is capped at 100.
+// Picker rows: { id, fullName, email, organization, tier, photoUrl }. Declined
+// guests are excluded server-side, so no flag for it. Page size is capped at 100.
 export function getGuestPicker({ eventId, search, pageNumber = 1, pageSize = 20 } = {}) {
   return apiClient.get(ENDPOINTS.guests.picker, {
     params: { eventId, pageNumber, pageSize, searchTerm: search || undefined },

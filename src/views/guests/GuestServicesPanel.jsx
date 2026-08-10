@@ -58,6 +58,7 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
   const isAr = lang === 'ar';
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [active, setActive] = useState(0);
 
   const [editing, setEditing] = useState(null);   // { slot, entry|null }
   const [values, setValues] = useState({});
@@ -80,6 +81,17 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
   }, [guestId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Land on the first thing that still needs attention rather than always
+  // slide 0, but only when the plan actually changes shape — re-running this
+  // on every `load()` (e.g. right after saving slide 3) would yank the user
+  // back to wherever is incomplete instead of keeping them on what they just did.
+  useEffect(() => {
+    if (!plan?.slots?.length) return;
+    const firstOpen = plan.slots.findIndex((s) => s.isUnlocked && s.status !== 'completed');
+    setActive(firstOpen === -1 ? 0 : firstOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.serviceLevelId, plan?.slots?.length]);
 
   // Only fetched once a built-in slot is actually opened — the dynamic path needs
   // none of it, and this is eight parallel lookup requests.
@@ -228,81 +240,126 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
         )}
       </div>
 
-      {plan.slots.map((slot, i) => {
+      {(() => {
+        const slot = plan.slots[active];
         const locked = !slot.isUnlocked;
+        const canPrev = active > 0;
+        const canNext = active < plan.slots.length - 1;
         return (
-          <div
-            key={slot.serviceId}
-            style={{
-              border: `1px solid ${locked ? 'var(--glass-border)' : 'var(--surface-glass-border)'}`,
-              borderRadius: 11,
-              padding: '11px 13px',
-              background: locked ? 'transparent' : 'var(--surface-soft-2)',
-              opacity: locked ? 0.6 : 1,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              {isFixed && (
-                <span style={{
-                  width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                  display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700,
-                  background: slot.status === 'completed' ? 'var(--ok)' : 'var(--surface-soft-4)',
-                  color: slot.status === 'completed' ? '#fff' : 'var(--ink-mute)',
-                }}>
-                  {slot.status === 'completed' ? <Icon name="check" size={11} /> : i + 1}
-                </span>
-              )}
-              {slot.icon && <Icon name={slot.icon} size={14} style={{ color: 'var(--accent)' }} />}
-              <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-                {(isAr ? slot.nameAr : null) || slot.name}
-              </span>
-              <StatusPill status={slot.status} locked={locked} isAr={isAr} />
-              {!locked && (
-                <button className="btn" style={{ fontSize: 11.5, padding: '4px 10px' }}
-                  onClick={() => openEntry(slot, null)}>
-                  <Icon name="plus" size={11} /> {isAr ? 'إضافة' : 'Add'}
-                </button>
-              )}
-            </div>
+          <div>
+            {/* One service at a time — arrows + dots replace the old stacked
+                list so a long service level doesn't turn into a scroll wall. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <button className="icon-btn" disabled={!canPrev}
+                style={{ opacity: canPrev ? 1 : 0.35 }}
+                title={isAr ? 'السابق' : 'Previous'}
+                onClick={() => setActive((a) => a - 1)}>
+                <Icon name="chevronRight" size={14} style={{ transform: isAr ? 'none' : 'scaleX(-1)' }} />
+              </button>
 
-            {locked && slot.lockedReason && (
-              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6, paddingInlineStart: isFixed ? 29 : 0 }}>
-                {slot.lockedReason}
-              </div>
-            )}
-
-            {slot.entries.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8, paddingInlineStart: isFixed ? 29 : 0 }}>
-                {slot.entries.map((entry, n) => (
-                  <div key={entry.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 9px', borderRadius: 8,
-                    background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
-                  }}>
-                    <span style={{ fontSize: 11.5, color: 'var(--ink-dim)', flex: 1 }}>
-                      {/* A booking reads better as itself ("QR123 · 12-Sep 08:40")
-                          than as "Entry 1"; the plan sends those display values. */}
-                      {Object.values(entry.values || {}).slice(0, 3).join(' · ')
-                        || `${isAr ? 'إدخال' : 'Entry'} ${n + 1}`}
-                      {entry.status !== 'completed' && (
-                        <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
-                      )}
-                    </span>
-                    <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
-                      onClick={() => openEntry(slot, entry)}>
-                      <Icon name="edit" size={12} />
-                    </button>
-                    <button className="icon-btn" style={{ color: 'var(--danger)' }}
-                      title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
-                      <Icon name="trash" size={12} />
-                    </button>
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
+                {plan.slots.map((s, i) => (
+                  <button
+                    key={s.serviceId}
+                    title={(isAr ? s.nameAr : null) || s.name}
+                    onClick={() => setActive(i)}
+                    style={{
+                      width: i === active ? 20 : 8, height: 8, borderRadius: 5,
+                      border: 'none', padding: 0, cursor: 'pointer',
+                      background: s.status === 'completed'
+                        ? 'var(--accent)'
+                        : i === active ? 'var(--accent)' : 'var(--surface-soft-4)',
+                      transition: 'width .15s ease',
+                    }}
+                  />
                 ))}
               </div>
-            )}
+
+              <button className="icon-btn" disabled={!canNext}
+                style={{ opacity: canNext ? 1 : 0.35 }}
+                title={isAr ? 'التالي' : 'Next'}
+                onClick={() => setActive((a) => a + 1)}>
+                <Icon name="chevronRight" size={14} style={{ transform: isAr ? 'scaleX(-1)' : 'none' }} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center', marginBottom: 6 }}>
+              {active + 1} / {plan.slots.length}
+            </div>
+
+            <div
+              key={slot.serviceId}
+              style={{
+                border: `1px solid ${locked ? 'var(--glass-border)' : 'var(--surface-glass-border)'}`,
+                borderRadius: 11,
+                padding: '11px 13px',
+                background: locked ? 'transparent' : 'var(--surface-soft-2)',
+                opacity: locked ? 0.6 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                {isFixed && (
+                  <span style={{
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700,
+                    background: slot.status === 'completed' ? 'var(--ok)' : 'var(--surface-soft-4)',
+                    color: slot.status === 'completed' ? '#fff' : 'var(--ink-mute)',
+                  }}>
+                    {slot.status === 'completed' ? <Icon name="check" size={11} /> : active + 1}
+                  </span>
+                )}
+                {slot.icon && <Icon name={slot.icon} size={14} style={{ color: 'var(--accent)' }} />}
+                <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
+                  {(isAr ? slot.nameAr : null) || slot.name}
+                </span>
+                <StatusPill status={slot.status} locked={locked} isAr={isAr} />
+                {!locked && (
+                  <button className="btn" style={{ fontSize: 11.5, padding: '4px 10px' }}
+                    onClick={() => openEntry(slot, null)}>
+                    <Icon name="plus" size={11} /> {isAr ? 'إضافة' : 'Add'}
+                  </button>
+                )}
+              </div>
+
+              {locked && slot.lockedReason && (
+                <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6, paddingInlineStart: isFixed ? 29 : 0 }}>
+                  {slot.lockedReason}
+                </div>
+              )}
+
+              {slot.entries.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8, paddingInlineStart: isFixed ? 29 : 0 }}>
+                  {slot.entries.map((entry, n) => (
+                    <div key={entry.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 9px', borderRadius: 8,
+                      background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
+                    }}>
+                      <span style={{ fontSize: 11.5, color: 'var(--ink-dim)', flex: 1 }}>
+                        {/* A booking reads better as itself ("QR123 · 12-Sep 08:40")
+                            than as "Entry 1"; the plan sends those display values. */}
+                        {Object.values(entry.values || {}).slice(0, 3).join(' · ')
+                          || `${isAr ? 'إدخال' : 'Entry'} ${n + 1}`}
+                        {entry.status !== 'completed' && (
+                          <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
+                        )}
+                      </span>
+                      <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
+                        onClick={() => openEntry(slot, entry)}>
+                        <Icon name="edit" size={12} />
+                      </button>
+                      <button className="icon-btn" style={{ color: 'var(--danger)' }}
+                        title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         );
-      })}
+      })()}
 
       <Modal
         open={!!editing}
