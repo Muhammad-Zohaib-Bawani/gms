@@ -14,7 +14,7 @@ import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
 import { Icon } from '../../components/Icons';
 import ServiceAccordion, {
-  TRAVEL_SECTION, slotHasData, validateServices,
+  TRAVEL_SECTION, slotHasData, validateServices, slotExtras,
 } from '../guests/ServiceAccordion';
 import {
   EMPTY_TRAVEL, hydrateTravel, buildTravelPayload, sectionHasData,
@@ -143,13 +143,19 @@ export default function BookingModal({
     () => slots.filter((s) => slotHasData(s, pending, travel)),
     [slots, pending, travel],
   );
+  // A slot whose CURRENT entry is blank can still have earlier ones queued up
+  // via "Add another" — those live in `extra`, not in `toSave`.
+  const hasExtras = useMemo(
+    () => slots.some((s) => slotExtras(s, pending).length > 0),
+    [slots, pending],
+  );
 
   async function save() {
     if (!guestId) {
       setError(isAr ? 'اختر ضيفاً' : 'Pick a guest first');
       return;
     }
-    if (toSave.length === 0) {
+    if (toSave.length === 0 && !hasExtras) {
       setError(isAr ? 'ضع علامة على خدمة واملأ بياناتها' : 'Tick a service and fill it in');
       return;
     }
@@ -181,6 +187,25 @@ export default function BookingModal({
           // event and the rest of this loop would then be rejected.
           markCompleted: true,
         });
+      }
+
+      // Every earlier entry this session's "Add another" queued up, one save
+      // call each — always a brand new row (`id: null`), never the one above.
+      for (const slot of slots) {
+        const extras = slotExtras(slot, pending);
+        if (extras.length === 0) continue;
+        if (slot.isSystem) {
+          const key = TRAVEL_SECTION[slot.code];
+          for (const snap of extras) {
+            await saveGuestTravel(guestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+          }
+        } else {
+          for (const snap of extras) {
+            await saveGuestServiceEntry(guestId, {
+              id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
+            });
+          }
+        }
       }
 
       toast.success(isAr ? 'تم الحفظ' : 'Saved');
@@ -283,7 +308,7 @@ export default function BookingModal({
                 ? (isAr ? 'تعديل هذا الحجز' : 'Editing this booking')
                 : (isAr
                   ? `ضع علامة على ما تريد إضافته — حسب مستوى "${plan?.serviceLevelName || ''}"`
-                  : `Tick whatever you want to add — from "${plan?.serviceLevelName || ''}"`)}
+                  : `Tick whatever you want to add - from "${plan?.serviceLevelName || ''}"`)}
             </div>
             <ServiceAccordion
               slots={slots}

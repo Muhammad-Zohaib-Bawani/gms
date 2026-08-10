@@ -33,6 +33,7 @@ import ImportGuestsPanel from "./ImportGuestsPanel";
 import ServiceAccordion, {
   TRAVEL_SECTION,
   validateServices,
+  slotExtras,
 } from "../ServiceAccordion";
 import {
   getServices,
@@ -629,6 +630,33 @@ export default function GuestModal({
               isAr
                 ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}": ${err?.message || ""}`
                 : `Guest saved, but "${slot.name}" could not be saved: ${err?.message || ""}`,
+            );
+          }
+        }
+
+        // Every earlier entry this session's "Add another" queued up, one save
+        // call each — always a brand new row, never the ones saved above.
+        for (const slot of wizardSlots) {
+          const extras = slotExtras(slot, pendingServices);
+          if (extras.length === 0) continue;
+          try {
+            if (slot.isSystem) {
+              const key = TRAVEL_SECTION[slot.code];
+              for (const snap of extras) {
+                await saveGuestTravel(guestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+              }
+            } else {
+              for (const snap of extras) {
+                await saveGuestServiceEntry(guestId, {
+                  id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
+                });
+              }
+            }
+          } catch (err) {
+            toast.error(
+              isAr
+                ? `تم حفظ الضيف لكن تعذّر حفظ إدخال إضافي لخدمة "${slot.name}": ${err?.message || ""}`
+                : `Guest saved, but an extra "${slot.name}" entry could not be saved: ${err?.message || ""}`,
             );
           }
         }

@@ -7,20 +7,32 @@
 // untouched service is never half-saved. Everything left unticked stays pending
 // and can be added later from the guest's Services list.
 //
-// Shared by GuestModal (create wizard, step 3) and BookingModal (New Booking), so
-// both dialogs behave identically.
+// Shared by GuestModal (create wizard, step 3), BookingModal (New Booking) and
+// TravelView's own New Booking modal, so all three behave identically.
 //
 // `pending` is the caller's state, keyed by serviceId:
-//   { [serviceId]: { selected: bool, values: { fieldKey: value }, completed: bool } }
+//   { [serviceId]: {
+//       selected: bool, completed: bool,
+//       values: { fieldKey: value },   // the entry currently open/just confirmed
+//       extra: [ { values } ],         // dynamic: earlier entries confirmed THIS session
+//   } }
 // The three built-in services (flight / accommodation / transport) don't use
-// `values` at all — their fields live in the shared `travel` state and are saved
-// through the travel endpoints. See Core/Constants/SystemServices.cs.
-import React, { useState } from 'react';
+// `values`/`extra[].values` at all — their fields live in the shared `travel`
+// state and are saved through the travel endpoints; for them `extra` instead
+// holds full clones of a completed `travel[key]` section. See
+// Core/Constants/SystemServices.cs.
+//
+// A guest can hold the same service more than once (a second flight, another
+// night's stay…). The server already keeps every entry per slot (`slot.entries`)
+// once saved; `extra` is only for entries confirmed with "Add another" in THIS
+// dialog session, before the caller's own Save button ever runs — see
+// `slotExtras` below, which every caller loops over alongside its normal save.
+import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../../components/Icons';
 import toast from '../../lib/toast';
 import { DynamicFormInputs, missingRequired } from '../../components/ui/DynamicFields';
 import TravelAccordion, {
-  EMPTY_TRAVEL, validateTravel, sectionHasData,
+  EMPTY_TRAVEL, validateTravel, sectionHasData, vehicleLabel,
 } from './modals/TravelAccordion';
 
 export const TRAVEL_SECTION = { flight: 'flight', accommodation: 'accommodation', transport: 'transport' };
@@ -37,7 +49,7 @@ const CODE_ICON = {
 
 const iconFor = (slot) => slot.icon || CODE_ICON[(slot.code || '').toLowerCase()] || null;
 
-/** Anything actually typed into this slot — blank keys don't count as input. */
+/** Anything actually typed into this slot's CURRENT entry — blank keys don't count. */
 export function slotHasData(slot, pending, travel) {
   if (slot.isSystem) return sectionHasData(travel, TRAVEL_SECTION[slot.code]);
   return Object.values(pending?.[slot.serviceId]?.values || {})
@@ -48,6 +60,11 @@ export function slotHasData(slot, pending, travel) {
 export const slotSelected = (slot, pending, travel) =>
   !!pending?.[slot.serviceId]?.selected || slotHasData(slot, pending, travel);
 
+/** Earlier entries this slot got via "Add another" in this session, not yet saved. */
+export function slotExtras(slot, pending) {
+  return pending?.[slot.serviceId]?.extra || [];
+}
+
 /**
  * First problem across every TICKED service, or null when they're all complete.
  *
@@ -56,7 +73,9 @@ export const slotSelected = (slot, pending, travel) =>
  * what lets a guest be added now and their services completed later.
  *
  * Callers run this before saving, because the per-service "Done" button is
- * optional — nothing forces the user to press it.
+ * optional — nothing forces the user to press it. Only the slot's CURRENT entry
+ * is checked here: anything in `extra` already passed this same check at the
+ * moment "Add another" folded it in, so re-checking it would be redundant.
  */
 export function validateServices(slots, pending, travel, isAr = false) {
   for (const slot of slots || []) {
@@ -97,6 +116,45 @@ function Checkbox({ checked, disabled }) {
   );
 }
 
+const cloneTravelSection = (sec) => ({
+  ...sec,
+  legs: Array.isArray(sec.legs) ? sec.legs.map((l) => ({ ...l })) : undefined,
+});
+
+// Best-effort one-line summary for a not-yet-saved travel section snapshot —
+// there's no server-resolved display string for it yet (that only exists once
+// it's actually saved), so a few of the more useful lookup ids are resolved
+// here instead of showing raw guids.
+function travelSectionFacts(key, sec, lookups, isAr) {
+  const label = (list, id, fn) => {
+    const hit = (list || []).find((x) => x.id === id);
+    return hit ? fn(hit) : null;
+  };
+  if (key === 'flight') {
+    const leg = (sec.legs || [])[0] || {};
+    return [
+      [isAr ? 'الرحلة' : 'Flight', leg.flightNumber || '—'],
+      [isAr ? 'المسار' : 'Route', `${label(lookups.airports, leg.fromAirportId, (a) => a.code) || '—'} → ${label(lookups.airports, leg.toAirportId, (a) => a.code) || '—'}`],
+      [isAr ? 'الموعد' : 'Departs', leg.startTime ? leg.startTime.replace('T', ' ').slice(0, 16) : '—'],
+    ];
+  }
+  if (key === 'accommodation') {
+    return [
+      [isAr ? 'الفندق' : 'Hotel', label(lookups.hotels, sec.hotelId, (h) => h.name) || '—'],
+      [isAr ? 'الوصول' : 'Check-in', sec.checkIn || '—'],
+      [isAr ? 'المغادرة' : 'Check-out', sec.checkOut || '—'],
+    ];
+  }
+  if (key === 'transport') {
+    return [
+      [isAr ? 'المركبة' : 'Vehicle', label(lookups.vehicles, sec.vehicleId, vehicleLabel) || '—'],
+      [isAr ? 'الاستلام' : 'Pickup', sec.pickupTime ? sec.pickupTime.replace('T', ' ').slice(0, 16) : '—'],
+      [isAr ? 'التوصيل' : 'Dropoff', sec.dropoffTime ? sec.dropoffTime.replace('T', ' ').slice(0, 16) : '—'],
+    ];
+  }
+  return [];
+}
+
 export default function ServiceAccordion({
   slots = [],
   pending = {},
@@ -120,33 +178,57 @@ export default function ServiceAccordion({
   const isAr = lang === 'ar';
   const [open, setOpen] = useState(singleSlotId);
 
-  const visible = singleSlotId ? slots.filter((s) => s.serviceId === singleSlotId) : slots;
-  // `pending` only knows what's been touched in THIS dialog session — a slot
-  // finished earlier (Create Guest, or a previous New Booking) is still done
-  // even though nothing here marked it so. Without slot.status in the mix, an
-  // already-completed slot reads as "still first incomplete" and blocks every
-  // slot after it forever, and a slot just finished in this session (not yet
-  // saved) can't unlock the next one either.
-  const isSlotDone = (s) => !!pending[s.serviceId]?.completed || s.status === 'completed';
-  const firstIncomplete = slots.findIndex((s) => !isSlotDone(s));
+  const [addingNew, setAddingNew] = useState(false);
 
-  // What to show for an already-completed slot's read-only view. `entries[0]`
-  // comes straight from the server (for a system slot it's already display
-  // strings — see ServiceCatalogService.LoadSystemBookingsAsync) and is right
-  // even when this dialog never touched the slot itself; `pending` values are
-  // the fallback for a slot just confirmed THIS session, before it's saved.
-  const readOnlyFacts = (slot) => {
-    const values = slot.entries?.[0]?.values || pending[slot.serviceId]?.values || {};
-    return Object.entries(values).filter(([, v]) => v != null && String(v).trim() !== '');
+  const rowRefs = useRef({});
+  useEffect(() => {
+    if (!open) return;
+    const el = rowRefs.current[open];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [open, addingNew]);
+
+  const visible = singleSlotId ? slots.filter((s) => s.serviceId === singleSlotId) : slots;
+
+  const isSlotDone = (s) => {
+    const p = pending[s.serviceId];
+    return !!p?.completed || s.status === 'completed' || !!(p?.extra?.length);
   };
+  const firstIncomplete = slots.findIndex((s) => !isSlotDone(s));
 
   const patch = (id, next) =>
     onPendingChange((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...next } }));
 
+  // Wipes whatever's been typed into an "Add another" draft that never got
+  // confirmed — used any time it's abandoned rather than finished: collapsing
+  // the row, the checkbox, or switching to another slot without hitting Done.
+  // Never touches `extra`/the server's own entries, only the in-progress one.
+  function discardDraft(slotId) {
+    const slot = slots.find((s) => s.serviceId === slotId);
+    if (!slot) return;
+    if (slot.isSystem) {
+      const key = TRAVEL_SECTION[slot.code];
+      onTravelChange((p) => ({ ...p, [key]: { ...EMPTY_TRAVEL[key] } }));
+    }
+    // `selected: false` matters here — otherwise validateServices sees a ticked
+    // but empty draft and demands it be filled in, even though the slot is
+    // already legitimately done via `extra`/the server.
+    patch(slotId, { selected: false, values: {}, completed: false });
+  }
+
+  // The one place `open` ever changes to something else — so an unfinished
+  // "Add another" draft is always caught and discarded the moment focus moves
+  // away from it, whether that's collapsing it, opening a different slot, or
+  // starting yet another "Add another" elsewhere.
+  function openRow(nextId, adding = false) {
+    if (addingNew && open && open !== nextId) discardDraft(open);
+    setOpen(nextId);
+    setAddingNew(adding);
+  }
+
   function toggle(slot, on) {
     if (on) {
       patch(slot.serviceId, { selected: true });
-      setOpen(slot.serviceId);
+      openRow(slot.serviceId);
       return;
     }
     // Unticking is the "clear" action: a built-in's fields live in `travel`, so
@@ -157,6 +239,30 @@ export default function ServiceAccordion({
     }
     patch(slot.serviceId, { selected: false, values: {}, completed: false });
     setOpen((o) => (o === slot.serviceId ? null : o));
+    setAddingNew(false);
+  }
+
+  function addAnother(slot) {
+    const p = pending[slot.serviceId] || {};
+    let extra = p.extra || [];
+    if (slot.isSystem) {
+      const key = TRAVEL_SECTION[slot.code];
+      if (sectionHasData(travel, key)) extra = [...extra, cloneTravelSection(travel[key])];
+      onTravelChange((prev) => ({ ...prev, [key]: { ...EMPTY_TRAVEL[key] } }));
+    } else if (slotHasData(slot, pending, travel)) {
+      extra = [...extra, { values: { ...(p.values || {}) } }];
+    }
+    patch(slot.serviceId, { selected: true, values: {}, completed: false, entryId: null, extra });
+    openRow(slot.serviceId, true);
+  }
+
+  // Clears just the CURRENT in-progress draft and closes the row — used only
+  // while `addingNew`. Anything already folded into `extra` (or already on the
+  // server) is untouched: this cancels the second entry attempt, not the first.
+  function cancelAddAnother(slot) {
+    discardDraft(slot.serviceId);
+    setOpen(null);
+    setAddingNew(false);
   }
 
   function confirm(slot) {
@@ -167,6 +273,7 @@ export default function ServiceAccordion({
       // Nothing typed in = skipped, not done.
       patch(slot.serviceId, { values: {}, completed: sectionHasData(travel, key) });
       setOpen(null);
+      setAddingNew(false);
       return;
     }
 
@@ -178,6 +285,7 @@ export default function ServiceAccordion({
     }
     patch(slot.serviceId, { completed: slotHasData(slot, pending, travel) });
     setOpen(null);
+    setAddingNew(false);
   }
 
   if (visible.length === 0) return null;
@@ -199,25 +307,53 @@ export default function ServiceAccordion({
         // one — repeating "Complete X first" on each of them just duplicates
         // the same sentence, so only the row right after it explains why.
         const showLockedHint = locked && index === firstIncomplete + 1;
+        const expanded = open === slot.serviceId;
+        const isAddingNew = expanded && addingNew;
         // A completed slot can still be opened — worth seeing what was already
         // recorded — but not edited here: this accordion writes to `pending`,
         // which for an already-done slot may hold nothing (a sibling booking
         // never touched in this dialog) or a stale copy of what's on the
         // server, so re-editing it here isn't safe. `singleSlotId` is the one
         // exception: the caller opened this dialog specifically to EDIT that
-        // one entry, done or not.
-        const viewOnly = done && !singleSlotId;
-        const expanded = open === slot.serviceId;
-        const facts = readOnlyFacts(slot);
+        // one entry, done or not. Reopening via "Add another" also drops out of
+        // this permanent read-only view, for as long as it stays expanded.
+        const viewOnly = done && !singleSlotId && !isAddingNew;
+
+        // Every entry recorded for this slot, oldest first: the server's own
+        // (from a previous session), then anything folded into `extra` this
+        // session, then whatever's currently confirmed but not yet folded in.
+        // Shown together and never hidden by opening "Add another" — that form
+        // only ever adds one more group below these, it doesn't replace them.
+        const key = slot.isSystem ? TRAVEL_SECTION[slot.code] : null;
+        const groups = [
+          ...(slot.entries || []).map((e) => Object.entries(e.values || {})
+            .filter(([, v]) => v != null && String(v).trim() !== '')),
+          ...(state?.extra || []).map((snap) => (slot.isSystem
+            ? travelSectionFacts(key, snap, travelLookups, isAr)
+            : Object.entries(snap.values || {}).filter(([, v]) => v != null && String(v).trim() !== ''))),
+          ...(state?.completed && !isAddingNew
+            ? [slot.isSystem
+              ? (sectionHasData(travel, key) ? travelSectionFacts(key, travel[key], travelLookups, isAr) : null)
+              : Object.entries(state.values || {}).filter(([, v]) => v != null && String(v).trim() !== '')]
+              .filter(Boolean)
+            : []),
+        ].filter((g) => g.length > 0);
 
         return (
-          <div key={slot.serviceId} style={{
-            borderRadius: 10,
-            border: `1px solid ${expanded ? 'var(--accent)' : 'var(--glass-border)'}`,
-            background: 'var(--surface-soft-2)',
-            opacity: locked ? 0.55 : viewOnly ? 0.85 : 1,
-            overflow: 'hidden',
-          }}>
+          <div
+            key={slot.serviceId}
+            ref={(el) => { rowRefs.current[slot.serviceId] = el; }}
+            style={{
+              borderRadius: 10,
+              border: `1px solid ${expanded ? 'var(--accent)' : 'var(--glass-border)'}`,
+              background: 'var(--surface-soft-2)',
+              opacity: locked ? 0.55 : viewOnly ? 0.85 : 1,
+              overflow: 'hidden',
+              boxShadow: expanded ? '0 0 0 3px rgba(141, 1, 52, 0.14)' : 'none',
+              transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
+              scrollMarginBlock: 16,
+            }}
+          >
             <div style={{
               display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px',
               cursor: locked ? 'not-allowed' : 'pointer',
@@ -242,7 +378,10 @@ export default function ServiceAccordion({
                   // you could fill in a form that nothing saves. A completed one
                   // just opens straight to its (read-only) details.
                   if (!viewOnly && !ticked) { toggle(slot, true); return; }
-                  setOpen(expanded ? null : slot.serviceId);
+                  // Collapsing an unfinished "Add another" draft this way — not
+                  // via Done or the delete icon — discards it (openRow catches
+                  // this whenever `open` changes away from an `addingNew` row).
+                  openRow(expanded ? null : slot.serviceId);
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}
               >
@@ -259,6 +398,19 @@ export default function ServiceAccordion({
                         ? (isAr ? 'قيد الإدخال' : 'In progress')
                         : (isAr ? 'غير مُضاف' : 'Not added')}
                 </span>
+                {/* Icon-only, right on the collapsed row — a guest can hold this
+                    service more than once (a second flight, another night's
+                    stay…), and that shouldn't require opening the row first. */}
+                {done && !locked && !singleSlotId && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title={isAr ? 'إضافة أخرى' : 'Add another'}
+                    onClick={(e) => { e.stopPropagation(); addAnother(slot); }}
+                  >
+                    <Icon name="plus" size={13} />
+                  </button>
+                )}
                 {!locked && (
                   <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={13}
                     style={{ color: 'var(--ink-mute)' }} />
@@ -279,72 +431,107 @@ export default function ServiceAccordion({
               </div>
             )}
 
-            {expanded && !locked && viewOnly && (
+            {expanded && !locked && (
               <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
-                {facts.length > 0 ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px 16px' }}>
-                    {facts.map(([k, v]) => (
-                      <div key={k}>
-                        <div style={{
-                          fontSize: 9.5, color: 'var(--ink-faint)', textTransform: 'uppercase',
-                          letterSpacing: '0.09em', marginBottom: 3,
-                        }}>
-                          {k}
+                {/* Every entry recorded so far — server's, and this session's
+                    confirmed ones — stays visible whether the row is purely
+                    read-only or a fresh "Add another" form is open below it. */}
+                {groups.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: viewOnly ? 0 : 14 }}>
+                    {groups.map((facts, gi) => (
+                      <div key={gi} style={{
+                        borderRadius: 8, padding: '8px 10px',
+                        background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
+                      }}>
+                        {groups.length > 1 && (
+                          <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--ink-faint)', marginBottom: 5 }}>
+                            {isAr ? `إدخال ${gi + 1}` : `Entry ${gi + 1}`}
+                          </div>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px 14px' }}>
+                          {facts.map(([k, v]) => (
+                            <div key={k}>
+                              <div style={{
+                                fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase',
+                                letterSpacing: '0.08em', marginBottom: 2,
+                              }}>
+                                {k}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--ink)' }}>{v}</div>
+                            </div>
+                          ))}
                         </div>
-                        <div style={{ fontSize: 12.5, color: 'var(--ink)' }}>{v}</div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-                    {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 10 }}>
-                  {isAr ? 'مكتملة بالفعل — لا يمكن تعديلها من هنا.' : "Already completed - can't be edited here."}
-                </div>
-              </div>
-            )}
-
-            {expanded && !locked && !viewOnly && (
-              <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
-                {slot.isSystem ? (
-                  // Writes into the shared `travel` state, saved through the travel
-                  // endpoints by the caller — never as a service entry's JSON.
-                  <TravelAccordion
-                    travel={travel}
-                    onChange={onTravelChange}
-                    lookups={travelLookups}
-                    isAr={isAr}
-                    only={TRAVEL_SECTION[slot.code]}
-                    eventId={eventId}
-                    eventMinDate={eventStart}
-                    eventMaxDate={eventEnd}
-                    dateMinDate={dateMinDate}
-                    dateMaxDate={dateMaxDate}
-                  />
-                ) : (
-                  <DynamicFormInputs
-                    form={slot.form}
-                    values={state?.values || {}}
-                    onChange={(vals) => patch(slot.serviceId, { selected: true, values: vals })}
-                    lang={lang}
-                    eventId={eventId}
-                    eventStart={eventStart}
-                    eventEnd={eventEnd}
-                  />
                 )}
 
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                  {!singleSlotId && (
-                    <button type="button" className="btn" onClick={() => toggle(slot, false)}>
-                      {isAr ? 'إزالة' : 'Remove'}
-                    </button>
-                  )}
-                  <button type="button" className="btn primary" onClick={() => confirm(slot)}>
-                    <Icon name="check" size={13} /> {isAr ? 'تم' : 'Done'}
-                  </button>
-                </div>
+                {viewOnly ? (
+                  <>
+                    {groups.length === 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                        {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 10 }}>
+                      {isAr ? 'مكتملة بالفعل — لا يمكن تعديلها من هنا.' : "Already completed"}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {slot.isSystem ? (
+                      // Writes into the shared `travel` state, saved through the travel
+                      // endpoints by the caller — never as a service entry's JSON.
+                      <TravelAccordion
+                        travel={travel}
+                        onChange={onTravelChange}
+                        lookups={travelLookups}
+                        isAr={isAr}
+                        only={TRAVEL_SECTION[slot.code]}
+                        eventId={eventId}
+                        eventMinDate={eventStart}
+                        eventMaxDate={eventEnd}
+                        dateMinDate={dateMinDate}
+                        dateMaxDate={dateMaxDate}
+                      />
+                    ) : (
+                      <DynamicFormInputs
+                        form={slot.form}
+                        values={state?.values || {}}
+                        onChange={(vals) => patch(slot.serviceId, { selected: true, values: vals })}
+                        lang={lang}
+                        eventId={eventId}
+                        eventStart={eventStart}
+                        eventEnd={eventEnd}
+                      />
+                    )}
+
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                      {/* "Add another" mode gets a delete icon that clears just this
+                          draft and closes — the "Remove" text button below it would
+                          instead wipe the whole slot, including entries already
+                          folded into `extra`. */}
+                      {isAddingNew ? (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          style={{ color: 'var(--danger)' }}
+                          title={isAr ? 'مسح وإغلاق' : 'Clear & close'}
+                          onClick={() => cancelAddAnother(slot)}
+                        >
+                          <Icon name="trash" size={13} />
+                        </button>
+                      ) : (!singleSlotId && (
+                        <button type="button" className="btn" onClick={() => toggle(slot, false)}>
+                          {isAr ? 'إزالة' : 'Remove'}
+                        </button>
+                      ))}
+                      <button type="button" className="btn primary" onClick={() => confirm(slot)}>
+                        <Icon name="check" size={13} /> {isAr ? 'تم' : 'Done'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

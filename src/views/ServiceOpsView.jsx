@@ -42,9 +42,6 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
   const [services, setServices] = useState([]);
   const [tab, setTab] = useState(null);          // `${serviceId}` | `${serviceId}:schedule`
   const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [pageIndex, setPageIndex] = useState(0);
-  const [pageSize, setPageSize] = useState(15);
   const [loading, setLoading] = useState(false);
 
   // Lookup-backed columns store ids; the labels come from the same cached
@@ -89,22 +86,23 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
   }, [service]);
 
   const load = useCallback(() => {
-    if (!serviceId || !activeEventId) { setRows([]); setTotal(0); return; }
+    if (!serviceId || !activeEventId) { setRows([]); return; }
     setLoading(true);
     getServiceEntries(serviceId, {
       eventId: activeEventId,
-      pageNumber: pageIndex + 1,
-      // The schedule groups several entries onto one guest row, so it pulls a
-      // wider page than the paginated entries view.
-      pageSize: isSchedule ? 200 : pageSize,
+      pageNumber: 1,
+      // Every entries view here groups several bookings onto one guest row (see
+      // entryRows below), so this pulls every entry up front rather than paging
+      // through them individually — paging server-side would risk splitting one
+      // guest's entries across two pages.
+      pageSize: 200,
     })
-      .then((res) => { setRows(res?.items || []); setTotal(res?.totalCount || 0); })
-      .catch(() => { setRows([]); setTotal(0); })
+      .then((res) => setRows(res?.items || []))
+      .catch(() => setRows([]))
       .finally(() => setLoading(false));
-  }, [serviceId, activeEventId, pageIndex, pageSize, isSchedule]);
+  }, [serviceId, activeEventId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPageIndex(0); }, [tab]);
 
   const display = useCallback((field, raw) => {
     if (raw == null || raw === '') return '—';
@@ -147,47 +145,92 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
     ),
   };
 
+  // A guest can hold the same service more than once (a second flight, another
+  // night's stay…) — one row per guest, every one of their entries stacked
+  // inside the relevant cells, rather than one row per entry that repeats the
+  // same guest cell over and over.
+  const entryRows = useMemo(() => {
+    const byGuest = new Map();
+    rows.forEach((r) => {
+      if (!byGuest.has(r.guestId)) {
+        byGuest.set(r.guestId, {
+          id: r.guestId,
+          guestId: r.guestId,
+          guestName: r.guestName,
+          email: r.email,
+          photoUrl: r.photoUrl,
+          serviceLevelName: r.serviceLevelName,
+          entries: [],
+        });
+      }
+      byGuest.get(r.guestId).entries.push(r);
+    });
+    return [...byGuest.values()];
+  }, [rows]);
+
   // ── Entries: one column per section ───────────────────────────────────────
   // A flight form has 25 fields; a column each was unreadable. Each section
-  // collapses into a single compact cell instead.
+  // collapses into a single compact cell instead, and a guest with several
+  // bookings gets several stacked cards inside that one cell.
   const entryColumns = useMemo(() => {
     if (!service) return [];
+    const multi = (g) => g.entries.length > 1;
     return [
       guestColumn,
       ...(service.form?.sections || []).map((sec, i) => ({
         id: sec.key || `sec${i}`,
         header: (isAr ? sec.labelAr : null) || sec.label,
         enableSorting: false,
-        cell: ({ row: { original: r } }) => (
-          <SectionCell
-            section={sec}
-            values={r.values || {}}
-            display={display}
-            isAr={isAr}
-            inbound={/inbound|arriv/i.test(sec.key || '')}
-          />
+        cell: ({ row: { original: g } }) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {g.entries.map((e, n) => (
+              <div key={e.entryId}>
+                {multi(g) && (
+                  <div style={{ fontSize: 9.5, color: 'var(--ink-faint)', marginBottom: 2 }}>
+                    {isAr ? `إدخال ${n + 1}` : `Entry ${n + 1}`}
+                  </div>
+                )}
+                <SectionCell
+                  section={sec}
+                  values={e.values || {}}
+                  display={display}
+                  isAr={isAr}
+                  inbound={/inbound|arriv/i.test(sec.key || '')}
+                />
+              </div>
+            ))}
+          </div>
         ),
       })),
       {
         id: 'status',
         header: isAr ? 'الحالة' : 'Status',
         enableSorting: false,
-        cell: ({ row: { original: r } }) => (
-          <span className={`chip ${r.status === 'completed' ? 'confirmed' : 'pending'}`} style={{ fontSize: 10.5 }}>
-            <span className="dot" />
-            {r.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') : (isAr ? 'مسودة' : 'Draft')}
-          </span>
+        cell: ({ row: { original: g } }) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {g.entries.map((e) => (
+              <span key={e.entryId} className={`chip ${e.status === 'completed' ? 'confirmed' : 'pending'}`} style={{ fontSize: 10.5 }}>
+                <span className="dot" />
+                {e.status === 'completed' ? (isAr ? 'مكتمل' : 'Completed') : (isAr ? 'مسودة' : 'Draft')}
+              </span>
+            ))}
+          </div>
         ),
       },
       {
         id: 'actions', header: '', size: 44, enableSorting: false,
-        cell: ({ row: { original: r } }) => (
-          <ActionMenu
-            items={[
-              { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => setBooking({ entry: r }) },
-              { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true, onClick: () => removeEntry(r) },
-            ]}
-          />
+        cell: ({ row: { original: g } }) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {g.entries.map((e) => (
+              <ActionMenu
+                key={e.entryId}
+                items={[
+                  { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => setBooking({ entry: e }) },
+                  { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true, onClick: () => removeEntry(e) },
+                ]}
+              />
+            ))}
+          </div>
         ),
       },
     ];
@@ -371,18 +414,13 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
           <DataTable
             key={`entries-${serviceId}`}
             columns={entryColumns}
-            data={rows}
+            data={entryRows}
             loading={loading}
-            manualPagination
-            pageIndex={pageIndex}
-            pageSize={pageSize}
-            totalRows={total}
-            onPageChange={setPageIndex}
-            onPageSizeChange={(n) => { setPageSize(n); setPageIndex(0); }}
+            pageSize={20}
             emptyText={isAr
               ? 'لا يوجد ضيوف لهذه الخدمة بعد'
               : 'No guests have this service yet'}
-            showSearch={false}
+            searchPlaceholder={isAr ? 'بحث…' : 'Search…'}
           />
         )}
       </Card>

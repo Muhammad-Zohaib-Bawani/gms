@@ -313,12 +313,6 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
                   {(isAr ? slot.nameAr : null) || slot.name}
                 </span>
                 <StatusPill status={slot.status} locked={locked} isAr={isAr} />
-                {!locked && (
-                  <button className="btn" style={{ fontSize: 11.5, padding: '4px 10px' }}
-                    onClick={() => openEntry(slot, null)}>
-                    <Icon name="plus" size={11} /> {isAr ? 'إضافة' : 'Add'}
-                  </button>
-                )}
               </div>
 
               {locked && slot.lockedReason && (
@@ -327,36 +321,77 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
                 </div>
               )}
 
+              {/* One card per entry rather than one flattened line — a booking
+                  can carry several fields (flight no., date, terminal…) and
+                  they all need to stay readable, not squashed into a single
+                  " · "-joined string. A guest can hold several of these (a
+                  second flight, another night's stay), so each gets its own
+                  numbered card here in the SAME slide, instead of the slot
+                  itself splitting into more slides. */}
               {slot.entries.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8, paddingInlineStart: isFixed ? 29 : 0 }}>
-                  {slot.entries.map((entry, n) => (
-                    <div key={entry.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 9px', borderRadius: 8,
-                      background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
-                    }}>
-                      <span style={{ fontSize: 11.5, color: 'var(--ink-dim)', flex: 1 }}>
-                        {/* A booking reads better as itself ("QR123 · 12-Sep 08:40")
-                            than as "Entry 1"; the plan sends those display values. */}
-                        {Object.values(entry.values || {}).slice(0, 3).join(' · ')
-                          || `${isAr ? 'إدخال' : 'Entry'} ${n + 1}`}
-                        {entry.status !== 'completed' && (
-                          <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10, paddingInlineStart: isFixed ? 29 : 0 }}>
+                  {slot.entries.map((entry, n) => {
+                    const facts = Object.entries(entry.values || {})
+                      .filter(([, v]) => v != null && String(v).trim() !== '');
+                    return (
+                      <div key={entry.id} style={{
+                        borderRadius: 9, padding: '8px 10px',
+                        background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: facts.length ? 6 : 0 }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', flex: 1 }}>
+                            {slot.entries.length > 1
+                              ? `${isAr ? 'إدخال' : 'Entry'} ${n + 1}`
+                              : (isAr ? 'التفاصيل' : 'Details')}
+                            {entry.status !== 'completed' && (
+                              <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
+                            )}
+                          </span>
+                          <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
+                            onClick={() => openEntry(slot, entry)}>
+                            <Icon name="edit" size={12} />
+                          </button>
+                          <button className="icon-btn" style={{ color: 'var(--danger)' }}
+                            title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
+                            <Icon name="trash" size={12} />
+                          </button>
+                        </div>
+                        {facts.length > 0 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px 12px' }}>
+                            {facts.map(([k, v]) => (
+                              <div key={k}>
+                                <div style={{ fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                  {k}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--ink)' }}>{v}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
+                            {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
+                          </div>
                         )}
-                      </span>
-                      <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
-                        onClick={() => openEntry(slot, entry)}>
-                        <Icon name="edit" size={12} />
-                      </button>
-                      <button className="icon-btn" style={{ color: 'var(--danger)' }}
-                        title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
-                        <Icon name="trash" size={12} />
-                      </button>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
+
+            {/* Deliberately outside the slide's card, not one more thing tucked
+                into its header — this always adds a NEW entry to the current
+                slot (never overwrites the ones above), which is exactly how a
+                guest ends up with a second flight or another night's stay. */}
+            {!locked && (
+              <button className="btn" style={{ width: '100%', marginTop: 10, fontSize: 12 }}
+                onClick={() => openEntry(slot, null)}>
+                <Icon name="plus" size={12} />
+                {slot.entries.length > 0
+                  ? (isAr ? 'إضافة أخرى' : 'Add another')
+                  : (isAr ? 'إضافة' : 'Add')}
+              </button>
+            )}
           </div>
         );
       })()}
