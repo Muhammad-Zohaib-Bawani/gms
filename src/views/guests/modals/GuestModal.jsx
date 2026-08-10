@@ -1686,17 +1686,13 @@ export default function GuestModal({
                 ) : (
                   <>
                     <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
-                      {isEdit
+                      {isFixedEvent
                         ? isAr
-                          ? "الخدمات المُضافة سابقاً تُعرض هنا للمرجعية فقط ولا يمكن تعديلها — ضع علامة على خدمة جديدة لإضافتها."
-                          : "Services already added are shown here for reference and can't be edited — tick another to add it."
-                        : isFixedEvent
-                          ? isAr
-                            ? "ضع علامة على الخدمة لإضافتها الآن — بالترتيب. ما تتركه يمكن إضافته لاحقاً من زر الحجز الجديد."
-                            : "Tick a service to add it now, in order. Anything you leave unticked can be added later from New Booking."
-                          : isAr
-                            ? "ضع علامة على ما تريد إضافته الآن — كل الخدمات اختيارية."
-                            : "Tick whichever you want to add now — all of them are optional."}
+                          ? "ضع علامة على الخدمة لإضافتها الآن — بالترتيب. ما تتركه يمكن إضافته لاحقاً من زر الحجز الجديد."
+                          : "Tick a service to add it now, in order. Anything you leave unticked can be added later from New Booking."
+                        : isAr
+                          ? "ضع علامة على ما تريد إضافته الآن — كل الخدمات اختيارية."
+                          : "Tick whichever you want to add now — all of them are optional."}
                     </div>
 
                     <ServiceAccordion
@@ -1713,9 +1709,8 @@ export default function GuestModal({
                       eventEnd={eventEndDate}
                       dateMinDate={dateWindowMin}
                       dateMaxDate={dateWindowMax}
-                      // Only New Booking offers a second entry of the same
-                      // service — this wizard step stays single-entry-only.
                       allowAddAnother={false}
+                      lockOnDone={isEdit}
                     />
                   </>
                 )}

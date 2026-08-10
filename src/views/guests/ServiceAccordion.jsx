@@ -1,32 +1,10 @@
-// The guest's services as a tick-list: one collapsible row per service the
-// level assigns, a checkbox to include it, and its form inside.
-//
-// A checkbox rather than a step number: the number implied a mandatory sequence
-// that only Fixed events have, and it gave nothing to click. Ticking a service
-// means "I'm adding this one now"; unticking clears what was typed, so an
-// untouched service is never half-saved. Everything left unticked stays pending
-// and can be added later from the guest's Services list.
-//
-// Shared by GuestModal (create wizard, step 3), BookingModal (New Booking) and
-// TravelView's own New Booking modal, so all three behave identically.
-//
-// `pending` is the caller's state, keyed by serviceId:
-//   { [serviceId]: {
-//       selected: bool, completed: bool,
-//       values: { fieldKey: value },   // the entry currently open/just confirmed
-//       extra: [ { values } ],         // dynamic: earlier entries confirmed THIS session
-//   } }
-// The three built-in services (flight / accommodation / transport) don't use
-// `values`/`extra[].values` at all — their fields live in the shared `travel`
-// state and are saved through the travel endpoints; for them `extra` instead
-// holds full clones of a completed `travel[key]` section. See
-// Core/Constants/SystemServices.cs.
-//
-// A guest can hold the same service more than once (a second flight, another
-// night's stay…). The server already keeps every entry per slot (`slot.entries`)
-// once saved; `extra` is only for entries confirmed with "Add another" in THIS
-// dialog session, before the caller's own Save button ever runs — see
-// `slotExtras` below, which every caller loops over alongside its normal save.
+// The guest's services as a tick-list. Shared by GuestModal, BookingModal and
+// TravelView's New Booking. `pending` is keyed by serviceId:
+//   { [serviceId]: { selected, completed, values, extra: [{ values }] } }
+// System services (flight/accommodation/transport) use `travel` instead of
+// `values`; their `extra` holds clones of a completed `travel[key]`.
+// `extra` = entries added via "Add another" this session, not yet saved —
+// see `slotExtras`, which callers loop over alongside their normal save.
 import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '../../components/Icons';
 import toast from '../../lib/toast';
@@ -171,13 +149,12 @@ export default function ServiceAccordion({
   eventEnd,
   dateMinDate,
   dateMaxDate,
-  // Editing one existing entry: that slot is the only one shown, already on, and
-  // can't be unticked — there is nothing to choose.
+  // Editing one existing entry: that slot is the only one shown, already on.
   singleSlotId = null,
-  // A guest can hold the same service more than once, but only New Booking is
-  // meant to be where that happens — the Guests page's Add/Edit Guest modal
-  // stays exactly the single-entry-per-service flow it always was.
+  // Only New Booking offers a second entry of the same service.
   allowAddAnother = true,
+  // Whether "Done" locks a slot read-only. Off for the Add/Edit Guest modal.
+  lockOnDone = true,
 }) {
   const isAr = lang === 'ar';
   const [open, setOpen] = useState(singleSlotId);
@@ -202,10 +179,8 @@ export default function ServiceAccordion({
   const patch = (id, next) =>
     onPendingChange((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...next } }));
 
-  // Wipes whatever's been typed into an "Add another" draft that never got
-  // confirmed — used any time it's abandoned rather than finished: collapsing
-  // the row, the checkbox, or switching to another slot without hitting Done.
-  // Never touches `extra`/the server's own entries, only the in-progress one.
+  // Discards an unfinished "Add another" draft — collapsed, unticked, or
+  // abandoned for another slot. Never touches `extra` or server entries.
   function discardDraft(slotId) {
     const slot = slots.find((s) => s.serviceId === slotId);
     if (!slot) return;
@@ -213,16 +188,9 @@ export default function ServiceAccordion({
       const key = TRAVEL_SECTION[slot.code];
       onTravelChange((p) => ({ ...p, [key]: { ...EMPTY_TRAVEL[key] } }));
     }
-    // `selected: false` matters here — otherwise validateServices sees a ticked
-    // but empty draft and demands it be filled in, even though the slot is
-    // already legitimately done via `extra`/the server.
     patch(slotId, { selected: false, values: {}, completed: false });
   }
 
-  // The one place `open` ever changes to something else — so an unfinished
-  // "Add another" draft is always caught and discarded the moment focus moves
-  // away from it, whether that's collapsing it, opening a different slot, or
-  // starting yet another "Add another" elsewhere.
   function openRow(nextId, adding = false) {
     if (addingNew && open && open !== nextId) discardDraft(open);
     setOpen(nextId);
@@ -260,9 +228,6 @@ export default function ServiceAccordion({
     openRow(slot.serviceId, true);
   }
 
-  // Clears just the CURRENT in-progress draft and closes the row — used only
-  // while `addingNew`. Anything already folded into `extra` (or already on the
-  // server) is untouched: this cancels the second entry attempt, not the first.
   function cancelAddAnother(slot) {
     discardDraft(slot.serviceId);
     setOpen(null);
@@ -298,38 +263,26 @@ export default function ServiceAccordion({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {visible.map((slot) => {
         const state = pending[slot.serviceId];
-        // Done either because this session marked it so, or the server already
-        // has it (see isSlotDone above).
         const done = isSlotDone(slot);
-        // Ticked either because the user ticked it, or because data is already
-        // there (prefilled edit, a booking typed before this render, or it was
-        // completed outside this dialog entirely).
         const ticked = !!state?.selected || slotHasData(slot, pending, travel) || slot.serviceId === singleSlotId || done;
         const index = slots.indexOf(slot);
         const locked = !singleSlotId && isFixed && firstIncomplete !== -1 && index > firstIncomplete;
-        // Every locked slot down the chain is blocked by the SAME incomplete
-        // one — repeating "Complete X first" on each of them just duplicates
-        // the same sentence, so only the row right after it explains why.
+        // Only the row right after the blocker explains why — repeating it on
+        // every locked row after that would just duplicate the same sentence.
         const showLockedHint = locked && index === firstIncomplete + 1;
         const expanded = open === slot.serviceId;
         const isAddingNew = expanded && addingNew;
-        // A completed slot can still be opened — worth seeing what was already
-        // recorded — but not edited here: this accordion writes to `pending`,
-        // which for an already-done slot may hold nothing (a sibling booking
-        // never touched in this dialog) or a stale copy of what's on the
-        // server, so re-editing it here isn't safe. `singleSlotId` is the one
-        // exception: the caller opened this dialog specifically to EDIT that
-        // one entry, done or not. Reopening via "Add another" also drops out of
-        // this permanent read-only view, for as long as it stays expanded.
-        const viewOnly = done && !singleSlotId && !isAddingNew;
+        // Read-only once done — `pending` may be stale/empty for a slot done
+        // outside this dialog. `singleSlotId` and an open "Add another" both
+        // opt out; `lockOnDone=false` callers skip the lock entirely.
+        const viewOnly = lockOnDone && done && !singleSlotId && !isAddingNew;
 
-        // Every entry recorded for this slot, oldest first: the server's own
-        // (from a previous session), then anything folded into `extra` this
-        // session, then whatever's currently confirmed but not yet folded in.
-        // Shown together and never hidden by opening "Add another" — that form
-        // only ever adds one more group below these, it doesn't replace them.
+        // Every recorded entry — server's, this session's `extra`, and the
+        // current one if confirmed — shown together, never hidden by opening
+        // "Add another". Skipped for `lockOnDone=false`: there's only ever one
+        // entry there, already visible in the live form below.
         const key = slot.isSystem ? TRAVEL_SECTION[slot.code] : null;
-        const groups = [
+        const groups = !lockOnDone ? [] : [
           ...(slot.entries || []).map((e) => Object.entries(e.values || {})
             .filter(([, v]) => v != null && String(v).trim() !== '')),
           ...(state?.extra || []).map((snap) => (slot.isSystem
@@ -378,13 +331,7 @@ export default function ServiceAccordion({
               <div
                 onClick={() => {
                   if (locked) return;
-                  // Opening an untouched service is also choosing it — otherwise
-                  // you could fill in a form that nothing saves. A completed one
-                  // just opens straight to its (read-only) details.
                   if (!viewOnly && !ticked) { toggle(slot, true); return; }
-                  // Collapsing an unfinished "Add another" draft this way — not
-                  // via Done or the delete icon — discards it (openRow catches
-                  // this whenever `open` changes away from an `addingNew` row).
                   openRow(expanded ? null : slot.serviceId);
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, flex: 1, minWidth: 0 }}
@@ -402,9 +349,6 @@ export default function ServiceAccordion({
                         ? (isAr ? 'قيد الإدخال' : 'In progress')
                         : (isAr ? 'غير مُضاف' : 'Not added')}
                 </span>
-                {/* Icon-only, right on the collapsed row — a guest can hold this
-                    service more than once (a second flight, another night's
-                    stay…), and that shouldn't require opening the row first. */}
                 {done && !locked && !singleSlotId && allowAddAnother && (
                   <button
                     type="button"
@@ -437,9 +381,6 @@ export default function ServiceAccordion({
 
             {expanded && !locked && (
               <div style={{ padding: 12, borderTop: '1px solid var(--glass-border)' }}>
-                {/* Every entry recorded so far — server's, and this session's
-                    confirmed ones — stays visible whether the row is purely
-                    read-only or a fresh "Add another" form is open below it. */}
                 {groups.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: viewOnly ? 0 : 14 }}>
                     {groups.map((facts, gi) => (
@@ -511,10 +452,6 @@ export default function ServiceAccordion({
                     )}
 
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                      {/* "Add another" mode gets a delete icon that clears just this
-                          draft and closes — the "Remove" text button below it would
-                          instead wipe the whole slot, including entries already
-                          folded into `extra`. */}
                       {isAddingNew ? (
                         <button
                           type="button"
