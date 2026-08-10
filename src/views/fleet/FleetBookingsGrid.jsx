@@ -1,6 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Icon } from '../../components/Icons';
-import { fmtTime } from '../../lib/date';
+import { StatusChip } from '../../components/UI';
+import GuestCell from '../../components/GuestCell';
+import Modal from '../../components/ui/Modal';
+import { fmtTime, fmtDate } from '../../lib/date';
+
+// Same TripStatus codes as FleetBookingsView's table (Core/Constants/TransportStatuses.cs).
+const STATUS_LABEL = {
+  new: { en: 'New', ar: 'جديد' },
+  pending: { en: 'Pending', ar: 'قيد الانتظار' },
+  assigned: { en: 'Assigned', ar: 'مُعيَّن' },
+  'in-progress': { en: 'En Route', ar: 'في الطريق' },
+  arrived: { en: 'At Pickup', ar: 'وصل للاستلام' },
+  'in-transit': { en: 'In Transit', ar: 'في الرحلة' },
+  completed: { en: 'Completed', ar: 'مكتمل' },
+};
 
 // Fleet › Bookings, as a driver × hour board for ONE day: one row per driver, one
 // column per hour of the clock, every hour a booking occupies painted in that
@@ -80,12 +94,12 @@ const tintOf = (b) => STATUS_TINT[(b.status || '').toLowerCase()] || 'var(--glas
 // `index`/`count` split the cell vertically when two rides overlap in the same
 // hour — a real double-booking, which has to stay visible rather than hide one
 // behind the other.
-function Slot({ b, from, to, start, isAr, index = 0, count = 1 }) {
+function Slot({ b, from, to, start, isAr, index = 0, count = 1, onOpen }) {
   const tint = tintOf(b);
   const share = (to - from) / 60;
   return (
     <div
-      // Everything the slot has no room for.
+      // Everything the slot has no room for — click opens the full detail.
       title={[
         b.vehicleModel,
         b.driverName || (isAr ? 'لم يُعيَّن' : 'Unassigned'),
@@ -95,6 +109,7 @@ function Slot({ b, from, to, start, isAr, index = 0, count = 1 }) {
         `${fmtTime(b.pickupTime)} → ${fmtTime(b.dropoffTime)}`,
         [b.pickup, b.dropoff].filter(Boolean).join(' → '),
       ].filter(Boolean).join(' · ')}
+      onClick={() => onOpen?.(b)}
       style={{
         position: 'absolute',
         insetInlineStart: `${(from / 60) * 100}%`,
@@ -103,6 +118,7 @@ function Slot({ b, from, to, start, isAr, index = 0, count = 1 }) {
         height: `calc(${100 / count}% - 4px)`,
         borderRadius: 5, padding: '2px 3px', boxSizing: 'border-box',
         display: 'grid', placeItems: 'center', overflow: 'hidden',
+        cursor: 'pointer',
         background: `color-mix(in srgb, ${tint} 26%, transparent)`,
         borderInlineStart: start ? `3px solid ${tint}` : undefined,
       }}
@@ -122,7 +138,50 @@ function Slot({ b, from, to, start, isAr, index = 0, count = 1 }) {
   );
 }
 
+function DetailRow({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--ink)' }}>{value || '—'}</div>
+    </div>
+  );
+}
+
+function BookingDetailModal({ booking, onClose, isAr }) {
+  if (!booking) return null;
+  const code = (booking.status || '').toLowerCase();
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={isAr ? 'تفاصيل الحجز' : 'Booking details'}
+      width={460}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 10 }}>
+        <GuestCell name={booking.guestName} email={booking.guestEmail} photoUrl={booking.guestPhotoUrl} size={36} />
+        <StatusChip status={code} label={STATUS_LABEL[code]?.[isAr ? 'ar' : 'en'] || booking.status || '—'} />
+      </div>
+
+      <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', fontFamily: 'var(--mono)', marginBottom: 16 }}>
+        {fmtDate(booking.pickupTime)} · {fmtTime(booking.pickupTime)} → {fmtTime(booking.dropoffTime)}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 16px' }}>
+        <DetailRow label={isAr ? 'المركبة' : 'Vehicle'} value={[booking.vehicleModel, booking.vehicleNumber].filter(Boolean).join(' · ')} />
+        <DetailRow label={isAr ? 'المزوّد' : 'Provider'} value={booking.fleetProviderName} />
+        <DetailRow label={isAr ? 'السائق' : 'Driver'} value={booking.driverName || (isAr ? 'لم يُعيَّن' : 'Unassigned')} />
+        <DetailRow label={isAr ? 'هاتف السائق' : 'Driver phone'} value={booking.driverPhone} />
+        <DetailRow label={isAr ? 'الاستلام' : 'Pickup'} value={booking.pickup} />
+        <DetailRow label={isAr ? 'التوصيل' : 'Dropoff'} value={booking.dropoff} />
+      </div>
+    </Modal>
+  );
+}
+
 export default function FleetBookingsGrid({ rows, loading, isAr = false }) {
+  const [selected, setSelected] = useState(null);
   // Timed bookings only. A booking with no pickup time has no cell to sit in —
   // counted and reported rather than dropped silently.
   const { drivers, undated } = useMemo(() => {
@@ -232,7 +291,7 @@ export default function FleetBookingsGrid({ rows, loading, isAr = false }) {
                     <td key={h} style={slotCell}>
                       {items.map(({ b, from, to, start }, i) => (
                         <Slot key={b.id} b={b} from={from} to={to} start={start}
-                          index={i} count={items.length} isAr={isAr} />
+                          index={i} count={items.length} isAr={isAr} onOpen={setSelected} />
                       ))}
                     </td>
                   );
@@ -269,6 +328,8 @@ export default function FleetBookingsGrid({ rows, loading, isAr = false }) {
           </span>
         )}
       </div>
+
+      <BookingDetailModal booking={selected} onClose={() => setSelected(null)} isAr={isAr} />
     </div>
   );
 }
