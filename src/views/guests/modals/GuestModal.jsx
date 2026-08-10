@@ -1713,6 +1713,9 @@ export default function GuestModal({
                       eventEnd={eventEndDate}
                       dateMinDate={dateWindowMin}
                       dateMaxDate={dateWindowMax}
+                      // Only New Booking offers a second entry of the same
+                      // service — this wizard step stays single-entry-only.
+                      allowAddAnother={false}
                     />
                   </>
                 )}

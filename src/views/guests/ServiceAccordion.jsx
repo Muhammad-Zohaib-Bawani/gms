@@ -174,6 +174,10 @@ export default function ServiceAccordion({
   // Editing one existing entry: that slot is the only one shown, already on, and
   // can't be unticked — there is nothing to choose.
   singleSlotId = null,
+  // A guest can hold the same service more than once, but only New Booking is
+  // meant to be where that happens — the Guests page's Add/Edit Guest modal
+  // stays exactly the single-entry-per-service flow it always was.
+  allowAddAnother = true,
 }) {
   const isAr = lang === 'ar';
   const [open, setOpen] = useState(singleSlotId);
@@ -401,7 +405,7 @@ export default function ServiceAccordion({
                 {/* Icon-only, right on the collapsed row — a guest can hold this
                     service more than once (a second flight, another night's
                     stay…), and that shouldn't require opening the row first. */}
-                {done && !locked && !singleSlotId && (
+                {done && !locked && !singleSlotId && allowAddAnother && (
                   <button
                     type="button"
                     className="icon-btn"

@@ -2620,11 +2620,11 @@ export default function TravelView({ lang, activeEventId }) {
                   </div>
                 ) : (
                   <>
-                    <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
+                    {/* <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
                       {isAr
                         ? `ضع علامة على ما تريد إضافته — حسب مستوى "${bookPlan.serviceLevelName}"`
                         : `Tick whatever you want to add - from "${bookPlan.serviceLevelName}"`}
-                    </div>
+                    </div> */}
                     {/* Fixed events complete services in order. The travel endpoints
                         don't enforce that (only the service-entry API does), so this
                         is a warning rather than a lock. */}
