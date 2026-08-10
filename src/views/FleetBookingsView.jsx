@@ -4,7 +4,7 @@ import { StatusChip } from '../components/UI';
 import Select from '../components/ui/Select';
 import DataTable from '../components/ui/DataTable';
 import DateField from '../components/ui/DateField';
-import { addDaysIso, fmtDate, fmtTime } from '../lib/date';
+import { addDaysIso, fmtDate, fmtTime, toIsoDate } from '../lib/date';
 import { getVehicles, getVehicleBookings } from '../api/services/vehicleService';
 import { getDrivers } from '../api/services/travelService';
 import { vehicleLabel, driverLabel } from './guests/modals/TravelAccordion';
@@ -51,6 +51,16 @@ export default function FleetBookingsView({ lang, activeEventId }) {
   const [driverId, setDriverId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  // The grid is one day wide (driver × hour), so it filters by a single date
+  // instead of a range, and opens on today.
+  const [day, setDay] = useState(() => toIsoDate(new Date()));
+
+  const isGrid = view === 'grid';
+  // The server's upper bound is exclusive, so shift it a day to make the date the
+  // user picked an inclusive one.
+  const range = isGrid
+    ? { from: day || undefined, to: day ? addDaysIso(day, 1) : undefined }
+    : { from: from || undefined, to: to ? addDaysIso(to, 1) : undefined };
 
   const load = useCallback(async () => {
     if (!activeEventId) { setRows([]); setLoading(false); return; }
@@ -58,16 +68,14 @@ export default function FleetBookingsView({ lang, activeEventId }) {
     try {
       setRows((await getVehicleBookings({
         eventId: activeEventId,
-        from: from || undefined,
-        // The server's upper bound is exclusive, so shift it a day to make the
-        // date the user picked an inclusive one.
-        to: to ? addDaysIso(to, 1) : undefined,
+        from: range.from,
+        to: range.to,
         vehicleId: vehicleId || undefined,
         driverId: driverId || undefined,
       })) || []);
     } catch { setRows([]); }
     finally { setLoading(false); }
-  }, [activeEventId, from, to, vehicleId, driverId]);
+  }, [activeEventId, range.from, range.to, vehicleId, driverId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -170,16 +178,28 @@ export default function FleetBookingsView({ lang, activeEventId }) {
           placeholder={isAr ? 'الكل' : 'All'} isClearable
         />
       </div>
-      <div style={{ width: 150 }}>
-        <label style={labelStyle}>{isAr ? 'من' : 'From'}</label>
-        <DateField value={from} onChange={(v) => setFrom(v || '')} maxDate={to || undefined} placeholder="DD-MM-YYYY" />
-      </div>
-      <div style={{ width: 150 }}>
-        <label style={labelStyle}>{isAr ? 'إلى' : 'To'}</label>
-        <DateField value={to} onChange={(v) => setTo(v || '')} minDate={from || undefined} placeholder="DD-MM-YYYY" />
-      </div>
-      {(vehicleId || driverId || from || to) && (
-        <button className="btn" onClick={() => { setVehicleId(''); setDriverId(''); setFrom(''); setTo(''); }}>
+      {isGrid ? (
+        <div style={{ width: 150 }}>
+          <label style={labelStyle}>{isAr ? 'التاريخ' : 'Date'}</label>
+          <DateField value={day} onChange={(v) => setDay(v || '')} placeholder="DD-MM-YYYY" />
+        </div>
+      ) : (
+        <>
+          <div style={{ width: 150 }}>
+            <label style={labelStyle}>{isAr ? 'من' : 'From'}</label>
+            <DateField value={from} onChange={(v) => setFrom(v || '')} maxDate={to || undefined} placeholder="DD-MM-YYYY" />
+          </div>
+          <div style={{ width: 150 }}>
+            <label style={labelStyle}>{isAr ? 'إلى' : 'To'}</label>
+            <DateField value={to} onChange={(v) => setTo(v || '')} minDate={from || undefined} placeholder="DD-MM-YYYY" />
+          </div>
+        </>
+      )}
+      {(vehicleId || driverId || (isGrid ? false : from || to)) && (
+        <button className="btn" onClick={() => {
+          setVehicleId(''); setDriverId('');
+          if (!isGrid) { setFrom(''); setTo(''); }
+        }}>
           {isAr ? 'مسح' : 'Clear'}
         </button>
       )}
