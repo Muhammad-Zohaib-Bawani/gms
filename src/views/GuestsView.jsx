@@ -81,6 +81,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
 
   // ── modal open states ─────────────────────────────────────────────────────
   const [showAddGuest, setShowAddGuest] = useState(false);
+  // Which of the three ways to add a guest was picked from the Add Guest
+  // dropdown. Chosen BEFORE the modal opens, which is why the modal no longer
+  // carries a tab strip — see GuestModal.
+  const [addGuestMode, setAddGuestMode] = useState('new');
   const [editGuest, setEditGuest] = useState(null);
   const [editGuestStep, setEditGuestStep] = useState(1);
   const [showMessage, setShowMessage] = useState(false);
@@ -96,6 +100,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     if (!batchId) return;
     ensureGuestFormData();
     setImportBatchId(batchId);
+    setAddGuestMode('import');
     setShowAddGuest(true);
     const next = new URLSearchParams(searchParams);
     next.delete('importBatch');
@@ -480,13 +485,47 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           <button className="btn" onClick={handleExport}>
             <Icon name="download" size={14} /> {isAr ? "تصدير" : "Export"}
           </button>
-          <button
-            className="btn primary"
-            onClick={() => { ensureGuestFormData(); setShowAddGuest(true); }}
+          {/* Three ways in, chosen here rather than as tabs inside the dialog —
+              so each one opens straight into a single-purpose modal. */}
+          <ActionMenu
+            align="end"
+            menuWidth={286}
             disabled={!activeEventId}
-          >
-            <Icon name="plus" size={14} /> {isAr ? "ضيف جديد" : "Add Guest"}
-          </button>
+            trigger={({ open, toggle, ref }) => (
+              <button
+                ref={ref}
+                type="button"
+                className="btn primary"
+                onClick={toggle}
+                disabled={!activeEventId}
+                aria-haspopup="menu"
+                aria-expanded={open}
+              >
+                <Icon name="plus" size={14} /> {isAr ? "ضيف جديد" : "Add Guest"}
+                <Icon name="chevronDown" size={13} style={{ marginInlineStart: 2 }} />
+              </button>
+            )}
+            items={[
+              {
+                label: isAr ? "ضيف جديد" : "New Guest",
+                hint: isAr ? "إدخال ضيف واحد خطوة بخطوة" : "Enter one guest step by step",
+                icon: "plus",
+                onClick: () => { ensureGuestFormData(); setAddGuestMode("new"); setShowAddGuest(true); },
+              },
+              {
+                label: isAr ? "ضيف حالي" : "Existing Guest",
+                hint: isAr ? "انسخ ضيوفاً من فعالية أخرى" : "Copy guests from another event",
+                icon: "guests",
+                onClick: () => { ensureGuestFormData(); setAddGuestMode("existing"); setShowAddGuest(true); },
+              },
+              {
+                label: isAr ? "استيراد من CSV" : "Import from CSV",
+                hint: isAr ? "أضف عدة ضيوف من ملف" : "Add many guests from a file",
+                icon: "upload",
+                onClick: () => { ensureGuestFormData(); setAddGuestMode("import"); setShowAddGuest(true); },
+              },
+            ]}
+          />
         </div>
       </div>
 
@@ -695,7 +734,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           sessions={sessions}
           lang={lang}
           onSaved={() => { loadGuests(); loadServiceLevels(); }}
-          initialMode={importBatchId ? "import" : "new"}
+          initialMode={importBatchId ? "import" : addGuestMode}
           initialImportBatchId={importBatchId}
         />
       )}

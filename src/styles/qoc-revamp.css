@@ -1618,15 +1618,14 @@ textarea {
      NOT `overflow: hidden` on .event-switcher — it is the positioning context
      for .event-menu, so clipping it makes the whole dropdown invisible. The
      truncation belongs on the trigger's label instead. */
-  .topbar .right { gap: 6px; min-width: 0; }
-  .topbar .right > .event-switcher { min-width: 0; flex: 0 1 auto; }
+  .topbar .right { gap: 6px; min-width: 0; flex-shrink: 0; }
+  .topbar-lead { min-width: 0; }
   .event-trigger { overflow: hidden; }
   .event-trigger .event-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .topbar-titles { display: none; }
 
   /* The menu is a fixed 320px anchored to the trigger's left edge, which starts
      ~68px in — that overflowed the viewport. Pin it to the screen instead. */
@@ -1804,4 +1803,50 @@ textarea {
     width: 12.5%;
     margin: 1px 0;
   }
+}
+
+/* ==========================================================================
+   CHART SERIES PALETTE (categorical)
+   Seven fixed slots, assigned in order and never cycled. Defined as tokens so
+   the light/dark values swap in one place and charts reference roles, not hex.
+
+   Both columns are SELECTED, not an automatic flip: the brand maroon #8d0134
+   is too dark to sit in the categorical lightness band and fails contrast on
+   the dark maroon surface, so slot 1 is a brand-adjacent rose stepped for each
+   surface. Every slot was validated per mode (lightness band, chroma floor,
+   CVD separation, normal-vision floor, contrast vs surface).
+
+   Slot 4 (green) vs slot 3 (amber) sit in the 6–8 CVD band, which is only
+   acceptable alongside secondary encoding — every consumer here direct-labels
+   its marks (donut legend, breakdown row labels, funnel axis categories), so
+   identity never rests on hue alone. Keep that true if you add a consumer.
+   ========================================================================== */
+:root,
+html[data-theme="light"] {
+  --series-1: #c24d62;  /* maroon (brand-adjacent) */
+  --series-2: #3c79d1;  /* blue   */
+  --series-3: #9d7206;  /* amber  */
+  --series-4: #0b9256;  /* green  */
+  --series-5: #7e66ca;  /* violet */
+  --series-6: #c15627;  /* coral  */
+  --series-7: #a457ac;  /* plum   */
+}
+html[data-theme="dark"] {
+  --series-1: #d05a6e;
+  --series-2: #4885df;
+  --series-3: #ac7d08;
+  --series-4: #02a05e;
+  --series-5: #8972d8;
+  --series-6: #ce6234;
+  --series-7: #b163b9;
+}
+
+/* The event switcher now leads the topbar (it replaced the page title +
+   breadcrumb row). `margin-inline-end: auto` is what used to live on
+   .topbar-titles — it pushes the right-hand cluster to the far edge. */
+.topbar-lead {
+  min-width: 0;
+  margin-inline-end: auto;
+  display: flex;
+  align-items: center;
 }

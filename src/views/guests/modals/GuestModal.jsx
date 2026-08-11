@@ -857,56 +857,12 @@ export default function GuestModal({
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
         >
-          {/* Mode switcher. Was a row of browser-style folder tabs absolutely
-              positioned at top:-38, i.e. floating outside the dialog over the
-              backdrop — which read as detached, and got worse once the dialog
-              became translucent. A segmented control inside the dialog keeps it
-              attached to the thing it controls. Add Guest only; never on edit. */}
-          {!isEdit && (
-            <div className="seg-wrap">
-              <div
-                className="seg"
-                role="tablist"
-                aria-label={isAr ? "طريقة الإضافة" : "How to add"}
-              >
-                {[
-                  {
-                    key: "new",
-                    label: isAr ? "ضيف جديد" : "New Guest",
-                    icon: "plus",
-                  },
-                  {
-                    key: "import",
-                    label: isAr ? "استيراد ضيوف" : "Import Guest",
-                    icon: "upload",
-                  },
-                  {
-                    key: "existing",
-                    label: isAr ? "ضيف حالي" : "Existing Guest",
-                    icon: "guests",
-                  },
-                ].map((tab) => {
-                  const active = mode === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      className={`seg-btn${active ? " active" : ""}`}
-                      onClick={() => {
-                        setMode(tab.key);
-                        setStep(1);
-                      }}
-                    >
-                      <Icon name={tab.icon} size={13} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* No mode switcher here any more. The three ways to add a guest are
+              picked from the "Add Guest" dropdown on the Guests page, so by the
+              time this dialog opens the choice is already made — a tab strip
+              restating it just crowded the top of all three. `mode` still drives
+              which body renders; it now comes in via initialMode and doesn't
+              change while the dialog is open. */}
 
           {/* Header */}
           <div
@@ -928,13 +884,24 @@ export default function GuestModal({
               <Dialog.Title
                 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600 }}
               >
+                {/* Names the specific flow, not just "Add Guest" — with the mode
+                    tabs gone this title is the only thing telling the user which
+                    of the three they picked. */}
                 {isEdit
                   ? isAr
                     ? "تعديل الضيف"
                     : "Edit Guest"
-                  : isAr
-                    ? "ضيف جديد"
-                    : "Add New Guest"}
+                  : mode === "existing"
+                    ? isAr
+                      ? "إضافة ضيف حالي"
+                      : "Add Existing Guest"
+                    : mode === "import"
+                      ? isAr
+                        ? "استيراد ضيوف من CSV"
+                        : "Import Guests from CSV"
+                      : isAr
+                        ? "ضيف جديد"
+                        : "Add New Guest"}
                 {isEdit && (
                   <span
                     style={{

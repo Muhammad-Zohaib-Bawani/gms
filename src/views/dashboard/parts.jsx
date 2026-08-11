@@ -71,9 +71,16 @@ function PanelTabs({ tabs, active, onChange }) {
   );
 }
 
-// Ordered so adjacent slices stay distinguishable; maroon leads because the
-// first series is almost always the primary one.
-export const CHART_COLORS = ['#8d0134', '#DFB764', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
+// The categorical series slots, assigned in order and never cycled. Values live
+// in styles/qoc-revamp.css as --series-1..7 so each theme gets its own validated
+// step rather than one hex list forced onto both surfaces — the old array was a
+// single set of literals and repeated itself (#5ABF6E/#5abf6e and
+// #DFB764/#e0b864 were the same two colours twice), so a 5-slice chart drew two
+// pairs of identical wedges.
+export const CHART_COLORS = [
+  'var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)',
+  'var(--series-5)', 'var(--series-6)', 'var(--series-7)',
+];
 
 /** Themed recharts tooltip — the library default is a white box that breaks in dark mode. */
 export function ChartTooltip({ active, payload, label }) {
@@ -99,22 +106,27 @@ export function ChartTooltip({ active, payload, label }) {
 
 /**
  * A donut with the headline total in the middle and a value/percentage legend
- * beneath. `data` is [{name, value, color}]; zero-value slices are dropped by
- * the caller so the ring never renders invisible segments. Split from the
- * `<Card>` chrome (see DonutTabsPanel) so two datasets can share one card
- * behind a tab switch instead of each getting its own.
+ * beneath. `data` is [{name, value, color}]. Split from the `<Card>` chrome
+ * (see DonutTabsPanel) so two datasets can share one card behind a tab switch
+ * instead of each getting its own.
+ *
+ * Zero-value entries are dropped from the RING only — an invisible segment is
+ * meaningless — but kept in the LEGEND, so a category the user is looking for
+ * (e.g. Declined) reads "0" rather than vanishing and leaving them unsure
+ * whether it's absent or simply unsupported.
  */
 function DonutVisual({ icon, data, centerValue, centerLabel, emptyTitle, emptyHint, fmtN, ad }) {
   const total = data.reduce((s, d) => s + d.value, 0);
-  if (data.length === 0) return <EmptyState icon={icon} title={emptyTitle}>{emptyHint}</EmptyState>;
+  const ringData = data.filter((d) => d.value > 0);
+  if (total === 0) return <EmptyState icon={icon} title={emptyTitle}>{emptyHint}</EmptyState>;
   return (
     <>
       <div style={{ height: 120, position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name"
+            <Pie data={ringData} dataKey="value" nameKey="name"
               innerRadius={38} outerRadius={58} paddingAngle={2} stroke="none">
-              {data.map((d, i) => <Cell key={i} fill={d.color || CHART_COLORS[i % CHART_COLORS.length]} />)}
+              {ringData.map((d, i) => <Cell key={i} fill={d.color || CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
             <Tooltip content={<ChartTooltip />} />
           </PieChart>
@@ -328,7 +340,10 @@ export function FunnelPanel({ title, subtitle, data, seriesName }) {
               tick={{ fill: 'var(--ink-dim)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip content={<ChartTooltip />} cursor={{ fill: 'var(--hover-tint)' }} />
             <Bar dataKey="value" name={seriesName} radius={[0, 6, 6, 0]} maxBarSize={18}>
-              {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+              {/* `d.color` lets a stage opt out of the progress palette — Rejected
+                  is a drop-off, not a step forward, so it reads red. Same
+                  convention as DonutVisual. */}
+              {data.map((d, i) => <Cell key={i} fill={d.color || CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -374,10 +389,15 @@ export function AgendaPanel({ title, icon, items, emptyText, action, quickAction
                 minWidth: 40, direction: 'ltr', paddingTop: 1,
               }}>{it.time}</span>
             )}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 550 }}>{it.title}</div>
               {it.detail && <div style={{ fontSize: 10.5, color: 'var(--ink-mute)' }}>{it.detail}</div>}
             </div>
+            {/* Optional right-aligned metric (e.g. guests in this session). The
+                `flex: 1` above is what pushes it to the far edge. */}
+            {it.trailing != null && (
+              <div style={{ flexShrink: 0, paddingTop: 1 }}>{it.trailing}</div>
+            )}
           </div>
         ))}
       </div>
@@ -424,10 +444,15 @@ export function AgendaTabsPanel({ title, icon, tabs, active, onChange, quickActi
                 minWidth: 40, direction: 'ltr', paddingTop: 1,
               }}>{it.time}</span>
             )}
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 12, fontWeight: 550 }}>{it.title}</div>
               {it.detail && <div style={{ fontSize: 10.5, color: 'var(--ink-mute)' }}>{it.detail}</div>}
             </div>
+            {/* Optional right-aligned metric (e.g. guests in this session). The
+                `flex: 1` above is what pushes it to the far edge. */}
+            {it.trailing != null && (
+              <div style={{ flexShrink: 0, paddingTop: 1 }}>{it.trailing}</div>
+            )}
           </div>
         ))}
       </div>
