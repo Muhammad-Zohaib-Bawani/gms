@@ -465,10 +465,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 <Icon name="message" size={14} />{" "}
                 {t.common?.message || "Message"} ({fmtN(selCount)})
               </button>
-              <button className="btn" onClick={() => setShowAccred(true)}>
-                <Icon name="badge" size={14} />{" "}
-                {t.common?.issueAccreditation || "Issue Accreditation"}
-              </button>
               <button
                 className="btn"
                 style={{ color: "#e05050", borderColor: "rgba(224,80,80,0.4)" }}
@@ -726,16 +722,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       <MessageModal
         open={showMessage}
         onClose={() => setShowMessage(false)}
-        count={selCount}
+        guests={selectedGuests}
         lang={lang}
-        onSent={() => {
-          clearSelection();
-          toast.success(
-            isAr
-              ? `تم إرسال الرسالة إلى ${fmtN(selCount)} ضيف`
-              : `Message sent to ${selCount} guest${selCount > 1 ? "s" : ""}`,
-          );
-        }}
+        // The modal itself reports success/partial-failure — this just clears
+        // the selection once at least one send went through.
+        onSent={({ sent }) => { if (sent > 0) clearSelection(); }}
       />
 
       <AccreditationModal

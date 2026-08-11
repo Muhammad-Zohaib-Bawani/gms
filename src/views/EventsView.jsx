@@ -447,6 +447,8 @@ function SessionForm({ session, evId, event, onSave, onCancel, isAr, STR, venues
         <label style={lStyle}>{STR.sSpeaker}</label>
         <input style={iStyle} value={form.speaker} onChange={e => setForm(f => ({ ...f, speaker: e.target.value }))}/>
       </div>
+      <LogoInput label={STR.sImage }
+        value={form.image || ""} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button className="btn" onClick={onCancel}>{STR.cancel}</button>
         <button className="btn primary" onClick={trySave} disabled={!form.title}>
@@ -551,7 +553,7 @@ export default function EventsView({ lang }) {
   });
 
   const [newEvent, setNewEvent] = useState({ title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" });
-  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 });
+  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200, image: "" });
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
 
@@ -563,7 +565,7 @@ export default function EventsView({ lang }) {
   function showMsg(msg) { toast.success(msg); }
 
   const blankEvent = { title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" };
-  const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 };
+  const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200, image: "" };
 
   async function saveNewEvent(ev) {
     if (!ev.title) return;
@@ -690,7 +692,7 @@ export default function EventsView({ lang }) {
     gmFixedHint: "يُصنَّف كل ضيف على مستوى خدمة يحدّد خدماته وقواعده (السعة والحقول المطلوبة).",
     gmFlexibleHint: "بدون مستويات خدمة أو قيود — التصنيف نص حر كما في السابق.",
     gmLockedHint: "يمكن تغيير النموذج لاحقاً. التبديل إلى «مرن» يوقف تطبيق القواعد لكنه لا يحذف تصنيفات الضيوف.",
-    sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة",
+    sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة", sImage: "صورة الجلسة",
     status: { active: "نشط", planning: "تخطيط", completed: "مكتمل", cancelled: "ملغى" },
     tabs: { all: "الكل", ongoing: "جارٍ", upcoming: "قادم", past: "منتهٍ" },
     searchPh: "بحث في الفعاليات…",
@@ -709,7 +711,7 @@ export default function EventsView({ lang }) {
     gmFixedHint: "Every guest sits on a service level that defines their services and rules (capacity, required fields).",
     gmFlexibleHint: "No service levels and no restrictions — the tier is a free form.",
     gmLockedHint: "You can change this later. Switching to Flexible stops enforcing the rules but never deletes existing level assignments.",
-    sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity",
+    sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity", sImage: "Session image",
     status: { active: "Active", planning: "Planning", completed: "Completed", cancelled: "Cancelled" },
     tabs: { all: "All", ongoing: "Ongoing", upcoming: "Upcoming", past: "Past" },
     searchPh: "Search events…",
@@ -902,6 +904,13 @@ export default function EventsView({ lang }) {
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          {s.image ? (
+                            <img src={s.image} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}/>
+                          ) : (
+                            <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, background: "var(--surface-soft-3)", display: "grid", placeItems: "center" }}>
+                              <Icon name="calendar" size={15} style={{ color: "var(--ink-faint)" }}/>
+                            </div>
+                          )}
                           <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--accent)", direction: "ltr", width: 36, flexShrink: 0 }}>{s.time}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 500 }}>{s.title}</div>

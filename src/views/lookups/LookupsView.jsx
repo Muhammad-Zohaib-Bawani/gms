@@ -63,6 +63,29 @@ function ImageField({ value, onChange, isAr }) {
   );
 }
 
+// A lookup row's `type: 'image'` column: the real image, or a dummy
+// placeholder box (not a bare "—") when it has none set, or its url 404s.
+function ImageCell({ src, isAr }) {
+  const [broken, setBroken] = useState(false);
+  const showPlaceholder = !src || broken;
+
+  return showPlaceholder ? (
+    <div
+      title={isAr ? 'لا توجد صورة' : 'No image'}
+      style={{
+        width: 44, height: 32, borderRadius: 5, flexShrink: 0,
+        background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+        display: 'grid', placeItems: 'center',
+      }}
+    >
+      <Icon name="image" size={14} style={{ color: 'var(--ink-faint)' }}/>
+    </div>
+  ) : (
+    <img src={src} alt="" style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 5 }}
+      onError={() => setBroken(true)}/>
+  );
+}
+
 // Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
 export default function LookupsView({ lookupKey, lang }) {
   const isAr = lang === 'ar';
@@ -129,10 +152,7 @@ export default function LookupsView({ lookupKey, lang }) {
       header: isAr ? c.label.ar : c.label.en,
       accessorFn: (r) => r[c.key],
       cell: ({ getValue }) => (c.type === 'image'
-        ? (getValue()
-            ? <img src={getValue()} alt="" style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 5 }}
-                onError={e => { e.target.style.display = 'none'; }}/>
-            : <span style={{ fontSize: 13 }}>—</span>)
+        ? <ImageCell src={getValue()} isAr={isAr} />
         : <span style={{ fontSize: 13 }}>{getValue() || '—'}</span>),
     }));
     if (canEdit) {

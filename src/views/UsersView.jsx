@@ -81,11 +81,11 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
           Delete user?
         </div>
         <div style={{ fontSize: 13, color: 'var(--ink-mute)', lineHeight: 1.6, marginBottom: 22 }}>
-          This will permanently delete{' '}
+This will permanently delete{' '}
           <strong style={{ color: 'var(--ink)' }}>
             {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
           </strong>{' '}
-          ({user.email}). This action cannot be undone.
+          {user.email}. This action cannot be undone.
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn" onClick={onCancel} disabled={busy}
@@ -665,11 +665,11 @@ export default function UsersView() {
         onClick: () => handleResend(u),
       },
 
-      !u.isPending && canUpdate && {
-        label: 'Set password',
-        icon: 'shield',
-        onClick: () => setPasswordTarget(u),
-      },
+      // !u.isPending && canUpdate && {
+      //   label: 'Set password',
+      //   icon: 'shield',
+      //   onClick: () => setPasswordTarget(u),
+      // },
 
       canDelete && {
         label: isSelf

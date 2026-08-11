@@ -224,7 +224,7 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
 
   function handleExport() {
     const rows = recentGuests.map((g) =>
-      `"${g.name}","${g.organization || ''}","${g.tier || ''}","${g.invitationStatus || ''}"`);
+      `"${g.name}","${g.organization || ''}","${g.serviceLevelName || ''}","${g.invitationStatus || ''}"`);
     const csv = 'Guest,Organization,Service Level,Status\n' + rows.join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -395,9 +395,9 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
                         <tr key={g.id} style={{ cursor: onOpenGuest ? 'pointer' : undefined }}
                           onClick={() => onOpenGuest?.(g)}>
                           <td>
-                            <GuestCell name={g.name} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={26} />
+                            <GuestCell name={g.name} email={g.email} photoUrl={g.photoUrl} tier={g.serviceLevelName} size={26} />
                           </td>
-                          <td><ServiceLevelChip name={g.tier} lang={lang} /></td>
+                          <td><ServiceLevelChip name={g.serviceLevelName} lang={lang} /></td>
                           <td><StatusChip status={toChipStatus(g.invitationStatus)} lang={lang} /></td>
                         </tr>
                       ))}
@@ -437,9 +437,10 @@ export default function DashboardView({ onOpenGuest, gotoView, lang, activeEvent
             {/* Compact sessions glance — name first, date/time below — instead
                 of the full table that used to sit at the bottom of the page. */}
             <AgendaPanel
-              title={STR.sessionsTitle} icon="calendar" emptyText={STR.noSessions}
+              title={STR.sessionsTitle} icon="calendar" emptyText={STR.noSessions} withImages
               items={allSessions.map((s) => ({
                 id: s.id,
+                imageUrl: s.imageUrl,
                 title: s.title,
                 detail: [s.date ? fmtDate(s.date) : null, s.time || null].filter(Boolean).join(' · '),
               }))}

@@ -340,7 +340,7 @@ export function FunnelPanel({ title, subtitle, data, seriesName }) {
 /** A compact "time — title — detail" list, used for sessions and meetings.
  * `quickActions`, when given, adds a row of action buttons fixed under the
  * list (same box as the meetings list — not a separate card). */
-export function AgendaPanel({ title, icon, items, emptyText, action, quickActions }) {
+export function AgendaPanel({ title, icon, items, emptyText, action, quickActions, withImages = false }) {
   return (
     <Card padded={false}>
       <div style={{ padding: '16px 18px 0' }}>
@@ -354,6 +354,20 @@ export function AgendaPanel({ title, icon, items, emptyText, action, quickAction
             display: 'flex', gap: 10, padding: '6px 0', alignItems: 'flex-start',
             borderBottom: '1px solid var(--glass-border)',
           }}>
+            {withImages && (
+              it.imageUrl ? (
+                <img src={it.imageUrl} alt="" style={{
+                  width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0,
+                }}/>
+              ) : (
+                <div style={{
+                  width: 28, height: 28, borderRadius: 6, flexShrink: 0,
+                  background: 'var(--surface-soft-3)', display: 'grid', placeItems: 'center',
+                }}>
+                  <Icon name="image" size={13} style={{ color: 'var(--ink-faint)' }}/>
+                </div>
+              )
+            )}
             {it.time && (
               <span style={{
                 fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',

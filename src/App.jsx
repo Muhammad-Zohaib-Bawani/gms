@@ -40,7 +40,7 @@ const LOOKUP_CHILDREN = LOOKUP_DEFS.filter(d => d.key !== 'vehicle-types').map(d
 }));
 
 const NAV = [
-  { key: "dashboard",      icon: "dashboard",  label: { en: "Overview",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
+  { key: "dashboard",      icon: "dashboard",  label: { en: "Dashboard",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
   { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
   // Every service lives on this one page: the three built-in relational ones

@@ -14,6 +14,7 @@ export function toViewSession(s) {
     room: s.room || '',
     speaker: s.speaker || '',
     capacity: s.capacity ?? 0,
+    image: s.imageUrl || '',
   };
 }
 
@@ -76,5 +77,8 @@ export function toSessionRequest(s) {
     room: s.room || null,
     speaker: s.speaker || null,
     capacity: Number(s.capacity) || 0,
+    // SAS tokens are short-lived — persist the bare blob URL, same as the
+    // event's own image (BlobSasMiddleware re-signs it on read).
+    imageUrl: stripSasToken(s.image) || null,
   };
 }
