@@ -199,7 +199,9 @@ export default function UserAccessView() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* `split-pane` collapses this to one column below 768px — a fixed 280px
+          first column left the detail pane ~50px wide on a phone. */}
+      <div className="split-pane" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
 
         {/* ── Left: user list ── */}
         <div className="card" style={{ padding: 12 }}>

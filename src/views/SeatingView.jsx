@@ -465,7 +465,7 @@ export default function SeatingView({ lang, activeEventId }) {
 
       {assignModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass modal-solid" style={{ width:360, padding:0 }}>
+          <div className="card glass modal-solid" style={{ width:360, maxWidth:'92vw', padding:0 }}>
             <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
                 <div style={{ fontWeight:600, fontSize:14 }}>{assignModal.guestId ? STR.seatAssigned : STR.assignSeat}</div>

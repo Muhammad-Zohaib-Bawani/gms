@@ -213,18 +213,7 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
       {!error && tables !== null && (
         <div style={{ padding: '14px 22px', borderTop: '1px solid var(--glass-border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              {isAr ? 'زاوية العرض' : 'View angle'}
-            </span>
-            <input type="range" min={0} max={359} value={viewAngle} style={{ width: 200, accentColor: 'var(--accent)' }}
-              onChange={e => setViewAngle(+e.target.value)}/>
-            <input type="number" min={0} max={359} value={viewAngle}
-              style={{ width: 58, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', borderRadius: 8, padding: '5px 6px', color: 'var(--ink)', fontSize: 13, textAlign: 'center' }}
-              onChange={e => { const v = +e.target.value; if (!Number.isNaN(v)) setViewAngle(((v % 360) + 360) % 360); }}/>
-            <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>°</span>
-
-            <div style={{ width: 1, height: 20, background: 'var(--glass-border)' }}/>
-
+    
             {DIR_PRESETS.map(d => (
               <button key={d.deg} className="btn" style={{ fontSize: 11.5, padding: '4px 10px', ...(viewAngle === d.deg ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : {}) }}
                 onClick={() => setViewAngle(d.deg)}>

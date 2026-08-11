@@ -41,8 +41,11 @@ export default function VenueCanvas({
 
   return (
     <div className="card venue-canvas-panel" style={{ flex: 1, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* Zoom toolbar */}
-      <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface-soft-3)', flexShrink: 0 }}>
+      {/* Zoom toolbar — wraps, because it carries the zoom stepper AND the block
+          actions AND a hint; on a narrow canvas that is well over one line, and
+          the panel's `overflow: hidden` clipped the surplus rather than
+          revealing it. */}
+      <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap', background: 'var(--surface-soft-3)', flexShrink: 0 }}>
         <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 2 }}>{isAr ? 'التكبير' : 'Zoom'}</span>
         <button className="icon-btn" onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
           style={{ fontSize: 16, fontWeight: 300, lineHeight: '24px', width: 28, height: 28 }}>−</button>
@@ -53,7 +56,7 @@ export default function VenueCanvas({
           style={{ fontSize: 16, fontWeight: 300, lineHeight: '24px', width: 28, height: 28 }}>+</button>
         <button className="btn" style={{ fontSize: 11, padding: '3px 9px', marginLeft: 2 }} onClick={zoomReset}>{isAr ? 'إعادة' : 'Reset'}</button>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button className="btn" style={{ fontSize: 11, padding: '3px 9px' }} onClick={onAddBlockClick}>
             + {isAr ? 'إضافة قسم' : 'Add Block'}
           </button>
@@ -63,7 +66,9 @@ export default function VenueCanvas({
               {applyingDefault ? (isAr ? 'جارٍ التطبيق…' : 'Applying…') : (isAr ? 'تطبيق المخطط الافتراضي' : 'Set Default Layout')}
             </button>
           )}
-          <span style={{ fontSize: 10.5, color: 'var(--ink-faint)' }}>
+          {/* Pointer-only affordance — hidden on touch/phone widths, where there
+              is no Ctrl key and the space is needed. */}
+          <span className="venue-zoom-hint" style={{ fontSize: 10.5, color: 'var(--ink-faint)' }}>
             {isAr ? 'Ctrl+scroll للتكبير' : 'Ctrl+scroll to zoom'}
           </span>
         </div>

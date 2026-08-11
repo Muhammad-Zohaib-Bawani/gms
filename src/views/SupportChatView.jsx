@@ -547,9 +547,15 @@ export default function SupportChatView({ lang, activeEventId }) {
       {/* Fixed-height two-pane inbox — sizes off the viewport rather than
           growing with content, since a chat thread behaves like an app, not
           a scrolling document. */}
-      <div className="card" style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}>
+      {/* `has-thread` drives the mobile layout: below 768px only one pane is on
+          screen at a time — the list until a conversation is picked, then the
+          thread (with a back button in its header). See styles/qoc-revamp.css. */}
+      <div
+        className={`card chat-shell${threadGuest ? ' has-thread' : ''}`}
+        style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}
+      >
         {/* ── Left: two lazy-loaded lists behind a tab switch ── */}
-        <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
+        <div className="chat-list" style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
           {canManage && (
           <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
             {['chats', 'new'].map((tab) => (
@@ -746,7 +752,7 @@ export default function SupportChatView({ lang, activeEventId }) {
         </div>
 
         {/* ── Right: open thread ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+        <div className="chat-thread" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           {!threadGuest ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--ink-faint)' }}>
               <Icon name="message" size={40} style={{ opacity: 0.4 }} />
@@ -756,6 +762,16 @@ export default function SupportChatView({ lang, activeEventId }) {
             <>
               {/* Thread header */}
               <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
+                {/* Mobile only — the list is off-screen at this width, so the
+                    thread needs its own way back to it. */}
+                <button
+                  className="icon-btn chat-back-btn"
+                  title={isAr ? 'رجوع' : 'Back'}
+                  aria-label={isAr ? 'رجوع' : 'Back'}
+                  onClick={() => { setActiveConversation(null); setPendingGuest(null); }}
+                >
+                  <Icon name={isAr ? 'chevronRight' : 'arrowLeft'} size={16} />
+                </button>
                 <Avatar initials={initialsFromName(threadGuest.name)} size={36} src={threadGuest.photoUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{threadGuest.name || '—'}</div>

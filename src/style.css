@@ -1268,6 +1268,15 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
   letter-spacing: 0.2em; text-transform: uppercase;
   padding: 14px 12px 8px;
 }
+/* Now a <button> so the whole section can collapse — same look as the plain
+   label it replaces, plus a chevron and a hover/focus cue. */
+.nav-section-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; margin: 0;
+  font-family: inherit; cursor: pointer;
+}
+.nav-section-toggle:hover { color: var(--surface-soft); }
+.nav-section-toggle .nav-chevron { color: #fff; flex-shrink: 0; }
 .nav-item {
   display: flex; align-items: center; gap: 12px;
   padding: 9px 12px; border-radius: 10px;
@@ -1867,6 +1876,9 @@ html[dir="rtl"] .avatar { direction: ltr; }
   [dir="rtl"] .drawer { left: 0 !important; right: 0 !important; }
 
   /* Bottom navigation */
+  /* NOTE: .mobile-bottom-nav is no longer rendered (removed from App.jsx — the
+     hamburger drawer is the single mobile nav). Rules kept as dead CSS in case
+     it returns; nothing in the app emits this element today. */
   .mobile-bottom-nav {
     display: flex;
     position: fixed;

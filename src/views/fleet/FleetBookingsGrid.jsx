@@ -252,7 +252,7 @@ export default function FleetBookingsGrid({ rows, loading, isAr = false }) {
     <div>
       {/* The table scrolls, not the page — 24 hour columns would otherwise push
           the whole layout sideways. */}
-      <div style={{ overflowX: 'auto' }}>
+      <div className="grid-scroll" style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>

@@ -846,7 +846,9 @@ export default function GuestModal({
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
         <Dialog.Content
-          className="modal-solid"
+          // `guest-modal-content` is the hook the ≤768px rule uses to turn this
+          // fixed 640×700 box into a full-height sheet (styles/qoc-revamp.css).
+          className="modal-solid guest-modal-content"
           style={
             mode === "existing"
               ? { ...contentStyle, width: 1040 }

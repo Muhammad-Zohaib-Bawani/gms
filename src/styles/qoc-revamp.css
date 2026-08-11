@@ -1084,7 +1084,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   .nav-item .badge { position: static; }
   .topbar { padding: 0 14px; gap: 10px; }
   .topbar-crumbs { display: none; }
-  .main { padding: 16px 14px 32px; }
+  .main { padding: 16px 14px 28px; }
   .page-title { font-size: 19px; }
 }
 
@@ -1582,4 +1582,226 @@ textarea {
   .wizard-steps { padding: 2px 14px 12px; }
   .seg-btn span { display: none; }   /* icons only when it would otherwise wrap */
   .seg-btn { padding: 8px 12px; }
+}
+
+/* ==========================================================================
+   RESPONSIVE — TOPBAR FIT (phones)
+   Why this lives here and not in style.css: style.css already expresses the
+   right intent (`.lang-switch { display: none }` inside its ≤768px block), but
+   `.lang-switch { display: flex }` above in THIS file is unconditional and this
+   file loads second — equal specificity, later source, so the mobile rule lost
+   and the switcher stayed visible. That pushed the right-hand cluster to 416px
+   inside ~307px of usable width, and because `.topbar` must keep
+   `overflow: visible` for its dropdowns to escape, the surplus was clipped
+   rather than scrollable: the notification bell and the avatar menu (and with
+   it Sign out) ended up off-screen and unreachable.
+
+   Fix is subtractive: drop the two lowest-priority controls from the phone
+   topbar. Neither capability is lost — both are rendered inside the profile
+   dropdown at this width (.profile-menu-mobile-only).
+   ========================================================================== */
+
+/* Base FIRST, media query second — same specificity, so source order decides.
+   (Declaring the base default after the query is exactly the mistake that
+   caused the bug described above.) Desktop/tablet keep these controls in the
+   topbar, so the dropdown must not duplicate them. */
+.profile-menu-mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  .lang-switch,
+  .topbar-theme-btn { display: none !important; }
+
+  /* Leaves hamburger · event context · bell · avatar. min-width:0 lets the
+     event switcher be the thing that shrinks, instead of the cluster
+     overflowing the header.
+
+     NOT `overflow: hidden` on .event-switcher — it is the positioning context
+     for .event-menu, so clipping it makes the whole dropdown invisible. The
+     truncation belongs on the trigger's label instead. */
+  .topbar .right { gap: 6px; min-width: 0; }
+  .topbar .right > .event-switcher { min-width: 0; flex: 0 1 auto; }
+  .event-trigger { overflow: hidden; }
+  .event-trigger .event-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-titles { display: none; }
+
+  /* The menu is a fixed 320px anchored to the trigger's left edge, which starts
+     ~68px in — that overflowed the viewport. Pin it to the screen instead. */
+  .event-menu {
+    position: fixed;
+    top: calc(var(--topbar-h, 64px) - 6px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 70svh;
+    overflow-y: auto;
+  }
+
+  /* Avatar collapses to just the photo — name/role are already hidden, so the
+     chevron was pointing at nothing. */
+  .topbar .avatar { padding: 2px; gap: 0; }
+  .topbar .avatar > svg { display: none; }
+
+  .profile-menu-mobile-only { display: block; }
+}
+
+.profile-menu-label {
+  padding: 6px 8px 3px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.profile-menu-langs { display: flex; gap: 4px; padding: 0 8px 6px; }
+.profile-menu-langs .lang-opt {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-mute);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.profile-menu-langs .lang-opt.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.profile-menu-sep {
+  height: 1px;
+  margin: 5px 0;
+  background: var(--glass-border);
+}
+
+/* ==========================================================================
+   RESPONSIVE — GUEST MODAL (phones)
+   GuestModal is inline-styled at a fixed 640×700 (with vw/vh caps, so it never
+   overflowed) — but a 700px box inside a 812px phone leaves dead margin above
+   and below while the form inside scrolls in a short window. On phones it
+   becomes a full-height sheet instead, which is what the rest of the app
+   already does with .drawer. !important because the geometry is inline.
+
+   The "existing guest" tab is a 1040px-wide table (one column per session); it
+   is clamped, not reflowed — that bulk-add is a desktop task by nature.
+   ========================================================================== */
+@media (max-width: 768px) {
+  .guest-modal-content {
+    width: auto !important;
+    max-width: none !important;
+    inset: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE — PER-PAGE LAYOUTS (phones)
+   ========================================================================== */
+
+/* Base first, then the query (source order decides at equal specificity).
+   On desktop both chat panes are on screen, so "back" would be meaningless. */
+.chat-back-btn { display: none; }
+
+@media (max-width: 768px) {
+  .chat-back-btn { display: grid; flex-shrink: 0; }
+
+  /* ── Support chat: two panes → one ───────────────────────────────────────
+     320px list + thread does not fit 375px (the thread got ~55px). Show one
+     pane at a time; `.has-thread` is set by SupportChatView when a
+     conversation is open, and the thread header carries a back button. */
+  .chat-shell { height: calc(100svh - 190px) !important; min-height: 0 !important; }
+  .chat-shell .chat-list {
+    width: 100% !important;
+    flex-shrink: 1 !important;
+    border-inline-end: none !important;
+  }
+  .chat-shell .chat-thread { display: none !important; }
+  .chat-shell.has-thread .chat-list { display: none !important; }
+  .chat-shell.has-thread .chat-thread { display: flex !important; }
+
+  /* ── Two-pane page layouts: stack, and actually fill the width ───────────
+     These three set `align-items: flex-start` inline for their side-by-side
+     desktop layout. Once flex-direction flips to column that same property
+     stops meaning "top-align" and starts meaning "shrink to content width" on
+     the cross axis — so the detail panel sized to its content (478px inside a
+     347px column) and was clipped. Stretch restores container width. */
+  .events-layout,
+  .venue-layout,
+  .meetings-layout {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .events-layout > *,
+  .venue-layout > *,
+  .meetings-layout > * { width: 100% !important; max-width: none !important; min-width: 0 !important; }
+
+  /* The Ctrl+scroll zoom hint is pointer-only; on a phone it just steals a line
+     from the venue toolbar. */
+  .venue-zoom-hint { display: none; }
+
+  /* Any inline `grid-template-columns: <fixed>px 1fr` two-pane layout tagged
+     with `split-pane` becomes one column — a fixed first column left the detail
+     pane unusably narrow (User Access: 280px fixed, ~50px left for content). */
+  .split-pane { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* ── Wide data grids (room inventory, fleet bookings) ────────────────────
+     Both already wrap their table in an overflow-x container, but the parent
+     `.card { overflow-x: auto }` (style.css) made a second, competing scroller
+     — the inner one then had no width to resolve against and the day/hour
+     columns collapsed. Pin the card back to hidden so exactly one element
+     scrolls, and stop the cells shrinking below a readable width. */
+  .card:has(.grid-scroll) { overflow-x: hidden; }
+  .grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  .grid-scroll > table { width: max-content !important; min-width: 100% !important; }
+  .grid-scroll th, .grid-scroll td { white-space: nowrap; }
+}
+
+/* The sticky first column keeps the row's identity (room type / driver) visible
+   while the date or hour columns scroll under it — otherwise a scrolled-right
+   grid is a wall of numbers with nothing to attribute them to. */
+.grid-scroll th:first-child,
+.grid-scroll td:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--card-bg, var(--bg-1));
+}
+
+/* ==========================================================================
+   RESPONSIVE — DATE PICKER (phones)
+   The picker is floated next to its input (strategy: 'fixed' — see
+   components/ui/DateField.jsx). On a narrow screen there is often no room
+   beside a left-aligned field, and floating-ui's shift left it hanging ~16px
+   off the left edge, cutting off the first column of days.
+
+   On phones it becomes a bottom sheet instead: pinned to the viewport, so it
+   can never be clipped regardless of where the field sits. transform:none
+   neutralises the library's own offset — the sheet owns its position here.
+   ========================================================================== */
+@media (max-width: 768px) {
+  .gms-datepicker-popper {
+    position: fixed !important;
+    inset-inline: 10px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    z-index: 3000 !important;
+  }
+  .gms-datepicker-popper .react-datepicker,
+  .gms-datepicker-popper .react-datepicker__month-container { width: 100%; }
+  /* Days spread across the full sheet instead of a 239px column. */
+  .gms-datepicker-popper .react-datepicker__day,
+  .gms-datepicker-popper .react-datepicker__day-name {
+    width: 12.5%;
+    margin: 1px 0;
+  }
 }

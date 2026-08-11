@@ -31,11 +31,14 @@ export default function VenueToolbar({
 
   return (
     <div className="card" style={{ padding: '10px 14px', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Wraps rather than overflowing: this row carries a label, two selects, a
+          status chip and up to four buttons, which cannot fit one line on a
+          phone. rowGap keeps the wrapped lines from touching. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', rowGap: 10 }}>
         <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
           {t.venues}
         </span>
-        <div style={{ flex: 1, maxWidth: 280 }}>
+        <div style={{ flex: '1 1 200px', maxWidth: 280, minWidth: 0 }}>
           <Select
             value={activeVenueId || ''}
             onChange={onSwitchVenue}
@@ -44,7 +47,7 @@ export default function VenueToolbar({
           />
         </div>
         {sessions.length > 0 && (
-          <div style={{ minWidth: 200, flexShrink: 0 }}>
+          <div style={{ flex: '1 1 180px', minWidth: 0, maxWidth: 260 }}>
             <Select
               value={selectedSessionId}
               onChange={onSessionChange}

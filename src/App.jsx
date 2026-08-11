@@ -41,7 +41,7 @@ const LOOKUP_CHILDREN = LOOKUP_DEFS.filter(d => d.key !== 'vehicle-types').map(d
 
 const NAV = [
   { key: "dashboard",      icon: "dashboard",  label: { en: "Dashboard",           ar: "نظرة عامة"             }, section: "EVENT",    permission: "Dashboard.View"         },
-  { key: "invitations",    icon: "invitation", label: { en: "Invitations",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
+  { key: "invitations",    icon: "invitation", label: { en: "Template Builder",         ar: "الدعوات"               }, section: "EVENT",    permission: "Invitations.View"       },
   { key: "guests",         icon: "guests",     label: { en: "Guests",              ar: "الضيوف"                }, section: "EVENT",    permission: "Guests.View"            },
   // Every service lives on this one page: the three built-in relational ones
   // (flight / accommodation / transport) get their own tabs, and each dynamic
@@ -59,8 +59,8 @@ const NAV = [
    { key: "venues",         icon: "venues",      label: { en: "Venues",              ar: "الأماكن"               }, section: "ADMIN",    permission: "Venue.View"             },
   { key: "events",         icon: "meetings",   label: { en: "Events",              ar: "الفعاليات"             }, section: "ADMIN",    permission: "Events.View"            },
   // { key: "accountRequests",icon: "guests",     label: { en: "Account Requests",    ar: "طلبات الحسابات"        }, section: "ADMIN",    permission: "AccountRequests.View"   },
-  { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "ADMIN",    permission: "UserAccess.Manage"      },
-  { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "ADMIN",    permission: "Users.View"             },
+  { key: "userAccess",     icon: "protocol",   label: { en: "User Access",         ar: "صلاحيات المستخدمين"   }, section: "USERMGMT", permission: "UserAccess.Manage"      },
+  { key: "users",          icon: "guests",     label: { en: "Users",               ar: "المستخدمون"            }, section: "USERMGMT", permission: "Users.View"             },
    { key: "guestOverview",  icon: "reports",    label: { en: "Guest Overview",      ar: "نظرة عامة على الضيوف"  }, section: "ADMIN",    permission: "Guests.View"            },
   { key: "organizations",  icon: "venue",      label: { en: "Organizations",       ar: "المؤسسات"              }, section: "ADMIN",    permission: "Organizations.View"     },
     { key: "serviceLevels",  icon: "badge",      label: { en: "Service Levels",      ar: "مستويات الخدمة"        }, section: "ADMIN",    permission: "ServiceLevels.View"     },
@@ -76,12 +76,13 @@ const NAV = [
 const NAV_LEAVES = NAV.flatMap(n => n.children ? n.children : [n]);
 
 const SECTION_LABELS = {
-  EVENT:    { en: "EVENT",    ar: "الحدث" },
-  ONSITE:   { en: "ONSITE",   ar: "في الموقع" },
-  INSIGHTS: { en: "INSIGHTS", ar: "تحليلات" },
-  FLEET:    { en: "FLEET MANAGEMENT", ar: "إدارة الأسطول" },
-  STAY:     { en: "ACCOMMODATION", ar: "الإقامة" },
-  ADMIN:    { en: "ADMIN",    ar: "الإدارة" },
+  EVENT:      { en: "EVENT",    ar: "الحدث" },
+  ONSITE:     { en: "ONSITE",   ar: "في الموقع" },
+  INSIGHTS:   { en: "INSIGHTS", ar: "تحليلات" },
+  FLEET:      { en: "FLEET MANAGEMENT", ar: "إدارة الأسطول" },
+  STAY:       { en: "ACCOMMODATION", ar: "الإقامة" },
+    USERMGMT:   { en: "USER MANAGEMENT", ar: "إدارة المستخدمين" },
+  ADMIN:      { en: "ADMIN",    ar: "الإدارة" },
 };
 
 const SHELL_I18N = {
@@ -1092,6 +1093,16 @@ export default function App() {
     () => localStorage.getItem('gms-side-collapsed') === '1',
   );
   const [openMenus, setOpenMenus] = useState({});
+  // Sidebar section accordion — persisted the same way as the rail's own
+  // collapse, so a section stays collapsed across a reload. Absent from the
+  // map means expanded (the default for every section).
+  const [collapsedSections, setCollapsedSections] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('gms-nav-collapsed-sections') || '{}'); }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem('gms-nav-collapsed-sections', JSON.stringify(collapsedSections));
+  }, [collapsedSections]);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const profileRef = React.useRef(null);
@@ -1244,7 +1255,7 @@ export default function App() {
     ? (activeLogo.dark || activeEv?.logoDark || activeEv?.logoLight)
     : (activeLogo.light || activeEv?.logoLight || activeEv?.logoDark);
 
-  const sections = ["EVENT", "ONSITE", "INSIGHTS", "FLEET", "STAY", "ADMIN"];
+  const sections = ["EVENT", "ONSITE", "INSIGHTS", "FLEET", "STAY", "ADMIN", "USERMGMT"];
   const shell = SHELL_I18N[lang] || SHELL_I18N.en;
   const navLabelOf = (n) => (n.label && typeof n.label === "object" ? (n.label[lang] || n.label.en) : n.label);
 
@@ -1323,9 +1334,29 @@ export default function App() {
           {sections.map(section => {
             const visibleItems = NAV.filter(n => n.section === section && (!n.permission || can(n.permission)));
             if (visibleItems.length === 0) return null;
+            const isSectionOpen = !collapsedSections[section];
             return (
               <React.Fragment key={section}>
-                <div className="nav-section">{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</div>
+                <button
+                  type="button"
+                  className="nav-section nav-section-toggle"
+                  style={{background: "transparent"}}
+                  onClick={() => setCollapsedSections(m => ({ ...m, [section]: isSectionOpen }))}
+                >
+                  <span>{(SECTION_LABELS[section] && SECTION_LABELS[section][lang]) || section}</span>
+                  <Icon name={isSectionOpen ? "chevronDown" : "chevronRight"}  size={11} className="nav-chevron"/>
+                </button>
+                {/* Height-animated, same as the submenu below — collapsing a
+                    section shouldn't snap the list shorter. */}
+                <AnimatePresence initial={false}>
+                {isSectionOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                  style={{ overflow: 'hidden' }}
+                >
                 {visibleItems.map(n => {
                   if (n.children) {
                     const kids = n.children.filter(c => !c.permission || can(c.permission));
@@ -1377,6 +1408,9 @@ export default function App() {
                     </button>
                   );
                 })}
+                </motion.div>
+                )}
+                </AnimatePresence>
               </React.Fragment>
             );
           })}
@@ -1456,7 +1490,9 @@ export default function App() {
               </div>
             )}
           </div>
-          <button className="icon-btn" title={shell.switchTo((tweaks.theme || "light") === "dark" ? "light" : "dark")}
+          {/* Hidden below 768px — the same toggle lives in the profile menu there,
+              so the mobile topbar can fit notifications and the avatar. */}
+          <button className="icon-btn topbar-theme-btn" title={shell.switchTo((tweaks.theme || "light") === "dark" ? "light" : "dark")}
             onClick={() => setTweak("theme", (tweaks.theme || "light") === "dark" ? "light" : "dark")}>
             <Icon name={(tweaks.theme || "light") === "dark" ? "sun" : "moon"} size={16}/>
           </button>
@@ -1480,6 +1516,33 @@ export default function App() {
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{user?.email || '—'}</div>
                 </div>
                 <div style={{ padding: 5 }}>
+                  {/* Mobile only: the topbar can't fit the language switcher or the
+                      theme toggle at phone widths, so they live here instead — the
+                      capability moves, it isn't lost. */}
+                  <div className="profile-menu-mobile-only">
+                    <div className="profile-menu-label">{lang === 'ar' ? 'اللغة' : 'Language'}</div>
+                    <div className="profile-menu-langs">
+                      <button
+                        className={'lang-opt' + ((tweaks.lang || 'en') === 'en' ? ' active' : '')}
+                        onClick={() => setTweak('lang', 'en')}
+                        aria-pressed={(tweaks.lang || 'en') === 'en'}
+                      >EN</button>
+                      <button
+                        className={'lang-opt' + ((tweaks.lang || 'en') === 'ar' ? ' active' : '')}
+                        onClick={() => setTweak('lang', 'ar')}
+                        aria-pressed={(tweaks.lang || 'en') === 'ar'}
+                      >عربي</button>
+                    </div>
+                    <button
+                      className="profile-menu-item"
+                      onClick={() => setTweak('theme', (tweaks.theme || 'light') === 'dark' ? 'light' : 'dark')}
+                    >
+                      <Icon name={(tweaks.theme || 'light') === 'dark' ? 'sun' : 'moon'} size={14}/>
+                      {shell.switchTo((tweaks.theme || 'light') === 'dark' ? 'light' : 'dark')}
+                    </button>
+                    <div className="profile-menu-sep" />
+                  </div>
+
                   <button className="profile-menu-item" onClick={() => { setShowProfile(false); gotoView('users'); }}>
                     <Icon name="guests" size={14}/>{lang === 'ar' ? 'المستخدمون' : 'Users'}
                   </button>
@@ -1501,22 +1564,10 @@ export default function App() {
         <Outlet context={{ lang, activeEventId: activeEvent?.id || null, onOpenGuest: setOpenGuest, gotoView }} />
       </main>
 
-      <nav className="mobile-bottom-nav">
-        {[
-          { key:'dashboard', icon:'dashboard', label:{en:'Home',     ar:'الرئيسية'} },
-          { key:'guests',    icon:'guests',    label:{en:'Guests',   ar:'الضيوف'} },
-          { key:'seating',   icon:'seating',   label:{en:'Seating',  ar:'الجلوس'} },
-          { key:'meetings',  icon:'meetings',  label:{en:'Meetings', ar:'اجتماعات'} },
-          { key:'__menu',    icon:'menu',      label:{en:'More',     ar:'المزيد'} },
-        ].map(n => (
-          <button key={n.key}
-            className={`mob-nav-item${n.key !== '__menu' && isActiveKey(n.key) ? ' active' : ''}`}
-            onClick={() => n.key === '__menu' ? setSidebarOpen(o => !o) : gotoView(n.key)}>
-            <Icon name={n.icon} size={22}/>
-            <span>{n.label[lang] || n.label.en}</span>
-          </button>
-        ))}
-      </nav>
+      {/* The phone bottom nav bar was removed: it only ever surfaced 4 of 22
+          modules, so it duplicated the hamburger drawer (which reaches all of
+          them) while permanently costing 64px of vertical space. The drawer is
+          now the single way to navigate on mobile. */}
 
       <Drawer open={!!openGuest} onClose={() => setOpenGuest(null)}>
         {openGuest && (

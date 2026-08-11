@@ -293,7 +293,7 @@ export default function RoomAvailabilityGrid({
     <div>
       {/* The table scrolls, not the page — a month of columns would otherwise push
           the whole layout sideways. */}
-      <div style={{ overflowX: 'auto' }}>
+      <div className="grid-scroll" style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--glass-border)' }}>

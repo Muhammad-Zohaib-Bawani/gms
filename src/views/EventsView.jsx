@@ -833,11 +833,14 @@ export default function EventsView({ lang }) {
                     eventTypes={eventTypes} eventTypesLoading={eventTypesLoading}/>
                 </>
               ) : (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 18, flexWrap: "wrap" }}>
                   <EventCover type={selectedEvent.type} image={selectedEvent.image} width={80} height={80} radius={12}/>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-                      <div>
+                  {/* minWidth:0 lets this actually shrink — a flex item won't go
+                      below its content's min-content width without it, which is
+                      what pushed the long event title past the card on mobile. */}
+                  <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0 }}>
                         <h2 style={{ fontFamily: "var(--serif)", fontSize: 28, margin: "0 0 4px", fontWeight: 400 }}>{selectedEvent.title}</h2>
                         <div style={{ fontSize: 13, color: "var(--ink-dim)", marginBottom: 8 }}>
                           {selectedEvent.theme && <span>{selectedEvent.theme} · </span>}
@@ -979,7 +982,7 @@ export default function EventsView({ lang }) {
       {/* Confirm Delete Modal */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}>
-          <div className="card glass modal-solid" style={{ width: 360, padding: "22px 24px" }}>
+          <div className="card glass modal-solid" style={{ width: 360, maxWidth: "92vw", padding: "22px 24px" }}>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
               {confirmDelete.type === "session" ? (isAr ? "حذف الجلسة؟" : "Delete session?") : STR.confirmDeleteEvent}
             </div>
