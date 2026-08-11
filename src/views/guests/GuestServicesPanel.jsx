@@ -20,7 +20,101 @@ import {
   getTravelLookups, getGuestTravel, saveGuestTravel,
   deleteFlight, deleteAccommodation, deleteTransport,
 } from '../../api/services/travelService';
-import { addDaysIso } from '../../lib/date';
+import { addDaysIso, fmtDate } from '../../lib/date';
+
+// System slots always render in this order, regardless of where the level put
+// them in its own sequence — Fixed-event step numbers still use the plan's
+// real order (see `stepNo` below), only the ON-SCREEN layout is fixed.
+const SYSTEM_ORDER = ['flight', 'transport', 'accommodation'];
+
+// This dynamic service covers the same ground as the Arrival/Departure card
+// (see TravelView's own "Arrivals & Departures" tab) — it's merged INTO that
+// card instead of getting a card of its own, so the subject isn't split
+// across two boxes.
+const AD_SERVICE_CODE = 'arrivals-departures';
+
+// One entry at a time with prev/next + dots, instead of stacking every
+// entry's card — a guest with several bookings of the same kind (a second
+// flight, another night's stay) no longer turns the box into a scroll wall.
+function EntrySlider({ items, renderItem }) {
+  const [idx, setIdx] = useState(0);
+  const count = items.length;
+  const safeIdx = idx < count ? idx : 0;
+  if (count === 0) return null;
+  if (count === 1) return renderItem(items[0], 0);
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+        <button type="button" className="icon-btn" style={{ width: 24, height: 24, flexShrink: 0 }}
+          onClick={() => setIdx((i) => (i - 1 + count) % count)}>
+          <Icon name="arrowLeft" size={11} />
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {items.map((_, i) => (
+            <button type="button" key={i} onClick={() => setIdx(i)} aria-label={`${i + 1}`}
+              style={{
+                width: i === safeIdx ? 14 : 6, height: 6, borderRadius: 3, padding: 0, border: 'none',
+                cursor: 'pointer', background: i === safeIdx ? 'var(--accent)' : 'var(--glass-border)',
+                transition: 'width .15s ease',
+              }} />
+          ))}
+        </div>
+        <button type="button" className="icon-btn" style={{ width: 24, height: 24, flexShrink: 0 }}
+          onClick={() => setIdx((i) => (i + 1) % count)}>
+          <Icon name="arrow" size={11} />
+        </button>
+      </div>
+      {renderItem(items[safeIdx], safeIdx)}
+    </div>
+  );
+}
+
+// The bare key/value grid inside an entry card — no chrome of its own, so it
+// can be reused both for a slot's own (editable) entries and for a read-only
+// mirror of another slot's entries (the Arrival/Departure card's flight info).
+function EntryFacts({ entry, isAr }) {
+  const facts = Object.entries(entry.values || {}).filter(([, v]) => v != null && String(v).trim() !== '');
+  if (facts.length === 0) {
+    return (
+      <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
+        {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px 12px' }}>
+      {facts.map(([k, v]) => (
+        <div key={k}>
+          <div style={{ fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{k}</div>
+          <div style={{ fontSize: 12, color: 'var(--ink)' }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// One card, styled like the other guest-detail Sections (icon + title header,
+// bordered body) — used for every slot AND for the Arrival/Departure card, so
+// all of it reads as one family of boxes on the page.
+function ServiceCard({ icon, title, action, children }) {
+  return (
+    <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        padding: '13px 18px', borderBottom: '1px solid var(--glass-border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icon && <Icon name={icon} size={15} style={{ color: 'var(--accent)' }} />}
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
+        </div>
+        {action}
+      </div>
+      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 // The three built-in services keep their own tables and their own hand-written
 // form, so a slot for one of them opens TravelAccordion and saves through the
@@ -54,11 +148,10 @@ function StatusPill({ status, locked, isAr }) {
   );
 }
 
-export default function GuestServicesPanel({ guestId, lang, onChanged, eventStart, eventEnd, eventId }) {
+export default function GuestServicesPanel({ guestId, lang, onChanged, eventStart, eventEnd, eventId, arrivalDate, departureDate }) {
   const isAr = lang === 'ar';
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [active, setActive] = useState(0);
 
   const [editing, setEditing] = useState(null);   // { slot, entry|null }
   const [values, setValues] = useState({});
@@ -81,17 +174,6 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
   }, [guestId]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Land on the first thing that still needs attention rather than always
-  // slide 0, but only when the plan actually changes shape — re-running this
-  // on every `load()` (e.g. right after saving slide 3) would yank the user
-  // back to wherever is incomplete instead of keeping them on what they just did.
-  useEffect(() => {
-    if (!plan?.slots?.length) return;
-    const firstOpen = plan.slots.findIndex((s) => s.isUnlocked && s.status !== 'completed');
-    setActive(firstOpen === -1 ? 0 : firstOpen);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.serviceLevelId, plan?.slots?.length]);
 
   // Only fetched once a built-in slot is actually opened — the dynamic path needs
   // none of it, and this is eight parallel lookup requests.
@@ -200,201 +282,214 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
     return <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', padding: 8 }}>…</div>;
   }
 
-  if (!plan?.serviceLevelId) {
+  const isFixed = plan?.guestModel === 'fixed';
+  const slots = plan?.slots || [];
+  // Displayed in this fixed order regardless of the level's own sequence —
+  // only the Fixed-event step numbers (below) use the plan's real order.
+  const systemSlots = SYSTEM_ORDER.map((code) => slots.find((s) => s.isSystem && s.code === code)).filter(Boolean);
+  const flightSlot = slots.find((s) => s.isSystem && s.code === 'flight');
+  // The "arrivals-departures" dynamic service is merged into the
+  // Arrival/Departure card below instead of getting a card of its own.
+  const adSlot = slots.find((s) => !s.isSystem && s.code === AD_SERVICE_CODE);
+  const dynamicSlots = slots.filter((s) => !s.isSystem && s.code !== AD_SERVICE_CODE);
+
+  function renderSlotCard(slot) {
+    const locked = !slot.isUnlocked;
+    const stepNo = slots.indexOf(slot) + 1;
     return (
-      <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', fontStyle: 'italic', padding: 8 }}>
-        {isAr
-          ? 'لم يتم تعيين مستوى خدمة لهذا الضيف.'
-          : 'This guest has no service level, so there are no services to complete.'}
-      </div>
+      <ServiceCard
+        key={slot.serviceId}
+        icon={slot.icon}
+        title={(isAr ? slot.nameAr : null) || slot.name}
+        action={<StatusPill status={slot.status} locked={locked} isAr={isAr} />}
+      >
+        {isFixed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--ink-mute)' }}>
+            <span style={{
+              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+              display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700,
+              background: slot.status === 'completed' ? 'var(--ok)' : 'var(--surface-soft-4)',
+              color: slot.status === 'completed' ? '#fff' : 'var(--ink-mute)',
+            }}>
+              {slot.status === 'completed' ? <Icon name="check" size={11} /> : stepNo}
+            </span>
+            {isAr ? `الخطوة ${stepNo} من ${slots.length}` : `Step ${stepNo} of ${slots.length}`}
+          </div>
+        )}
+
+        {locked && slot.lockedReason && (
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+            {slot.lockedReason}
+          </div>
+        )}
+
+        {/* One at a time via the slider rather than every entry stacked — a
+            guest can hold several of these (a second flight, another
+            night's stay), and this keeps the box a fixed size either way. */}
+        {slot.entries.length > 0 ? (
+          <EntrySlider
+            items={slot.entries}
+            renderItem={(entry) => (
+              <div style={{ borderRadius: 9, padding: '8px 10px', background: 'transparent', border: '1px solid var(--glass-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', flex: 1 }}>
+                    {isAr ? 'التفاصيل' : 'Details'}
+                    {entry.status !== 'completed' && (
+                      <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
+                    )}
+                  </span>
+                  <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
+                    onClick={() => openEntry(slot, entry)}>
+                    <Icon name="edit" size={12} />
+                  </button>
+                  <button className="icon-btn" style={{ color: 'var(--danger)' }}
+                    title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
+                    <Icon name="trash" size={12} />
+                  </button>
+                </div>
+                <EntryFacts entry={entry} isAr={isAr} />
+              </div>
+            )}
+          />
+        ) : (
+          <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', textAlign: 'center', padding: '4px 0' }}>
+            {isAr ? 'لا إدخالات بعد' : 'No entries yet'}
+          </div>
+        )}
+
+        {/* Always adds a NEW entry (never overwrites the ones above) — that's
+            how a guest ends up with a second flight or another night's stay. */}
+        {!locked && (
+          <button className="btn" style={{ width: '100%', fontSize: 12 }}
+            onClick={() => openEntry(slot, null)}>
+            <Icon name="plus" size={12} />
+            {slot.entries.length > 0
+              ? (isAr ? 'إضافة أخرى' : 'Add another')
+              : (isAr ? 'إضافة' : 'Add')}
+          </button>
+        )}
+      </ServiceCard>
     );
   }
-
-  if (plan.slots.length === 0) {
-    return (
-      <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', fontStyle: 'italic', padding: 8 }}>
-        {isAr
-          ? `لا توجد خدمات مُسنَدة إلى "${plan.serviceLevelName}".`
-          : `No services are assigned to "${plan.serviceLevelName}" yet.`}
-      </div>
-    );
-  }
-
-  const isFixed = plan.guestModel === 'fixed';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--ink-mute)' }}>
-        <span className="chip" style={{ fontSize: 10.5, background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-          {plan.serviceLevelName}
-        </span>
-        <span>
-          {isFixed
-            ? (isAr ? 'يجب إكمال الخدمات بالترتيب' : 'Services must be completed in order')
-            : (isAr ? 'كل الخدمات اختيارية' : 'All services are optional')}
-        </span>
-        {isFixed && plan.isComplete && (
-          <span className="chip confirmed" style={{ fontSize: 10.5, marginInlineStart: 'auto' }}>
-            <span className="dot" /> {isAr ? 'مكتمل' : 'All done'}
+    <>
+      {plan?.serviceLevelId && slots.length > 0 && (
+        <div style={{
+          gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 11.5, color: 'var(--ink-mute)',
+        }}>
+          <span className="chip" style={{ fontSize: 10.5, background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+            {plan.serviceLevelName}
           </span>
-        )}
-      </div>
+          {/* <span>
+            {isFixed
+              ? (isAr ? 'يجب إكمال الخدمات بالترتيب' : 'Services must be completed in order')
+              : (isAr ? 'كل الخدمات اختيارية' : 'All services are optional')}
+          </span> */}
+          {isFixed && plan.isComplete && (
+            <span className="chip confirmed" style={{ fontSize: 10.5, marginInlineStart: 'auto' }}>
+              <span className="dot" /> {isAr ? 'مكتمل' : 'All done'}
+            </span>
+          )}
+        </div>
+      )}
 
-      {(() => {
-        const slot = plan.slots[active];
-        const locked = !slot.isUnlocked;
-        const canPrev = active > 0;
-        const canNext = active < plan.slots.length - 1;
-        return (
+      {plan?.serviceLevelId ? (
+        systemSlots.map(renderSlotCard)
+      ) : (
+        <div style={{ gridColumn: '1 / -1', fontSize: 12.5, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
+          {isAr
+            ? 'لم يتم تعيين مستوى خدمة لهذا الضيف.'
+            : 'This guest has no service level, so there are no built-in services to complete.'}
+        </div>
+      )}
+
+      <ServiceCard
+        icon="arrowsExchange"
+        title={isAr ? 'الوصول والمغادرة' : 'Arrival / Departure'}
+        action={adSlot && <StatusPill status={adSlot.status} locked={!adSlot.isUnlocked} isAr={isAr} />}
+      >
+        {/* Read-only mirror of the Flight card's own entries — this box is
+            "everything about arriving and leaving" in one place, the Flight
+            card above stays the one place to edit them. */}
+        {flightSlot?.entries?.length > 0 && (
           <div>
-            {/* One service at a time — arrows + dots replace the old stacked
-                list so a long service level doesn't turn into a scroll wall. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <button className="icon-btn" disabled={!canPrev}
-                style={{ opacity: canPrev ? 1 : 0.35 }}
-                title={isAr ? 'السابق' : 'Previous'}
-                onClick={() => setActive((a) => a - 1)}>
-                <Icon name="chevronRight" size={14} style={{ transform: isAr ? 'none' : 'scaleX(-1)' }} />
-              </button>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' }}>
-                {plan.slots.map((s, i) => (
-                  <button
-                    key={s.serviceId}
-                    title={(isAr ? s.nameAr : null) || s.name}
-                    onClick={() => setActive(i)}
-                    style={{
-                      width: i === active ? 20 : 8, height: 8, borderRadius: 5,
-                      border: 'none', padding: 0, cursor: 'pointer',
-                      background: s.status === 'completed'
-                        ? 'var(--accent)'
-                        : i === active ? 'var(--accent)' : 'var(--surface-soft-4)',
-                      transition: 'width .15s ease',
-                    }}
-                  />
-                ))}
-              </div>
-
-              <button className="icon-btn" disabled={!canNext}
-                style={{ opacity: canNext ? 1 : 0.35 }}
-                title={isAr ? 'التالي' : 'Next'}
-                onClick={() => setActive((a) => a + 1)}>
-                <Icon name="chevronRight" size={14} style={{ transform: isAr ? 'scaleX(-1)' : 'none' }} />
-              </button>
-            </div>
-
-            <div style={{ fontSize: 11, color: 'var(--ink-faint)', textAlign: 'center', marginBottom: 6 }}>
-              {active + 1} / {plan.slots.length}
-            </div>
-
-            <div
-              key={slot.serviceId}
-              style={{
-                border: `1px solid ${locked ? 'var(--glass-border)' : 'var(--surface-glass-border)'}`,
-                borderRadius: 11,
-                padding: '11px 13px',
-                background: locked ? 'transparent' : 'var(--surface-soft-2)',
-                opacity: locked ? 0.6 : 1,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                {isFixed && (
-                  <span style={{
-                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                    display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 700,
-                    background: slot.status === 'completed' ? 'var(--ok)' : 'var(--surface-soft-4)',
-                    color: slot.status === 'completed' ? '#fff' : 'var(--ink-mute)',
-                  }}>
-                    {slot.status === 'completed' ? <Icon name="check" size={11} /> : active + 1}
-                  </span>
-                )}
-                {slot.icon && <Icon name={slot.icon} size={14} style={{ color: 'var(--accent)' }} />}
-                <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-                  {(isAr ? slot.nameAr : null) || slot.name}
-                </span>
-                <StatusPill status={slot.status} locked={locked} isAr={isAr} />
-              </div>
-
-              {locked && slot.lockedReason && (
-                <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6, paddingInlineStart: isFixed ? 29 : 0 }}>
-                  {slot.lockedReason}
+            {/* <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              {isAr ? 'تفاصيل الرحلة' : 'Flight details'}
+            </div> */}
+            <EntrySlider
+              items={flightSlot.entries}
+              renderItem={(entry) => (
+                <div style={{ borderRadius: 9, padding: '8px 10px', background: 'transparent', border: '1px solid var(--glass-border)' }}>
+                  <EntryFacts entry={entry} isAr={isAr} />
                 </div>
               )}
+            />
+          </div>
+        )}
 
-              {/* One card per entry rather than one flattened line — a booking
-                  can carry several fields (flight no., date, terminal…) and
-                  they all need to stay readable, not squashed into a single
-                  " · "-joined string. A guest can hold several of these (a
-                  second flight, another night's stay), so each gets its own
-                  numbered card here in the SAME slide, instead of the slot
-                  itself splitting into more slides. */}
-              {slot.entries.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10, paddingInlineStart: isFixed ? 29 : 0 }}>
-                  {slot.entries.map((entry, n) => {
-                    const facts = Object.entries(entry.values || {})
-                      .filter(([, v]) => v != null && String(v).trim() !== '');
-                    return (
-                      <div key={entry.id} style={{
-                        borderRadius: 9, padding: '8px 10px',
-                        background: 'var(--bg-0)', border: '1px solid var(--glass-border)',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: facts.length ? 6 : 0 }}>
-                          <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', flex: 1 }}>
-                            {slot.entries.length > 1
-                              ? `${isAr ? 'إدخال' : 'Entry'} ${n + 1}`
-                              : (isAr ? 'التفاصيل' : 'Details')}
-                            {entry.status !== 'completed' && (
-                              <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
-                            )}
-                          </span>
-                          <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
-                            onClick={() => openEntry(slot, entry)}>
-                            <Icon name="edit" size={12} />
-                          </button>
-                          <button className="icon-btn" style={{ color: 'var(--danger)' }}
-                            title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(slot, entry.id)}>
-                            <Icon name="trash" size={12} />
-                          </button>
-                        </div>
-                        {facts.length > 0 ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px 12px' }}>
-                            {facts.map(([k, v]) => (
-                              <div key={k}>
-                                <div style={{ fontSize: 9, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                  {k}
-                                </div>
-                                <div style={{ fontSize: 12, color: 'var(--ink)' }}>{v}</div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
-                            {isAr ? 'لا تفاصيل مسجلة' : 'No details recorded'}
-                          </div>
+        {/* The "arrivals-departures" dynamic service, merged in here instead
+            of getting a card of its own — same subject, one box. */}
+        {adSlot && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              {/* <div style={{ fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>
+                {(isAr ? adSlot.nameAr : null) || adSlot.name}
+              </div> */}
+            </div>
+
+            {!adSlot.isUnlocked && adSlot.lockedReason && (
+              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 }}>
+                {adSlot.lockedReason}
+              </div>
+            )}
+
+            {adSlot.entries.length > 0 ? (
+              <EntrySlider
+                items={adSlot.entries}
+                renderItem={(entry) => (
+                  <div style={{ borderRadius: 9, padding: '8px 10px', background: 'transparent', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink-faint)', flex: 1 }}>
+                        {isAr ? 'التفاصيل' : 'Details'}
+                        {entry.status !== 'completed' && (
+                          <span style={{ color: 'var(--warn)' }}> · {isAr ? 'مسودة' : 'draft'}</span>
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      </span>
+                      <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'}
+                        onClick={() => openEntry(adSlot, entry)}>
+                        <Icon name="edit" size={12} />
+                      </button>
+                      <button className="icon-btn" style={{ color: 'var(--danger)' }}
+                        title={isAr ? 'حذف' : 'Remove'} onClick={() => removeEntry(adSlot, entry.id)}>
+                        <Icon name="trash" size={12} />
+                      </button>
+                    </div>
+                    <EntryFacts entry={entry} isAr={isAr} />
+                  </div>
+                )}
+              />
+            ) : (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', textAlign: 'center', padding: '4px 0' }}>
+                {isAr ? 'لا إدخالات بعد' : 'No entries yet'}
+              </div>
+            )}
 
-            {/* Deliberately outside the slide's card, not one more thing tucked
-                into its header — this always adds a NEW entry to the current
-                slot (never overwrites the ones above), which is exactly how a
-                guest ends up with a second flight or another night's stay. */}
-            {!locked && (
-              <button className="btn" style={{ width: '100%', marginTop: 10, fontSize: 12 }}
-                onClick={() => openEntry(slot, null)}>
+            {adSlot.isUnlocked && (
+              <button className="btn" style={{ width: '100%', fontSize: 12, marginTop: 8 }}
+                onClick={() => openEntry(adSlot, null)}>
                 <Icon name="plus" size={12} />
-                {slot.entries.length > 0
+                {adSlot.entries.length > 0
                   ? (isAr ? 'إضافة أخرى' : 'Add another')
                   : (isAr ? 'إضافة' : 'Add')}
               </button>
             )}
           </div>
-        );
-      })()}
+        )}
+      </ServiceCard>
+
+      {plan?.serviceLevelId && dynamicSlots.length > 0 && dynamicSlots.map(renderSlotCard)}
 
       <Modal
         open={!!editing}
@@ -455,6 +550,6 @@ export default function GuestServicesPanel({ guestId, lang, onChanged, eventStar
           />
         )}
       </Modal>
-    </div>
+    </>
   );
 }

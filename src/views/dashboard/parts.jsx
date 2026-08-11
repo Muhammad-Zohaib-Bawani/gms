@@ -78,7 +78,7 @@ function PanelTabs({ tabs, active, onChange }) {
 // #DFB764/#e0b864 were the same two colours twice), so a 5-slice chart drew two
 // pairs of identical wedges.
 export const CHART_COLORS = [
-  'var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)',
+  'var(--series-1)', 'var(--series-2)', 'var(--series-4)', 'var(--series-4)',
   'var(--series-5)', 'var(--series-6)', 'var(--series-7)',
 ];
 

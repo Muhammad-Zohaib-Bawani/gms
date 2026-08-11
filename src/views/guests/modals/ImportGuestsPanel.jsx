@@ -1,24 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '../../../components/Icons';
 import ImportBatchResults from '../../../components/ui/ImportBatchResults';
 import toast from '../../../lib/toast';
 import useImportBatchPoll from '../../../lib/useImportBatchPoll';
-import { importGuests, getGuestImportBatch } from '../../../api/services/guestService';
+import { importGuests, getGuestImportBatch, getGuestImportTemplate } from '../../../api/services/guestService';
 
-// Embeddable body of the CSV bulk-import flow — used as the "Import Guest"
+// Embeddable body of the Excel bulk-import flow — used as the "Import Guest"
 // tab inside GuestModal (previously its own standalone ImportModal). The
 // upload only kicks off a Hangfire job (StartGuestsImportAsync) and returns a
 // batch id — parsing/insert runs in the background, so the user can close
 // this and keep working; a notification fires when it's done, deep-linking
 // back here via `?importBatch=` (see GuestsView / GuestModal).
+//
+// The template itself is generated server-side per event (BuildGuestImportTemplateAsync)
+// with real Excel data validation — Guest Type/Organization/Nationality/Service
+// Level are dropdown-only, dates are calendar-validated against this event's own
+// range, and Accreditation Required is a TRUE/FALSE dropdown — so there's nothing
+// left here to hardcode; a stale template is rejected by the backend with a
+// message asking for a fresh one.
 export default function ImportGuestsPanel({ activeEventId, lang, onImported, initialBatchId }) {
   const isAr    = lang === 'ar';
+  const navigate = useNavigate();
   const fileRef = useRef();
   const notifiedRef = useRef(false);
 
   const [file,     setFile]     = useState(null);
   const [dragging, setDragging] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [batchId,  setBatchId]  = useState(initialBatchId || null);
 
   const status = useImportBatchPoll(batchId, getGuestImportBatch);
@@ -66,6 +76,24 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
     }
   }
 
+  async function handleDownloadTemplate() {
+    if (!activeEventId) return;
+    setDownloadingTemplate(true);
+    try {
+      const blob = await getGuestImportTemplate(activeEventId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'guest-import-template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر تحميل القالب' : 'Could not download the template');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
   const isProcessing = batchId && status && status.status !== 'completed' && status.status !== 'failed';
 
   return (
@@ -93,25 +121,40 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
             ) : (
               <>
                 <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-                  {isAr ? 'اسحب ملف CSV هنا' : 'Drag & drop a CSV file'}
+                  {isAr ? 'اسحب ملف Excel هنا' : 'Drag & drop an Excel file'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
                   {isAr ? 'أو انقر للاختيار' : 'or click to browse'}
                 </div>
               </>
             )}
-            <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleDrop}/>
+            <input ref={fileRef} type="file" accept=".xlsx" style={{ display: 'none' }} onChange={handleDrop}/>
           </div>
 
-          <div style={{ fontSize: 12, color: 'var(--ink-mute)', background: 'var(--surface-soft-2)', borderRadius: 8, padding: '10px 12px' }}>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{isAr ? 'تنسيق CSV المطلوب:' : 'Expected CSV format:'}</div>
-            <code style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>
-              FirstName, LastName, Email, GuestType, Organization, Nationality, Tier, ArrivalDate, DepartureDate, AccreditationRequired
-            </code>
-            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--ink-faint)' }}>
-              {isAr
-                ? 'الاسم الأول والأخير مطلوبان فقط — البقية اختيارية. Nationality تُطابق بالاسم أو الرمز، وAccreditationRequired تقبل true/yes/required.'
-                : 'Only First/Last name are required — everything else is optional. Nationality is matched by name or code; AccreditationRequired accepts true/yes/required.'}
+          <button
+            type="button"
+            className="btn"
+            style={{ alignSelf: 'flex-start', fontSize: 12 }}
+            disabled={!activeEventId || downloadingTemplate}
+            onClick={(e) => { e.stopPropagation(); handleDownloadTemplate(); }}
+          >
+            <Icon name="download" size={13}/>
+            {downloadingTemplate
+              ? (isAr ? 'جارٍ التحميل…' : 'Downloading…')
+              : (isAr ? 'تحميل قالب Excel' : 'Download Excel template')}
+          </button>
+
+          <div className="alert alert-info" style={{ fontSize: 12.5 }}>
+            <Icon name="alert" size={14} />
+            <div>
+              {isAr ? 'الحقول المطلوبة: الاسم الأول، الاسم الأخير، والبريد الإلكتروني.' : 'Required fields: First Name, Last Name and Email.'}
+              {' '}
+              {isAr ? 'إذا حددت مستوى خدمة، يمكن إضافة خدماته لكل ضيف لاحقاً من صفحة' : "If you assign a Service Level, its services can be added per guest afterwards from the"}
+              {' '}
+              <a href="/travel" onClick={(e) => { e.preventDefault(); navigate('/travel'); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
+                {isAr ? 'السفر والخدمات اللوجستية' : 'Services'}
+              </a>
+              {isAr ? '.' : ' page.'}
             </div>
           </div>
 

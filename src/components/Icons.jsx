@@ -18,6 +18,9 @@ export const ICON_PATHS = {
   plus: <><path d="M12 5v14M5 12h14"/></>,
   filter: <><path d="M4 5h16l-6 8v6l-4-2v-4z"/></>,
   download: <><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></>,
+  // A document with a folded corner + a small grid of cells — stands in for
+  // "spreadsheet export" wherever an action produces an Excel/CSV file.
+  excel: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h8M11 13v4"/></>,
   upload: <><path d="M12 20V8M7 13l5-5 5 5M4 4h16"/></>,
   close: <><path d="M6 6l12 12M18 6L6 18"/></>,
   check: <><path d="M5 12l4 4 10-10"/></>,

@@ -61,6 +61,12 @@ export const importGuests = (eventId, file) => {
 
 export const getGuestImportBatch = (batchId) => apiClient.get(ENDPOINTS.guests.importBatch(batchId));
 
+// The template is generated fresh per event — its dropdowns (Guest Type,
+// Organization, Nationality, Service Level) reflect what currently exists,
+// and its date columns are validated against this event's own date range.
+export const getGuestImportTemplate = (eventId) =>
+  apiClient.get(ENDPOINTS.guests.importTemplate(eventId), { responseType: 'blob' });
+
 export const deleteSelectedGuests = (eventId, guestIds) =>
   apiClient.delete(ENDPOINTS.guests.deleteSelected(eventId), {
     data: { selectedGuestsToDelete: guestIds },

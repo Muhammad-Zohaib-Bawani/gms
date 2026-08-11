@@ -87,58 +87,6 @@ function Empty({ children }) {
   );
 }
 
-// One slide visible at a time with prev/next + dot nav — used wherever a guest
-// can hold more than one booking of the same kind (flight/accommodation/
-// transport), so a second or third booking doesn't just pile up under the first.
-function BookingCarousel({ items, renderItem }) {
-  const [idx, setIdx] = useState(0);
-  const count = items.length;
-  const safeIdx = idx < count ? idx : 0;
-
-  if (count === 0) return null;
-
-  return (
-    <div>
-      {count > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 26, height: 26 }}
-            onClick={() => setIdx((i) => (i - 1 + count) % count)}
-          >
-            <Icon name="arrowLeft" size={12} />
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            {items.map((_, i) => (
-              <button
-                type="button"
-                key={i}
-                onClick={() => setIdx(i)}
-                aria-label={`${i + 1}`}
-                style={{
-                  width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, padding: 0, border: 'none',
-                  cursor: 'pointer', background: i === safeIdx ? 'var(--accent)' : 'var(--glass-border)',
-                  transition: 'width 0.15s ease',
-                }}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 26, height: 26 }}
-            onClick={() => setIdx((i) => (i + 1) % count)}
-          >
-            <Icon name="arrow" size={12} />
-          </button>
-        </div>
-      )}
-      {renderItem(items[safeIdx], safeIdx)}
-    </div>
-  );
-}
-
 const fieldGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 };
 
 export default function GuestDetailView({ guestId, lang }) {
@@ -275,12 +223,6 @@ export default function GuestDetailView({ guestId, lang }) {
                   <span className="dot" style={{ background: inviteBadge.color }} />
                   {inviteBadge.label[isAr ? 'ar' : 'en']}
                 </span>
-                {guest.accreditationRequired && (
-                  <span className="chip" style={{ borderColor: `${accredBadge.color}55`, color: accredBadge.color, background: `${accredBadge.color}18` }}>
-                    <span className="dot" style={{ background: accredBadge.color }} />
-                    {accredBadge.label[isAr ? 'ar' : 'en']}
-                  </span>
-                )}
               </div>
             </div>
           </div>
@@ -328,14 +270,14 @@ export default function GuestDetailView({ guestId, lang }) {
             />
             <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
             <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
-            {/* GuestServiceType.Transport (3) on the guest's allowed-services
-                list — whether they may book a car from the app themselves,
-                regardless of what's booked for them in the Transport section. */}
             <Field
-              label={isAr ? 'طلب النقل من التطبيق' : 'Self-book transport'}
-              value={(guest.allowedServices || []).includes(3)
-                ? (isAr ? 'مسموح' : 'Allowed')
-                : (isAr ? 'غير مسموح' : 'Not allowed')}
+              label={isAr ? 'الاعتماد' : 'Accreditation'}
+              value={guest.accreditationRequired
+                ? <span className="chip" style={{ borderColor: `${accredBadge.color}55`, color: accredBadge.color, background: `${accredBadge.color}18` }}>
+                    <span className="dot" style={{ background: accredBadge.color }} />
+                    {accredBadge.label[isAr ? 'ar' : 'en']}
+                  </span>
+                : (isAr ? 'غير مطلوب' : 'Not required')}
             />
           </div>
         </Section>
@@ -380,15 +322,15 @@ export default function GuestDetailView({ guestId, lang }) {
           )}
         </Section>
 
-        <Section icon="star" title={isAr ? 'الخدمات' : 'Services'}>
-          <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
-            eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
-            eventId={guest?.eventId} />
-        </Section>
-
-        {/* The fixed Flight / Accommodation / Transport sections were removed:
-            what a guest receives is now whatever their service level assigns,
-            rendered by the Services section above. */}
+        {/* Each service the guest's level assigns gets its own card here —
+            Flight, Transport, Accommodation, Arrival/Departure, then any
+            dynamic services — instead of one "Services" box containing all
+            of them. GuestServicesPanel renders its cards as siblings (not
+            wrapped in a Section), so they drop into this same grid. */}
+        <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
+          eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
+          eventId={guest?.eventId}
+          arrivalDate={guest?.arrivalDate} departureDate={guest?.departureDate} />
       </div>
 
       {showEdit && (

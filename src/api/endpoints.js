@@ -75,6 +75,7 @@ export const ENDPOINTS = {
     otherEvents: '/v1/guest/other-events',
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
     importBatch: (batchId) => `/v1/guest/import/${batchId}`,
+    importTemplate: (eventId) => `/v1/guest/import-template?eventId=${eventId}`,
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
     issueAccreditation: (id) => `/v1/guest/${id}/accreditation/issue`,
     revokeAccreditation: (id) => `/v1/guest/${id}/accreditation/revoke`,

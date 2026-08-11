@@ -142,6 +142,81 @@ function flightDuration(start, end) {
 // Portal-wide DD-MM-YYYY (lib/date) — was locale-dependent 'Aug 5'.
 const dateLabelFor = (dateStr) => fmtDate(dateStr, "");
 
+// ── Export (Excel/CSV) ───────────────────────────────────────────────────────
+// No spreadsheet library on the frontend — same convention GuestsView's own
+// Export button already uses: a plain CSV blob, downloaded client-side from
+// data already in memory (or a one-off fetch for whatever isn't paginated in).
+function csvCell(v) {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function toCsv(headers, rows) {
+  return [headers, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+}
+function downloadCsv(filename, csv) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  a.download = filename;
+  a.click();
+}
+// One export "section" — a title line, its own header row, then its data
+// rows. Sections are joined with a blank line so "export everything" still
+// reads as one file even though each service has its own column set.
+function csvSection(title, headers, rows) {
+  return `${title}\r\n${toCsv(headers, rows)}\r\n`;
+}
+
+const FLIGHT_EXPORT_HEADERS = ["Guest", "Email", "Flight Type", "Flight No.", "Class", "Seat", "From", "To", "Departure", "Arrival", "Status"];
+const flightExportRows = (rows, isAr) => rows.map((f) => [
+  f.name, f.email, flightTypeLabel(f.flightType, isAr), f.flight,
+  f.flightClass, f.seat, f.from, f.to, f.departureTime, f.arrivalTime, f.flightStatus,
+]);
+
+const HOTEL_EXPORT_HEADERS = ["Guest", "Email", "Hotel", "Room Type", "Check-in", "Check-out"];
+const hotelExportRows = (rows) => rows.map((h) => [h.name, h.email, h.hotel, h.roomType, h.checkIn, h.checkOut]);
+
+const TRANSFER_EXPORT_HEADERS = ["Guest", "Vehicle", "Driver", "Driver Type", "Pickup", "Dropoff", "Date", "Time", "Status"];
+const transferExportRows = (rows) => rows.map((t) => [
+  t.name, t.vehicle, t.driver,
+  t.driverType === 1 ? "Fixed" : t.driverType === 2 ? "On call" : "",
+  t.pickup, t.dropoff, t.date, t.time, t.transferStatus,
+]);
+
+const MOVEMENT_EXPORT_BASE_HEADERS = ["Guest", "Email", "Inbound Flight", "Inbound From", "Inbound To", "Inbound Time", "Outbound Flight", "Outbound From", "Outbound To", "Outbound Time"];
+// The board's own dynamic columns (arrival lounge, meet & greet, ...) live on
+// a SEPARATE service (adService) keyed by guestId, not on the movement rows
+// themselves — same join the on-screen table (adColumns) already does.
+const movementExportHeaders = (adFields, isAr) => [
+  ...MOVEMENT_EXPORT_BASE_HEADERS,
+  ...adFields.map((f) => (isAr ? f.labelAr : null) || f.label || f.key),
+];
+function movementExportRows(rows, adFields, adEntriesByGuest) {
+  const legFields = (legs) => {
+    const leg = (legs || [])[0];
+    if (!leg) return ["", "", "", ""];
+    return [leg.flightNumber || "", leg.departureCode || "", leg.arrivalCode || "", timeRange(leg.startTime, leg.endTime)];
+  };
+  return rows.map((r) => {
+    const entries = adEntriesByGuest[r.guestId] || [];
+    const extra = adFields.map((f) => entries
+      .map((e) => e.values?.[f.key])
+      .filter((v) => v != null && String(v).trim() !== "")
+      .join(" | "));
+    return [r.guestName, r.email, ...legFields(r.inbound), ...legFields(r.outbound), ...extra];
+  });
+}
+
+// A dynamic service's own field schema decides its columns — the entry values
+// are a raw {key: value} map, same as the on-screen table reads them.
+const serviceEntryExportHeaders = (fields, isAr) => [
+  "Guest", "Email", "Organization", "Service Level", "Status",
+  ...fields.map((f) => (isAr ? f.labelAr : null) || f.label || f.key),
+];
+const serviceEntryExportRows = (entries, fields) => entries.map((e) => [
+  e.guestName, e.email, e.organization, e.serviceLevelName, e.status,
+  ...fields.map((f) => e.values?.[f.key] ?? ""),
+]);
+
 function groupByGuest(bookings) {
   const byGuest = new Map();
   bookings.forEach((b) => {
@@ -391,6 +466,11 @@ export default function TravelView({ lang, activeEventId }) {
           "الوصول والمغادرة",
         ],
         newBooking: "حجز جديد",
+        exportExcel: "تصدير Excel",
+        exportAll: "تصدير كل تفاصيل الخدمات",
+        exportAllHint: "الرحلات، الفنادق، النقل، والوصول والمغادرة، بالإضافة إلى كل خدمة إضافية",
+        exportCurrent: "تصدير الخدمة الحالية",
+        exportCurrentHint: "التفاصيل الكاملة للتبويب المفتوح فقط",
         kpi: {
           flights: "رحلات مؤكدة",
           flightsH: "",
@@ -488,6 +568,11 @@ export default function TravelView({ lang, activeEventId }) {
           "Arrivals & Departures",
         ],
         newBooking: "New booking",
+        exportExcel: "Export Excel",
+        exportAll: "Export all service detail",
+        exportAllHint: "Flights, Hotel, Transfers, Arrivals & Departures, plus every dynamic service",
+        exportCurrent: "Export current service",
+        exportCurrentHint: "Complete details for the tab you have open",
         kpi: {
           flights: "Flights confirmed",
           flightsH: "",
@@ -1104,6 +1189,88 @@ export default function TravelView({ lang, activeEventId }) {
     setTravel(EMPTY_TRAVEL);
     setBookPlan(null);
     setBookPending({});
+  }
+
+  // `adRows` is a server-paginated page (10 at a time) — an export needs
+  // every row, so this re-fetches with a page large enough to cover them all
+  // rather than exporting whatever happens to be on screen.
+  async function fetchAllMovementRows() {
+    try {
+      const r = await getEventArrivalsDepartures(activeEventId, { pageNumber: 1, pageSize: 10000 });
+      return r?.items || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchDynamicServiceEntries(service) {
+    if (!service) return [];
+    try {
+      const r = await getServiceEntries(service.id, { eventId: activeEventId, pageSize: 10000 });
+      return r?.items || [];
+    } catch {
+      return [];
+    }
+  }
+
+  // The board's dynamic fields (arrival lounge, meet & greet, ...) — joined
+  // onto the movement rows by guestId, same as the on-screen table does it.
+  async function fetchAdServiceFieldData() {
+    if (!adService) return { fields: [], byGuest: {} };
+    const entries = await fetchDynamicServiceEntries(adService);
+    const byGuest = {};
+    entries.forEach((e) => { (byGuest[e.guestId] ||= []).push(e); });
+    return { fields: allFormFields(adService.form), byGuest };
+  }
+
+  // "current service" = whichever tab is open right now — a built-in (flight/
+  // hotel/transfer/movements) or a dynamic service, with the exact same field
+  // set its own table shows, not a trimmed summary.
+  async function exportCurrentService() {
+    if (svcId) {
+      const service = dynServices.find((s) => s.id === svcId);
+      if (!service) return;
+      const entries = await fetchDynamicServiceEntries(service);
+      const fields = allFormFields(service.form);
+      downloadCsv(`${service.code || service.name || "service"}.csv`,
+        toCsv(serviceEntryExportHeaders(fields, isAr), serviceEntryExportRows(entries, fields)));
+      return;
+    }
+    if (builtinTab === 0) {
+      downloadCsv("flights.csv", toCsv(FLIGHT_EXPORT_HEADERS, flightExportRows(flightRows, isAr)));
+    } else if (builtinTab === 1) {
+      downloadCsv("hotel-bookings.csv", toCsv(HOTEL_EXPORT_HEADERS, hotelExportRows(hotelRows)));
+    } else if (builtinTab === 2) {
+      downloadCsv("ground-transfers.csv", toCsv(TRANSFER_EXPORT_HEADERS, transferExportRows(transferRows)));
+    } else if (builtinTab === 3) {
+      const [rows, { fields, byGuest }] = await Promise.all([fetchAllMovementRows(), fetchAdServiceFieldData()]);
+      downloadCsv("arrivals-departures.csv", toCsv(
+        movementExportHeaders(fields, isAr), movementExportRows(rows, fields, byGuest)));
+    }
+  }
+
+  // Every service in one file — one section per service, since each has its
+  // own columns (see csvSection). Flight/Hotel/Transfer/Movements are already
+  // loaded event-wide; every dynamic service gets its own on-demand fetch.
+  async function exportAllServices() {
+    const [movementRows, { fields: adFields, byGuest: adByGuest }] =
+      await Promise.all([fetchAllMovementRows(), fetchAdServiceFieldData()]);
+    const sections = [
+      csvSection("Flights", FLIGHT_EXPORT_HEADERS, flightExportRows(flightRows, isAr)),
+      csvSection("Hotel", HOTEL_EXPORT_HEADERS, hotelExportRows(hotelRows)),
+      csvSection("Ground Transfers", TRANSFER_EXPORT_HEADERS, transferExportRows(transferRows)),
+      csvSection("Arrivals & Departures", movementExportHeaders(adFields, isAr), movementExportRows(movementRows, adFields, adByGuest)),
+    ];
+    for (const service of dynServices) {
+      const entries = await fetchDynamicServiceEntries(service);
+      const fields = allFormFields(service.form);
+      sections.push(csvSection(
+        (isAr ? service.nameAr : null) || service.name,
+        serviceEntryExportHeaders(fields, isAr),
+        serviceEntryExportRows(entries, fields),
+      ));
+    }
+    downloadCsv("all-services-export.csv", sections.join("\r\n"));
   }
 
   async function saveBooking() {
@@ -1870,15 +2037,30 @@ export default function TravelView({ lang, activeEventId }) {
           ))}
         </div>
 
-        {!svcId && (
-          <button
-            className="btn primary"
-            style={{ flexShrink: 0 }}
-            onClick={openNewBooking}
-          >
-            <Icon name="plus" size={14} /> {STR.newBooking}
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          <ActionMenu
+            align="end"
+            menuWidth={260}
+            trigger={({ toggle, ref }) => (
+              <button ref={ref} type="button" className="btn" onClick={toggle}>
+                <Icon name="excel" size={14} /> {STR.exportExcel}
+                <Icon name="chevronDown" size={12} style={{ marginInlineStart: 2 }} />
+              </button>
+            )}
+            items={[
+              { label: STR.exportAll, hint: STR.exportAllHint, icon: "excel", onClick: exportAllServices },
+              { label: STR.exportCurrent, hint: STR.exportCurrentHint, icon: "excel", onClick: exportCurrentService },
+            ]}
+          />
+          {!svcId && (
+            <button
+              className="btn primary"
+              onClick={openNewBooking}
+            >
+              <Icon name="plus" size={14} /> {STR.newBooking}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Dynamic service: its own table, columns built from its form, and its own
