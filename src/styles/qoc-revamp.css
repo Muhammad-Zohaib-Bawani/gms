@@ -1249,8 +1249,11 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
 .chip.confirmed, .chip.accepted, .chip.issued, .chip.active, .chip.ok {
   color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border);
 }
-.chip.pending, .chip.sent, .chip.warn {
+.chip.sent, .chip.warn {
   color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border);
+}
+.chip.pending {
+  color: #ffd358; background: var(--warn-bg); border-color: var(--warn-border);
 }
 .chip.declined, .chip.rejected, .chip.cancelled, .chip.danger {
   color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border);

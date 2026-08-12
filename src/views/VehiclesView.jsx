@@ -13,6 +13,7 @@ import {
 import { getVehicleTypes } from '../api/services/travelService';
 import { getFleetProviders } from '../api/services/fleetProviderService';
 import { uploadImageFile, stripSasToken } from '../api/services/uploadService';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -198,6 +199,15 @@ export default function VehiclesView({ lang, activeEventId }) {
     return cols;
   }, [isAr, canManage, deletingId]);
 
+  function handleExport() {
+    const headers = [
+      isAr ? 'رقم المركبة' : 'Vehicle Number', isAr ? 'الطراز' : 'Model',
+      isAr ? 'النوع' : 'Type', isAr ? 'المزوّد' : 'Provider', isAr ? 'السعة' : 'Capacity',
+    ];
+    const csvRows = rows.map((r) => [r.vehicleNumber, r.vehicleModel, r.vehicleTypeName, r.fleetProviderName, r.capacity]);
+    downloadCsv('vehicles.csv', toCsv(headers, csvRows));
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -205,11 +215,16 @@ export default function VehiclesView({ lang, activeEventId }) {
           <h1 className="page-title">{isAr ? 'المركبات' : 'Vehicles'}</h1>
           <div className="page-sub">{isAr ? 'أسطول النقل وأنواع المركبات' : 'Transport fleet and vehicle types'}</div>
         </div>
-        {tab === 'vehicles' && canManage && (
+        {tab === 'vehicles' && (
           <div className="page-actions">
-            <button className="btn primary" onClick={openAdd}>
-              <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+            <button className="btn" onClick={handleExport}>
+              <Icon name="download" size={14} /> {isAr ? 'تصدير' : 'Export'}
             </button>
+            {canManage && (
+              <button className="btn primary" onClick={openAdd}>
+                <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+              </button>
+            )}
           </div>
         )}
       </div>

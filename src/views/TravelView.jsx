@@ -9,6 +9,7 @@ import FlightLegCell from "./travel/FlightLegCell.jsx";
 import { useNavigate } from "react-router-dom";
 import { fmtNum, toArDigits } from "../i18n/translations.js";
 import SharedGuestCell from "../components/GuestCell.jsx";
+import { ServiceLevelChip } from "../components/UI.jsx";
 import { Icon } from "../components/Icons.jsx";
 import toast from "../lib/toast.js";
 import { getGuestPicker } from "../api/services/guestService.js";
@@ -228,6 +229,8 @@ function groupByGuest(bookings) {
         photoUrl: b.photoUrl,
         tier: b.tier,
         org: b.org,
+        serviceLevelName: b.serviceLevelName,
+        serviceLevelColor: b.serviceLevelColor,
         bookings: [],
       });
     }
@@ -263,6 +266,8 @@ function mapFlight(r) {
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
+    serviceLevelName: r.serviceLevelName || "",
+    serviceLevelColor: r.serviceLevelColor || "",
     flight: r.flightNumber || "—",
     flightType: r.flightType || "",
     // Every segment, so a return booking shows both halves of the trip —
@@ -294,6 +299,8 @@ function mapHotel(r) {
     initials: initialsFromName(r.guestName),
     tier: r.tier,
     org: r.organization,
+    serviceLevelName: r.serviceLevelName || "",
+    serviceLevelColor: r.serviceLevelColor || "",
     hotel: r.hotel || "—",
     hotelImage: r.hotelImageUrl || "",
     roomType: r.roomType || "—",
@@ -310,6 +317,8 @@ function mapTransfer(r) {
     email: r.email || "",
     initials: initialsFromName(r.guestName),
     tier: r.tier,
+    serviceLevelName: r.serviceLevelName || "",
+    serviceLevelColor: r.serviceLevelColor || "",
     vehicle: r.vehicle || "—",
     photoUrl: r.photoUrl || "",
 
@@ -568,7 +577,7 @@ export default function TravelView({ lang, activeEventId }) {
           "Arrivals & Departures",
         ],
         newBooking: "New booking",
-        exportExcel: "Export Excel",
+        exportExcel: "Export",
         exportAll: "Export all service detail",
         exportAllHint: "Flights, Hotel, Transfers, Arrivals & Departures, plus every dynamic service",
         exportCurrent: "Export current service",
@@ -1473,6 +1482,18 @@ export default function TravelView({ lang, activeEventId }) {
       ),
     });
 
+    // Right after Guest in every tab here — one guest, one service level,
+    // so this reads off the grouped row itself rather than being stacked
+    // per-booking like the columns below it.
+    const serviceLevelCol = {
+      id: "serviceLevel",
+      header: isAr ? "مستوى الخدمة" : "Service Level",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <ServiceLevelChip name={row.original.serviceLevelName} color={row.original.serviceLevelColor} lang={isAr ? "ar" : "en"} size={10.5} />
+      ),
+    };
+
     const stacked = (renderOne) => (bookings) =>
       bookings.length === 1 ? (
         renderOne(bookings[0])
@@ -1524,6 +1545,7 @@ export default function TravelView({ lang, activeEventId }) {
     return {
       flights: [
         guest(),
+        serviceLevelCol,
 
         col("flight", STR.cols.flight, (b) => (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1586,6 +1608,7 @@ export default function TravelView({ lang, activeEventId }) {
       ],
       hotels: [
         guest(),
+        serviceLevelCol,
         col("hotel", STR.cols.hotel, (b) => (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {b.hotelImage && (
@@ -1623,6 +1646,7 @@ export default function TravelView({ lang, activeEventId }) {
       ],
       transfers: [
         guest(false),
+        serviceLevelCol,
         col("vehicle", STR.cols.vehicle, (b) => (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Icon
@@ -1714,6 +1738,14 @@ export default function TravelView({ lang, activeEventId }) {
             />
           );
         },
+      },
+      {
+        id: "serviceLevel",
+        header: isAr ? "مستوى الخدمة" : "Service Level",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <ServiceLevelChip name={row.original.serviceLevelName} color={row.original.serviceLevelColor} lang={isAr ? "ar" : "en"} size={10.5} />
+        ),
       },
       ...(showInbound
         ? [

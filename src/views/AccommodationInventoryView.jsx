@@ -15,6 +15,7 @@ import {
   setRoomInventoryNight, getRoomAvailability,
 } from '../api/services/accommodationInventoryService';
 import RoomAvailabilityGrid, { monthsOf } from './accommodation/RoomAvailabilityGrid';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -377,6 +378,25 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
   }, [isAr, canManage, busyId]);
 
   const onContracts = tab === 'contracts';
+
+  function handleExport() {
+    if (onContracts) {
+      const headers = [
+        isAr ? 'الفندق' : 'Hotel', isAr ? 'العنوان' : 'Address',
+        isAr ? 'الكتل' : 'Blocks', isAr ? 'الغرف' : 'Rooms', isAr ? 'ملاحظات' : 'Notes',
+      ];
+      const rows = contracts.map((r) => [r.hotelName, r.hotelAddress, r.inventoryCount ?? 0, r.totalRooms ?? 0, r.notes]);
+      downloadCsv('hotel-contracts.csv', toCsv(headers, rows));
+    } else {
+      const headers = [
+        isAr ? 'الفندق' : 'Hotel', isAr ? 'نوع الغرفة' : 'Room Type', isAr ? 'الغرف' : 'Rooms',
+        isAr ? 'من' : 'From', isAr ? 'إلى' : 'To', isAr ? 'الليالي' : 'Nights', isAr ? 'ملاحظات' : 'Notes',
+      ];
+      const rows = visibleBlocks.map((r) => [r.hotelName, r.roomTypeName, r.roomCount ?? 0, r.fromDate, r.toDate, r.nights, r.notes]);
+      downloadCsv('room-inventory.csv', toCsv(headers, rows));
+    }
+  }
+
   const setCF = (k, v) => {
     setContractModal((m) => ({ ...m, form: { ...m.form, [k]: v } }));
     if (errors[k]) setErrors((p) => ({ ...p, [k]: null }));
@@ -397,9 +417,12 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
               : "Hotel contracts for this event, and the rooms held for each night"}
           </div>
         </div>
-        {canManage && activeEventId && (
+        {activeEventId && (
           <div className="page-actions">
-            {onContracts ? (
+            <button className="btn" onClick={handleExport}>
+              <Icon name="download" size={14} /> {isAr ? 'تصدير' : 'Export'}
+            </button>
+            {canManage && (onContracts ? (
               <button className="btn primary" onClick={() => openContract(null)}>
                 <Icon name="plus" size={14} /> {isAr ? 'إضافة عقد' : 'Add Contract'}
               </button>
@@ -407,7 +430,7 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
               <button className="btn primary" onClick={() => openBlock(null)} disabled={!contracts.length}>
                 <Icon name="plus" size={14} /> {isAr ? 'إضافة غرف' : 'Add Rooms'}
               </button>
-            )}
+            ))}
           </div>
         )}
       </div>

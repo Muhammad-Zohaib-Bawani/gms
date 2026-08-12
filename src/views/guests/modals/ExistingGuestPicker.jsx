@@ -302,10 +302,12 @@ export default function ExistingGuestPicker({
               const fullName = `${g.firstName || ''} ${g.lastName || ''}`.trim();
               const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
               return (
-                <tr key={key} style={{ borderTop: '1px solid var(--glass-border)', opacity: isSel ? 1 : 0.55 }}>
+                <tr key={key} style={{ borderTop: '1px solid var(--glass-border)' }}>
                   <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                     <input type="checkbox" style={checkboxStyle} checked={isSel} onChange={() => toggleRowSelected(key)}/>
                   </td>
+                  {/* Identity stays fully visible either way — it's the thing
+                      being picked, not a field that's disabled until picked. */}
                   <td style={{ padding: '8px 10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Avatar initials={initials} size={28} tier={g.tier} src={g.photoUrl}/>
@@ -320,7 +322,7 @@ export default function ExistingGuestPicker({
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '4px 10px' }}>
+                  <td style={{ padding: '4px 10px', opacity: isSel ? 1 : 0.55 }}>
                     <Select
                       value={rowLevel[key] ?? g.serviceLevelId ?? ''}
                       onChange={(v) => setRowLevel((p) => ({ ...p, [key]: v || null }))}
@@ -336,7 +338,7 @@ export default function ExistingGuestPicker({
                   {/* <td style={{ padding: '8px 10px' }}>
                     <StatusChip status={g.invitationStatus} lang={lang}/>
                   </td> */}
-                  <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', opacity: isSel ? 1 : 0.55 }}>
                     <input
                       type="checkbox" style={checkboxStyle}
                       checked={!!rowAccred.get(key)} disabled={!isSel}
@@ -344,7 +346,7 @@ export default function ExistingGuestPicker({
                     />
                   </td>
                   {(sessions || []).map((s) => (
-                    <td key={s.id} style={{ padding: '8px 10px', textAlign: 'center' }}>
+                    <td key={s.id} style={{ padding: '8px 10px', textAlign: 'center', opacity: isSel ? 1 : 0.55 }}>
                       <input
                         type="checkbox" style={checkboxStyle}
                         checked={!!rowSessions.get(key)?.has(s.id)} disabled={!isSel}

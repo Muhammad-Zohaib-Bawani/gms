@@ -4,7 +4,6 @@ import { QRCodeSVG } from "qrcode.react";
 import { Avatar, StatusChip, ServiceLevelChip, Drawer } from "./components/UI";
 import { Icon } from "./components/Icons";
 import Select from "./components/ui/Select";
-import DateField from "./components/ui/DateField";
 import toast from "./lib/toast";
 import { onHub, REALTIME_TOPICS } from "./lib/realtimeHub";
 import {
@@ -21,7 +20,6 @@ import { useEvents } from "./events/EventsContext";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { pathForKey } from "./nav";
 import { LOOKUP_DEFS } from "./views/lookups/lookupConfig";
-import { getGuestEnums } from "./api/services/lookupService";
 import { getNationalities } from "./api/services/nationalityService";
 import { updateGuest, deleteGuest } from "./api/services/guestService";
 import { uploadImageFile, stripSasToken } from "./api/services/uploadService";
@@ -32,7 +30,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "./api/services/notificationService";
-import { addDaysIso, fmtDate } from "./lib/date";
+import { fmtDate } from "./lib/date";
 import FlagIcon from "./components/FlagIcon";
 
 // Vehicle types live under the Vehicles module (its own tab); Room Types and
@@ -597,10 +595,9 @@ const GUEST_TYPES = [
   "vip",
   "observer",
 ];
-// One week of slack around the event's own start/end date — same rule used
-// everywhere else a guest's Arrival/Departure date is edited.
-const DRAWER_DATE_MARGIN_DAYS = 7;
-
+// Tier and Arrival/Departure used to be editable here too — dropped since
+// Tier is now a legacy mirror of the guest's ServiceLevel (not directly
+// settable) and this form isn't the place for travel dates anymore.
 function guestToProfileForm(g) {
   return {
     firstName: g.firstName || "",
@@ -609,9 +606,6 @@ function guestToProfileForm(g) {
     guestType: g.guestType || "delegate",
     organization: g.organization || "",
     nationalityId: g.nationalityId || "",
-    tier: g.tier || "delegate",
-    arrivalDate: g.arrivalDate || "",
-    departureDate: g.departureDate || "",
     photoUrl: g.photoUrl || "",
     accreditationRequired: !!g.accreditationRequired,
   };
@@ -656,29 +650,12 @@ function GuestDrawer({
   const moreRef = React.useRef(null);
 
   // ── Reference data for the real "Edit profile" modal ───────────────────────
-  const [enums, setEnums] = React.useState({});
   const [nationalities, setNationalities] = React.useState([]);
   React.useEffect(() => {
-    getGuestEnums()
-      .then(setEnums)
-      .catch(() => {});
     getNationalities()
       .then(setNationalities)
       .catch(() => setNationalities([]));
   }, []);
-
-  const eventMinDate = activeEvent?.startDate || undefined;
-  const eventMaxDate = activeEvent?.endDate || undefined;
-  const dateWindowMin = React.useMemo(
-    () =>
-      addDaysIso(activeEvent?.startDate, -DRAWER_DATE_MARGIN_DAYS) || undefined,
-    [activeEvent?.startDate],
-  );
-  const dateWindowMax = React.useMemo(
-    () =>
-      addDaysIso(activeEvent?.endDate, DRAWER_DATE_MARGIN_DAYS) || undefined,
-    [activeEvent?.endDate],
-  );
 
   // ── Edit profile modal ──────────────────────────────────────────────────────
   const [editProfile, setEditProfile] = React.useState(false);
@@ -729,10 +706,19 @@ function GuestDrawer({
         email: profileForm.email || null,
         guestType: profileForm.guestType,
         organization: profileForm.organization || null,
+        // The update endpoint resolves both of these fresh and overwrites the
+        // guest's existing links from them — omitting serviceLevelId in
+        // particular cleared the guest's assigned service level (and with it
+        // their whole services checklist) on every save from this form.
+        organizationId: guest.organizationId || null,
         nationalityId: profileForm.nationalityId || null,
-        tier: profileForm.tier,
-        arrivalDate: profileForm.arrivalDate || null,
-        departureDate: profileForm.departureDate || null,
+        serviceLevelId: guest.serviceLevelId || null,
+        overrideServiceLevelRules: !!guest.serviceLevelRulesOverridden,
+        serviceLevelOverrideReason: guest.serviceLevelOverrideReason || null,
+        // Not editable in this form — carried over unchanged.
+        tier: guest.tier,
+        arrivalDate: guest.arrivalDate || null,
+        departureDate: guest.departureDate || null,
         photoUrl: stripSasToken(profileForm.photoUrl) || null,
         accreditationRequired: profileForm.accreditationRequired,
         invitationTemplateId: guest.invitationTemplateId || null,
@@ -2195,105 +2181,6 @@ function GuestDrawer({
                   placeholder={isAr ? "— اختر —" : "— Select —"}
                   isClearable
                 />
-              </div>
-
-              <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: 10.5,
-                    color: "var(--ink-mute)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    marginBottom: 8,
-                  }}
-                >
-                  {D.tier}
-                </label>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  {enums?.GuestTier?.map((t) => (
-                    <div
-                      key={t.code}
-                      onClick={() => setProfileField("tier", t.code)}
-                      style={{
-                        padding: "10px 8px",
-                        borderRadius: 10,
-                        cursor: "pointer",
-                        textAlign: "center",
-                        fontSize: 12.5,
-                        fontWeight: profileForm.tier === t.code ? 600 : 400,
-                        border: `1px solid ${profileForm.tier === t.code ? "var(--accent)" : "var(--glass-border)"}`,
-                        background:
-                          profileForm.tier === t.code
-                            ? "rgba(141, 1, 52,0.12)"
-                            : "var(--surface-soft-2)",
-                      }}
-                    >
-                      {t.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 12,
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 10.5,
-                      color: "var(--ink-mute)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {D.arrivalDate}
-                  </label>
-                  <DateField
-                    value={profileForm.arrivalDate}
-                    onChange={(v) => setProfileField("arrivalDate", v || "")}
-                    minDate={dateWindowMin}
-                    maxDate={dateWindowMax}
-                    openToDate={eventMinDate}
-                    clearable
-                    clearLabel={isAr ? "مسح" : "Clear"}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 10.5,
-                      color: "var(--ink-mute)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: 4,
-                    }}
-                  >
-                    {isAr ? "تاريخ المغادرة" : "Departure Date"}
-                  </label>
-                  <DateField
-                    value={profileForm.departureDate}
-                    onChange={(v) => setProfileField("departureDate", v || "")}
-                    minDate={profileForm.arrivalDate || dateWindowMin}
-                    maxDate={dateWindowMax}
-                    openToDate={eventMinDate}
-                    clearable
-                    clearLabel={isAr ? "مسح" : "Clear"}
-                  />
-                </div>
               </div>
 
               <div>

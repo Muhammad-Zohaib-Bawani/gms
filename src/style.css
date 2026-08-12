@@ -1478,7 +1478,7 @@ html[data-theme="light"] .crumb-logo .logo-color { display: block; }
 }
 .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
 .chip.confirmed { color: #c21857; background: var(--selected-tint); border-color: rgba(141, 1, 52,0.30); }
-.chip.confirmed .dot { background: #c21857; }
+/* .chip.confirmed .dot { background: #c21857; } */
 .chip.pending { color: #f1d99e; background: rgba(241,217,158,0.08); border-color: rgba(241,217,158,0.28); }
 .chip.pending .dot { background: #f1d99e; }
 .chip.declined { color: #ec9b94; background: rgba(224,138,126,0.10); border-color: rgba(224,138,126,0.30); }

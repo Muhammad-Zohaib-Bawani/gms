@@ -25,6 +25,13 @@ export default function DataTable({
   emptyText = 'No records found',
   searchPlaceholder = 'Search…',
   showSearch = true,
+  // Controlled/server-driven search — pass both together when the rows
+  // themselves come from the server (manualPagination): the local
+  // `globalFilter` state would otherwise only ever search the current page's
+  // handful of rows instead of the whole dataset. Omit both to keep the
+  // existing uncontrolled, filters-the-local-`data` behaviour.
+  searchValue,
+  onSearchChange,
   pageSize: initialPageSize = 15,
   // Server-driven paging. Pass `manualPagination` together with the current
   // page/size and the server's total row count; the table then renders exactly
@@ -47,6 +54,7 @@ export default function DataTable({
   // concept. Compared against getRowId(row.original).
   selectedRowId,
 }) {
+  const searchIsControlled = onSearchChange != null;
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState([]);
   const [rowSelection, setRowSelection] = useState({});
@@ -101,7 +109,9 @@ export default function DataTable({
     data: data ?? [],
     columns: finalColumns,
     state: {
-      globalFilter,
+      // Controlled mode never feeds the local filter model — the server
+      // already returned only the matching rows.
+      globalFilter: searchIsControlled ? '' : globalFilter,
       sorting,
       ...(enableRowSelection ? { rowSelection } : {}),
     },
@@ -146,8 +156,8 @@ export default function DataTable({
         <div className="dt-toolbar">
           {showSearch && (
             <input
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
+              value={searchIsControlled ? (searchValue ?? '') : globalFilter}
+              onChange={e => (searchIsControlled ? onSearchChange(e.target.value) : setGlobalFilter(e.target.value))}
               placeholder={searchPlaceholder}
               className="dt-search"
             />

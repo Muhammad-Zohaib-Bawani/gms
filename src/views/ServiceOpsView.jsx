@@ -15,6 +15,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PageHeader, Card, EmptyState } from '../components/ds';
 import { Icon } from '../components/Icons';
 import GuestCell from '../components/GuestCell';
+import { ServiceLevelChip } from '../components/UI.jsx';
 import DataTable from '../components/ui/DataTable';
 import { getServices, getServiceEntries } from '../api/services/serviceCatalogService';
 import { allFormFields } from '../components/ui/DynamicFields';
@@ -136,12 +137,18 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
     header: isAr ? 'الضيف' : 'Guest',
     enableSorting: false,
     cell: ({ row: { original: r } }) => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
-        {r.serviceLevelName && (
-          <span className="chip" style={{ fontSize: 10 }}>{r.serviceLevelName}</span>
-        )}
-      </div>
+      <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
+    ),
+  };
+
+  // Right after Guest in every table here — was an inline chip squeezed into
+  // the guest cell, now its own column so it lines up like a real field.
+  const serviceLevelColumn = {
+    id: 'serviceLevel',
+    header: isAr ? 'مستوى الخدمة' : 'Service Level',
+    enableSorting: false,
+    cell: ({ row: { original: r } }) => (
+      <ServiceLevelChip name={r.serviceLevelName} color={r.serviceLevelColor} lang={isAr ? 'ar' : 'en'} size={10.5} />
     ),
   };
 
@@ -160,6 +167,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
           email: r.email,
           photoUrl: r.photoUrl,
           serviceLevelName: r.serviceLevelName,
+          serviceLevelColor: r.serviceLevelColor,
           entries: [],
         });
       }
@@ -177,6 +185,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
     const multi = (g) => g.entries.length > 1;
     return [
       guestColumn,
+      serviceLevelColumn,
       ...(service.form?.sections || []).map((sec, i) => ({
         id: sec.key || `sec${i}`,
         header: (isAr ? sec.labelAr : null) || sec.label,
@@ -261,6 +270,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
           guestName: r.guestName,
           email: r.email,
           serviceLevelName: r.serviceLevelName,
+          serviceLevelColor: r.serviceLevelColor,
           entries: [],
         });
       }
@@ -273,14 +283,10 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
     {
       id: 'guest', header: isAr ? 'الضيف' : 'Guest', enableSorting: false,
       cell: ({ row: { original: r } }) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
-          {r.serviceLevelName && (
-            <span className="chip" style={{ fontSize: 10 }}>{r.serviceLevelName}</span>
-          )}
-        </div>
+        <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
       ),
     },
+    serviceLevelColumn,
     ...datedSections.map((sec, i) => ({
       id: sec.key || `dated${i}`,
       header: (isAr ? sec.labelAr : null) || sec.label,

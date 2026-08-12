@@ -10,6 +10,7 @@ import { listGuests, issueAccreditation, revokeAccreditation } from '../api/serv
 import { getGuestEnums } from '../api/services/lookupService';
 import { getEvent } from '../api/services/eventService';
 import AccreditationCardModal from './accreditation/AccreditationCardModal';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const TIER_COLOR = {
   vvip: '#e0b864', vip: '#a78bda', speaker: 'var(--accent)',
@@ -181,6 +182,29 @@ export default function AccreditationView({ lang, activeEventId }) {
   const allSelected = filtered.length > 0 && sel.size === filtered.length;
   const someSelected = sel.size > 0;
 
+  // No persisted badge number exists on the backend — the printed badge
+  // (AccreditationCard.jsx) derives one from the guest's own id, so the
+  // export reuses that exact same derivation rather than inventing a
+  // different one that wouldn't match what's on the physical card.
+  function badgeNoFor(g) {
+    return g.accreditationStatus === 'issued'
+      ? (g.id || '').replace(/-/g, '').slice(0, 10).toUpperCase()
+      : '';
+  }
+
+  function handleExport() {
+    const headers = [
+      STR.guest, isAr ? 'البريد الإلكتروني' : 'Email', STR.org, STR.serviceLevel,
+      isAr ? 'حالة الدعوة' : 'Invitation Status', STR.status, STR.badgeNo,
+    ];
+    const rows = filtered.map((g) => [
+      g.fullName, g.email, g.organization, g.serviceLevelName || g.tier,
+      g.invitationStatus, g.accreditationStatus === 'issued' ? STR.badgeIssued : STR.badgePending,
+      badgeNoFor(g),
+    ]);
+    downloadCsv('accreditation.csv', toCsv(headers, rows));
+  }
+
   const kpis = [
     { label: STR.total,   value: ad(guests.length),  icon: 'guests',  color: 'var(--ink)' },
     { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--ok)' },
@@ -206,6 +230,9 @@ export default function AccreditationView({ lang, activeEventId }) {
           <div className="page-sub">{STR.sub}</div>
         </div>
         <div className="page-actions">
+          <button className="btn" onClick={handleExport}>
+            <Icon name="download" size={14}/> {isAr ? 'تصدير' : 'Export'}
+          </button>
           <button className="btn" onClick={issueAllPending} disabled={totalPending === 0}>
             <Icon name="badge" size={14}/> {STR.issueAll}
           </button>
@@ -305,8 +332,8 @@ export default function AccreditationView({ lang, activeEventId }) {
                         style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
                     </th>
                     <th>{STR.guest}</th>
-                    <th>{STR.org}</th>
                     <th>{STR.serviceLevel}</th>
+                    <th>{STR.org}</th>
                     {/* <th>{STR.arrival}</th> */}
                     <th>{STR.status}</th>
                     <th>{STR.actions}</th>
@@ -329,10 +356,10 @@ export default function AccreditationView({ lang, activeEventId }) {
                         <td>
                           <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={30} onOpen={() => setCardGuest(g)} />
                         </td>
+                        <td><ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/></td>
                         <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         </td>
-                        <td><ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/></td>
                         {/* <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td> */}
                         <td>
                           <span style={chipStyle(isIssued)}>

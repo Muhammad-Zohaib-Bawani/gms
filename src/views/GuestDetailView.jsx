@@ -9,7 +9,8 @@ import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
 import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../lib/date';
-import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
+import { useAuth } from '../auth/AuthContext';
+import { getGuest, issueAccreditation, revokeAccreditation, updateGuest } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getOrganizations } from '../api/services/organizationService';
 import { getTemplates } from '../api/services/invitationTemplateService';
@@ -19,7 +20,10 @@ import { getGuestSeatAssignments } from '../api/services/seatingService';
 import GuestModal from './guests/modals/GuestModal';
 import { flightTypeLabel, legTitle } from './guests/modals/TravelAccordion';
 import DeleteGuestsModal from './guests/modals/DeleteGuestsModal';
+import GuestProfileEditModal from './guests/modals/GuestProfileEditModal';
 import GuestServicesPanel from './guests/GuestServicesPanel';
+import ActionMenu from '../components/ui/ActionMenu';
+import AccreditationCardModal from './accreditation/AccreditationCardModal';
 
 // Each guest's own travel rows out of the event-wide lists — those already
 // carry resolved display names (hotel, vehicle, driver...), unlike
@@ -89,9 +93,111 @@ function Empty({ children }) {
 
 const fieldGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 };
 
-export default function GuestDetailView({ guestId, lang }) {
+// Admin-only "which sessions is this guest in" popup — just the sessions,
+// not the full guest wizard. Saves through the same full-payload update every
+// guest edit uses (the API replaces the whole record), so everything else on
+// the guest is carried over unchanged and only sessionIds actually changes.
+function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
+  const isAr = lang === 'ar';
+  const [selected, setSelected] = useState(() => new Set(guest?.sessionIds || []));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setSelected(new Set(guest?.sessionIds || []));
+  }, [open, guest]);
+
+  if (!open) return null;
+  const allSessions = event?.sessions || [];
+
+  function toggle(id) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await updateGuest(guest.id, {
+        firstName: guest.firstName,
+        lastName: guest.lastName,
+        email: guest.email || null,
+        guestType: guest.guestType,
+        organization: guest.organization || null,
+        // Omitting either of these nulls out the guest's linked organization
+        // and service level (and with the latter, their whole services
+        // checklist) — the update endpoint resolves both fresh from the
+        // request and overwrites the guest's existing links either way.
+        organizationId: guest.organizationId || null,
+        nationalityId: guest.nationalityId || null,
+        serviceLevelId: guest.serviceLevelId || null,
+        overrideServiceLevelRules: !!guest.serviceLevelRulesOverridden,
+        serviceLevelOverrideReason: guest.serviceLevelOverrideReason || null,
+        tier: guest.tier,
+        arrivalDate: guest.arrivalDate || null,
+        departureDate: guest.departureDate || null,
+        photoUrl: guest.photoUrl || null,
+        accreditationRequired: guest.accreditationRequired,
+        invitationTemplateId: guest.invitationTemplateId || null,
+        sessionIds: Array.from(selected),
+      });
+      toast.success(isAr ? 'تم حفظ الجلسات' : 'Sessions saved');
+      onSaved?.(updated);
+      onClose();
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر الحفظ' : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}
+      onClick={onClose}>
+      <div className="card glass modal-solid" style={{ width: 420, maxWidth: '92vw', padding: 0, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>{isAr ? 'جلسات الضيف' : 'Guest Sessions'}</h3>
+          <button className="icon-btn" onClick={onClose}><Icon name="close" size={14} /></button>
+        </div>
+        <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {allSessions.length === 0 ? (
+            <Empty>{isAr ? 'لا توجد جلسات لهذه الفعالية' : 'This event has no sessions'}</Empty>
+          ) : allSessions.map((s) => (
+            <label key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+              border: `1px solid ${selected.has(s.id) ? 'var(--accent)' : 'var(--glass-border)'}`,
+              background: selected.has(s.id) ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+            }}>
+              <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500 }}>{s.title}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
+                  {[fmtDate(s.date, isAr), s.time, s.room].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={onClose} disabled={saving}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+          <button className="btn primary" onClick={handleSave} disabled={saving}>
+            <Icon name="check" size={13} /> {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ' : 'Save')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function GuestDetailView({ guestId, lang, embedded = false }) {
   const isAr = lang === 'ar';
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const canEditGuest = can('Guests.Update');
+  const canSeeSeating = can('Seating.View');
 
   const [guest, setGuest] = useState(null);
   const [event, setEvent] = useState(null);
@@ -107,6 +213,9 @@ export default function GuestDetailView({ guestId, lang }) {
   const [busy, setBusy] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [showSessionsEdit, setShowSessionsEdit] = useState(false);
+  const [showAccredCard, setShowAccredCard] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,13 +311,15 @@ export default function GuestDetailView({ guestId, lang }) {
 
   return (
     <div style={{ margin: '0 auto' }}>
-      <button
-        className="btn"
-        style={{ marginBottom: 14, fontSize: 12.5 }}
-        onClick={() => navigate('/guests')}
-      >
-        <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
-      </button>
+      {!embedded && (
+        <button
+          className="btn"
+          style={{ marginBottom: 14, fontSize: 12.5 }}
+          onClick={() => navigate('/guests')}
+        >
+          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
+        </button>
+      )}
 
       {/* Header */}
       <div className="card" style={{ padding: '20px 22px', marginBottom: 16 }}>
@@ -227,37 +338,40 @@ export default function GuestDetailView({ guestId, lang }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button className="btn" onClick={() => navigate('/support-chat', {
-              state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
-            })}>
-              <Icon name="message" size={13} /> {isAr ? 'رسالة' : 'Message'}
-            </button>
-            {guest.accreditationRequired && (
-              guest.accreditationStatus === 'issued' ? (
-                <button className="btn" disabled={busy} style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={handleRevoke}>
-                  <Icon name="x" size={13} /> {isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
-                </button>
-              ) : (
-                <button className="btn" disabled={busy || !canIssue} title={!canIssue ? (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first') : undefined}
-                  style={canIssue ? undefined : { opacity: 0.4, cursor: 'not-allowed' }} onClick={handleIssue}>
-                  <Icon name="badge" size={13} /> {isAr ? 'إصدار الاعتماد' : 'Issue Accreditation'}
-                </button>
-              )
-            )}
-            <button className="btn primary" onClick={() => setShowEdit(true)}>
-              <Icon name="edit" size={13} /> {isAr ? 'تعديل' : 'Edit'}
-            </button>
-            <button className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.3)' }} onClick={() => setShowDelete(true)}>
-              <Icon name="trash" size={13} /> {isAr ? 'حذف' : 'Delete'}
-            </button>
-          </div>
+          <ActionMenu
+            items={[
+              {
+                label: isAr ? 'رسالة' : 'Message',
+                icon: 'message',
+                onClick: () => navigate('/support-chat', {
+                  state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
+                }),
+              },
+              guest.accreditationRequired && (
+                guest.accreditationStatus === 'issued'
+                  ? { label: isAr ? 'سحب الاعتماد' : 'Revoke Accreditation', icon: 'x', danger: true, disabled: busy, onClick: handleRevoke }
+                  : {
+                      label: isAr ? 'إصدار الاعتماد' : 'Issue Accreditation', icon: 'badge',
+                      disabled: busy || !canIssue,
+                      hint: !canIssue ? (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first') : undefined,
+                      onClick: handleIssue,
+                    }
+              ),
+              { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => setShowEdit(true) },
+              { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true, onClick: () => setShowDelete(true) },
+            ]}
+          />
         </div>
       </div>
 
       {/* Detail grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <Section icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}>
+        <Section icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}
+          action={canEditGuest && (
+            <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} onClick={() => setShowProfileEdit(true)}>
+              <Icon name="edit" size={13} />
+            </button>
+          )}>
           <div style={fieldGrid}>
             <Field label={isAr ? 'البريد الإلكتروني' : 'Email'} value={guest.email} />
             <Field label={isAr ? 'نوع الضيف' : 'Guest Type'} value={guest.guestType} />
@@ -273,16 +387,26 @@ export default function GuestDetailView({ guestId, lang }) {
             <Field
               label={isAr ? 'الاعتماد' : 'Accreditation'}
               value={guest.accreditationRequired
-                ? <span className="chip" style={{ borderColor: `${accredBadge.color}55`, color: accredBadge.color, background: `${accredBadge.color}18` }}>
-                    <span className="dot" style={{ background: accredBadge.color }} />
-                    {accredBadge.label[isAr ? 'ar' : 'en']}
-                  </span>
+                ? <button
+                    type="button"
+                    className=""
+                    style={{display: "flex",gap: 4,alignItems: "center", borderBottom: '1px solid #000 !important',border: "none", background: 'transparent', padding: 0, fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
+                    onClick={() => setShowAccredCard(true)}
+                  >
+                    <Icon name="badge" size={12} />
+                    {isAr ? 'عرض الاعتماد' : 'View Pass'}
+                  </button>
                 : (isAr ? 'غير مطلوب' : 'Not required')}
             />
           </div>
         </Section>
 
-        <Section icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
+        <Section icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}
+          action={canEditGuest && (
+            <button className="icon-btn" title={isAr ? 'تعديل الجلسات' : 'Edit sessions'} onClick={() => setShowSessionsEdit(true)}>
+              <Icon name="edit" size={13} />
+            </button>
+          )}>
           {sessions.length === 0 ? (
             <Empty>{isAr ? 'لم يسجل الضيف في أي جلسة' : 'Not registered for any session'}</Empty>
           ) : (
@@ -305,7 +429,12 @@ export default function GuestDetailView({ guestId, lang }) {
           )}
         </Section>
 
-        <Section icon="venue" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
+        <Section icon="venue" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}
+          action={canSeeSeating && (
+            <button className="icon-btn" title={isAr ? 'الذهاب إلى الجلوس' : 'Go to Seating'} onClick={() => navigate('/seating')}>
+              <Icon name="arrow" size={13} />
+            </button>
+          )}>
           {seats.length === 0 ? (
             <Empty>{isAr ? 'لم يُخصص مقعد بعد' : 'No seat assigned'}</Empty>
           ) : (
@@ -360,6 +489,36 @@ export default function GuestDetailView({ guestId, lang }) {
           onDeleted={() => navigate('/guests')}
         />
       )}
+
+      <GuestProfileEditModal
+        open={showProfileEdit}
+        guest={guest}
+        lang={lang}
+        onClose={() => setShowProfileEdit(false)}
+        onSaved={() => load()}
+      />
+
+      <SessionsEditModal
+        open={showSessionsEdit}
+        guest={guest}
+        event={event}
+        lang={lang}
+        onClose={() => setShowSessionsEdit(false)}
+        onSaved={() => load()}
+      />
+
+      <AccreditationCardModal
+        open={showAccredCard}
+        guest={guest}
+        event={event}
+        lang={lang}
+        onClose={() => setShowAccredCard(false)}
+        onIssue={handleIssue}
+        onRevoke={handleRevoke}
+        canIssue={canIssue}
+        busy={busy}
+        notAcceptedTitle={isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first'}
+      />
     </div>
   );
 }

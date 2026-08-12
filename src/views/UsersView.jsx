@@ -3,7 +3,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/apiClient';
 import { ENDPOINTS } from '../api/endpoints';
-import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser } from '../api/services/userAccessService';
+import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser, getPendingUsers } from '../api/services/userAccessService';
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
@@ -19,6 +19,7 @@ import { Icon } from '../components/Icons';
 // Country-code picker + validation (libphonenumber-js under the hood).
 import PhoneInput, { isValidPhoneNumber, parsePhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -485,7 +486,18 @@ const TABS = ['all', 'pending'];
 export default function UsersView() {
   const { user: me, can, isDemo } = useAuth();
 
-  const [users, setUsers]         = useState([]);
+  // The page's own rows — one server page at a time, not the whole table.
+  // Which endpoint fills it depends on the active tab: /users for All,
+  // /users/pending for Pending (a genuinely different query server-side, not
+  // a client-side filter over the same list).
+  const [rows, setRows]           = useState([]);
+  const [totalRows, setTotalRows] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize]   = useState(10);
+  const [search, setSearch]       = useState('');
+  // Just for the "Pending (N)" tab label/page-sub — independent of whichever
+  // tab/page is currently loaded.
+  const [pendingCount, setPendingCount] = useState(0);
   const [roles, setRoles]         = useState([]);
   const [nationalities, setNationalities] = useState([]);
   const [driverTypes, setDriverTypes] = useState([]);
@@ -497,25 +509,54 @@ export default function UsersView() {
   const [passwordTarget, setPasswordTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [resendingId, setResendingId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const canCreate = can('Users.Create');
   const canUpdate = can('Users.Update');
   const canDelete = can('Users.Delete');
 
   const load = useCallback(async () => {
-    if (isDemo) { setUsers(DEMO_USERS); setLoading(false); return; }
+    if (isDemo) {
+      setRows(tab === 'pending' ? [] : DEMO_USERS);
+      setTotalRows(tab === 'pending' ? 0 : DEMO_USERS.length);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await apiClient.get(ENDPOINTS.users.base, { params: { pageSize: 500 } });
-      setUsers(res?.items ?? res ?? []);
+      if (tab === 'pending') {
+        const res = await getPendingUsers({ pageNumber: pageIndex + 1, pageSize, search });
+        setRows((res?.items ?? []).map((u) => ({ ...u, isPending: true })));
+        setTotalRows(res?.totalCount ?? 0);
+      } else {
+        const res = await apiClient.get(ENDPOINTS.users.base, {
+          params: { pageNumber: pageIndex + 1, pageSize, search: search || undefined },
+        });
+        setRows(res?.items ?? []);
+        setTotalRows(res?.totalCount ?? 0);
+      }
     } catch (err) {
       toast.error(err.message || 'Could not load users');
     } finally {
       setLoading(false);
     }
-  }, [isDemo]);
+  }, [isDemo, tab, pageIndex, pageSize, search]);
 
   useEffect(() => { load(); }, [load]);
+  // Switching tabs or searching starts over from page 1 — staying on, say,
+  // page 3 of "All" and flipping to "Pending" would otherwise ask the server
+  // for a page that likely doesn't exist for the new list.
+  useEffect(() => { setPageIndex(0); }, [tab, search]);
+
+  const loadPendingCount = useCallback(async () => {
+    if (isDemo) { setPendingCount(0); return; }
+    try {
+      const res = await getPendingUsers({ pageNumber: 1, pageSize: 1 });
+      setPendingCount(res?.totalCount ?? 0);
+    } catch { /* cosmetic badge only */ }
+  }, [isDemo]);
+  useEffect(() => { loadPendingCount(); }, [loadPendingCount]);
+
   useEffect(() => {
     // Roles feed both the invite form and the edit form.
     if (isDemo || !(canCreate || canUpdate)) return;
@@ -533,6 +574,7 @@ export default function UsersView() {
       toast.success(`${toDelete.firstName || toDelete.email} deleted`);
       setToDelete(null);
       await load();
+      loadPendingCount();
     } catch (err) {
       toast.error(err.message || 'Delete failed');
     } finally {
@@ -552,8 +594,39 @@ export default function UsersView() {
     }
   }
 
-  const rows = useMemo(() => tab === 'pending' ? users.filter((u) => u.isPending) : users, [users, tab]);
-  const pendingCount = useMemo(() => users.filter((u) => u.isPending).length, [users]);
+  function handleInvited() {
+    load();
+    loadPendingCount();
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      let all = rows;
+      if (!isDemo) {
+        if (tab === 'pending') {
+          const res = await getPendingUsers({ pageNumber: 1, pageSize: Math.max(totalRows, 1), search });
+          all = (res?.items ?? []).map((u) => ({ ...u, isPending: true }));
+        } else {
+          const res = await apiClient.get(ENDPOINTS.users.base, {
+            params: { pageNumber: 1, pageSize: Math.max(totalRows, 1), search: search || undefined },
+          });
+          all = res?.items ?? [];
+        }
+      }
+      const headers = ['First Name', 'Last Name', 'Email', 'Role', 'Status', 'Joined', 'Driver License Number'];
+      const csvRows = all.map((u) => [
+        u.firstName, u.lastName, u.email, u.roleName,
+        u.isPending ? 'Pending' : (u.isActive ? 'Active' : 'Inactive'),
+        formatDate(u.createdAt), u.driverProfile?.licenseNumber || '',
+      ]);
+      downloadCsv(`users-${tab}.csv`, toCsv(headers, csvRows));
+    } catch (err) {
+      toast.error(err.message || 'Could not export users');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const columns = useMemo(() => [
     col.display({
@@ -695,17 +768,20 @@ export default function UsersView() {
         <div>
           <h1 className="page-title">Users</h1>
           <div className="page-sub">
-            {loading ? 'Loading…' : `${users.length} account${users.length !== 1 ? 's' : ''}`}
-            {pendingCount > 0 && !loading && ` · ${pendingCount} pending`}
+            {loading ? 'Loading…' : `${totalRows} ${tab === 'pending' ? 'pending invite' : 'account'}${totalRows !== 1 ? 's' : ''}`}
+            {tab !== 'pending' && pendingCount > 0 && !loading && ` · ${pendingCount} pending`}
           </div>
         </div>
-        {canCreate && (
-          <div className="page-actions">
+        <div className="page-actions">
+          <button className="btn" onClick={handleExport} disabled={exporting}>
+            <Icon name="download" size={14} /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          {canCreate && (
             <button className="btn primary" onClick={() => setShowInvite(true)}>
               <Icon name="plus" size={14} /> Invite User
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 16 }}>
@@ -717,13 +793,24 @@ export default function UsersView() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Keyed by tab so switching between All/Pending remounts the table
+            instead of keeping its old page — the rows come from a fresh
+            server query either way. */}
         <DataTable
+          key={tab}
           columns={columns}
           data={rows}
           loading={loading}
           searchPlaceholder="Search by name, email or role…"
+          searchValue={search}
+          onSearchChange={setSearch}
           emptyText={tab === 'pending' ? 'No pending invites' : 'No users found'}
-          pageSize={15}
+          manualPagination
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          totalRows={totalRows}
+          onPageChange={setPageIndex}
+          onPageSizeChange={(n) => { setPageSize(n); setPageIndex(0); }}
         />
       </div>
 
@@ -740,7 +827,7 @@ export default function UsersView() {
         roles={roles}
         nationalities={nationalities}
         driverTypes={driverTypes}
-        onInvited={load}
+        onInvited={handleInvited}
       />
 
       <EditUserModal

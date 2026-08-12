@@ -9,6 +9,7 @@ import { getVehicles, getVehicleBookings } from '../api/services/vehicleService'
 import { getDrivers } from '../api/services/travelService';
 import { vehicleLabel, driverLabel } from './guests/modals/TravelAccordion';
 import FleetBookingsGrid from './fleet/FleetBookingsGrid';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const labelStyle = {
   display: 'block', fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase',
@@ -160,6 +161,25 @@ export default function FleetBookingsView({ lang, activeEventId }) {
     },
   ], [isAr]);
 
+  function handleExport() {
+    const headers = [
+      isAr ? 'رقم المركبة' : 'Vehicle Number', isAr ? 'الطراز' : 'Model', isAr ? 'النوع' : 'Type',
+      isAr ? 'المزوّد' : 'Provider', isAr ? 'الاستلام' : 'Pickup Time', isAr ? 'التوصيل' : 'Dropoff Time',
+      isAr ? 'السائق' : 'Driver', isAr ? 'هاتف السائق' : 'Driver Phone', isAr ? 'الضيف' : 'Guest',
+      isAr ? 'موقع الاستلام' : 'Pickup Location', isAr ? 'موقع التوصيل' : 'Dropoff Location',
+      isAr ? 'الحالة' : 'Status',
+    ];
+    const csvRows = rows.map((r) => {
+      const code = (r.status || '').toLowerCase();
+      return [
+        r.vehicleNumber, r.vehicleModel, r.vehicleTypeName, r.fleetProviderName || (isAr ? 'داخلي' : 'In-house'),
+        r.pickupTime, r.dropoffTime, r.driverName, r.driverPhone, r.guestName,
+        r.pickup, r.dropoff, STATUS_LABEL[code]?.[isAr ? 'ar' : 'en'] || code,
+      ];
+    });
+    downloadCsv('fleet-bookings.csv', toCsv(headers, csvRows));
+  }
+
   const toolbar = (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
       <div style={{ minWidth: 170 }}>
@@ -219,6 +239,9 @@ export default function FleetBookingsView({ lang, activeEventId }) {
         </div>
         {activeEventId && (
           <div className="page-actions">
+            <button className="btn" onClick={handleExport}>
+              <Icon name="download" size={13} /> {isAr ? 'تصدير' : 'Export'}
+            </button>
             {[
               { key: 'list', label: isAr ? 'قائمة' : 'List', icon: 'reports' },
               { key: 'grid', label: isAr ? 'شبكة' : 'Grid', icon: 'meetings' },

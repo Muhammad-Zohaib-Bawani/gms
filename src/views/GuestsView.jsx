@@ -20,6 +20,7 @@ import GuestModal from "./guests/modals/GuestModal";
 import MessageModal from "./guests/modals/MessageModal";
 import AccreditationModal from "./guests/modals/AccreditationModal";
 import DeleteGuestsModal from "./guests/modals/DeleteGuestsModal";
+import GuestDetailView from "./GuestDetailView";
 
 export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const t = getTranslations(lang);
@@ -62,6 +63,16 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [selectedGuests, setSelectedGuests] = useState([]);
   const [selResetKey, setSelResetKey] = useState(0);
+
+  // ── view mode: table list, or a master-detail split with the full guest
+  // page on the right (reuses GuestDetailView as-is — it's just a guestId prop).
+  const [viewMode, setViewMode] = useState("list");
+  const [splitGuests, setSplitGuests] = useState([]);
+  const [splitTotalCount, setSplitTotalCount] = useState(0);
+  const [splitPageIndex, setSplitPageIndex] = useState(0);
+  const SPLIT_PAGE_SIZE = 10;
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [selectedGuestId, setSelectedGuestId] = useState(null);
 
   const activeFilterCount = [
     levelFilter !== "All",
@@ -191,6 +202,55 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   useEffect(() => {
     loadGuests();
   }, [loadGuests]);
+
+  // Split view's left pane is its own server page — same filters as the table,
+  // but its own page size/index, since 10 names fit the compact list far better
+  // than the table's page size. Only fetched while that view is on screen.
+  const loadSplitGuests = useCallback(async () => {
+    if (!activeEventId) { setSplitGuests([]); setSplitTotalCount(0); return; }
+    setSplitLoading(true);
+    try {
+      const r = await listGuests({
+        eventId: activeEventId,
+        pageNumber: splitPageIndex + 1,
+        pageSize: SPLIT_PAGE_SIZE,
+        search: query || undefined,
+        serviceLevelId: levelFilter !== "All" ? levelFilter : undefined,
+        invitationStatuses: statusFilters.length ? statusFilters : undefined,
+        organizationId: orgFilter !== "All" ? orgFilter : undefined,
+        nationalityId: nationalityFilter !== "All" ? nationalityFilter : undefined,
+        accreditationStatus: accreditationFilter !== "All" ? accreditationFilter : undefined,
+      });
+      setSplitGuests(r?.items || []);
+      setSplitTotalCount(r?.totalCount ?? 0);
+    } catch {
+      setSplitGuests([]);
+      setSplitTotalCount(0);
+    } finally {
+      setSplitLoading(false);
+    }
+  }, [activeEventId, query, splitPageIndex, levelFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]);
+
+  useEffect(() => {
+    if (viewMode === "split") loadSplitGuests();
+  }, [viewMode, loadSplitGuests]);
+
+  // A filter/search change reshapes the result set — go back to the split
+  // list's page 1, same as the table does for its own pagination.
+  useEffect(() => {
+    setSplitPageIndex(0);
+  }, [activeEventId, query, levelFilter, statusFilters, orgFilter, nationalityFilter, accreditationFilter]);
+
+  // Auto-select the first guest whenever the split list (re)loads — including
+  // after a filter/page change swaps in a different set, but not spuriously
+  // while the same guest is still in the list.
+  useEffect(() => {
+    if (viewMode !== "split") return;
+    if (splitGuests.some((g) => g.id === selectedGuestId)) return;
+    setSelectedGuestId(splitGuests[0]?.id || null);
+  }, [viewMode, splitGuests, selectedGuestId]);
+
+  const splitPageCount = Math.max(1, Math.ceil(splitTotalCount / SPLIT_PAGE_SIZE));
 
   // Any change that reshapes the result set has to send us back to page 1 —
   // otherwise a filter that narrows to 3 rows leaves us stranded on page 5.
@@ -682,36 +742,150 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             {fmtN(selCount)} {isAr ? "محدد" : "selected"}
           </span>
         )}
+
+        {/* List / Overview toggle — pushed to the far right of the filter row. */}
+        <div className="tabs" style={{ marginInlineStart: "auto" }}>
+          <button
+            type="button"
+            className={viewMode === "list" ? "active" : ""}
+            title={isAr ? "عرض القائمة" : "List view"}
+            aria-pressed={viewMode === "list"}
+            onClick={() => setViewMode("list")}
+            style={{ display: "grid", placeItems: "center", padding: "7px 10px" }}
+          >
+            <Icon name="reports" size={15} />
+          </button>
+          <button
+            type="button"
+            className={viewMode === "split" ? "active" : ""}
+            title={isAr ? "عرض التفاصيل" : "Overview"}
+            aria-pressed={viewMode === "split"}
+            onClick={() => setViewMode("split")}
+            style={{ display: "grid", placeItems: "center", padding: "7px 10px" }}
+          >
+            <Icon name="guests" size={15} />
+          </button>
+        </div>
       </div>
 
-      {/* Guest table */}
-      <div className="card" style={{ padding: 0 }}>
-        <DataTable
-          columns={columns}
-          data={guests}
-          loading={loading}
-          emptyText={
-            activeEventId
-              ? isAr
-                ? "لا يوجد ضيوف بعد"
-                : "No guests yet"
-              : isAr
-                ? "اختر فعالية أولاً"
-                : "Select an event first"
-          }
-          showSearch={false}
-          manualPagination
-          pageSize={pageSize}
-          pageIndex={pageIndex}
-          totalRows={totalCount}
-          onPageChange={setPageIndex}
-          onPageSizeChange={setPageSize}
-          enableRowSelection
-          onSelectionChange={setSelectedGuests}
-          selectionResetKey={selResetKey}
-          getRowId={(g) => g.id}
-        />
-      </div>
+      {viewMode === "list" ? (
+        /* Guest table */
+        <div className="card" style={{ padding: 0 }}>
+          <DataTable
+            columns={columns}
+            data={guests}
+            loading={loading}
+            emptyText={
+              activeEventId
+                ? isAr
+                  ? "لا يوجد ضيوف بعد"
+                  : "No guests yet"
+                : isAr
+                  ? "اختر فعالية أولاً"
+                  : "Select an event first"
+            }
+            showSearch={false}
+            manualPagination
+            pageSize={pageSize}
+            pageIndex={pageIndex}
+            totalRows={totalCount}
+            onPageChange={setPageIndex}
+            onPageSizeChange={setPageSize}
+            enableRowSelection
+            onSelectionChange={setSelectedGuests}
+            selectionResetKey={selResetKey}
+            getRowId={(g) => g.id}
+          />
+        </div>
+      ) : (
+        /* Split view — a compact all-matching-guests list on the left, the
+           full Guest Detail page (unchanged, same component the standalone
+           /guests/:id route renders) on the right for whichever is selected. */
+        <div className="card" style={{ padding: 0, display: "flex", minHeight: 480, overflow: "hidden" }}>
+          <div style={{
+            width: 280, flexShrink: 0, borderInlineEnd: "1px solid var(--glass-border)",
+            display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ flex: 1, overflowY: "auto", maxHeight: 660 }}>
+              {splitLoading ? (
+                <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
+                  {isAr ? "جارٍ التحميل…" : "Loading…"}
+                </div>
+              ) : splitGuests.length === 0 ? (
+                <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
+                  {activeEventId
+                    ? (isAr ? "لا يوجد ضيوف بعد" : "No guests yet")
+                    : (isAr ? "اختر فعالية أولاً" : "Select an event first")}
+                </div>
+              ) : (
+                splitGuests.map((g) => {
+                  const active = g.id === selectedGuestId;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedGuestId(g.id)}
+                      style={{
+                        display: "block", width: "100%", textAlign: isAr ? "right" : "left",
+                        padding: "9px 14px", border: "none", borderBottom: "1px solid var(--glass-border)",
+                        background: active ? "var(--surface-soft-4)" : "transparent",
+                        borderInlineStart: active ? "3px solid var(--accent)" : "3px solid transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <GuestCell
+                        name={g.fullName || `${g.firstName || ""} ${g.lastName || ""}`.trim()}
+                        email={g.email}
+                        photoUrl={g.photoUrl}
+                        size={30}
+                      />
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Change page — navigate to another 10 guests. Always visible
+                (not just once there's a second page) so it's clear this
+                list is paginated rather than showing everyone. */}
+            {splitTotalCount > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "8px 12px", borderTop: "1px solid var(--glass-border)", flexShrink: 0,
+              }}>
+                <button
+                  type="button" className="icon-btn" style={{ width: 28, height: 28, transform: "scaleX(-1)" }}
+                  disabled={splitPageIndex === 0}
+                  onClick={() => setSplitPageIndex((p) => Math.max(0, p - 1))}
+                >
+                  <Icon name="chevronRight" size={13} />
+                </button>
+                <span style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
+                  {isAr
+                    ? `صفحة ${fmtN(splitPageIndex + 1)} من ${fmtN(splitPageCount)}`
+                    : `Page ${splitPageIndex + 1} of ${splitPageCount}`}
+                </span>
+                <button
+                  type="button" className="icon-btn" style={{ width: 28, height: 28 }}
+                  disabled={splitPageIndex + 1 >= splitPageCount}
+                  onClick={() => setSplitPageIndex((p) => Math.min(splitPageCount - 1, p + 1))}
+                >
+                  <Icon name="chevronRight" size={13} />
+                </button>
+              </div>
+            )}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", maxHeight: 720, padding: 16 }}>
+            {selectedGuestId ? (
+              <GuestDetailView guestId={selectedGuestId} lang={lang} embedded />
+            ) : (
+              <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
+                {isAr ? "اختر ضيفاً لعرض تفاصيله" : "Select a guest to view their details"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
