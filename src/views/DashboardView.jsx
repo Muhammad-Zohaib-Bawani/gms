@@ -734,6 +734,7 @@ export default function DashboardView({
                           <td>
                             <ServiceLevelChip
                               name={g.serviceLevelName}
+                              color={g.serviceLevelColor}
                               lang={lang}
                             />
                           </td>
