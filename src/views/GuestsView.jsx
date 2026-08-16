@@ -10,7 +10,7 @@ import DataTable from "../components/ui/DataTable";
 import ActionMenu from "../components/ui/ActionMenu";
 import Select from "../components/ui/Select";
 import toast from "../lib/toast";
-import { listGuests, issueAccreditation, revokeAccreditation } from "../api/services/guestService";
+import { listGuests } from "../api/services/guestService";
 import { getNationalities } from "../api/services/nationalityService";
 import { getOrganizations } from "../api/services/organizationService";
 import { getServiceLevels } from "../api/services/serviceCatalogService";
@@ -78,9 +78,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // so the embedded GuestDetailView on the right remounts and refetches — it
   // owns its own data and has no reload prop of its own.
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
-  const [accredBusyId, setAccredBusyId] = useState(null);
-  // { guest, action: 'issue' | 'revoke' } — confirmed before either fires.
-  const [confirmAccred, setConfirmAccred] = useState(null);
 
   const activeFilterCount = [
     levelFilter !== "All",
@@ -174,40 +171,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     setEditGuestStep(step);
     setEditGuest(g);
   }, [ensureGuestFormData]);
-
-  // Issue/Revoke from the split view's active-guest card — mirrors the same
-  // two calls GuestDetailView makes for its own (non-embedded) header actions.
-  async function handleIssueAccred(g) {
-    if (g.invitationStatus !== "accepted") {
-      toast.error(isAr ? "يجب قبول الدعوة أولاً" : "Guest must accept the invitation first");
-      return;
-    }
-    setAccredBusyId(g.id);
-    try {
-      await issueAccreditation(g.id);
-      toast.success(isAr ? "تم إصدار الاعتماد" : "Accreditation issued");
-      loadSplitGuests();
-      setDetailRefreshKey((k) => k + 1);
-    } catch (err) {
-      toast.error(err.message || (isAr ? "تعذر إصدار الاعتماد" : "Failed to issue accreditation"));
-    } finally {
-      setAccredBusyId(null);
-    }
-  }
-
-  async function handleRevokeAccred(g) {
-    setAccredBusyId(g.id);
-    try {
-      await revokeAccreditation(g.id);
-      toast.success(isAr ? "تم سحب الاعتماد" : "Accreditation revoked");
-      loadSplitGuests();
-      setDetailRefreshKey((k) => k + 1);
-    } catch (err) {
-      toast.error(err.message || (isAr ? "تعذر سحب الاعتماد" : "Failed to revoke accreditation"));
-    } finally {
-      setAccredBusyId(null);
-    }
-  }
 
   // The filter panel's Organization/Nationality dropdowns need the same
   // reference data as the Add/Edit wizard — load it lazily the first time
@@ -862,8 +825,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               ) : (
                 splitGuests.map((g) => {
                   const active = g.id === selectedGuestId;
-                  const canIssue = g.invitationStatus === "accepted";
-                  const issued = g.accreditationStatus === "issued";
                   return (
                     <div
                       key={g.id}
@@ -936,29 +897,10 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                                 >
                                   <Icon name="message" size={14} />
                                 </button>
-                                {g.accreditationRequired && (
-                                  issued ? (
-                                    <button
-                                      type="button" className="icon-btn" style={{ color: "var(--danger)" }}
-                                      disabled={accredBusyId === g.id}
-                                      title={isAr ? "سحب الاعتماد" : "Revoke Accreditation"}
-                                      onClick={() => setConfirmAccred({ guest: g, action: "revoke" })}
-                                    >
-                                      <Icon name="x" size={14} />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button" className="icon-btn"
-                                      disabled={accredBusyId === g.id || !canIssue}
-                                      title={canIssue
-                                        ? (isAr ? "إصدار الاعتماد" : "Issue Accreditation")
-                                        : (isAr ? "يجب قبول الدعوة أولاً" : "Guest must accept the invitation first")}
-                                      onClick={() => setConfirmAccred({ guest: g, action: "issue" })}
-                                    >
-                                      <Icon name="badge" size={14} />
-                                    </button>
-                                  )
-                                )}
+                                {/* No accreditation action here — it lives on
+                                    the detail pane's Personal Info card, where
+                                    "View Pass" opens the badge itself with
+                                    Issue/Revoke on it. */}
                                 <button
                                   type="button" className="icon-btn" title={isAr ? "تعديل" : "Edit"}
                                   onClick={() => openEditGuest(g)}
@@ -1115,57 +1057,6 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         }}
       />
 
-      {/* Confirm before an accreditation issue/revoke from the split view's
-          active-guest card — same "are you sure" beat as Delete, just a
-          lighter inline dialog since there's nothing else to review first. */}
-      {confirmAccred && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={() => setConfirmAccred(null)}
-        >
-          <div
-            className="card glass modal-solid"
-            style={{ width: 400, maxWidth: "94vw", padding: "24px 24px 20px" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
-              {confirmAccred.action === "issue"
-                ? (isAr ? "إصدار الاعتماد؟" : "Issue accreditation?")
-                : (isAr ? "سحب الاعتماد؟" : "Revoke accreditation?")}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.6, marginBottom: 22 }}>
-              {confirmAccred.action === "issue" ? (
-                isAr
-                  ? <>سيتم إصدار شارة الاعتماد لـ <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
-                  : <>This issues an accreditation badge for <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
-              ) : (
-                isAr
-                  ? <>سيتم سحب اعتماد <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong> الصادر مسبقاً.</>
-                  : <>This revokes the previously issued accreditation for <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button className="btn" onClick={() => setConfirmAccred(null)} disabled={accredBusyId === confirmAccred.guest.id}>
-                {isAr ? "إلغاء" : "Cancel"}
-              </button>
-              <button
-                className="btn primary"
-                disabled={accredBusyId === confirmAccred.guest.id}
-                onClick={async () => {
-                  const { guest, action } = confirmAccred;
-                  if (action === "issue") await handleIssueAccred(guest);
-                  else await handleRevokeAccred(guest);
-                  setConfirmAccred(null);
-                }}
-              >
-                {accredBusyId === confirmAccred.guest.id
-                  ? (isAr ? "جارٍ…" : "Working…")
-                  : confirmAccred.action === "issue" ? (isAr ? "إصدار" : "Issue") : (isAr ? "سحب" : "Revoke")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

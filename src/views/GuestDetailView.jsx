@@ -27,6 +27,7 @@ import ActionMenu from '../components/ui/ActionMenu';
 import AccreditationCardModal from './accreditation/AccreditationCardModal';
 import {
   GuestCard, CardHeader, CardDivider, CardSlider, SessionCard, SeatCard,
+  GuestDetailSkeleton,
 } from './guests/cards/GuestDetailCards';
 
 // Each guest's own travel rows out of the event-wide lists — those already
@@ -292,7 +293,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
   }
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</div>;
+    return <GuestDetailSkeleton embedded={embedded} lang={lang} />;
   }
   if (notFound || !guest) {
     return (

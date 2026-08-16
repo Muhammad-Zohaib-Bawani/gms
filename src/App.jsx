@@ -78,14 +78,13 @@ const NAV = [
     section: "EVENT",
     permission: "SupportChat.View",
   },
-  // temp removed
-  // {
-  //   key: "accreditation",
-  //   icon: "badge",
-  //   label: { en: "Accreditation", ar: "الاعتماد" },
-  //   section: "ONSITE",
-  //   permission: "Accreditation.View",
-  // },
+  {
+    key: "accreditation",
+    icon: "badge",
+    label: { en: "Accreditation", ar: "الاعتماد" },
+    section: "ONSITE",
+    permission: "Accreditation.View",
+  },
   {
     key: "seating",
     icon: "seating",

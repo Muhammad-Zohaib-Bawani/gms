@@ -31,7 +31,6 @@ export const ICON_PATHS = {
   arrowsExchange: <><path d="M4 9h13"/><path d="M14 6l3 3-3 3"/><path d="M20 15H7"/><path d="M10 12l-3 3 3 3"/></>,
   chevronDown: <><path d="M6 9l6 6 6-6"/></>,
   chevronRight: <><path d="M9 6l6 6-6 6"/></>,
-  chevronsRight: <><path d="M6 6l6 6-6 6"/><path d="M13 6l6 6-6 6"/></>,
   more: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,
   moreVertical: <><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></>,
   settings: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></>,

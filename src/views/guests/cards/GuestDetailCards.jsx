@@ -14,10 +14,11 @@
 //
 // Mobile-first: no fixed widths anywhere, every text node can shrink
 // (minWidth: 0) and long titles clamp rather than widening the card.
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Icon } from '../../../components/Icons';
 import { prefersReducedMotion } from '../../../lib/clickOrigin';
+import { Skeleton } from '../../../components/ds';
 
 // ── Type scale ────────────────────────────────────────────────────────────
 // The whole family reads off this. Sizes are deliberately few: one headline,
@@ -232,6 +233,59 @@ export function CardSlider({ items = [], children }) {
     >
       {children(items[safe], pager)}
     </motion.div>
+  );
+}
+
+/**
+ * Placeholder for the whole detail screen while it loads. Built on the same
+ * shell and the same grid the real cards land in, so the page doesn't jump
+ * when the data arrives — the point of a skeleton is that the layout is
+ * already correct before there's anything to put in it.
+ */
+export function GuestDetailSkeleton({ embedded, lang }) {
+  const isAr = lang === 'ar';
+  const card = (fields, key) => (
+    <GuestCard key={key} embedded={embedded}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <Skeleton w={15} h={15} r={4} />
+        <Skeleton w="44%" h={12} />
+      </div>
+      <CardDivider />
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))',
+        gap: '13px 12px',
+      }}>
+        {Array.from({ length: fields }).map((_, i) => (
+          <div key={i}>
+            <Skeleton w="54%" h={8} style={{ marginBottom: 6 }} />
+            <Skeleton w="80%" h={13} />
+          </div>
+        ))}
+      </div>
+    </GuestCard>
+  );
+
+  return (
+    <div role="status" aria-busy="true" aria-label={isAr ? 'جارٍ التحميل' : 'Loading guest'}>
+      {/* Only the standalone page shows the identity header — see GuestDetailView. */}
+      {!embedded && (
+        <GuestCard style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', minWidth: 0 }}>
+            <Skeleton w={64} h={64} r="50%" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Skeleton w="46%" h={18} />
+              <Skeleton w="30%" h={12} style={{ marginTop: 8 }} />
+              <Skeleton w={92} h={20} r={999} style={{ marginTop: 10 }} />
+            </div>
+          </div>
+        </GuestCard>
+      )}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16,
+      }}>
+        {[6, 2, 2, 4, 4].map((n, i) => card(n, i))}
+      </div>
+    </div>
   );
 }
 
@@ -477,13 +531,13 @@ export function TransportCard({
  * facts as a two-by-two grid. The codes are the card's primary information and
  * carry the most visual weight on the whole screen.
  */
-function FlightLeg({ leg, isAr, status, statusLabel }) {
+function FlightLeg({ leg, isAr, status, statusLabel, hideDirection }) {
   const dash = { flex: 1, minWidth: 8, height: 0, borderTop: '1px dashed var(--glass-border-strong)' };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minWidth: 0 }}>
       {/* Only a multi-leg booking needs telling apart. Wording is the event's,
           not the airline's: the guest arrives (inbound) before they leave. */}
-      {leg.direction && (
+      {leg.direction && !hideDirection && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Icon
             name={leg.direction === 'inbound' ? 'planeLanding' : 'planeTakeoff'}
@@ -553,95 +607,69 @@ function FlightLeg({ leg, isAr, status, statusLabel }) {
 }
 
 /**
- * A return booking's legs sit side by side rather than stacked, with the next
- * one just showing at the edge — so a return card is the same height as a
- * one-way one and doesn't blow out the row it shares. The peek is the
- * affordance: it says there's more without needing a label to say so.
+ * A return booking's legs go behind small tabs — Inbound first, then Outbound.
+ * One leg on screen at a time keeps a return card the same height as a one-way
+ * one, and naming the two beats any pager: you pick the flight you meant
+ * rather than stepping through to find it.
  */
 function FlightLegStrip({ legs, isAr, status, statusLabel }) {
-  const ref = useRef(null);
   const [idx, setIdx] = useState(0);
   const count = legs.length;
   const legProps = { isAr, status, statusLabel };
+  const reduced = prefersReducedMotion();
 
   if (count === 1) return <FlightLeg leg={legs[0]} {...legProps} />;
 
-  const go = (next) => {
-    const clamped = Math.max(0, Math.min(count - 1, next));
-    setIdx(clamped);
-    const el = ref.current;
-    const child = el?.children?.[clamped];
-    if (el && child) el.scrollTo({ left: child.offsetLeft - el.offsetLeft, behavior: 'smooth' });
+  const safe = idx < count ? idx : 0;
+  const tabLabel = (leg, i) => {
+    if (leg.direction === 'inbound') return isAr ? 'قادمة' : 'Inbound';
+    if (leg.direction === 'outbound') return isAr ? 'مغادرة' : 'Outbound';
+    return isAr ? `الرحلة ${i + 1}` : `Leg ${i + 1}`;
   };
 
-  // Points at wherever the other leg actually is — forward until the last one,
-  // then back. One control, on the side the thing it leads to is sitting on,
-  // instead of a pager that has to be read.
-  const dir = idx < count - 1 ? 'next' : 'prev';
-  // `!==` is xor: forward points right in LTR and left in RTL, back the other
-  // way round. The nudge follows whichever way it ends up pointing.
-  const flip = (dir === 'prev') !== isAr;
-  const reduced = prefersReducedMotion();
-
   return (
-    <div style={{ position: 'relative', minWidth: 0 }}>
-      <div
-        ref={ref}
-        className="gc-hscroll"
-        // Scroll-snap so a swipe on a phone lands on a leg rather than
-        // halfway between two.
-        style={{
-          display: 'flex', gap: 14, overflowX: 'auto',
-          scrollSnapType: 'x mandatory', minWidth: 0,
-        }}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          const nearest = Math.round(el.scrollLeft / (el.scrollWidth / count));
-          if (nearest !== idx) setIdx(Math.max(0, Math.min(count - 1, nearest)));
-        }}
-      >
-        {legs.map((leg, i) => (
-          <div
-            key={leg.key ?? i}
-            style={{
-              flex: '0 0 88%', minWidth: 0, scrollSnapAlign: 'start',
-              opacity: i === idx ? 1 : 0.5,
-              transition: 'opacity 0.2s var(--ease)',
-            }}
-          >
-            <FlightLeg leg={leg} {...legProps} />
-          </div>
-        ))}
+    <>
+      {/* Portal's own segmented control, one notch smaller — a card's tabs
+          shouldn't carry the weight of a page's. */}
+      <div className="tabs" style={{ padding: 3, borderRadius: 10, gap: 3, alignSelf: 'flex-start', maxWidth: '100%' }}>
+        {legs.map((leg, i) => {
+          const on = i === safe;
+          return (
+            <button
+              key={leg.key ?? i}
+              type="button"
+              className={on ? 'active' : ''}
+              aria-pressed={on}
+              onClick={() => setIdx(i)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '5px 10px', borderRadius: 7, fontSize: 11.5,
+                fontWeight: on ? 600 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon
+                name={leg.direction === 'inbound' ? 'planeLanding' : 'planeTakeoff'}
+                size={12}
+                style={{ color: on ? 'var(--gc-accent)' : 'var(--ink-mute)', flexShrink: 0 }}
+              />
+              {tabLabel(leg, i)}
+            </button>
+          );
+        })}
       </div>
 
-      <div style={{
-        position: 'absolute', top: 0, bottom: 0,
-        [dir === 'next' ? 'insetInlineEnd' : 'insetInlineStart']: -4,
-        display: 'flex', alignItems: 'center', pointerEvents: 'none',
-      }}>
-        <motion.button
-          type="button"
-          aria-label={dir === 'next'
-            ? (isAr ? 'الرحلة التالية' : 'Next flight')
-            : (isAr ? 'الرحلة السابقة' : 'Previous flight')}
-          onClick={() => go(dir === 'next' ? idx + 1 : idx - 1)}
-          animate={reduced ? undefined : { x: flip ? [0, -3, 0] : [0, 3, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-          style={{
-            pointerEvents: 'auto',
-            width: 26, height: 26, borderRadius: '50%', padding: 0,
-            display: 'grid', placeItems: 'center', cursor: 'pointer',
-            // Its own surface so the chevrons stay legible over the leg
-            // peeking out behind them.
-            background: 'var(--bg-1)',
-            border: '1px solid var(--gc-border)',
-            color: 'var(--gc-accent)',
-          }}
-        >
-          <Icon name="chevronsRight" size={15} style={{ transform: flip ? 'scaleX(-1)' : 'none' }} />
-        </motion.button>
-      </div>
-    </div>
+      <motion.div
+        key={safe}
+        initial={reduced ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+        style={{ minWidth: 0 }}
+      >
+        {/* The tab already names the direction — repeating it above the route
+            would be the same word twice, eight pixels apart. */}
+        <FlightLeg leg={legs[safe]} {...legProps} hideDirection />
+      </motion.div>
+    </>
   );
 }
 

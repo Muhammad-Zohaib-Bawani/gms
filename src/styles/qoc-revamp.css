@@ -226,12 +226,6 @@ html[data-theme="dark"] {
   --gc-border: rgba(194, 24, 87, 0.38);
 }
 
-/* Horizontal peek-scroller inside a guest-detail card — a return flight's two
-   legs sit side by side, the next one just visible at the edge. The native
-   scrollbar is hidden because the card carries its own pager. */
-.gc-hscroll { scrollbar-width: none; -ms-overflow-style: none; }
-.gc-hscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
-
 html[data-density="compact"]      { --density-pad: 14px; --density-gap: 10px; }
 html[data-density="comfortable"]  { --density-pad: 22px; --density-gap: 14px; }
 html[data-density="airy"]         { --density-pad: 32px; --density-gap: 20px; }
