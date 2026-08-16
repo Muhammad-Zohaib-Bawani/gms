@@ -176,7 +176,7 @@ html[data-theme="dark"] {
   /* ── Brand chrome (sidebar + topbar) — identical in both themes ─────────
      The QOC maroon lives here permanently so the shell reads as "Qatar
      Olympic Committee" regardless of the page theme. */
-  --side-bg: linear-gradient(168deg, #8d0134 0%, #6d0127 52%, #4a0019 100%);
+  --side-bg: linear-gradient(168deg, #4a0019 0%, #6d0127 75%, #8d0134 100%);
   --side-ink: #ffffff;
   --side-ink-dim: rgba(255, 255, 255, 0.78);
   --side-ink-mute: rgba(255, 255, 255, 0.55);
@@ -209,6 +209,28 @@ html[data-theme="dark"] {
   --density-pad: 22px;
   --density-gap: 14px;
 }
+
+/* ── Guest-detail card system (views/guests/cards) ────────────────────────
+   One accent + one hairline shared by every card there, so the family stays
+   consistent without each card picking its own colour. Both are the brand
+   maroon — dark mode just borrows the lighter --accent-2, because the base
+   maroon disappears against the maroon page (same reason --status-active
+   goes white above). No new colours: only existing brand values, re-alpha'd
+   for a hairline border. */
+:root, html[data-theme="light"] {
+  --gc-accent: var(--accent);
+  --gc-border: rgba(141, 1, 52, 0.20);
+}
+html[data-theme="dark"] {
+  --gc-accent: var(--accent-2);
+  --gc-border: rgba(194, 24, 87, 0.38);
+}
+
+/* Horizontal peek-scroller inside a guest-detail card — a return flight's two
+   legs sit side by side, the next one just visible at the edge. The native
+   scrollbar is hidden because the card carries its own pager. */
+.gc-hscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.gc-hscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 html[data-density="compact"]      { --density-pad: 14px; --density-gap: 10px; }
 html[data-density="comfortable"]  { --density-pad: 22px; --density-gap: 14px; }

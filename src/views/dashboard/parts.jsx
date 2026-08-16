@@ -77,10 +77,7 @@ function PanelTabs({ tabs, active, onChange }) {
 // single set of literals and repeated itself (#5ABF6E/#5abf6e and
 // #DFB764/#e0b864 were the same two colours twice), so a 5-slice chart drew two
 // pairs of identical wedges.
-export const CHART_COLORS = [
-  'var(--series-1)', 'var(--series-2)', 'var(--series-4)', 'var(--series-4)',
-  'var(--series-5)', 'var(--series-6)', 'var(--series-7)',
-];
+export const CHART_COLORS = ['#8d0134', '#DFB764', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
 
 /** Themed recharts tooltip — the library default is a white box that breaks in dark mode. */
 export function ChartTooltip({ active, payload, label }) {

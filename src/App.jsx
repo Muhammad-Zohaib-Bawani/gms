@@ -78,13 +78,14 @@ const NAV = [
     section: "EVENT",
     permission: "SupportChat.View",
   },
-  {
-    key: "accreditation",
-    icon: "badge",
-    label: { en: "Accreditation", ar: "الاعتماد" },
-    section: "ONSITE",
-    permission: "Accreditation.View",
-  },
+  // temp removed
+  // {
+  //   key: "accreditation",
+  //   icon: "badge",
+  //   label: { en: "Accreditation", ar: "الاعتماد" },
+  //   section: "ONSITE",
+  //   permission: "Accreditation.View",
+  // },
   {
     key: "seating",
     icon: "seating",
@@ -2487,24 +2488,15 @@ export default function App() {
     () => localStorage.getItem("gms-side-collapsed") === "1",
   );
   const [openMenus, setOpenMenus] = useState({});
-  // Sidebar section accordion — persisted the same way as the rail's own
-  // collapse, so a section stays collapsed across a reload. Absent from the
-  // map means expanded (the default for every section).
-  const [collapsedSections, setCollapsedSections] = useState(() => {
-    try {
-      return JSON.parse(
-        localStorage.getItem("gms-nav-collapsed-sections") || "{}",
-      );
-    } catch {
-      return {};
-    }
-  });
+  // Sidebar section accordion — only one section open at a time, persisted the
+  // same way as the rail's own collapse. "EVENT" (Dashboard's section) is open
+  // by default; clicking another section closes whichever was open.
+  const [openSection, setOpenSection] = useState(
+    () => localStorage.getItem("gms-nav-open-section") || "EVENT",
+  );
   useEffect(() => {
-    localStorage.setItem(
-      "gms-nav-collapsed-sections",
-      JSON.stringify(collapsedSections),
-    );
-  }, [collapsedSections]);
+    localStorage.setItem("gms-nav-open-section", openSection || "");
+  }, [openSection]);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const profileRef = React.useRef(null);
@@ -2803,7 +2795,7 @@ export default function App() {
                   n.section === section && (!n.permission || can(n.permission)),
               );
               if (visibleItems.length === 0) return null;
-              const isSectionOpen = !collapsedSections[section];
+              const isSectionOpen = openSection === section;
               return (
                 <React.Fragment key={section}>
                   <button
@@ -2811,10 +2803,7 @@ export default function App() {
                     className="nav-section nav-section-toggle"
                     style={{ background: "transparent" }}
                     onClick={() =>
-                      setCollapsedSections((m) => ({
-                        ...m,
-                        [section]: isSectionOpen,
-                      }))
+                      setOpenSection((s) => (s === section ? null : section))
                     }
                   >
                     <span>

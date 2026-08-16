@@ -89,7 +89,7 @@ export default function Modal({
               onFocusOutside={e => e.preventDefault()}
             >
               <motion.div
-                style={{ ...contentBase, width, ...(height ? { height, maxHeight } : { maxHeight }) }}
+                style={{ ...contentBase, width, height: height || 'fit-content', maxHeight }}
                 // Grows out of the control that opened it and collapses back
                 // into it. x/y are additive to the inset/margin centring, so
                 // the dialog still lands dead centre.
@@ -116,7 +116,7 @@ export default function Modal({
                   </div>
                 )}
 
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {children}
                 </div>
 

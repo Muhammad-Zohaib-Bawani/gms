@@ -7,8 +7,33 @@
 // flattens across all of that person's events, each item carrying which event
 // it came from.
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/Icons';
+import { Avatar } from '../../components/UI';
 import { getGuestOverviewDetail } from '../../api/services/guestOverviewService';
+
+// Icon-only action, labelled for both sighted (title tooltip) and assistive
+// users (aria-label) — four of these sit in the accordion header, so a text
+// label each would take the whole row.
+function ActionBtn({ icon, label, onClick, danger }) {
+  return (
+    <button
+      type="button"
+      className="icon-btn"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      style={danger ? { color: 'var(--danger)' } : undefined}
+    >
+      <Icon name={icon} size={14} />
+    </button>
+  );
+}
+
+const initialsOf = (name) => {
+  const p = (name || '').trim().split(/\s+/);
+  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
+};
 
 function Section({ icon, title, count, children, empty }) {
   return (
@@ -61,8 +86,10 @@ function Facts({ data }) {
   );
 }
 
-/** A bordered record with an optional status chip and event tag in its header. */
-function RecordCard({ title, status, eventTitle, children }) {
+/** A bordered record with an optional status chip and event tag in its header.
+ *  `icon` gives each service kind its own glyph (plane / hotel / car / seat),
+ *  the same at-a-glance cue the Travel & Logistics tabs use. */
+function RecordCard({ icon, title, status, eventTitle, onEdit, children }) {
   return (
     <div style={{
       border: '1px solid var(--glass-border)',
@@ -71,6 +98,7 @@ function RecordCard({ title, status, eventTitle, children }) {
       background: 'var(--bg-0)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 9 }}>
+        {icon && <Icon name={icon} size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
         {title && <span style={{ fontSize: 12.5, fontWeight: 650 }}>{title}</span>}
         {status && (
           <span className={`chip ${status === 'completed' ? 'confirmed' : 'pending'}`} style={{ fontSize: 10 }}>
@@ -86,6 +114,11 @@ function RecordCard({ title, status, eventTitle, children }) {
             {eventTitle}
           </span>
         )}
+        {onEdit && (
+          <span style={{ marginInlineStart: eventTitle ? 0 : 'auto' }}>
+            <ActionBtn icon="edit" label="Edit" onClick={onEdit} />
+          </span>
+        )}
       </div>
       {children}
     </div>
@@ -94,7 +127,8 @@ function RecordCard({ title, status, eventTitle, children }) {
 
 const dt = (v) => v?.replace('T', ' ').slice(0, 16);
 
-export default function GuestDetail({ guestId }) {
+export default function GuestDetail({ guestId, guest }) {
+  const navigate = useNavigate();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -125,8 +159,39 @@ export default function GuestDetail({ guestId }) {
 
   const stack = { display: 'flex', flexDirection: 'column', gap: 8 };
 
+  const fullName = `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim();
+  const goChat = () => navigate('/support-chat', {
+    state: { guestId, guestName: fullName, guestOrganization: guest?.organization || '' },
+  });
+
   return (
     <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Identity + actions for the guest whose row is expanded. The list row
+          above is a dense table cell, so who you're looking at (and what you
+          can do to them) is restated here where the detail actually lives —
+          that's what lets the separate top info card go away. */}
+      {guest && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          paddingBottom: 14, borderBottom: '1px solid var(--glass-border)',
+        }}>
+          <Avatar initials={initialsOf(fullName)} size={44} src={guest.photoUrl} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>{fullName || '—'}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{guest.email || '—'}</div>
+            {guest.organization && (
+              <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', marginTop: 1 }}>{guest.organization}</div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <ActionBtn icon="guests" label="View profile" onClick={() => navigate(`/guests/${guestId}`)} />
+            <ActionBtn icon="message" label="Message" onClick={goChat} />
+            <ActionBtn icon="edit" label="Edit guest" onClick={() => navigate(`/guests/${guestId}`)} />
+            <ActionBtn icon="badge" label="Accreditation" onClick={() => navigate('/accreditation')} />
+          </div>
+        </div>
+      )}
+
       <Section icon="calendar" title="Events" count={events.length} empty="Not linked to an event">
         <div style={stack}>
           {events.map((ev) => (
@@ -146,7 +211,7 @@ export default function GuestDetail({ guestId }) {
       <Section icon="meetings" title="Sessions" count={sessions.length} empty="No sessions">
         <div style={stack}>
           {sessions.map((s, i) => (
-            <RecordCard key={s.id || i} title={s.title} eventTitle={s.eventTitle}>
+            <RecordCard key={s.id || i} icon="meetings" title={s.title} eventTitle={s.eventTitle}>
               <Facts data={{ Date: s.date, Time: s.time, Room: s.room, Speaker: s.speaker, Status: s.status || 'selected' }} />
             </RecordCard>
           ))}
@@ -158,6 +223,7 @@ export default function GuestDetail({ guestId }) {
           {flights.map((f) => (
             <RecordCard
               key={f.id}
+              icon="flight"
               title={f.legs?.[0]?.flightNumber || 'Flight'}
               status={f.status === 'Confirmed' ? 'completed' : 'pending'}
               eventTitle={f.eventTitle}
@@ -185,7 +251,7 @@ export default function GuestDetail({ guestId }) {
       <Section icon="seating" title="Seatings" count={seatings.length} empty="No seat assigned">
         <div style={stack}>
           {seatings.map((s, i) => (
-            <RecordCard key={i} title={s.seatCode} eventTitle={s.eventTitle}>
+            <RecordCard key={i} icon="seating" title={s.seatCode} eventTitle={s.eventTitle}>
               <Facts data={{ Session: s.sessionTitle || 'Event-wide' }} />
             </RecordCard>
           ))}
@@ -195,7 +261,7 @@ export default function GuestDetail({ guestId }) {
       <Section icon="hotel" title="Accommodations" count={accommodations.length} empty="No stay booked">
         <div style={stack}>
           {accommodations.map((a) => (
-            <RecordCard key={a.id} title={a.hotel || 'Accommodation'} eventTitle={a.eventTitle}>
+            <RecordCard key={a.id} icon="hotel" title={a.hotel || 'Accommodation'} eventTitle={a.eventTitle}>
               <Facts data={{ 'Room type': a.roomType, 'Check-in': a.checkIn, 'Check-out': a.checkOut }} />
             </RecordCard>
           ))}
@@ -207,6 +273,7 @@ export default function GuestDetail({ guestId }) {
           {transport.map((t) => (
             <RecordCard
               key={t.id}
+              icon="car"
               title={t.vehicle || 'Transport'}
               status={t.tripStatus === 'On Time' ? 'completed' : 'pending'}
               eventTitle={t.eventTitle}
@@ -227,6 +294,7 @@ export default function GuestDetail({ guestId }) {
           {otherServices.map((s, i) => (
             <RecordCard
               key={`${s.serviceId}-${i}`}
+              icon={s.icon || 'star'}
               title={s.name}
               status={s.status === 'completed' ? 'completed' : 'pending'}
               eventTitle={s.eventTitle}

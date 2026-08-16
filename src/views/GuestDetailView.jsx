@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
+import FlagIcon from '../components/FlagIcon';
 import toast from '../lib/toast';
 import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../lib/date';
 import { useAuth } from '../auth/AuthContext';
@@ -24,6 +25,9 @@ import GuestProfileEditModal from './guests/modals/GuestProfileEditModal';
 import GuestServicesPanel from './guests/GuestServicesPanel';
 import ActionMenu from '../components/ui/ActionMenu';
 import AccreditationCardModal from './accreditation/AccreditationCardModal';
+import {
+  GuestCard, CardHeader, CardDivider, CardSlider, SessionCard, SeatCard,
+} from './guests/cards/GuestDetailCards';
 
 // Each guest's own travel rows out of the event-wide lists — those already
 // carry resolved display names (hotel, vehicle, driver...), unlike
@@ -50,23 +54,17 @@ const ACCRED_BADGE = {
 const fmtDate = (d) => (d ? isoDate(d, null) : null);
 const fmtDateTime = (d) => (d ? isoDateTime(d, null) : null);
 
-function Section({ icon, title, children, action }) {
+// Built on the same shell as every service card (guests/cards) so the whole
+// screen reads as one family of boxes rather than two competing card styles.
+function Section({ icon, title, children, action, embedded }) {
   return (
-    <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-        padding: '13px 18px', borderBottom: '1px solid var(--glass-border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name={icon} size={15} style={{ color: 'var(--accent)' }} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
-        </div>
-        {action}
-      </div>
-      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+    <GuestCard embedded={embedded}>
+      <CardHeader icon={icon} title={title}>{action}</CardHeader>
+      <CardDivider />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
         {children}
       </div>
-    </div>
+    </GuestCard>
   );
 }
 
@@ -309,6 +307,21 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
     );
   }
 
+  // Header actions for the two paged cards below — declared once because each
+  // renders in both the populated and the empty branch.
+  const sessionsEditBtn = canEditGuest && (
+    <button className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
+      title={isAr ? 'تعديل الجلسات' : 'Edit sessions'} onClick={() => setShowSessionsEdit(true)}>
+      <Icon name="edit" size={12} />
+    </button>
+  );
+  const seatingBtn = canSeeSeating && (
+    <button className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
+      title={isAr ? 'الذهاب إلى الجلوس' : 'Go to Seating'} onClick={() => navigate('/seating')}>
+      <Icon name="arrow" size={12} />
+    </button>
+  );
+
   return (
     <div style={{ margin: '0 auto' }}>
       {!embedded && (
@@ -321,52 +334,77 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
         </button>
       )}
 
-      {/* Header */}
-      <div className="card" style={{ padding: '20px 22px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: '1 1 320px', minWidth: 260 }}>
-            <Avatar initials={initials} size={64} tier={guest.tier} src={guest.photoUrl} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{guestName}</div>
-              {guest.organization && <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginTop: 2 }}>{guest.organization}</div>}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
-                <span className="chip" style={{ borderColor: `${inviteBadge.color}55`, color: inviteBadge.color, background: `${inviteBadge.color}18` }}>
-                  <span className="dot" style={{ background: inviteBadge.color }} />
-                  {inviteBadge.label[isAr ? 'ar' : 'en']}
-                </span>
+      {!embedded && (
+        <div className="card" style={{ padding: '20px 22px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: '1 1 320px', minWidth: 260 }}>
+              <Avatar initials={initials} size={64} tier={guest.tier} src={guest.photoUrl} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{cursor: 'pointer', fontSize: 19, fontWeight: 700, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{guestName}</div>
+                {guest.email && <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: 2 }}>{guest.email}</div>}
+                {guest.organization && <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginTop: 1 }}>{guest.organization}</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  <span className="chip" style={{ borderColor: `${inviteBadge.color}55`, color: inviteBadge.color, background: `${inviteBadge.color}18` }}>
+                    <span className="dot" style={{ background: inviteBadge.color }} />
+                    {inviteBadge.label[isAr ? 'ar' : 'en']}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <ActionMenu
-            items={[
-              {
-                label: isAr ? 'رسالة' : 'Message',
-                icon: 'message',
-                onClick: () => navigate('/support-chat', {
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+              <button
+                className="icon-btn" title={isAr ? 'رسالة' : 'Message'} aria-label={isAr ? 'رسالة' : 'Message'}
+                onClick={() => navigate('/support-chat', {
                   state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
-                }),
-              },
-              guest.accreditationRequired && (
-                guest.accreditationStatus === 'issued'
-                  ? { label: isAr ? 'سحب الاعتماد' : 'Revoke Accreditation', icon: 'x', danger: true, disabled: busy, onClick: handleRevoke }
-                  : {
-                      label: isAr ? 'إصدار الاعتماد' : 'Issue Accreditation', icon: 'badge',
-                      disabled: busy || !canIssue,
-                      hint: !canIssue ? (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first') : undefined,
-                      onClick: handleIssue,
-                    }
-              ),
-              { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => setShowEdit(true) },
-              { label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true, onClick: () => setShowDelete(true) },
-            ]}
-          />
+                })}
+              >
+                <Icon name="message" size={14} />
+              </button>
+              {guest.accreditationRequired && (
+                guest.accreditationStatus === 'issued' ? (
+                  <button
+                    className="icon-btn" style={{ color: 'var(--danger)' }} disabled={busy}
+                    title={isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
+                    aria-label={isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
+                    onClick={handleRevoke}
+                  >
+                    <Icon name="x" size={14} />
+                  </button>
+                ) : (
+                  <button
+                    className="icon-btn" disabled={busy || !canIssue}
+                    title={canIssue
+                      ? (isAr ? 'إصدار الاعتماد' : 'Issue Accreditation')
+                      : (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first')}
+                    aria-label={isAr ? 'إصدار الاعتماد' : 'Issue Accreditation'}
+                    onClick={handleIssue}
+                  >
+                    <Icon name="badge" size={14} />
+                  </button>
+                )
+              )}
+              <button
+                className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} aria-label={isAr ? 'تعديل' : 'Edit'}
+                onClick={() => setShowEdit(true)}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                className="icon-btn" style={{ color: 'var(--danger)' }}
+                title={isAr ? 'حذف' : 'Delete'} aria-label={isAr ? 'حذف' : 'Delete'}
+                onClick={() => setShowDelete(true)}
+              >
+                <Icon name="trash" size={14} />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Detail grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <Section icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}
+        <Section embedded={embedded} icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}
           action={canEditGuest && (
             <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} onClick={() => setShowProfileEdit(true)}>
               <Icon name="edit" size={13} />
@@ -382,8 +420,21 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
                     color={guest.serviceLevelColor} lang={lang} />
                 : null}
             />
-            <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
-            <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
+            <Field
+              label={isAr ? 'الدولة' : 'Country'}
+              value={guest.nationalityName ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  {/* Real flag image, not the emoji — Windows renders flag
+                      emoji as a bare "QA". Same component the tables use. */}
+                  <FlagIcon code={guest.nationalityCode} size={15} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{guest.nationalityName}</span>
+                </span>
+              ) : null}
+            />
+            {/* Organization sits here rather than in the split view's guest
+                list, which stays down to name + email. Six fields keeps the
+                grid even; "Created" was the one nobody came to this card for. */}
+            <Field label={isAr ? 'المؤسسة' : 'Organization'} value={guest.organization} />
             <Field
               label={isAr ? 'الاعتماد' : 'Accreditation'}
               value={guest.accreditationRequired
@@ -401,55 +452,67 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
           </div>
         </Section>
 
-        <Section icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}
-          action={canEditGuest && (
-            <button className="icon-btn" title={isAr ? 'تعديل الجلسات' : 'Edit sessions'} onClick={() => setShowSessionsEdit(true)}>
-              <Icon name="edit" size={13} />
-            </button>
-          )}>
-          {sessions.length === 0 ? (
+        {/* Sessions — one card, one session at a time. A guest on five
+            sessions used to stretch this box past every other card in the
+            row; the pager keeps it the same size whatever the count. */}
+        {sessions.length === 0 ? (
+          <GuestCard embedded={embedded}>
+            <CardHeader icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
+              {sessionsEditBtn}
+            </CardHeader>
             <Empty>{isAr ? 'لم يسجل الضيف في أي جلسة' : 'Not registered for any session'}</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {sessions.map((s) => (
-                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, paddingBottom: 8, borderBottom: '1px solid var(--glass-border)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-                    <div style={{ color: 'var(--ink-mute)', fontSize: 11, marginTop: 2 }}>
-                      {[s.venueName, s.room].filter(Boolean).join(' · ') || '—'}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: isAr ? 'left' : 'right', flexShrink: 0, color: 'var(--ink-mute)', fontSize: 11.5 }}>
-                    <div>{fmtDate(s.date, isAr)}</div>
-                    <div style={{ fontFamily: 'var(--mono)' }}>{s.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
+          </GuestCard>
+        ) : (
+          <CardSlider items={sessions}>
+            {(s, pager) => (
+              <SessionCard
+                lang={lang}
+                embedded={embedded}
+                header={
+                  <CardHeader icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
+                    {sessionsEditBtn}
+                  </CardHeader>
+                }
+                footer={pager}
+                title={s.title}
+                category={event?.type}
+                dateLabel={fmtDate(s.date)}
+                timeLabel={s.time}
+                venue={[s.venueName, s.room].filter(Boolean).join(' · ')}
+              />
+            )}
+          </CardSlider>
+        )}
 
-        <Section icon="venue" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}
-          action={canSeeSeating && (
-            <button className="icon-btn" title={isAr ? 'الذهاب إلى الجلوس' : 'Go to Seating'} onClick={() => navigate('/seating')}>
-              <Icon name="arrow" size={13} />
-            </button>
-          )}>
-          {seats.length === 0 ? (
+        {/* Seat assignment — same pager treatment, and the card itself is the
+            way through to the floor plan. */}
+        {seats.length === 0 ? (
+          <GuestCard embedded={embedded}>
+            <CardHeader icon="seating" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
+              {seatingBtn}
+            </CardHeader>
             <Empty>{isAr ? 'لم يُخصص مقعد بعد' : 'No seat assigned'}</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {seats.map((s, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, paddingBottom: 8, borderBottom: '1px solid var(--glass-border)' }}>
-                  <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''}
-                  </div>
-                  <span className="chip pending" style={{ flexShrink: 0 }}>{isAr ? 'مقعد' : 'Seat'} {s.seatCode}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
+          </GuestCard>
+        ) : (
+          <CardSlider items={seats}>
+            {(s, pager) => (
+              <SeatCard
+                lang={lang}
+                embedded={embedded}
+                header={
+                  <CardHeader icon="seating" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
+                    {seatingBtn}
+                  </CardHeader>
+                }
+                footer={pager}
+                seatCode={s.seatCode}
+                eventTitle={s.eventTitle}
+                sessionTitle={s.sessionTitle}
+                onOpen={canSeeSeating ? () => navigate('/seating') : undefined}
+              />
+            )}
+          </CardSlider>
+        )}
 
         {/* Each service the guest's level assigns gets its own card here —
             Flight, Transport, Accommodation, Arrival/Departure, then any
@@ -459,7 +522,12 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
         <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
           eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
           eventId={guest?.eventId}
-          arrivalDate={guest?.arrivalDate} departureDate={guest?.departureDate} />
+          arrivalDate={guest?.arrivalDate} departureDate={guest?.departureDate}
+          embedded={embedded}
+          /* The event-wide travel rows this view already loaded — they carry
+             airport codes, cities, class and room type, none of which the
+             plan's flat display values have. */
+          travelRows={{ flights, accommodations, transports }} />
       </div>
 
       {showEdit && (

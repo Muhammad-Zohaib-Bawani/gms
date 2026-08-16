@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { getTranslations, fmtNum } from "../i18n/translations";
 import { StatusChip, ServiceLevelChip } from "../components/UI";
 import { Icon } from "../components/Icons";
@@ -9,7 +10,7 @@ import DataTable from "../components/ui/DataTable";
 import ActionMenu from "../components/ui/ActionMenu";
 import Select from "../components/ui/Select";
 import toast from "../lib/toast";
-import { listGuests } from "../api/services/guestService";
+import { listGuests, issueAccreditation, revokeAccreditation } from "../api/services/guestService";
 import { getNationalities } from "../api/services/nationalityService";
 import { getOrganizations } from "../api/services/organizationService";
 import { getServiceLevels } from "../api/services/serviceCatalogService";
@@ -73,6 +74,13 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const SPLIT_PAGE_SIZE = 10;
   const [splitLoading, setSplitLoading] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState(null);
+  // Bumped after an action taken from the left card (issue/revoke, edit, delete)
+  // so the embedded GuestDetailView on the right remounts and refetches — it
+  // owns its own data and has no reload prop of its own.
+  const [detailRefreshKey, setDetailRefreshKey] = useState(0);
+  const [accredBusyId, setAccredBusyId] = useState(null);
+  // { guest, action: 'issue' | 'revoke' } — confirmed before either fires.
+  const [confirmAccred, setConfirmAccred] = useState(null);
 
   const activeFilterCount = [
     levelFilter !== "All",
@@ -166,6 +174,40 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     setEditGuestStep(step);
     setEditGuest(g);
   }, [ensureGuestFormData]);
+
+  // Issue/Revoke from the split view's active-guest card — mirrors the same
+  // two calls GuestDetailView makes for its own (non-embedded) header actions.
+  async function handleIssueAccred(g) {
+    if (g.invitationStatus !== "accepted") {
+      toast.error(isAr ? "يجب قبول الدعوة أولاً" : "Guest must accept the invitation first");
+      return;
+    }
+    setAccredBusyId(g.id);
+    try {
+      await issueAccreditation(g.id);
+      toast.success(isAr ? "تم إصدار الاعتماد" : "Accreditation issued");
+      loadSplitGuests();
+      setDetailRefreshKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err.message || (isAr ? "تعذر إصدار الاعتماد" : "Failed to issue accreditation"));
+    } finally {
+      setAccredBusyId(null);
+    }
+  }
+
+  async function handleRevokeAccred(g) {
+    setAccredBusyId(g.id);
+    try {
+      await revokeAccreditation(g.id);
+      toast.success(isAr ? "تم سحب الاعتماد" : "Accreditation revoked");
+      loadSplitGuests();
+      setDetailRefreshKey((k) => k + 1);
+    } catch (err) {
+      toast.error(err.message || (isAr ? "تعذر سحب الاعتماد" : "Failed to revoke accreditation"));
+    } finally {
+      setAccredBusyId(null);
+    }
+  }
 
   // The filter panel's Organization/Nationality dropdowns need the same
   // reference data as the Add/Edit wizard — load it lazily the first time
@@ -820,26 +862,122 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               ) : (
                 splitGuests.map((g) => {
                   const active = g.id === selectedGuestId;
+                  const canIssue = g.invitationStatus === "accepted";
+                  const issued = g.accreditationStatus === "issued";
                   return (
-                    <button
+                    <div
                       key={g.id}
-                      type="button"
-                      onClick={() => setSelectedGuestId(g.id)}
                       style={{
-                        display: "block", width: "100%", textAlign: isAr ? "right" : "left",
-                        padding: "9px 14px", border: "none", borderBottom: "1px solid var(--glass-border)",
+                        padding: active ? "13px 14px" : "10px 14px",
+                        borderBottom: "1px solid var(--glass-border)",
                         background: active ? "var(--surface-soft-4)" : "transparent",
                         borderInlineStart: active ? "3px solid var(--accent)" : "3px solid transparent",
-                        cursor: "pointer",
+                        transition: "padding 0.2s ease, background 0.2s ease",
                       }}
                     >
-                      <GuestCell
-                        name={g.fullName || `${g.firstName || ""} ${g.lastName || ""}`.trim()}
-                        email={g.email}
-                        photoUrl={g.photoUrl}
-                        size={30}
-                      />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGuestId(g.id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, width: "100%",
+                          padding: 0, border: "none", background: "transparent",
+                          textAlign: isAr ? "right" : "left", cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <GuestCell
+                            name={g.fullName || `${g.firstName || ""} ${g.lastName || ""}`.trim()}
+                            email={g.email}
+                            photoUrl={g.photoUrl}
+                            size={active ? 46 : 30}
+                          />
+                        </div>
+                        {/* Points at the detail that opens for this row. */}
+                        <Icon
+                          name="chevronRight"
+                          size={13}
+                          style={{
+                            flexShrink: 0,
+                            color: active ? "var(--accent)" : "var(--ink-faint)",
+                            transform: isAr ? "scaleX(-1)" : "none",
+                          }}
+                        />
+                      </button>
+
+                      {/* The selected guest expands in place into a basic-info
+                          card with its own actions, so who you're looking at
+                          stays anchored to the row you clicked rather than
+                          only in the pane opposite. */}
+                      <AnimatePresence initial={false}>
+                        {active && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                            style={{ overflow: "hidden" }}
+                          >
+                            <div style={{
+                              marginTop: 11, paddingTop: 11, borderTop: "1px solid var(--glass-border)",
+                              // Lines up with the name/email text above, not the
+                              // avatar — 46px avatar + 8px gap from GuestCell.
+                              paddingInlineStart: 54,
+                              display: "flex", flexDirection: "column", gap: 9,
+                            }}>
+                              {/* Organization lives on the detail pane's
+                                  Personal Info card — the list stays name,
+                                  email and the actions. */}
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                <button
+                                  type="button" className="icon-btn" title={isAr ? "رسالة" : "Message"}
+                                  onClick={() => navigate("/support-chat", {
+                                    state: { guestId: g.id, guestName: g.fullName, guestOrganization: g.organization || "" },
+                                  })}
+                                >
+                                  <Icon name="message" size={14} />
+                                </button>
+                                {g.accreditationRequired && (
+                                  issued ? (
+                                    <button
+                                      type="button" className="icon-btn" style={{ color: "var(--danger)" }}
+                                      disabled={accredBusyId === g.id}
+                                      title={isAr ? "سحب الاعتماد" : "Revoke Accreditation"}
+                                      onClick={() => setConfirmAccred({ guest: g, action: "revoke" })}
+                                    >
+                                      <Icon name="x" size={14} />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button" className="icon-btn"
+                                      disabled={accredBusyId === g.id || !canIssue}
+                                      title={canIssue
+                                        ? (isAr ? "إصدار الاعتماد" : "Issue Accreditation")
+                                        : (isAr ? "يجب قبول الدعوة أولاً" : "Guest must accept the invitation first")}
+                                      onClick={() => setConfirmAccred({ guest: g, action: "issue" })}
+                                    >
+                                      <Icon name="badge" size={14} />
+                                    </button>
+                                  )
+                                )}
+                                <button
+                                  type="button" className="icon-btn" title={isAr ? "تعديل" : "Edit"}
+                                  onClick={() => openEditGuest(g)}
+                                >
+                                  <Icon name="edit" size={14} />
+                                </button>
+                                <button
+                                  type="button" className="icon-btn" style={{ color: "var(--danger)" }}
+                                  title={isAr ? "حذف" : "Delete"}
+                                  onClick={() => { setSelectedGuests([g]); setShowDeleteGuests(true); }}
+                                >
+                                  <Icon name="trash" size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   );
                 })
               )}
@@ -877,7 +1015,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           </div>
           <div style={{ flex: 1, overflowY: "auto", maxHeight: 720, padding: 16 }}>
             {selectedGuestId ? (
-              <GuestDetailView guestId={selectedGuestId} lang={lang} embedded />
+              <GuestDetailView key={`${selectedGuestId}-${detailRefreshKey}`} guestId={selectedGuestId} lang={lang} embedded />
             ) : (
               <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
                 {isAr ? "اختر ضيفاً لعرض تفاصيله" : "Select a guest to view their details"}
@@ -928,7 +1066,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
           templates={templates}
           sessions={sessions}
           lang={lang}
-          onSaved={() => { loadGuests(); loadServiceLevels(); }}
+          onSaved={() => {
+            loadGuests();
+            loadServiceLevels();
+            if (viewMode === "split") { loadSplitGuests(); setDetailRefreshKey((k) => k + 1); }
+          }}
         />
       )}
 
@@ -963,8 +1105,67 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         onDeleted={() => {
           clearSelection();
           loadGuests();
+          if (viewMode === "split") {
+            // The deleted guest can't stay selected — clearing it lets the
+            // auto-select effect below pick the next available guest once
+            // the reloaded list lands.
+            if (selectedGuests.some((g) => g.id === selectedGuestId)) setSelectedGuestId(null);
+            loadSplitGuests();
+          }
         }}
       />
+
+      {/* Confirm before an accreditation issue/revoke from the split view's
+          active-guest card — same "are you sure" beat as Delete, just a
+          lighter inline dialog since there's nothing else to review first. */}
+      {confirmAccred && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setConfirmAccred(null)}
+        >
+          <div
+            className="card glass modal-solid"
+            style={{ width: 400, maxWidth: "94vw", padding: "24px 24px 20px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
+              {confirmAccred.action === "issue"
+                ? (isAr ? "إصدار الاعتماد؟" : "Issue accreditation?")
+                : (isAr ? "سحب الاعتماد؟" : "Revoke accreditation?")}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.6, marginBottom: 22 }}>
+              {confirmAccred.action === "issue" ? (
+                isAr
+                  ? <>سيتم إصدار شارة الاعتماد لـ <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
+                  : <>This issues an accreditation badge for <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
+              ) : (
+                isAr
+                  ? <>سيتم سحب اعتماد <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong> الصادر مسبقاً.</>
+                  : <>This revokes the previously issued accreditation for <strong style={{ color: "var(--ink)" }}>{confirmAccred.guest.fullName}</strong>.</>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="btn" onClick={() => setConfirmAccred(null)} disabled={accredBusyId === confirmAccred.guest.id}>
+                {isAr ? "إلغاء" : "Cancel"}
+              </button>
+              <button
+                className="btn primary"
+                disabled={accredBusyId === confirmAccred.guest.id}
+                onClick={async () => {
+                  const { guest, action } = confirmAccred;
+                  if (action === "issue") await handleIssueAccred(guest);
+                  else await handleRevokeAccred(guest);
+                  setConfirmAccred(null);
+                }}
+              >
+                {accredBusyId === confirmAccred.guest.id
+                  ? (isAr ? "جارٍ…" : "Working…")
+                  : confirmAccred.action === "issue" ? (isAr ? "إصدار" : "Issue") : (isAr ? "سحب" : "Revoke")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
