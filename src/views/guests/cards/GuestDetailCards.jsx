@@ -298,7 +298,7 @@ export function GuestDetailSkeleton({ embedded, lang }) {
  * to two lines rather than being allowed to stretch the layout.
  */
 export function SessionCard({
-  title, category, dateLabel, timeLabel, venue,
+  title, category, dateLabel, timeLabel, venue, imageUrl,
   lang, header, footer, embedded, style,
 }) {
   const isAr = lang === 'ar';
@@ -307,11 +307,23 @@ export function SessionCard({
     <GuestCard embedded={embedded} style={style}>
       {header}
       <div style={{ display: 'flex', gap: 13, alignItems: 'flex-start', minWidth: 0 }}>
+        {/* The session's own image when it has one. The icon sits behind it
+            rather than beside a condition, so a broken or missing image
+            simply reveals the fallback instead of leaving an empty tile. */}
         <div style={{
           width: 46, height: 46, flexShrink: 0, borderRadius: 14,
+          position: 'relative', overflow: 'hidden',
           border: '1px solid var(--gc-border)', display: 'grid', placeItems: 'center',
         }}>
           <Icon name="venue" size={FEATURE_ICON} style={{ color: 'var(--gc-accent)' }} />
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt=""
+              onError={(e) => { e.target.style.display = 'none'; }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {category && (
@@ -550,16 +562,20 @@ function FlightLeg({ leg, isAr, status, statusLabel, hideDirection }) {
         </div>
       )}
 
+      {/* The two ends share one flex basis, so they're always the same width
+          and the line between them lands dead centre — sizing them to their
+          own content let a long city name shove the plane off to one side.
+          City names clamp instead of widening the column. */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
-        <div style={{ minWidth: 0, maxWidth: '34%' }}>
+        <div style={{ flex: '1 1 0', minWidth: 0 }}>
           <div style={{ ...TYPE.code, ...truncate }}>{leg.fromCode || '—'}</div>
-          <div style={{ ...TYPE.sub, ...truncate, marginTop: 4 }}>{leg.fromCity}</div>
+          <div style={{ ...TYPE.sub, ...clamp(2), marginTop: 4 }}>{leg.fromCity}</div>
         </div>
         {/* Route line — subtle on purpose; it connects the codes, it isn't a
             map. Time in the air rides on the line itself, where the eye
             already is, rather than becoming another field in the grid. */}
         <div style={{
-          flex: 1, minWidth: 34, paddingTop: 6,
+          flex: '0 0 76px', paddingTop: 6,
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
         }}>
           {leg.duration && (
@@ -579,9 +595,9 @@ function FlightLeg({ leg, isAr, status, statusLabel, hideDirection }) {
             <Dot size={5} color="var(--accent-2)" />
           </div>
         </div>
-        <div style={{ minWidth: 0, maxWidth: '34%', textAlign: 'end' }}>
+        <div style={{ flex: '1 1 0', minWidth: 0, textAlign: 'end' }}>
           <div style={{ ...TYPE.code, ...truncate }}>{leg.toCode || '—'}</div>
-          <div style={{ ...TYPE.sub, ...truncate, marginTop: 4 }}>{leg.toCity}</div>
+          <div style={{ ...TYPE.sub, ...clamp(2), marginTop: 4 }}>{leg.toCity}</div>
         </div>
       </div>
 

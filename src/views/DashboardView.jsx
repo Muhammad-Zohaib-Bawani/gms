@@ -332,12 +332,12 @@ export default function DashboardView({
       {
         stage: isAr ? "مرفوض" : "Rejected",
         value: rsvp.declined,
-        color: "#e43825",
+        color: "#d1584a",
       },
       {
         stage: isAr ? "مدعوّون" : "Pending",
         value: funnel.awaitingGuest,
-        color: "#e0de64",
+        color: "#e0b864",
       },
       // { stage: isAr ? 'السفر' : 'Travel', value: funnel.travelBooked },
     ],

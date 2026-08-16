@@ -477,6 +477,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
                 footer={pager}
                 title={s.title}
                 category={event?.type}
+                imageUrl={s.imageUrl}
                 dateLabel={fmtDate(s.date)}
                 timeLabel={s.time}
                 venue={[s.venueName, s.room].filter(Boolean).join(' · ')}

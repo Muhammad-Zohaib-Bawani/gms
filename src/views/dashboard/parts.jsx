@@ -71,13 +71,7 @@ function PanelTabs({ tabs, active, onChange }) {
   );
 }
 
-// The categorical series slots, assigned in order and never cycled. Values live
-// in styles/qoc-revamp.css as --series-1..7 so each theme gets its own validated
-// step rather than one hex list forced onto both surfaces — the old array was a
-// single set of literals and repeated itself (#5ABF6E/#5abf6e and
-// #DFB764/#e0b864 were the same two colours twice), so a 5-slice chart drew two
-// pairs of identical wedges.
-export const CHART_COLORS = ['#8d0134', '#DFB764', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
+export const CHART_COLORS = ['#8d0134', '#a78bda', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
 
 /** Themed recharts tooltip — the library default is a white box that breaks in dark mode. */
 export function ChartTooltip({ active, payload, label }) {

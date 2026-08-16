@@ -806,12 +806,12 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         /* Split view — a compact all-matching-guests list on the left, the
            full Guest Detail page (unchanged, same component the standalone
            /guests/:id route renders) on the right for whichever is selected. */
-        <div className="card" style={{ padding: 0, display: "flex", minHeight: 480, overflow: "hidden" }}>
+        <div className="card" style={{ padding: 0, display: "flex", minHeight: 480, overflow: "clip" }}>
           <div style={{
             width: 280, flexShrink: 0, borderInlineEnd: "1px solid var(--glass-border)",
             display: "flex", flexDirection: "column",
           }}>
-            <div style={{ flex: 1, overflowY: "auto", maxHeight: 660 }}>
+            <div style={{ flex: 1 }}>
               {splitLoading ? (
                 <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
                   {isAr ? "جارٍ التحميل…" : "Loading…"}
@@ -955,7 +955,11 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               </div>
             )}
           </div>
-          <div style={{ flex: 1, overflowY: "auto", maxHeight: 720, padding: 16 }}>
+          {/* No scroller of its own — the page scrolls. A pane capped at a
+              guessed height meant the detail scrolled inside a box while the
+              window still had room, and long content hid below the fold of
+              something that didn't look scrollable. */}
+          <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
             {selectedGuestId ? (
               <GuestDetailView key={`${selectedGuestId}-${detailRefreshKey}`} guestId={selectedGuestId} lang={lang} embedded />
             ) : (
