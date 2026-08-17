@@ -47,7 +47,7 @@
      from --card-bg, which still backs small controls (buttons, inputs, the
      pager) where crisp edges and full legibility matter more than depth. */
   --surface-glass: linear-gradient(158deg, rgba(255,255,255,.74) 0%, rgba(242,235,226,.60) 100%);
-  --surface-glass-strong: rgba(255, 255, 255, 0.76);
+  --surface-glass-strong: rgba(255, 255, 255, 0.9);
   --surface-glass-border: rgba(141, 1, 52, 0.10);
   --surface-blur: saturate(150%) blur(14px);
   --topbar-bg: linear-gradient(180deg, rgba(250,247,243,.86), rgba(242,235,226,.72));
@@ -129,7 +129,7 @@ html[data-theme="dark"] {
   --card-bg: rgba(255, 255, 255, 0.05);
 
   --surface-glass: rgba(255, 255, 255, 0.055);
-  --surface-glass-strong: rgba(38, 0, 18, 0.72);
+  --surface-glass-strong: rgba(38, 0, 18, 0.9);
   --surface-glass-border: rgba(255, 255, 255, 0.12);
   --surface-blur: saturate(140%) blur(14px);
   --topbar-bg: transparent;
@@ -225,6 +225,14 @@ html[data-theme="dark"] {
   --gc-accent: var(--accent-2);
   --gc-border: rgba(194, 24, 87, 0.38);
 }
+
+/* Accent-coloured TEXT that has to stay readable in both themes. The brand
+   maroon is fine on the light page and nearly invisible on the dark maroon one,
+   so dark mode goes white — the same call --hayya-sub-color and --status-active
+   each make for their own one case. Use this for any new accent text rather
+   than --accent, which only works on light. */
+:root, html[data-theme="light"] { --accent-ink: var(--accent); }
+html[data-theme="dark"]         { --accent-ink: #ffffff; }
 
 html[data-density="compact"]      { --density-pad: 14px; --density-gap: 10px; }
 html[data-density="comfortable"]  { --density-pad: 22px; --density-gap: 14px; }

@@ -103,7 +103,7 @@ const NAV = [
     key: "venueConfig",
     icon: "venue",
     label: { en: "Venue Config", ar: "تهيئة المكان" },
-    section: "ADMIN",
+    section: "VENUE",
     permission: "Venue.View",
   },
   // { key: "protocol",       icon: "protocol",   label: { en: "Protocol",            ar: "البروتوكول"            }, section: "ONSITE",   permission: "Protocol.View"          },
@@ -113,7 +113,7 @@ const NAV = [
     key: "venues",
     icon: "venues",
     label: { en: "Venues", ar: "الأماكن" },
-    section: "ADMIN",
+    section: "VENUE",
     permission: "Venue.View",
   },
   {
@@ -237,6 +237,7 @@ const SECTION_LABELS = {
   INSIGHTS: { en: "INSIGHTS", ar: "تحليلات" },
   FLEET: { en: "FLEET MANAGEMENT", ar: "إدارة الأسطول" },
   STAY: { en: "ACCOMMODATION", ar: "الإقامة" },
+  VENUE: { en: "VENUE MANAGEMENT", ar: "إدارة الأماكن" },
   USERMGMT: { en: "USER MANAGEMENT", ar: "إدارة المستخدمين" },
   ADMIN: { en: "ADMIN", ar: "الإدارة" },
 };
@@ -2711,6 +2712,7 @@ export default function App() {
     "INSIGHTS",
     "FLEET",
     "STAY",
+    "VENUE",
     "ADMIN",
     "USERMGMT",
   ];

@@ -12,6 +12,9 @@ export function toCsv(headers, rows) {
   return [headers, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
 }
 
+// A single page's table goes out as CSV like this. When an export needs several
+// tables that don't share a column set, it wants sheets rather than sections —
+// see lib/xlsxExport.
 export function downloadCsv(filename, csv) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
