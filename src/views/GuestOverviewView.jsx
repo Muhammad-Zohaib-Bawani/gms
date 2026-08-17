@@ -21,7 +21,8 @@ import { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
-import { getGuestOverview } from '../api/services/guestOverviewService';
+import { downloadWorkbook } from '../lib/xlsxExport';
+import { getGuestOverview, getGuestOverviewDetail } from '../api/services/guestOverviewService';
 import { listEvents, listSessions } from '../api/services/eventService';
 import { getServiceLevels } from '../api/services/serviceCatalogService';
 import { getOrganizations } from '../api/services/organizationService';
@@ -66,6 +67,80 @@ const INITIAL_FILTERS = {
 
 const YES_NO = [{ value: ALL, label: 'Any' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }];
 
+const guestName = (g) => `${g.firstName || ''} ${g.lastName || ''}`.trim() || g.email || '';
+
+// The detail endpoint is scoped to a PERSON — every Guest row sharing an email
+// (see GuestOverviewDetailResponse). So the same payload comes back for each of
+// a person's event rows, and the export keys on the person, not the row: one
+// fetch, one set of detail rows, no triplicated flights for a guest who
+// attended three events. Rows with no email have no person identity to share,
+// so they key on their own id.
+const personKey = (g) => (g.email || '').trim().toLowerCase() || `id:${g.id}`;
+
+const dt = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '');
+
+/**
+ * Detail for every person in the export, fetched a few at a time. It's one
+ * request per person with no bulk endpoint to lean on, so the pool keeps a
+ * 300-guest export from opening 300 sockets at once, and a single failure is
+ * swallowed — that person still gets their summary row, just no detail rows.
+ */
+async function fetchAllDetails(people, onProgress) {
+  const out = new Map();
+  const queue = [...people];
+  const total = queue.length;
+  let done = 0;
+
+  const worker = async () => {
+    while (queue.length) {
+      const g = queue.shift();
+      try {
+        const d = await getGuestOverviewDetail(g.id);
+        if (d) out.set(personKey(g), d);
+      } catch { /* summary row still stands */ }
+      onProgress(++done, total);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(6, total) }, worker),
+  );
+  return out;
+}
+
+/**
+ * The spreadsheet twin of `cellFor` below: same column, same meaning, plain
+ * text instead of chips and icons. Kept separate rather than stringifying the
+ * JSX — a cell renders a coloured pill, a spreadsheet cell wants the word.
+ */
+function textFor(col, g) {
+  switch (col.key) {
+    case 'guest': return guestName(g);
+    case 'event': return g.eventTitle || '';
+    case 'level': return g.serviceLevelName || '';
+    case 'invitation': return INVITATION_LABEL[g.invitationStatus] || g.invitationStatus || '';
+    case 'accreditation': return ACCREDITATION_LABEL[g.accreditationStatus] || g.accreditationStatus || '';
+    case 'services':
+      if (!g.servicesCount) return 'None';
+      return g.pendingServicesCount > 0
+        ? `${g.servicesCount} (${g.pendingServicesCount} pending)`
+        : `${g.servicesCount} done`;
+    case 'flight': return g.hasFlight ? 'Booked' : '';
+    case 'accommodation': return g.hasAccommodation ? 'Booked' : '';
+    case 'transport': return g.hasTransport ? 'Booked' : '';
+    case 'sessions': return g.sessionsCount > 0 ? String(g.sessionsCount) : 'None';
+    case 'arrival':
+      if (!g.arrivalDate && !g.departureDate) return '';
+      return `${g.arrivalDate || '—'} → ${g.departureDate || '—'}`;
+    case 'nationality': return g.nationalityName || '';
+    case 'organisation': return g.organization || '';
+    case 'guestType': return g.guestType || '';
+    case 'seats': return g.seatsCount > 0 ? String(g.seatsCount) : '';
+    case 'created': return g.createdAt?.slice(0, 10) || '';
+    default: return '';
+  }
+}
+
 export default function GuestOverviewView({ lang }) {
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState('');
@@ -80,6 +155,10 @@ export default function GuestOverviewView({ lang }) {
   const [rows, setRows] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  // { done, total } while the per-person detail is being pulled — one request
+  // each, so silence would look like a hung button.
+  const [exportProgress, setExportProgress] = useState(null);
 
   const [events, setEvents] = useState([]);
   const [levels, setLevels] = useState([]);
@@ -144,30 +223,33 @@ export default function GuestOverviewView({ lang }) {
     [f],
   );
 
+  // The one place filters become request params. Shared with the export, so the
+  // two can't drift into disagreeing about what's being looked at — exporting
+  // rows the user had filtered out is the classic version of that bug.
+  const queryParams = useMemo(() => ({
+    search,
+    eventId: f.event !== ALL ? f.event : undefined,
+    serviceLevelId: f.level !== ALL ? f.level : undefined,
+    organizationId: f.organisation !== ALL ? f.organisation : undefined,
+    nationalityId: f.nationality !== ALL ? f.nationality : undefined,
+    sessionId: f.session !== ALL ? f.session : undefined,
+    guestType: f.guestType !== ALL ? f.guestType : undefined,
+    invitationStatus: f.invitation !== ALL ? f.invitation : undefined,
+    accreditationStatus: f.accreditation !== ALL ? f.accreditation : undefined,
+    hasFlight: f.hasFlight !== ALL ? f.hasFlight === 'yes' : undefined,
+    hasAccommodation: f.hasAccommodation !== ALL ? f.hasAccommodation === 'yes' : undefined,
+    hasTransport: f.hasTransport !== ALL ? f.hasTransport === 'yes' : undefined,
+    hasPendingServices: f.hasPendingServices !== ALL ? f.hasPendingServices === 'yes' : undefined,
+    arrivalFrom: f.arrivalFrom || undefined,
+    arrivalTo: f.arrivalTo || undefined,
+    departureFrom: f.departureFrom || undefined,
+    departureTo: f.departureTo || undefined,
+  }), [search, f]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getGuestOverview({
-      pageNumber: page + 1,
-      pageSize,
-      search,
-      eventId: f.event !== ALL ? f.event : undefined,
-      serviceLevelId: f.level !== ALL ? f.level : undefined,
-      organizationId: f.organisation !== ALL ? f.organisation : undefined,
-      nationalityId: f.nationality !== ALL ? f.nationality : undefined,
-      sessionId: f.session !== ALL ? f.session : undefined,
-      guestType: f.guestType !== ALL ? f.guestType : undefined,
-      invitationStatus: f.invitation !== ALL ? f.invitation : undefined,
-      accreditationStatus: f.accreditation !== ALL ? f.accreditation : undefined,
-      hasFlight: f.hasFlight !== ALL ? f.hasFlight === 'yes' : undefined,
-      hasAccommodation: f.hasAccommodation !== ALL ? f.hasAccommodation === 'yes' : undefined,
-      hasTransport: f.hasTransport !== ALL ? f.hasTransport === 'yes' : undefined,
-      hasPendingServices: f.hasPendingServices !== ALL ? f.hasPendingServices === 'yes' : undefined,
-      arrivalFrom: f.arrivalFrom || undefined,
-      arrivalTo: f.arrivalTo || undefined,
-      departureFrom: f.departureFrom || undefined,
-      departureTo: f.departureTo || undefined,
-    })
+    getGuestOverview({ pageNumber: page + 1, pageSize, ...queryParams })
       .then((r) => {
         if (cancelled) return;
         setRows(r?.items || []);
@@ -181,8 +263,7 @@ export default function GuestOverviewView({ lang }) {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, search, f]);
+  }, [page, pageSize, queryParams]);
 
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -199,6 +280,138 @@ export default function GuestOverviewView({ lang }) {
   });
 
   const shown = COLUMNS.filter((c) => c.always || visible.has(c.key));
+
+  /**
+   * The whole picture in one file, for every guest the filters match — not just
+   * the page on screen. A "Guests" block carrying the columns currently shown,
+   * then one block per accordion section (Events / Sessions / Flights /
+   * Accommodation / Transport / Seating / Other services).
+   *
+   * Sections rather than one wide row because the detail is a one-to-many in
+   * six directions: a guest with two flights and three sessions has no single
+   * flat row. Each block repeats Guest + Email so any of them can be read,
+   * sorted or pivoted on its own.
+   */
+  async function handleExport() {
+    setExporting(true);
+    setExportProgress(null);
+    try {
+      let all = rows;
+      if (totalCount > rows.length) {
+        const r = await getGuestOverview({
+          pageNumber: 1, pageSize: Math.max(totalCount, 1), ...queryParams,
+        });
+        if (r?.items?.length) all = r.items;
+      }
+
+      // The Guest column shows a name over an email; a sheet wants those as two
+      // columns, so that one selection contributes two.
+      const headers = shown.flatMap((c) => (c.key === 'guest' ? ['Guest', 'Email'] : [c.label]));
+      const body = all.map((g) => shown.flatMap((c) => (
+        c.key === 'guest' ? [guestName(g), g.email || ''] : [textFor(c, g)]
+      )));
+
+      // One entry per person, in the order they appear in the table.
+      const people = [];
+      const seen = new Set();
+      all.forEach((g) => {
+        const key = personKey(g);
+        if (seen.has(key)) return;
+        seen.add(key);
+        people.push(g);
+      });
+
+      const details = await fetchAllDetails(people, (done, total) => setExportProgress({ done, total }));
+
+      const events = [], sessions = [], flights = [], stays = [], rides = [], seats = [], services = [];
+      people.forEach((g) => {
+        const d = details.get(personKey(g));
+        if (!d) return;
+        const who = [guestName(g), g.email || ''];
+
+        (d.events || []).forEach((e) => events.push([
+          ...who, e.eventTitle, e.eventType, e.startDate, e.endDate, e.venueName,
+          e.serviceLevelName, e.invitationStatus, e.accreditationStatus,
+          e.arrivalDate, e.departureDate,
+        ]));
+
+        (d.sessions || []).forEach((s) => sessions.push([
+          ...who, s.eventTitle, s.title, s.date, s.time, s.room, s.speaker, s.status,
+        ]));
+
+        // One row per LEG — a return booking is two flights, and collapsing it
+        // to the first-to-last summary is how a Dubai trip reads as DXB → DXB.
+        (d.flights || []).forEach((fl) => {
+          const legs = fl.legs || [];
+          if (legs.length === 0) {
+            // Six blanks: Leg, Flight No., From, From City, To, To City — a
+            // booking with no legs knows none of them.
+            flights.push([
+              ...who, fl.eventTitle, fl.flightType, fl.status, '', '', '', '', '', '',
+              dt(fl.departureTime), dt(fl.arrivalTime), fl.flightClass, fl.seat,
+            ]);
+            return;
+          }
+          legs.forEach((l, i) => flights.push([
+            ...who, fl.eventTitle, fl.flightType, fl.status,
+            legs.length > 1 ? (i === 0 ? 'Inbound' : 'Outbound') : '',
+            l.flightNumber, l.departureCode, l.departureCity, l.arrivalCode, l.arrivalCity,
+            dt(l.startTime), dt(l.endTime),
+            l.flightClass || fl.flightClass, l.seat || fl.seat,
+          ]));
+        });
+
+        (d.accommodations || []).forEach((a) => stays.push([
+          ...who, a.eventTitle, a.hotel, a.roomType, a.checkIn, a.checkOut,
+        ]));
+
+        (d.transport || []).forEach((t) => rides.push([
+          ...who, t.eventTitle, t.tripStatus, t.vehicle, t.driverName,
+          t.pickup, t.dropoff, dt(t.pickupTime), dt(t.dropoffTime),
+        ]));
+
+        (d.seatings || []).forEach((s) => seats.push([
+          ...who, s.eventTitle, s.sessionTitle, s.seatCode,
+        ]));
+
+        // A dynamic service's fields are keyed by field key here — the export
+        // has no form schema to resolve labels from, unlike the guest's own
+        // services panel — so each entry lands as "key: value" pairs.
+        (d.otherServices || []).forEach((s) => {
+          const entries = s.entries || [];
+          if (entries.length === 0) {
+            services.push([...who, s.eventTitle, s.name, s.status, s.isUnlocked ? '' : (s.lockedReason || 'Locked'), '']);
+            return;
+          }
+          entries.forEach((e) => services.push([
+            ...who, s.eventTitle, s.name, e.status || s.status, '',
+            Object.entries(e.values || {})
+              .filter(([, v]) => v != null && String(v).trim() !== '')
+              .map(([k, v]) => `${k}: ${v}`).join('; '),
+          ]));
+        });
+      });
+
+      // One tab per element. Guests leads because it's the sheet that answers
+      // "who's in this export"; the rest are its detail, each keyed back to a
+      // guest by name + email.
+      await downloadWorkbook('guest-overview.xlsx', [
+        { name: 'Guests', headers, rows: body },
+        { name: 'Events', headers: ['Guest', 'Email', 'Event', 'Type', 'Start', 'End', 'Venue', 'Service Level', 'Invitation', 'Accreditation', 'Arrival', 'Departure'], rows: events },
+        { name: 'Sessions', headers: ['Guest', 'Email', 'Event', 'Session', 'Date', 'Time', 'Room', 'Speaker', 'Status'], rows: sessions },
+        { name: 'Flights', headers: ['Guest', 'Email', 'Event', 'Booking Type', 'Status', 'Leg', 'Flight No.', 'From', 'From City', 'To', 'To City', 'Departure', 'Arrival', 'Class', 'Seat'], rows: flights },
+        { name: 'Accommodation', headers: ['Guest', 'Email', 'Event', 'Hotel', 'Room Type', 'Check-in', 'Check-out'], rows: stays },
+        { name: 'Transport', headers: ['Guest', 'Email', 'Event', 'Status', 'Vehicle', 'Driver', 'Pickup', 'Dropoff', 'Pickup Time', 'Dropoff Time'], rows: rides },
+        { name: 'Seating', headers: ['Guest', 'Email', 'Event', 'Session', 'Seat'], rows: seats },
+        { name: 'Other Services', headers: ['Guest', 'Email', 'Event', 'Service', 'Status', 'Locked Reason', 'Details'], rows: services },
+      ]);
+    } catch (err) {
+      toast.error(err?.message || 'Could not export guests');
+    } finally {
+      setExporting(false);
+      setExportProgress(null);
+    }
+  }
 
   const cellFor = (col, g) => {
     switch (col.key) {
@@ -260,8 +473,13 @@ export default function GuestOverviewView({ lang }) {
         subtitle="Every guest across every event"
         actions={
           <>
-            <button className="btn" onClick={() => toast.info('Export coming soon')}>
-              <Icon name="download" size={14} /> Export
+            <button className="btn" onClick={handleExport} disabled={exporting || loading}>
+              <Icon name="download" size={14} />
+              {!exporting
+                ? 'Export'
+                : exportProgress
+                  ? `Exporting ${exportProgress.done}/${exportProgress.total}…`
+                  : 'Exporting…'}
             </button>
             <button
               className={`btn${showColumns ? ' primary' : ''}`}
@@ -325,8 +543,9 @@ export default function GuestOverviewView({ lang }) {
                   style={{
                     cursor: 'pointer', fontSize: 11,
                     background: on ? 'var(--accent-soft)' : 'var(--bg-1)',
-                    color: on ? 'var(--accent)' : 'var(--ink-mute)',
-                    borderColor: on ? 'var(--accent)' : 'var(--glass-border)',
+                    // Not --accent: maroon-on-maroon is unreadable in dark mode.
+                    color: on ? 'var(--accent-ink)' : 'var(--ink-mute)',
+                    borderColor: on ? 'var(--gc-accent)' : 'var(--glass-border)',
                   }}
                 >
                   {on && <Icon name="check" size={10} />} {c.label}
