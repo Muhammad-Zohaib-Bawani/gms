@@ -27,9 +27,18 @@ const labelStyle = {
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 };
 
 const EMPTY_FORM = {
-  vehicleTypeId: '', fleetProviderId: '', vehicleModel: '', vehicleNumber: '',
+  vehicleTypeId: '', usageType: '', fleetProviderId: '', vehicleModel: '', vehicleNumber: '',
   vehicleImage: '', capacity: '',
 };
+
+// VehicleUsageType (DomainPersistence/Enums/VehicleUsageType.cs). Fixed = dedicated
+// to one open driver; Open = shared pool car fixed drivers draw from per trip.
+// Hardcoded rather than fetched: two values that the pairing rules depend on, so a
+// lookup round-trip would buy nothing.
+const USAGE_TYPES = [
+  { value: 1, label: 'Fixed', labelAr: 'ثابت' },
+  { value: 2, label: 'Open', labelAr: 'مفتوح' },
+];
 
 // Fleet admin: the vehicles themselves plus their type lookup, as two tabs —
 // the types tab is the generic lookup screen, so it isn't duplicated here.
@@ -97,6 +106,7 @@ export default function VehiclesView({ lang, activeEventId }) {
     setEditing(row);
     setForm({
       vehicleTypeId: row.vehicleTypeId || '',
+      usageType: row.usageType ?? '',
       fleetProviderId: row.fleetProviderId || '',
       vehicleModel: row.vehicleModel || '',
       vehicleNumber: row.vehicleNumber || '',
@@ -118,6 +128,7 @@ export default function VehiclesView({ lang, activeEventId }) {
   async function handleSave() {
     const errs = {};
     if (!form.vehicleTypeId) errs.vehicleTypeId = isAr ? 'النوع مطلوب' : 'Vehicle type is required';
+    if (!form.usageType) errs.usageType = isAr ? 'نوع الاستخدام مطلوب' : 'Usage type is required';
     if (!form.vehicleModel.trim()) errs.vehicleModel = isAr ? 'الطراز مطلوب' : 'Model is required';
     if (!form.vehicleNumber.trim()) errs.vehicleNumber = isAr ? 'رقم المركبة مطلوب' : 'Vehicle number is required';
     if (form.capacity !== '' && !(Number(form.capacity) > 0))
@@ -127,6 +138,7 @@ export default function VehiclesView({ lang, activeEventId }) {
 
     const body = {
       vehicleTypeId: form.vehicleTypeId,
+      usageType: Number(form.usageType),
       fleetProviderId: form.fleetProviderId || null,
       vehicleModel: form.vehicleModel.trim(),
       vehicleNumber: form.vehicleNumber.trim(),
@@ -179,6 +191,25 @@ export default function VehiclesView({ lang, activeEventId }) {
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'vehicleTypeName', header: isAr ? 'النوع' : 'Type', accessorKey: 'vehicleTypeName',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      // Fixed cars also show whether a driver already holds them — the reason a car
+      // can be missing from the driver-invite picker.
+      { id: 'usageTypeName', header: isAr ? 'الاستخدام' : 'Usage', accessorKey: 'usageTypeName',
+        cell: ({ row: { original: r } }) => {
+          if (!r.usageTypeName) return <span style={{ color: 'var(--ink-faint)', fontSize: 13 }}>—</span>;
+          const label = isAr
+            ? (USAGE_TYPES.find((u) => u.value === r.usageType)?.labelAr || r.usageTypeName)
+            : r.usageTypeName;
+          return (
+            <span style={{ fontSize: 13 }}>
+              {label}
+              {r.isAssignedToDriver && (
+                <span style={{ color: 'var(--ink-faint)', fontSize: 11, marginInlineStart: 6 }}>
+                  {isAr ? '· مُخصَّصة' : '· assigned'}
+                </span>
+              )}
+            </span>
+          );
+        } },
       { id: 'fleetProviderName', header: isAr ? 'المزوّد' : 'Provider', accessorKey: 'fleetProviderName',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'capacity', header: isAr ? 'السعة' : 'Capacity', accessorKey: 'capacity',
@@ -279,6 +310,21 @@ export default function VehiclesView({ lang, activeEventId }) {
             placeholder={isAr ? '— اختر —' : '— Select —'}
           />
           {errors.vehicleTypeId && <div style={{ ...hintStyle, color: '#e05050' }}>{errors.vehicleTypeId}</div>}
+        </div>
+
+        <div>
+          <label style={labelStyle}>{isAr ? 'نوع الاستخدام' : 'Usage Type'} *</label>
+          <Select
+            value={form.usageType}
+            onChange={(v) => setF('usageType', v ?? '')}
+            options={USAGE_TYPES.map((u) => ({ value: u.value, label: isAr ? u.labelAr : u.label }))}
+            placeholder={isAr ? '— اختر —' : '— Select —'}
+          />
+          <div style={errors.usageType ? { ...hintStyle, color: '#e05050' } : hintStyle}>
+            {errors.usageType || (isAr
+              ? 'ثابت — مخصّصة لسائق مفتوح واحد · مفتوح — تُشترك بين السائقين الثابتين'
+              : 'Fixed — dedicated to one open driver · Open — shared by fixed drivers')}
+          </div>
         </div>
 
         <div>

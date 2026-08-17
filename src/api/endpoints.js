@@ -155,6 +155,8 @@ export const ENDPOINTS = {
   lookups: {
     guestEnums: '/v1/lookups/enums/guest',
     driverTypes: '/v1/lookups/enums/driver-types',
+    // Fixed / Open for a vehicle — the fleet-side pair of driverTypes.
+    vehicleUsageTypes: '/v1/lookups/enums/vehicle-usage-types',
     flightTypes: '/v1/lookups/flight-types',
     flightClasses: '/v1/lookups/flight-classes',
     roomTypes: '/v1/lookups/room-types',

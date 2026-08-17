@@ -7,6 +7,7 @@ import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser, get
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
+import { getVehicles } from '../api/services/vehicleService';
 import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
 import { fmtDate } from '../lib/date';
@@ -123,15 +124,41 @@ function splitPhone(e164) {
 const EMPTY_INVITE = {
   firstName: '', lastName: '', email: '', phone: '', roleId: '',
   driverType: '', driverLicenseNumber: '', driverLicenseExpiry: '',
-  driverNationalityId: '', driverPhotoUrl: '',
+  driverNationalityId: '', driverPhotoUrl: '', assignedVehicleId: '',
 };
 
-function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onInvited }) {
+// Enum values from the backend (DriverType.cs / VehicleUsageType.cs). An open
+// driver roams, so they keep one fixed car of their own; a fixed driver is tied to
+// a guest and draws an open pool car per trip, so no car is stored for them here.
+const DRIVER_TYPE_OPEN = 2;
+const VEHICLE_USAGE_FIXED = 1;
+
+function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, activeEventId, onInvited }) {
   const [form, setForm] = useState(EMPTY_INVITE);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
   useEffect(() => { if (open) setForm(EMPTY_INVITE); }, [open]);
+
+  const isOpenDriver = Number(form.driverType) === DRIVER_TYPE_OPEN;
+
+  // Only fixed cars nobody else holds can be handed to an open driver, and the
+  // server enforces the same rule — this just keeps an impossible pick off the list.
+  // Scoped to the active event, so the cars offered are the ones this event's fleet
+  // providers supply (plus in-house cars, which belong to no provider and serve every
+  // event — the same ForEvent rule the fleet screens use).
+  useEffect(() => {
+    if (!open || !isOpenDriver) { setVehicles([]); return; }
+    let cancelled = false;
+    setVehiclesLoading(true);
+    getVehicles(activeEventId, { usageType: VEHICLE_USAGE_FIXED, unassigned: true })
+      .then((r) => { if (!cancelled) setVehicles(Array.isArray(r) ? r : []); })
+      .catch(() => { if (!cancelled) setVehicles([]); })
+      .finally(() => { if (!cancelled) setVehiclesLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, isOpenDriver, activeEventId]);
 
   if (!open) return null;
 
@@ -171,6 +198,10 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
       toast.warning('License number and driver type are required for a driver');
       return;
     }
+    if (isDriver && isOpenDriver && !form.assignedVehicleId) {
+      toast.warning('An open driver needs a fixed vehicle assigned');
+      return;
+    }
     if (form.phone && !isValidPhoneNumber(form.phone)) {
       toast.warning('Enter a valid phone number for the selected country');
       return;
@@ -187,6 +218,8 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
         ...(isDriver ? {
           driverProfile: {
             driverType: Number(form.driverType),
+            // Only sent for an open driver — the server rejects it on a fixed one.
+            assignedVehicleId: isOpenDriver ? form.assignedVehicleId : null,
             licenseNumber: form.driverLicenseNumber.trim(),
             licenseExpiry: form.driverLicenseExpiry || null,
             nationalityId: form.driverNationalityId || null,
@@ -254,6 +287,26 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
                 <label style={labelStyle}>Driver type *</label>
                 <Select value={form.driverType} onChange={(v) => setF('driverType', v)} options={driverTypeOpts} placeholder="— Select —" />
               </div>
+              {isOpenDriver && (
+                <div>
+                  <label style={labelStyle}>Vehicle *</label>
+                  <Select
+                    value={form.assignedVehicleId}
+                    onChange={(v) => setF('assignedVehicleId', v || '')}
+                    options={vehicles.map((v) => ({
+                      value: v.id,
+                      label: [v.vehicleNumber, v.vehicleModel].filter(Boolean).join(' · '),
+                    }))}
+                    placeholder={vehiclesLoading ? 'Loading…' : '— Select —'}
+                    isDisabled={vehiclesLoading}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    {vehiclesLoading || vehicles.length
+                      ? "Fixed vehicles from this event's fleet, not already assigned to a driver"
+                      : 'No free fixed vehicle for this event — mark one as Fixed under Fleet first'}
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Nationality</label>
                 <Select value={form.driverNationalityId} onChange={(v) => setF('driverNationalityId', v)} options={nationalityOpts} formatOptionLabel={nationalityOptionLabel} placeholder="— Select —" isClearable />
@@ -483,7 +536,9 @@ function SetPasswordModal({ user, onClose, onDone }) {
 const col = createColumnHelper();
 const TABS = ['all', 'pending'];
 
-export default function UsersView() {
+// activeEventId comes from the router outlet context — the driver invite form uses
+// it to offer only the vehicles this event's fleet providers supply.
+export default function UsersView({ activeEventId }) {
   const { user: me, can, isDemo } = useAuth();
 
   // The page's own rows — one server page at a time, not the whole table.
@@ -827,6 +882,7 @@ export default function UsersView() {
         roles={roles}
         nationalities={nationalities}
         driverTypes={driverTypes}
+        activeEventId={activeEventId}
         onInvited={handleInvited}
       />
 
