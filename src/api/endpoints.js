@@ -1,6 +1,17 @@
 // All API endpoint paths in one place. Services reference these constants
 // instead of hard-coding URLs, so a route change is a one-line edit here.
 // Paths are relative to API_BASE_URL (default "/api").
+//
+// ── Guest identity: two ids, never interchangeable ──────────────────────────
+//  * eventGuestId — EventGuest.PublicId, ONE person's participation in ONE
+//    event. This is `GuestResponse.id`, and it is what every event-scoped route
+//    takes: guest CRUD, accreditation, travel, transportation, seating,
+//    meetings, guest services.
+//  * personId — Guest.PublicId, the master person, stable across every event
+//    they attend. This is `GuestResponse.personId`, and only person-level
+//    routes take it: guest overview (cross-event) and support chat.
+// Sending one where the other is expected is a 404, not a silent mismatch, so
+// route params below are named for exactly which one they mean.
 
 export const ENDPOINTS = {
   auth: {
@@ -58,27 +69,37 @@ export const ENDPOINTS = {
     types: '/v1/events/types',
   },
 
-  // Guest Overview — every guest, every event, one paged/filterable list, plus
-  // an on-demand per-guest detail (sections: event, sessions, flights,
+  // Guest Overview — every PERSON, every event, one paged/filterable list, plus
+  // an on-demand per-person detail (sections: event, sessions, flights,
   // accommodations, transport, seatings, other dynamic services).
+  // Person-scoped on purpose: ids here are Guest.PublicId (personId), NOT
+  // EventGuest ids. Row.id === personId, and the detail's events[] carries each
+  // participation's eventGuestId for the event-scoped screens to jump into.
   guestOverview: {
     base: '/v1/guest-overview',
-    byId: (id) => `/v1/guest-overview/${id}`,
+    byId: (personId) => `/v1/guest-overview/${personId}`,
   },
 
+  // Guest CRUD is EVENT-PARTICIPATION scoped: every {eventGuestId} here is an
+  // EventGuest.PublicId (what GuestResponse.id returns), never the master
+  // Guest.PublicId (GuestResponse.personId — see guestOverview above).
   guests: {
     base: '/v1/guest',
-    byId: (id) => `/v1/guest/${id}`,
-    // Slim feed for guest pickers — name/org/tier/photo, searched + paged server-side.
+    byId: (eventGuestId) => `/v1/guest/${eventGuestId}`,
+    // Slim feed for guest pickers — name/org/tier/photo, searched + paged
+    // server-side. Rows carry both `id` (eventGuestId) and `personId`.
     picker: '/v1/guest/picker',
-    // "Existing Guest" tab of the Add Guest modal — guests from every other event.
+    // "Existing Guest" tab of the Add Guest modal — participations in every
+    // other event. Picking one and POSTing /guest with the same email reuses
+    // that master Guest and adds a second participation.
     otherEvents: '/v1/guest/other-events',
     import: (eventId) => `/v1/guest/import?eventId=${eventId}`,
     importBatch: (batchId) => `/v1/guest/import/${batchId}`,
     importTemplate: (eventId) => `/v1/guest/import-template?eventId=${eventId}`,
+    // Body: { selectedGuestsToDelete: [eventGuestId, ...] }.
     deleteSelected: (eventId) => `/v1/guest/delete?eventId=${eventId}`,
-    issueAccreditation: (id) => `/v1/guest/${id}/accreditation/issue`,
-    revokeAccreditation: (id) => `/v1/guest/${id}/accreditation/revoke`,
+    issueAccreditation: (eventGuestId) => `/v1/guest/${eventGuestId}/accreditation/issue`,
+    revokeAccreditation: (eventGuestId) => `/v1/guest/${eventGuestId}/accreditation/revoke`,
   },
 
   upload: {
@@ -101,9 +122,11 @@ export const ENDPOINTS = {
     base: '/v1/service-levels',
     byId: (id) => `/v1/service-levels/${id}`,
   },
+  // A service plan belongs to one event participation, so these take an
+  // EventGuest.PublicId (GuestServicePlanResponse echoes it back as eventGuestId).
   guestServices: {
-    base: (guestId) => `/v1/guests/${guestId}/services`,
-    entry: (guestId, entryId) => `/v1/guests/${guestId}/services/${entryId}`,
+    base: (eventGuestId) => `/v1/guests/${eventGuestId}/services`,
+    entry: (eventGuestId, entryId) => `/v1/guests/${eventGuestId}/services/${entryId}`,
   },
 
   // Reads are open to any signed-in user (so any module can fill an org
@@ -189,14 +212,14 @@ export const ENDPOINTS = {
     assign: '/v1/seating',
     unassign: (seatId) => `/v1/seating/${seatId}`,
     byBox: (venueBoxId) => `/v1/seating/box/${venueBoxId}`,
-    byGuest: (guestId) => `/v1/seating/guest/${guestId}`,
+    byGuest: (eventGuestId) => `/v1/seating/guest/${eventGuestId}`,
   },
 
   // Guest travel: flight / accommodation / transport sections. A guest can
   // hold more than one of each — save targets a specific booking by id (in
   // the body) when editing one, or adds a new one when no id is given.
   travel: {
-    guest: (id) => `/v1/travel/guest/${id}`,
+    guest: (eventGuestId) => `/v1/travel/guest/${eventGuestId}`,
     // Per-event booking lists — one per travel tab.
     eventFlights: (eventId) => `/v1/travel/event/${eventId}/flights`,
     eventAccommodation: (eventId) => `/v1/travel/event/${eventId}/accommodation`,
@@ -242,9 +265,11 @@ export const ENDPOINTS = {
   supportChat: {
     conversations: '/v1/support-chat/conversations',
     messages: (conversationId) => `/v1/support-chat/conversations/${conversationId}/messages`,
-    // Starts (or continues) a conversation by guest id — no prior conversation
-    // needs to exist yet.
-    startByGuest: (guestId) => `/v1/support-chat/conversations/by-guest/${guestId}/messages`,
+    // Starts (or continues) a conversation by PERSON id (Guest.PublicId, i.e.
+    // GuestResponse.personId) — support chat is one thread per human, not per
+    // event participation, so an eventGuestId is rejected here. No prior
+    // conversation needs to exist yet.
+    startByGuest: (personId) => `/v1/support-chat/conversations/by-guest/${personId}/messages`,
     read: (conversationId) => `/v1/support-chat/conversations/${conversationId}/read`,
     close: (conversationId) => `/v1/support-chat/conversations/${conversationId}/close`,
     reopen: (conversationId) => `/v1/support-chat/conversations/${conversationId}/reopen`,

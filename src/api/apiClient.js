@@ -10,11 +10,15 @@ import { tokenStore } from '../auth/tokenStore';
 
 // Normalized error thrown to callers (services/components catch this).
 export class ApiError extends Error {
-  constructor(message, { status, errors } = {}) {
+  constructor(message, { status, errors, errorCode } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.errors = errors || [];
+    // Machine-readable ApiResponse.errorCode when the backend sent one
+    // (GUEST_ALREADY_ON_EVENT, GUEST_EMAIL_CONFLICT, SERVICE_LEVEL_RULE, ...) —
+    // callers branch on this instead of matching the message text.
+    this.errorCode = errorCode || null;
   }
 }
 
@@ -113,6 +117,8 @@ apiClient.interceptors.response.use(
 
     const data = response?.data;
     const message = data?.message || error.message || 'Request failed';
-    return Promise.reject(new ApiError(message, { status: response?.status, errors: data?.errors }));
+    return Promise.reject(new ApiError(message, {
+      status: response?.status, errors: data?.errors, errorCode: data?.errorCode,
+    }));
   }
 );

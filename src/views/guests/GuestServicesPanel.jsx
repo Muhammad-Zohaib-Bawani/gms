@@ -266,8 +266,11 @@ function EmptyLine({ children }) {
   );
 }
 
+// `eventGuestId` — the guest's participation in `eventId` (GuestResponse.id).
+// The service plan, its entries and the built-in travel sections are all saved
+// against it; the master personId has no place on this screen.
 export default function GuestServicesPanel({
-  guestId, lang, onChanged, eventStart, eventEnd, eventId,
+  eventGuestId, lang, onChanged, eventStart, eventEnd, eventId,
   arrivalDate, departureDate, embedded, travelRows,
 }) {
   const isAr = lang === 'ar';
@@ -295,13 +298,13 @@ export default function GuestServicesPanel({
   const isSystemEdit = !!editing?.slot?.isSystem;
 
   const load = useCallback(() => {
-    if (!guestId) return;
+    if (!eventGuestId) return;
     setLoading(true);
-    getGuestServicePlan(guestId)
+    getGuestServicePlan(eventGuestId)
       .then(setPlan)
       .catch(() => setPlan(null))
       .finally(() => setLoading(false));
-  }, [guestId]);
+  }, [eventGuestId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -359,7 +362,7 @@ export default function GuestServicesPanel({
     // the travel endpoint rather than from the plan's display values.
     setTravel(EMPTY_TRAVEL);
     if (entry?.id) {
-      getGuestTravel(guestId, entry.id)
+      getGuestTravel(eventGuestId, entry.id)
         .then((raw) => setTravel(hydrateTravel(raw)))
         .catch(() => setError(isAr ? 'تعذّر تحميل الحجز' : 'Could not load that booking'));
     }
@@ -381,7 +384,7 @@ export default function GuestServicesPanel({
 
     setSaving(true);
     try {
-      await saveGuestTravel(guestId, buildTravelPayload(travel, travelLookups));
+      await saveGuestTravel(eventGuestId, buildTravelPayload(travel, travelLookups));
       toast.success(isAr ? 'تم الحفظ' : 'Saved');
       setEditing(null);
       load();
@@ -410,7 +413,7 @@ export default function GuestServicesPanel({
 
     setSaving(true);
     try {
-      await saveGuestServiceEntry(guestId, {
+      await saveGuestServiceEntry(eventGuestId, {
         id: entry?.id || null,
         serviceId: slot.serviceId,
         values,
@@ -435,7 +438,7 @@ export default function GuestServicesPanel({
       // A built-in's entry is a booking row, removed through its own endpoint.
       const del = slot.isSystem ? DELETE_BOOKING[slot.code] : null;
       if (del) await del(entry.id);
-      else await deleteGuestServiceEntry(guestId, entry.id);
+      else await deleteGuestServiceEntry(eventGuestId, entry.id);
       toast.success(isAr ? 'تم الحذف' : 'Removed');
       setConfirmDelete(null);
       load();

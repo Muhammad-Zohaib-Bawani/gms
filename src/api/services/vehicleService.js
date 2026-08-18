@@ -28,7 +28,7 @@ export const getAvailableVehicles = ({ from, to, eventId, excludeTransportId }) 
 
 // One row per booked slot: { id, vehicleId, vehicleNumber, vehicleModel,
 // vehicleTypeName, vehicleImage, fleetProviderName, driverId, driverName,
-// driverPhone, guestId, guestName, guestEmail, guestPhotoUrl, pickupTime,
+// driverPhone, eventGuestId, guestName, guestEmail, guestPhotoUrl, pickupTime,
 // dropoffTime, pickup, dropoff, status, rideSource }. Sorted by vehicle, then
 // time. Cancelled rides excluded.
 export const getVehicleBookings = ({ eventId, from, to, vehicleId, driverId } = {}) =>

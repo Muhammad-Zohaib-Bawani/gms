@@ -96,7 +96,7 @@ export default function SeatingView({ lang, activeEventId }) {
   const [tables, setTables] = useState([]);
   const [canvasSize, setCanvasSize] = useState({ w: 1400, h: 900 });
   const [loadingFloor, setLoadingFloor] = useState(false);
-  const [assignments, setAssignments] = useState({}); // seatId -> guestId
+  const [assignments, setAssignments] = useState({}); // seatId -> eventGuestId
 
   useEffect(() => {
     if (!effectiveVenueId) { setTables([]); setBox(null); return; }
@@ -123,7 +123,7 @@ export default function SeatingView({ lang, activeEventId }) {
     getSeatAssignments(box.id, { eventId, sessionId: sessionId || undefined }).then(list => {
       if (cancelled) return;
       const map = {};
-      (list || []).forEach(a => { map[a.seatId] = a.guestId; });
+      (list || []).forEach(a => { map[a.seatId] = a.eventGuestId; });
       setAssignments(map);
     }).catch(() => { if (!cancelled) setAssignments({}); });
     return () => { cancelled = true; };
@@ -178,20 +178,23 @@ export default function SeatingView({ lang, activeEventId }) {
       toast.error(isAr ? 'تعذّر تحديد هذا المقعد' : 'Could not identify this seat');
       return;
     }
-    setAssignModal({ table, seatIdx, seatId, guestId: assignments[seatId] || null });
+    setAssignModal({ table, seatIdx, seatId, eventGuestId: assignments[seatId] || null });
     setAssignSearch('');
   }
 
-  async function doAssign(guestId) {
+  // `eventGuestId` is the picked guest's participation in THIS event
+  // (GuestResponse.id from the event roster) — seating is event-scoped, so the
+  // master personId is never what goes on a seat.
+  async function doAssign(eventGuestId) {
     if (!eventId) return;
     setAssigning(true);
     try {
-      await assignSeat({ seatId: assignModal.seatId, guestId, eventId, sessionId: sessionId || null });
+      await assignSeat({ seatId: assignModal.seatId, eventGuestId, eventId, sessionId: sessionId || null });
       setAssignments(prev => {
         const next = { ...prev };
         // A guest can only sit in one seat within this scope — drop wherever they were.
-        for (const k of Object.keys(next)) if (next[k] === guestId) delete next[k];
-        next[assignModal.seatId] = guestId;
+        for (const k of Object.keys(next)) if (next[k] === eventGuestId) delete next[k];
+        next[assignModal.seatId] = eventGuestId;
         return next;
       });
       setAssignModal(null);
@@ -222,12 +225,14 @@ export default function SeatingView({ lang, activeEventId }) {
     }
   }
 
-  const assignedGuest = assignModal?.guestId ? guests.find(g => g.id === assignModal.guestId) : null;
+  const assignedGuest = assignModal?.eventGuestId ? guests.find(g => g.id === assignModal.eventGuestId) : null;
   // Disabled seats can't be assigned (the backend enforces this too — this is
   // just so the UI doesn't let someone search/pick a guest for a seat that's
   // guaranteed to be rejected). A seat that was assigned before being disabled
   // can still be unassigned, just not newly assigned to someone else.
   const isSeatDisabled = !!assignModal?.table?.seatMeta?.[assignModal?.seatIdx]?.isDisabled;
+  // eventGuestIds already seated in this scope — compared against the roster's
+  // own `id`, which is the same participation id.
   const alreadyAssigned = new Set(Object.values(assignments));
   const filteredForAssign = guests
     .filter(g => !alreadyAssigned.has(g.id) && (!assignSearch || g.fullName?.toLowerCase().includes(assignSearch.toLowerCase())))
@@ -254,10 +259,11 @@ export default function SeatingView({ lang, activeEventId }) {
     return { ...t, seatMeta };
   });
 
-  const seatByGuest = {};
-  Object.entries(assignments).forEach(([seatId, gId]) => {
+  // Keyed by eventGuestId, matching the roster rows' `id` (GuestResponse.id).
+  const seatByEventGuest = {};
+  Object.entries(assignments).forEach(([seatId, egId]) => {
     const loc = seatIdIndex[seatId];
-    if (loc) seatByGuest[gId] = loc;
+    if (loc) seatByEventGuest[egId] = loc;
   });
 
   const totalSeats = tables.reduce((acc, t) => {
@@ -426,7 +432,7 @@ export default function SeatingView({ lang, activeEventId }) {
                   {eventId ? STR.noResults : STR.selectEventFirst}
                 </td></tr>
               ) : guests.map(g => {
-                const info = seatByGuest[g.id];
+                const info = seatByEventGuest[g.id];
                 return (
                   <tr key={g.id}>
                     <td>
@@ -468,7 +474,7 @@ export default function SeatingView({ lang, activeEventId }) {
           <div className="card glass modal-solid" style={{ width:360, maxWidth:'92vw', padding:0 }}>
             <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
-                <div style={{ fontWeight:600, fontSize:14 }}>{assignModal.guestId ? STR.seatAssigned : STR.assignSeat}</div>
+                <div style={{ fontWeight:600, fontSize:14 }}>{assignModal.eventGuestId ? STR.seatAssigned : STR.assignSeat}</div>
                 <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2, fontFamily:'var(--mono)' }}>
                   <span style={{ color: assignModal.table.color || 'var(--accent)' }}>{assignModal.table.label}</span>
                   {' · '}

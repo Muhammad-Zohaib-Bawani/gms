@@ -1,7 +1,10 @@
 import { apiClient } from '../apiClient';
 import { ENDPOINTS } from '../endpoints';
 
-// System-wide guest table (Guest Overview). Server-paged/filtered/searched —
+// System-wide PERSON table (Guest Overview) — one row per human, spanning every
+// event they attend. Row `id` is Guest.PublicId (personId); there is no
+// eventGuestId on a row, since a row is not tied to a single participation.
+// Server-paged/filtered/searched —
 // same reasoning as listGuests: filtering client-side would only ever act on
 // the current page. eventId here is an optional filter, not a scope.
 export function getGuestOverview({
@@ -40,4 +43,8 @@ export function getGuestOverview({
 
 // Fetched only when a row expands — sections: event, sessions, flights,
 // accommodations, transport, seatings, otherServices.
-export const getGuestOverviewDetail = (id) => apiClient.get(ENDPOINTS.guestOverview.byId(id));
+//
+// PERSON-scoped: takes Guest.PublicId (a row's `id`, i.e. GuestResponse.personId),
+// never an eventGuestId. The response's `events[]` blocks each carry an
+// `eventGuestId`, which is the handle any event-scoped screen needs.
+export const getGuestOverviewDetail = (personId) => apiClient.get(ENDPOINTS.guestOverview.byId(personId));

@@ -1,4 +1,11 @@
-// Guest Overview — every guest in the system, across every event.
+// Guest Overview — every PERSON in the system, across every event.
+//
+// This screen is PERSON-scoped: a row's `id` is the master Guest.PublicId
+// (personId), not an EventGuest.PublicId, because a row spans every event that
+// human attends. Anything event-specific therefore has to go through one of the
+// participations in the expanded detail's `events[]`, each of which carries its
+// own `eventGuestId`. The event-scoped counterpart of this screen is
+// Guests / GuestDetailView, keyed by eventGuestId.
 //
 // Server-paged/filtered/searched — GuestOverviewController isn't scoped to one
 // event, so this is the one screen a user can land on to find any guest
@@ -148,6 +155,30 @@ export default function GuestOverviewView({ lang }) {
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
+  // "View profile" has to cross from person to participation: /guests/:id takes
+  // an eventGuestId, which only the detail response carries. Resolved on click
+  // (one request) rather than pre-fetched for every visible row.
+  const [openingProfile, setOpeningProfile] = useState(null);
+  async function openParticipation(row) {
+    if (openingProfile) return;
+    setOpeningProfile(row.id);
+    try {
+      const detail = await getGuestOverviewDetail(row.id);
+      const blocks = detail?.events || [];
+      // Prefer the event the row's own columns describe (the most recent
+      // participation); fall back to the latest block the detail returned.
+      const block = blocks.find((b) => b.eventId === row.eventId) || blocks[blocks.length - 1];
+      if (!block?.eventGuestId) {
+        toast.error('This guest has no event participation to open.');
+        return;
+      }
+      navigate(`/guests/${block.eventGuestId}`);
+    } catch (err) {
+      toast.fromError(err, 'Could not open this guest');
+    } finally {
+      setOpeningProfile(null);
+    }
+  }
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [f, setF] = useState(INITIAL_FILTERS);
@@ -670,12 +701,17 @@ export default function GuestOverviewView({ lang }) {
                           <td className="dt-td" onClick={(e) => e.stopPropagation()}>
                             <ActionMenu
                               items={[
-                                { label: 'View profile', icon: 'guests', onClick: () => navigate(`/guests/${g.id}`) },
+                                // /guests/:id is event-scoped, and a row here is
+                                // a person — so the participation to open has to
+                                // be looked up first (openParticipation).
+                                { label: 'View profile', icon: 'guests', onClick: () => openParticipation(g) },
                                 {
+                                  // Support chat is person-scoped, so the row id
+                                  // (personId) is exactly right here.
                                   label: 'Message', icon: 'message',
                                   onClick: () => navigate('/support-chat', {
                                     state: {
-                                      guestId: g.id,
+                                      personId: g.id,
                                       guestName: `${g.firstName} ${g.lastName}`.trim(),
                                       guestOrganization: g.organization || '',
                                     },
@@ -693,7 +729,7 @@ export default function GuestOverviewView({ lang }) {
                                 width: detailWidth || '100%',
                                 boxSizing: 'border-box',
                               }}>
-                                <GuestDetail guestId={g.id} />
+                                <GuestDetail personId={g.id} guest={g} />
                               </div>
                             </td>
                           </tr>

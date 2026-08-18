@@ -3,6 +3,12 @@
 // the quick GuestDrawer). Read-only display of every field the API has for
 // this guest; Edit/Delete reuse the same modals as the Guests list so the
 // actual mutation logic isn't duplicated.
+//
+// This is the EVENT PARTICIPATION detail, not the person overview: it is keyed
+// by eventGuestId and every action on it (edit, delete, accreditation, travel,
+// seating, services) is scoped to that one event. The cross-event view of the
+// same human lives in Guest Overview (GuestDetail.jsx), keyed by personId. The
+// only person-level jump from here is Message, which sends `guest.personId`.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, ServiceLevelChip } from '../components/UI';
@@ -30,12 +36,13 @@ import {
   GuestDetailSkeleton,
 } from './guests/cards/GuestDetailCards';
 
-// Each guest's own travel rows out of the event-wide lists — those already
-// carry resolved display names (hotel, vehicle, driver...), unlike
-// GET /travel/guest/{id} which only ever returns the single most-recent
-// booking of each kind (that endpoint is built for the edit wizard's
-// single-accordion prefill, not for showing every booking a guest has).
-const forGuest = (rows, guestId) => (rows || []).filter((r) => r.guestId === guestId);
+// Each participation's own travel rows out of the event-wide lists — those
+// already carry resolved display names (hotel, vehicle, driver...), unlike
+// GET /travel/guest/{eventGuestId} which only ever returns the single
+// most-recent booking of each kind (that endpoint is built for the edit
+// wizard's single-accordion prefill, not for showing every booking a guest has).
+const forEventGuest = (rows, eventGuestId) =>
+  (rows || []).filter((r) => r.eventGuestId === eventGuestId);
 
 const INVITE_BADGE = {
   not_sent: { label: { en: 'Not sent', ar: 'لم تُرسل' }, color: '#9CA3AF' },
@@ -191,7 +198,7 @@ function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
   );
 }
 
-export default function GuestDetailView({ guestId, lang, embedded = false }) {
+export default function GuestDetailView({ eventGuestId, lang, embedded = false }) {
   const isAr = lang === 'ar';
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -220,7 +227,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
     setLoading(true);
     setNotFound(false);
     try {
-      const g = await getGuest(guestId);
+      const g = await getGuest(eventGuestId);
       if (!g) { setNotFound(true); return; }
       setGuest(g);
       const [ev, fl, acc, tr, st, nats, orgs, tmpls] = await Promise.all([
@@ -234,9 +241,9 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
         getTemplates(g.eventId).catch(() => []),
       ]);
       setEvent(ev);
-      setFlights(forGuest(fl?.items, g.id));
-      setAccommodations(forGuest(acc?.items, g.id));
-      setTransports(forGuest(tr?.items, g.id));
+      setFlights(forEventGuest(fl?.items, g.id));
+      setAccommodations(forEventGuest(acc?.items, g.id));
+      setTransports(forEventGuest(tr?.items, g.id));
       setSeats(st || []);
       setNationalities(nats || []);
       setOrganizations(orgs || []);
@@ -246,7 +253,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
     } finally {
       setLoading(false);
     }
-  }, [guestId]);
+  }, [eventGuestId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -356,8 +363,10 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
               <button
                 className="icon-btn" title={isAr ? 'رسالة' : 'Message'} aria-label={isAr ? 'رسالة' : 'Message'}
+                /* Support chat is one thread per PERSON, so it takes
+                   guest.personId — the participation id would 404 there. */
                 onClick={() => navigate('/support-chat', {
-                  state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
+                  state: { personId: guest.personId, guestName, guestOrganization: guest.organization || '' },
                 })}
               >
                 <Icon name="message" size={14} />
@@ -521,7 +530,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
             dynamic services — instead of one "Services" box containing all
             of them. GuestServicesPanel renders its cards as siblings (not
             wrapped in a Section), so they drop into this same grid. */}
-        <GuestServicesPanel guestId={guestId} lang={lang} onChanged={load}
+        <GuestServicesPanel eventGuestId={eventGuestId} lang={lang} onChanged={load}
           eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
           eventId={guest?.eventId}
           arrivalDate={guest?.arrivalDate} departureDate={guest?.departureDate}
@@ -553,7 +562,7 @@ export default function GuestDetailView({ guestId, lang, embedded = false }) {
         <DeleteGuestsModal
           open={showDelete}
           onClose={() => setShowDelete(false)}
-          selectedGuests={[guest]}
+          selectedEventGuests={[guest]}
           activeEventId={guest.eventId}
           lang={lang}
           onDeleted={() => navigate('/guests')}

@@ -127,7 +127,11 @@ function RecordCard({ icon, title, status, eventTitle, onEdit, children }) {
 
 const dt = (v) => v?.replace('T', ' ').slice(0, 16);
 
-export default function GuestDetail({ guestId, guest }) {
+// The cross-event detail for ONE PERSON. `personId` is Guest.PublicId; every
+// event-scoped jump out of here (view/edit the guest, their travel, their seat)
+// has to go through a participation from `detail.events[]`, each of which
+// carries its own `eventGuestId`.
+export default function GuestDetail({ personId, guest }) {
   const navigate = useNavigate();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -137,12 +141,12 @@ export default function GuestDetail({ guestId, guest }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getGuestOverviewDetail(guestId)
+    getGuestOverviewDetail(personId)
       .then((d) => { if (!cancelled) setDetail(d); })
       .catch((err) => { if (!cancelled) setError(err?.message || 'Could not load this guest'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [guestId]);
+  }, [personId]);
 
   if (loading) {
     return <div style={{ padding: '18px 20px', fontSize: 12.5, color: 'var(--ink-mute)' }}>Loading…</div>;
@@ -160,9 +164,18 @@ export default function GuestDetail({ guestId, guest }) {
   const stack = { display: 'flex', flexDirection: 'column', gap: 8 };
 
   const fullName = `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim();
+  // Support chat is person-scoped — personId is what it takes.
   const goChat = () => navigate('/support-chat', {
-    state: { guestId, guestName: fullName, guestOrganization: guest?.organization || '' },
+    state: { personId, guestName: fullName, guestOrganization: guest?.organization || '' },
   });
+  // The participation to open for the event-scoped guest page: the one matching
+  // the row's current event, else the latest block loaded.
+  const primaryEventGuestId =
+    (events.find((e) => e.eventId === guest?.eventId) || events[events.length - 1])?.eventGuestId || null;
+  const goParticipation = () => {
+    if (!primaryEventGuestId) return;
+    navigate(`/guests/${primaryEventGuestId}`);
+  };
 
   return (
     <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -184,9 +197,9 @@ export default function GuestDetail({ guestId, guest }) {
             )}
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <ActionBtn icon="guests" label="View profile" onClick={() => navigate(`/guests/${guestId}`)} />
+            <ActionBtn icon="guests" label="View profile" onClick={goParticipation} />
             <ActionBtn icon="message" label="Message" onClick={goChat} />
-            <ActionBtn icon="edit" label="Edit guest" onClick={() => navigate(`/guests/${guestId}`)} />
+            <ActionBtn icon="edit" label="Edit guest" onClick={goParticipation} />
             <ActionBtn icon="badge" label="Accreditation" onClick={() => navigate('/accreditation')} />
           </div>
         </div>
@@ -195,7 +208,7 @@ export default function GuestDetail({ guestId, guest }) {
       <Section icon="calendar" title="Events" count={events.length} empty="Not linked to an event">
         <div style={stack}>
           {events.map((ev) => (
-            <RecordCard key={ev.guestId} title={ev.eventTitle}>
+            <RecordCard key={ev.eventGuestId} title={ev.eventTitle}>
               <Facts data={{
                 Type: ev.eventType, Venue: ev.venueName,
                 'Start date': ev.startDate, 'End date': ev.endDate,

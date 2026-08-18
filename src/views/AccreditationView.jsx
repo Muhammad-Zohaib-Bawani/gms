@@ -6,6 +6,9 @@ import FlagIcon from '../components/FlagIcon.jsx';
 import GuestCell from '../components/GuestCell.jsx';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
+// Accreditation is per event: the roster comes from listGuests (scoped to
+// activeEventId), so every `g.id` on this screen is an eventGuestId and that is
+// exactly what issue/revoke take. No personId is involved anywhere here.
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getGuestEnums } from '../api/services/lookupService';
 import { getEvent } from '../api/services/eventService';

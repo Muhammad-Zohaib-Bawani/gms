@@ -123,7 +123,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
 
   async function removeEntry(row) {
     try {
-      await deleteGuestServiceEntry(row.guestId, row.entryId);
+      await deleteGuestServiceEntry(row.eventGuestId, row.entryId);
       toast.success(isAr ? 'تم الحذف' : 'Removed');
       load();
     } catch (err) {
@@ -155,14 +155,16 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
   // A guest can hold the same service more than once (a second flight, another
   // night's stay…) — one row per guest, every one of their entries stacked
   // inside the relevant cells, rather than one row per entry that repeats the
-  // same guest cell over and over.
+  // same guest cell over and over. Grouped by eventGuestId (ServiceEntryRow's
+  // own field) — a service entry belongs to one event participation, so that is
+  // also the id the delete/edit calls take.
   const entryRows = useMemo(() => {
     const byGuest = new Map();
     rows.forEach((r) => {
-      if (!byGuest.has(r.guestId)) {
-        byGuest.set(r.guestId, {
-          id: r.guestId,
-          guestId: r.guestId,
+      if (!byGuest.has(r.eventGuestId)) {
+        byGuest.set(r.eventGuestId, {
+          id: r.eventGuestId,
+          eventGuestId: r.eventGuestId,
           guestName: r.guestName,
           email: r.email,
           photoUrl: r.photoUrl,
@@ -171,7 +173,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
           entries: [],
         });
       }
-      byGuest.get(r.guestId).entries.push(r);
+      byGuest.get(r.eventGuestId).entries.push(r);
     });
     return [...byGuest.values()];
   }, [rows]);
@@ -264,9 +266,9 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
         .some((f) => (f.type === 'datetime' || f.type === 'date') && r.values?.[f.key]));
       if (!hasDate) return;
 
-      if (!byGuest.has(r.guestId)) {
-        byGuest.set(r.guestId, {
-          id: r.guestId,
+      if (!byGuest.has(r.eventGuestId)) {
+        byGuest.set(r.eventGuestId, {
+          id: r.eventGuestId,
           guestName: r.guestName,
           email: r.email,
           serviceLevelName: r.serviceLevelName,
@@ -274,7 +276,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
           entries: [],
         });
       }
-      byGuest.get(r.guestId).entries.push(r);
+      byGuest.get(r.eventGuestId).entries.push(r);
     });
     return [...byGuest.values()];
   }, [rows, datedSections]);

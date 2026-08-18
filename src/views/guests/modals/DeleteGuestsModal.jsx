@@ -6,37 +6,40 @@ import { deleteSelectedGuests } from '../../../api/services/guestService';
 import { getGuestSeatAssignments } from '../../../api/services/seatingService';
 import { fmtNum } from '../../../i18n/translations';
 
-export default function DeleteGuestsModal({ open, onClose, selectedGuests, activeEventId, lang, onDeleted }) {
+// `selectedEventGuests` are GuestResponse rows — deleting removes their
+// PARTICIPATION in `activeEventId` (by eventGuestId), not the person, who stays
+// on whatever other events they're attending.
+export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, activeEventId, lang, onDeleted }) {
   const isAr = lang === 'ar';
-  const count = selectedGuests.length;
+  const count = selectedEventGuests.length;
   const [deleting, setDeleting] = useState(false);
-  // guestId -> [{ eventTitle, sessionTitle, seatCode }]
-  const [seatsByGuest, setSeatsByGuest] = useState({});
+  // eventGuestId -> [{ eventTitle, sessionTitle, seatCode }]
+  const [seatsByEventGuest, setSeatsByEventGuest] = useState({});
 
   // Checked every time the modal opens for a (possibly different) selection —
   // purely informational: the backend already frees a guest's seat(s)
   // automatically when the guest is deleted (see Guest.DeleteGuestByIdAsync),
   // this just lets the admin know before confirming.
   useEffect(() => {
-    if (!open) { setSeatsByGuest({}); return; }
+    if (!open) { setSeatsByEventGuest({}); return; }
     let cancelled = false;
-    Promise.all(selectedGuests.map(g =>
+    Promise.all(selectedEventGuests.map(g =>
       getGuestSeatAssignments(g.id).then(rows => [g.id, rows || []]).catch(() => [g.id, []]),
     )).then(pairs => {
       if (cancelled) return;
       const map = {};
       pairs.forEach(([id, rows]) => { if (rows.length) map[id] = rows; });
-      setSeatsByGuest(map);
+      setSeatsByEventGuest(map);
     });
     return () => { cancelled = true; };
-  }, [open, selectedGuests]);
+  }, [open, selectedEventGuests]);
 
-  const seatedGuests = selectedGuests.filter(g => seatsByGuest[g.id]?.length);
+  const seatedEventGuests = selectedEventGuests.filter(g => seatsByEventGuest[g.id]?.length);
 
   async function handleDelete() {
     setDeleting(true);
     try {
-      await deleteSelectedGuests(activeEventId, selectedGuests.map(g => g.id));
+      await deleteSelectedGuests(activeEventId, selectedEventGuests.map(g => g.id)); // g.id = eventGuestId
       onDeleted();
       onClose();
       toast.success(
@@ -79,7 +82,7 @@ export default function DeleteGuestsModal({ open, onClose, selectedGuests, activ
         }
       </p>
 
-      {seatedGuests.length > 0 && (
+      {seatedEventGuests.length > 0 && (
         <div style={{
           display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12,
           padding: '10px 12px', borderRadius: 10,
@@ -89,13 +92,13 @@ export default function DeleteGuestsModal({ open, onClose, selectedGuests, activ
             <Icon name="alert" size={14}/>
             {isAr ? 'تنبيه: مقعد مخصص' : 'Heads up: seat assigned'}
           </div>
-          {seatedGuests.map(g => (
+          {seatedEventGuests.map(g => (
             <div key={g.id} style={{ fontSize: 12.5, color: 'var(--ink-dim)' }}>
               {isAr ? (
                 <>
                   <b>{g.fullName}</b> مُخصَّص له/لها مقعد بالفعل
                   {' — '}
-                  {seatsByGuest[g.id].map((s, i) => (
+                  {seatsByEventGuest[g.id].map((s, i) => (
                     <span key={i}>
                       {i > 0 && '، '}
                       {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · {isAr ? 'مقعد' : 'Seat'} {s.seatCode}
@@ -107,7 +110,7 @@ export default function DeleteGuestsModal({ open, onClose, selectedGuests, activ
                 <>
                   <b>{g.fullName}</b> is already assigned to a seat
                   {' — '}
-                  {seatsByGuest[g.id].map((s, i) => (
+                  {seatsByEventGuest[g.id].map((s, i) => (
                     <span key={i}>
                       {i > 0 && ', '}
                       {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · Seat {s.seatCode}
@@ -122,11 +125,11 @@ export default function DeleteGuestsModal({ open, onClose, selectedGuests, activ
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 180, overflowY: 'auto' }}>
-        {selectedGuests.slice(0, 8).map(g => (
+        {selectedEventGuests.slice(0, 8).map(g => (
           <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--surface-soft-2)', fontSize: 13 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#e05050', flexShrink: 0 }}/>
             <span style={{ fontWeight: 500 }}>{g.fullName}</span>
-            {seatsByGuest[g.id]?.length > 0 && (
+            {seatsByEventGuest[g.id]?.length > 0 && (
               <span className="chip pending" style={{ fontSize: 10 }}>
                 <Icon name="seating" size={10}/> {isAr ? 'مقعد' : 'Seated'}
               </span>

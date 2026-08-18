@@ -41,7 +41,7 @@ export default function BookingModal({
 
   const [guests, setGuests] = useState([]);
   const [levels, setLevels] = useState([]);
-  const [guestId, setGuestId] = useState('');
+  const [eventGuestId, setEventGuestId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -56,7 +56,7 @@ export default function BookingModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setGuestId(entry?.guestId || '');
+    setEventGuestId(entry?.eventGuestId || '');
     setPending(entry
       // Editing: that one service, already ticked, prefilled.
       ? { [service?.id]: { selected: true, values: { ...(entry.values || {}) }, completed: entry.status === 'completed' } }
@@ -77,11 +77,11 @@ export default function BookingModal({
   // The guest's plan is what decides which services this dialog offers — the
   // level, not the tab it was opened from.
   useEffect(() => {
-    if (!open || !guestId) { setPlan(null); setPlanError(null); return undefined; }
+    if (!open || !eventGuestId) { setPlan(null); setPlanError(null); return undefined; }
     let cancelled = false;
     setPlanLoading(true);
     setPlanError(null);
-    getGuestServicePlan(guestId)
+    getGuestServicePlan(eventGuestId)
       .then((p) => { if (!cancelled) setPlan(p); })
       // Kept and shown, not swallowed: a failed fetch and a level with no services
       // both left `slots` empty, so one warning covered two very different causes
@@ -94,7 +94,7 @@ export default function BookingModal({
       .finally(() => { if (!cancelled) setPlanLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, guestId]);
+  }, [open, eventGuestId]);
 
   const slots = useMemo(() => (plan?.slots || []).map((s) => ({ ...s })), [plan]);
   const systemSlots = useMemo(() => slots.filter((s) => s.isSystem), [slots]);
@@ -110,14 +110,14 @@ export default function BookingModal({
   // Editing a built-in means editing a booking row, so the prefill comes from the
   // travel endpoint keyed by that booking's id (which is the entry id).
   useEffect(() => {
-    if (!open || !entry?.entryId || !guestId) return;
+    if (!open || !entry?.entryId || !eventGuestId) return;
     const isSystemEntry = TRAVEL_SECTION[(service?.code || '').toLowerCase()];
     if (!isSystemEntry) return;
-    getGuestTravel(guestId, entry.entryId)
+    getGuestTravel(eventGuestId, entry.entryId)
       .then((raw) => setTravel(hydrateTravel(raw)))
       .catch(() => setError(isAr ? 'تعذّر تحميل الحجز' : 'Could not load that booking'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entry?.entryId, guestId, service?.code]);
+  }, [open, entry?.entryId, eventGuestId, service?.code]);
 
   // Levels carrying this service → the guests eligible for it.
   const eligible = useMemo(() => {
@@ -130,6 +130,8 @@ export default function BookingModal({
     return (guests || []).filter((g) => g.serviceLevelId && levelIds.has(g.serviceLevelId));
   }, [guests, levels, service]);
 
+  // `g.id` is the guest's eventGuestId — the roster is loaded per event, and a
+  // service entry is saved against the participation, not the person.
   const guestOptions = useMemo(
     () => eligible.map((g) => ({
       value: g.id,
@@ -151,7 +153,7 @@ export default function BookingModal({
   );
 
   async function save() {
-    if (!guestId) {
+    if (!eventGuestId) {
       setError(isAr ? 'اختر ضيفاً' : 'Pick a guest first');
       return;
     }
@@ -169,14 +171,14 @@ export default function BookingModal({
     try {
       // Built-ins first and in one call: they all live on the same travel payload.
       if (systemSlots.some((s) => sectionHasData(travel, TRAVEL_SECTION[s.code]))) {
-        await saveGuestTravel(guestId, buildTravelPayload(travel));
+        await saveGuestTravel(eventGuestId, buildTravelPayload(travel));
       }
 
       // Sequential on purpose: on a Fixed event the server rejects a service whose
       // predecessor is not yet complete, so they have to go in order.
       for (const slot of toSave) {
         if (slot.isSystem) continue;
-        await saveGuestServiceEntry(guestId, {
+        await saveGuestServiceEntry(eventGuestId, {
           // Only the entry actually being edited updates in place; every other
           // ticked service is a new row.
           id: slot.serviceId === service?.id ? (entry?.entryId || null) : null,
@@ -197,11 +199,11 @@ export default function BookingModal({
         if (slot.isSystem) {
           const key = TRAVEL_SECTION[slot.code];
           for (const snap of extras) {
-            await saveGuestTravel(guestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+            await saveGuestTravel(eventGuestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
           }
         } else {
           for (const snap of extras) {
-            await saveGuestServiceEntry(guestId, {
+            await saveGuestServiceEntry(eventGuestId, {
               id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
             });
           }
@@ -268,15 +270,15 @@ export default function BookingModal({
           </div>
         ) : (
           <Select
-            value={guestId}
-            onChange={(v) => setGuestId(v || '')}
+            value={eventGuestId}
+            onChange={(v) => setEventGuestId(v || '')}
             options={guestOptions}
             placeholder={isAr ? '— اختر ضيفاً —' : '— Select a guest —'}
           />
         )}
       </div>
 
-      {guestId && (
+      {eventGuestId && (
         planLoading ? (
           <div style={{ padding: 14, textAlign: 'center', fontSize: 12.5, color: 'var(--ink-mute)' }}>
             {isAr ? 'جارٍ التحميل…' : 'Loading…'}

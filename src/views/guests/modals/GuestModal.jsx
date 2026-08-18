@@ -1,5 +1,14 @@
 // Single guest create/edit wizard — driven by the `guest` prop (null = create
-// a new guest for `activeEventId`; an object = edit that guest in place).
+// a new participation for `activeEventId`; an object = edit that participation
+// in place).
+//
+// Everything here is EVENT-scoped: `guest.id` is an eventGuestId
+// (EventGuest.PublicId), and it's what the update / travel / service-plan calls
+// take. The master person is only reached indirectly, through `email`: creating
+// with an email that already belongs to a guest reuses that person and adds a
+// second participation, which is how "add an existing guest to this event"
+// works — both from the Existing Guest tab and from the duplicate-email prompt
+// on step 1.
 import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEvents } from "../../../events/EventsContext";
@@ -12,6 +21,7 @@ import {
   createGuest,
   updateGuest,
   getGuestEnums,
+  getGuestsFromOtherEvents,
 } from "../../../api/services/guestService";
 import {
   getTravelLookups,
@@ -265,6 +275,15 @@ export default function GuestModal({
     new Set(guest?.sessionIds || []),
   );
   const [step1Errors, setStep1Errors] = useState({});
+  // Backend-reported email problem (GUEST_ALREADY_ON_EVENT / GUEST_EMAIL_CONFLICT),
+  // shown under the email field rather than only as a toast so it's clear which
+  // field is at fault.
+  const [emailConflict, setEmailConflict] = useState(null);
+  // A participation in ANOTHER event with this exact email — the same person, so
+  // saving reuses them instead of creating a duplicate. Informational: the
+  // create call already does the right thing, this just says so up front and
+  // offers to carry their details over.
+  const [existingPerson, setExistingPerson] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [enums, setEnums] = useState({});
@@ -287,6 +306,8 @@ export default function GuestModal({
     setGuestSessions(new Set(guest?.sessionIds || []));
     setStep(initialStep);
     setStep1Errors({});
+    setEmailConflict(null);
+    setExistingPerson(null);
     setRawTravel(null);
     setMode(initialMode);
     setPendingServices({});
@@ -302,6 +323,49 @@ export default function GuestModal({
         .catch(() => setEditPlan(null));
     }
   }, [open, guest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Create only: does this email already belong to a guest on some OTHER event?
+  // If so the backend will reuse that master Guest rather than making a second
+  // person, so the wizard says so before the admin fills in details that would
+  // be silently ignored (name/photo stay on the person, not the participation).
+  // `other-events` already excludes anyone on THIS event, so a hit here always
+  // means "another event" — same-event duplicates surface as the 409 below.
+  useEffect(() => {
+    if (!open || isEdit || !activeEventId) { setExistingPerson(null); return undefined; }
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setExistingPerson(null); return undefined; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      getGuestsFromOtherEvents({ currentEventId: activeEventId, search: email, pageSize: 5 })
+        .then((r) => {
+          if (cancelled) return;
+          const hit = (r?.items || []).find(
+            (row) => (row.email || "").trim().toLowerCase() === email,
+          );
+          setExistingPerson(hit || null);
+        })
+        .catch(() => { if (!cancelled) setExistingPerson(null); });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, isEdit, activeEventId, form.email]);
+
+  // Copies the person's stored details across so the new participation shows the
+  // same human rather than a half-filled duplicate. Only the person-level fields
+  // — service level, sessions, accreditation and invitation stay this event's own
+  // decision.
+  function applyExistingPerson() {
+    if (!existingPerson) return;
+    setForm((f) => ({
+      ...f,
+      firstName: existingPerson.firstName || f.firstName,
+      lastName: existingPerson.lastName || f.lastName,
+      guestType: existingPerson.guestType || f.guestType,
+      organizationId: existingPerson.organizationId || f.organizationId,
+      nationalityId: existingPerson.nationalityId || f.nationalityId,
+      photoUrl: existingPerson.photoUrl || f.photoUrl,
+    }));
+    setStep1Errors({});
+  }
 
   // Seed the accordion from the plan's existing entries — dynamic services only.
   // The built-ins live in `travel`, hydrated from getGuestTravel above.
@@ -327,15 +391,20 @@ export default function GuestModal({
       setPendingServices((p) => ({ ...seeded, ...p }));
   }, [editPlan]);
 
-  // "Existing Guest" tab bulk-add — each entry is a brand-new guest for this
-  // event (Guest is per-event, no cross-event identity to link to). Personal
-  // info comes from the source row; tier, sessionIds and accreditationRequired
-  // are whatever was checked/edited per-row in the table. Travel is never
-  // carried over — every bulk-added guest starts with no travel/services.
+  // "Existing Guest" tab bulk-add — each entry adds a NEW PARTICIPATION for an
+  // existing person. Sending their email is what links it: the backend finds
+  // that master Guest, reuses their identity and login, and only inserts the
+  // EventGuest row, so nobody is duplicated. Personal info comes from the source
+  // row; service level, sessionIds and accreditationRequired are whatever was
+  // checked/edited per-row in the table, since those belong to THIS event.
+  // Travel is never carried over — every added participation starts empty.
   async function handleExistingSubmit(entries, invitationTemplateId) {
     setExistingSaving(true);
     let success = 0,
       failed = 0;
+    // Backend reasons (e.g. "This guest is already on this event.") — worth
+    // showing, since with a batch the count alone says nothing about which row.
+    const reasons = [];
     for (const e of entries) {
       try {
         await createGuest({
@@ -353,8 +422,10 @@ export default function GuestModal({
           eventId: activeEventId,
         });
         success++;
-      } catch {
+      } catch (err) {
         failed++;
+        const who = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.email;
+        if (err?.message) reasons.push(`${who}: ${err.message}`);
       }
     }
     setExistingSaving(false);
@@ -371,6 +442,7 @@ export default function GuestModal({
         isAr
           ? `تمت إضافة ${success} — فشل ${failed}`
           : `Added ${success} — ${failed} failed`,
+        { description: reasons.length ? reasons.slice(0, 5).join("\n") : undefined },
       );
       if (success > 0) handleClose();
     }
@@ -458,6 +530,8 @@ export default function GuestModal({
   function handleClose() {
     setStep(1);
     setStep1Errors({});
+    setEmailConflict(null);
+    setExistingPerson(null);
     onClose();
   }
 
@@ -560,7 +634,10 @@ export default function GuestModal({
         sessionIds: Array.from(guestSessions),
       };
 
-      let guestId = guest?.id;
+      // The participation everything below is saved against — GuestResponse.id,
+      // i.e. an EventGuest.PublicId. On create this is a brand-new participation
+      // even when the person already existed (same email, another event).
+      let eventGuestId = guest?.id;
       if (isEdit) {
         await updateGuest(guest.id, payload);
       } else {
@@ -568,16 +645,16 @@ export default function GuestModal({
           ...payload,
           eventId: activeEventId,
         });
-        guestId = created?.id;
+        eventGuestId = created?.id;
       }
 
       // Both flows now, because step 3 edits travel in THIS modal either way. Each
       // section carries the booking's own id when it was hydrated, so a save
       // updates that booking rather than adding a second one.
-      if (guestId && anyTravelEnabled(travel)) {
+      if (eventGuestId && anyTravelEnabled(travel)) {
         try {
           await saveGuestTravel(
-            guestId,
+            eventGuestId,
             buildTravelPayload(travel, travelLookups),
           );
         } catch {
@@ -596,7 +673,7 @@ export default function GuestModal({
       // Services the wizard collected. Sequential on purpose: on a Fixed event
       // the server rejects a service whose predecessor is not yet complete, so
       // they have to go in order, and awaiting each keeps that true.
-      if (guestId) {
+      if (eventGuestId) {
         for (const slot of wizardSlots) {
           // The built-ins went to the travel endpoint above; the server refuses
           // them here on purpose (SERVICE_STATIC).
@@ -611,7 +688,7 @@ export default function GuestModal({
           );
           if (!hasValue) continue;
           try {
-            await saveGuestServiceEntry(guestId, {
+            await saveGuestServiceEntry(eventGuestId, {
               // Set when this service already had an entry, so editing updates
               // that row instead of leaving the guest with two of them.
               id: filled.entryId || null,
@@ -643,11 +720,11 @@ export default function GuestModal({
             if (slot.isSystem) {
               const key = TRAVEL_SECTION[slot.code];
               for (const snap of extras) {
-                await saveGuestTravel(guestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+                await saveGuestTravel(eventGuestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
               }
             } else {
               for (const snap of extras) {
-                await saveGuestServiceEntry(guestId, {
+                await saveGuestServiceEntry(eventGuestId, {
                   id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
                 });
               }
@@ -678,6 +755,15 @@ export default function GuestModal({
               : "Guest added successfully",
       );
     } catch (err) {
+      // Same email, same event -> the person is already a participant here.
+      // Same email, non-guest portal account -> the address is taken. Both are
+      // about the email field, so they're pinned to it and the wizard steps back
+      // to where it can be fixed instead of only flashing a toast.
+      if (err?.errorCode === "GUEST_ALREADY_ON_EVENT" || err?.errorCode === "GUEST_EMAIL_CONFLICT") {
+        setEmailConflict(err.message);
+        setStep1Errors((p) => ({ ...p, email: false }));
+        setStep(1);
+      }
       toast.fromError(
         err,
         isEdit
@@ -1133,11 +1219,49 @@ export default function GuestModal({
                     onChange={(e) => {
                       setF("email", e.target.value);
                       setStep1Errors((p) => ({ ...p, email: false }));
+                      setEmailConflict(null);
                     }}
-                    style={step1Errors.email ? errorBorder : inputStyle}
+                    style={
+                      step1Errors.email || emailConflict ? errorBorder : inputStyle
+                    }
                   />
                   {step1Errors.email && (
                     <div style={errMsg}>{isAr ? "مطلوب" : "Required"}</div>
+                  )}
+                  {/* Straight from the backend (GUEST_ALREADY_ON_EVENT /
+                      GUEST_EMAIL_CONFLICT) — its wording already explains which
+                      case it is. */}
+                  {emailConflict && !step1Errors.email && (
+                    <div style={errMsg}>{emailConflict}</div>
+                  )}
+                  {/* Same email, DIFFERENT event: not an error. Saving adds this
+                      person to this event, reusing their identity and login. */}
+                  {existingPerson && !emailConflict && (
+                    <div
+                      className="alert alert-info"
+                      style={{
+                        marginTop: 8, fontSize: 12, display: "flex",
+                        alignItems: "flex-start", gap: 8,
+                      }}
+                    >
+                      <Icon name="alert" size={14} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div>
+                          {isAr
+                            ? `${existingPerson.firstName || ""} ${existingPerson.lastName || ""} مسجّل بالفعل في "${existingPerson.eventTitle}". سيتم إضافة نفس الشخص إلى هذه الفعالية دون إنشاء ضيف مكرر.`
+                            : `${`${existingPerson.firstName || ""} ${existingPerson.lastName || ""}`.trim()} is already a guest on "${existingPerson.eventTitle}". Saving adds that same person to this event — no duplicate is created.`}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ marginTop: 8 }}
+                          onClick={applyExistingPerson}
+                        >
+                          <Icon name="check" size={12} />
+                          {isAr ? "استخدام بيانات الضيف الحالي" : "Use existing guest's details"}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div

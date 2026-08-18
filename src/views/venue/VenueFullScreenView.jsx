@@ -28,7 +28,7 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
   const [planSize, setPlanSize] = useState({ w: 1000, h: 600 });
   const [venueName, setVenueName] = useState('');
   const [venueBoxId, setVenueBoxId] = useState(null);
-  const [assignments, setAssignments] = useState({}); // seatId -> guestId
+  const [assignments, setAssignments] = useState({}); // seatId -> eventGuestId
   const [error, setError] = useState(null);
   const [viewAngle, setViewAngle] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -74,7 +74,7 @@ export default function VenueFullScreenView({ venueId, eventId, sessionId, lang 
     getSeatAssignments(venueBoxId, { eventId, sessionId: sessionId || undefined }).then(list => {
       if (cancelled) return;
       const map = {};
-      (list || []).forEach(a => { map[a.seatId] = a.guestId; });
+      (list || []).forEach(a => { map[a.seatId] = a.eventGuestId; });
       setAssignments(map);
     }).catch(() => { if (!cancelled) setAssignments({}); });
     return () => { cancelled = true; };

@@ -36,7 +36,10 @@ function mapMeeting(m) {
     location: m.location || '',
     notes: m.meetingAgenda || '',
     color: '#8d0134',
-    guests: (m.guests || []).map(g => ({ id: g.id, name: g.name || '', email: g.email || '', photoUrl: g.photoUrl || '' })),
+    // g.id is the attendee's eventGuestId (their participation in this
+    // meeting's event); g.personId is the master person, kept for person-level
+    // links (support chat) rather than anything meeting-scoped.
+    guests: (m.guests || []).map(g => ({ id: g.id, personId: g.personId || null, name: g.name || '', email: g.email || '', photoUrl: g.photoUrl || '' })),
   };
 }
 
@@ -164,6 +167,7 @@ export default function MeetingsView({ lang, activeEventId }) {
     setNewNotes(meeting.notes);
     // The edit form's attendee chips render firstName/lastName (matching the
     // real guest-list shape); the meeting's own guests only carry a full name.
+    // `id` stays the eventGuestId — that's what the save below sends back.
     setNewAttendees(meeting.guests.map(g => {
       const [firstName, ...rest] = g.name.split(' ');
       return { id: g.id, firstName, lastName: rest.join(' ') };
@@ -178,7 +182,10 @@ export default function MeetingsView({ lang, activeEventId }) {
     if (!activeEventId) { toast.error(STR.noEvent); return; }
     setSaving(true);
     try {
-      const guestIds = newAttendees.map(g => g.id);
+      // Attendees come from this event's roster (listGuests is scoped to
+      // activeEventId), so every `id` is already an EventGuest.PublicId — which
+      // is exactly what the meeting API takes.
+      const eventGuestIds = newAttendees.map(g => g.id);
       if (editingMeetingId) {
         const res = await editMeeting({
           meetId: editingMeetingId,
@@ -188,7 +195,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
           endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
           agenda: newNotes || null,
-          guestIds,
+          eventGuestIds,
         });
         setMeetings(prev => prev.map(m => m.id === editingMeetingId ? mapMeeting(res) : m));
         toast.success(STR.updated);
@@ -201,7 +208,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
           endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
           meetingAgenda: newNotes || null,
-          guestIds,
+          eventGuestIds,
         });
         setMeetings(prev => [...prev, mapMeeting(res)]);
         toast.success(STR.created);

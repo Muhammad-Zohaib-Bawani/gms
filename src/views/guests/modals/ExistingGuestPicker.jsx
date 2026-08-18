@@ -5,13 +5,26 @@ import Select from '../../../components/ui/Select';
 import { getGuestsFromOtherEvents } from '../../../api/services/guestService';
 import { getServiceLevels } from '../../../api/services/serviceCatalogService';
 
+// Selection key. `row.id` is the source event's eventGuestId — already unique
+// per participation — so this is really just a readable composite; the eventId
+// half makes it obvious in a debugger which event a checked row came from.
+// NOT the identity of the person being added: that's `row.personId`, and the
+// thing actually sent to the API is `row.email`, which is what makes the backend
+// reuse the existing person instead of creating a second one.
 const rowKey = (row) => `${row.id}::${row.eventId}`;
 
 const checkboxStyle = { width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent)' };
 
-// "Existing Guest" tab — one flat, always-visible table (no nested modal, no
-// empty-state placeholder). Search across every OTHER event system-wide (one
-// row per past booking, not deduped by person). Ticking the leftmost
+// "Existing Guest" tab — add people who already exist in the system to THIS
+// event. One flat, always-visible table (no nested modal, no empty-state
+// placeholder). Search across every OTHER event system-wide (one row per past
+// participation, not deduped by person, so someone who attended three events
+// shows three times — any of them adds the same person).
+//
+// Confirming does NOT create new people: each entry is POSTed to /guest with the
+// person's existing email, and the backend links it to that master Guest and
+// only inserts the new EventGuest row. Anyone already on this event is filtered
+// out server-side, so a row here can never be a same-event duplicate. Ticking the leftmost
 // checkbox is what marks a guest for inclusion in this batch; only selected
 // rows get editable Tier / Accreditation / per-session cells (unselected
 // rows are dimmed and inert). Each session the event has gets its OWN
@@ -155,6 +168,9 @@ export default function ExistingGuestPicker({
     const entries = Array.from(selected).map((key) => {
       const row = rowCache.get(key);
       return {
+        // `email` is the link back to the existing person — without it the
+        // backend would have no way to tell this is the same human and would
+        // create a duplicate.
         firstName: row.firstName,
         lastName: row.lastName,
         email: row.email,

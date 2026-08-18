@@ -114,7 +114,7 @@ export function padLegs(legs, count) {
   return out;
 }
 
-// Build state from GET /travel/guest/{id} → { flight?, accommodation?, transport? }.
+// Build state from GET /travel/guest/{eventGuestId} → { flight?, accommodation?, transport? }.
 // roomTypeId/vehicleId/hotelId/flightClassId/pickupLocationId/dropoffLocationId
 // all come back as real lookup-table public ids already; flightType is an enum code.
 export function hydrateTravel(data) {

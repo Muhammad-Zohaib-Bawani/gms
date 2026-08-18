@@ -76,10 +76,13 @@ function LookupAdapter() {
   return <LookupsView lookupKey={lookupKey} lang={ctx.lang} />;
 }
 
+// /guests/:id — :id is an eventGuestId (EventGuest.PublicId), the participation
+// being viewed. A personId here would 404: the cross-event view of a human is
+// Guest Overview, not this route.
 function GuestDetailAdapter() {
   const ctx = useOutletContext();
   const { id } = useParams();
-  return <GuestDetailView guestId={id} lang={ctx.lang} />;
+  return <GuestDetailView eventGuestId={id} lang={ctx.lang} />;
 }
 
 // Redirect helpers ----------------------------------------------------------

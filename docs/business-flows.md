@@ -96,7 +96,7 @@ sequenceDiagram
 Floor plan built in `VenueConfigView` via `useVenueEditor` (drag/drop elements, blocks, seats). Fullscreen viewer via `?screen=venueView`.
 
 ## Travel & logistics
-Per-guest bookings (a guest may hold several of each): `POST /travel/guest/{guestId}` with `GuestTravelRequest` adds/edits flight/accommodation/transport; `DELETE /travel/{type}/{id}` removes one. Per-event lists power `TravelView` tabs. Reference data (airlines, airports, hotels, room types, vehicle types, drivers, locations) via `LookupController` (writes need `Travel.Manage`).
+Per-participation bookings (a guest may hold several of each): `POST /travel/guest/{eventGuestId}` with `GuestTravelRequest` adds/edits flight/accommodation/transport; `DELETE /travel/{type}/{id}` removes one. Per-event lists power `TravelView` tabs. Reference data (airlines, airports, hotels, room types, vehicle types, drivers, locations) via `LookupController` (writes need `Travel.Manage`).
 
 ## Meetings
 `MeetingsView` → `POST /meeting` (create), `GET /meeting/{eventId}` (all meetings for an event — the route param named `id` is actually the eventId), `PUT /meeting` (edit). Guests linked via `MeetingGuests`.

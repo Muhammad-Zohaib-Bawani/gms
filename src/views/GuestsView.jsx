@@ -62,18 +62,22 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   const [nationalityFilter, setNationalityFilter] = useState("All");
   const [accreditationFilter, setAccreditationFilter] = useState("All");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [selectedGuests, setSelectedGuests] = useState([]);
+  // Rows selected in the table — GuestResponse objects whose `id` is an
+  // eventGuestId (this event's participation), NOT the master personId.
+  const [selectedEventGuests, setSelectedEventGuests] = useState([]);
   const [selResetKey, setSelResetKey] = useState(0);
 
   // ── view mode: table list, or a master-detail split with the full guest
-  // page on the right (reuses GuestDetailView as-is — it's just a guestId prop).
+  // page on the right (reuses GuestDetailView as-is — it just takes an
+  // eventGuestId prop).
   const [viewMode, setViewMode] = useState("list");
   const [splitGuests, setSplitGuests] = useState([]);
   const [splitTotalCount, setSplitTotalCount] = useState(0);
   const [splitPageIndex, setSplitPageIndex] = useState(0);
   const SPLIT_PAGE_SIZE = 10;
   const [splitLoading, setSplitLoading] = useState(false);
-  const [selectedGuestId, setSelectedGuestId] = useState(null);
+  // Which participation the split view's right-hand pane is showing.
+  const [selectedEventGuestId, setSelectedEventGuestId] = useState(null);
   // Bumped after an action taken from the left card (issue/revoke, edit, delete)
   // so the embedded GuestDetailView on the right remounts and refetches — it
   // owns its own data and has no reload prop of its own.
@@ -123,7 +127,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selCount = selectedGuests.length;
+  const selCount = selectedEventGuests.length;
   const clearSelection = () => setSelResetKey((k) => k + 1);
 
   // Reloaded on every event switch, and after a guest save so the levels'
@@ -251,9 +255,9 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
   // while the same guest is still in the list.
   useEffect(() => {
     if (viewMode !== "split") return;
-    if (splitGuests.some((g) => g.id === selectedGuestId)) return;
-    setSelectedGuestId(splitGuests[0]?.id || null);
-  }, [viewMode, splitGuests, selectedGuestId]);
+    if (splitGuests.some((g) => g.id === selectedEventGuestId)) return;
+    setSelectedEventGuestId(splitGuests[0]?.id || null);
+  }, [viewMode, splitGuests, selectedEventGuestId]);
 
   const splitPageCount = Math.max(1, Math.ceil(splitTotalCount / SPLIT_PAGE_SIZE));
 
@@ -419,7 +423,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 label: isAr ? "رسالة" : "Message",
                 icon: "message",
                 onClick: () => navigate('/support-chat', {
-                  state: { guestId: g.id, guestName: g.fullName, guestOrganization: g.organization || '' },
+                  // Person-level: support chat keys off personId, not the participation.
+                  state: { personId: g.personId, guestName: g.fullName, guestOrganization: g.organization || '' },
                 }),
               },
               !["accepted", "declined"].includes(g.invitationStatus) && {
@@ -436,7 +441,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 label: isAr ? "حذف" : "Delete",
                 icon: "trash",
                 danger: true,
-                onClick: () => { setSelectedGuests([g]); setShowDeleteGuests(true); },
+                onClick: () => { setSelectedEventGuests([g]); setShowDeleteGuests(true); },
               },
             ]}
           />
@@ -797,7 +802,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             onPageChange={setPageIndex}
             onPageSizeChange={setPageSize}
             enableRowSelection
-            onSelectionChange={setSelectedGuests}
+            onSelectionChange={setSelectedEventGuests}
             selectionResetKey={selResetKey}
             getRowId={(g) => g.id}
           />
@@ -824,7 +829,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 </div>
               ) : (
                 splitGuests.map((g) => {
-                  const active = g.id === selectedGuestId;
+                  const active = g.id === selectedEventGuestId;
                   return (
                     <div
                       key={g.id}
@@ -838,7 +843,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                     >
                       <button
                         type="button"
-                        onClick={() => setSelectedGuestId(g.id)}
+                        onClick={() => setSelectedEventGuestId(g.id)}
                         style={{
                           display: "flex", alignItems: "center", gap: 8, width: "100%",
                           padding: 0, border: "none", background: "transparent",
@@ -892,7 +897,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                                 <button
                                   type="button" className="icon-btn" title={isAr ? "رسالة" : "Message"}
                                   onClick={() => navigate("/support-chat", {
-                                    state: { guestId: g.id, guestName: g.fullName, guestOrganization: g.organization || "" },
+                                    state: { personId: g.personId, guestName: g.fullName, guestOrganization: g.organization || "" },
                                   })}
                                 >
                                   <Icon name="message" size={14} />
@@ -910,7 +915,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                                 <button
                                   type="button" className="icon-btn" style={{ color: "var(--danger)" }}
                                   title={isAr ? "حذف" : "Delete"}
-                                  onClick={() => { setSelectedGuests([g]); setShowDeleteGuests(true); }}
+                                  onClick={() => { setSelectedEventGuests([g]); setShowDeleteGuests(true); }}
                                 >
                                   <Icon name="trash" size={14} />
                                 </button>
@@ -960,8 +965,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               window still had room, and long content hid below the fold of
               something that didn't look scrollable. */}
           <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
-            {selectedGuestId ? (
-              <GuestDetailView key={`${selectedGuestId}-${detailRefreshKey}`} guestId={selectedGuestId} lang={lang} embedded />
+            {selectedEventGuestId ? (
+              <GuestDetailView key={`${selectedEventGuestId}-${detailRefreshKey}`} eventGuestId={selectedEventGuestId} lang={lang} embedded />
             ) : (
               <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
                 {isAr ? "اختر ضيفاً لعرض تفاصيله" : "Select a guest to view their details"}
@@ -1023,7 +1028,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       <MessageModal
         open={showMessage}
         onClose={() => setShowMessage(false)}
-        guests={selectedGuests}
+        guests={selectedEventGuests}
         lang={lang}
         // The modal itself reports success/partial-failure — this just clears
         // the selection once at least one send went through.
@@ -1045,7 +1050,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       <DeleteGuestsModal
         open={showDeleteGuests}
         onClose={() => setShowDeleteGuests(false)}
-        selectedGuests={selectedGuests}
+        selectedEventGuests={selectedEventGuests}
         activeEventId={activeEventId}
         lang={lang}
         onDeleted={() => {
@@ -1055,7 +1060,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             // The deleted guest can't stay selected — clearing it lets the
             // auto-select effect below pick the next available guest once
             // the reloaded list lands.
-            if (selectedGuests.some((g) => g.id === selectedGuestId)) setSelectedGuestId(null);
+            if (selectedEventGuests.some((g) => g.id === selectedEventGuestId)) setSelectedEventGuestId(null);
             loadSplitGuests();
           }
         }}

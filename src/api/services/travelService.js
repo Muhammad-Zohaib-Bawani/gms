@@ -3,6 +3,10 @@ import { ENDPOINTS } from '../endpoints';
 import { getVehicles } from './vehicleService';
 import { getContractedHotels } from './accommodationInventoryService';
 
+// Guest travel is EVENT-scoped: every guest id below is an EventGuest.PublicId
+// (`GuestResponse.id`), and every row returned carries `eventGuestId`. The master
+// personId is never accepted by these routes.
+//
 // ── Admin travel tabs: per-event booking lists (one call per active tab) ─────
 // Paged like GET /guest — returns { items, totalCount, pageNumber, pageSize }.
 // The tabs group bookings by guest client-side, so they pull one large page
@@ -77,18 +81,22 @@ export const getTravelLookups = async (eventId) => {
   return { flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers };
 };
 
-// Prefill for edit — { flight?, accommodation?, transport? }. Pass bookingId to
-// prefill that exact booking (Services' per-row Edit); without it the most
-// recent booking of each kind comes back (the guest wizard's accordion). Each
-// section's `id` says which booking it is, so saving updates it in place.
-export const getGuestTravel = (guestId, bookingId) =>
-  apiClient.get(ENDPOINTS.travel.guest(guestId), bookingId ? { params: { bookingId } } : undefined);
+// Prefill for edit — { flight?, accommodation?, transport? }. Takes the
+// EventGuest.PublicId (GuestResponse.id): travel belongs to a participation, so
+// a personId here is a 404. Pass bookingId to prefill that exact booking
+// (Services' per-row Edit); without it the most recent booking of each kind
+// comes back (the guest wizard's accordion). Each section's `id` says which
+// booking it is, so saving updates it in place.
+export const getGuestTravel = (eventGuestId, bookingId) =>
+  apiClient.get(ENDPOINTS.travel.guest(eventGuestId), bookingId ? { params: { bookingId } } : undefined);
 
 // Save the selected sections — send { flight?, accommodation?, transport? }
 // with the unused sections omitted. Include a section's `id` to update that
-// exact booking in place; omit it to add a new one for the guest.
-export const saveGuestTravel = (guestId, body) =>
-  apiClient.post(ENDPOINTS.travel.guest(guestId), body);
+// exact booking in place; omit it to add a new one for this participation.
+// The transport section carries `driverId` directly (DriverProfile public id) —
+// there is no separate driver-assignment call.
+export const saveGuestTravel = (eventGuestId, body) =>
+  apiClient.post(ENDPOINTS.travel.guest(eventGuestId), body);
 
 // Remove one specific booking (a guest may have several of a kind).
 export const deleteFlight       = (id) => apiClient.delete(ENDPOINTS.travel.deleteFlight(id));

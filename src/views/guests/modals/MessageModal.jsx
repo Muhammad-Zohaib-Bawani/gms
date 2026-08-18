@@ -10,6 +10,10 @@ import toast from '../../../lib/toast';
 // instead of leaving the admin portal. Sequential so one slow/failed send
 // doesn't drop the rest (Promise.all would reject the whole batch on the
 // first failure).
+//
+// Addressed by PERSON (`personId`), not by participation: a guest has one
+// support thread across every event they attend, so selecting the same human on
+// two events would still be one conversation.
 export default function MessageModal({ open, onClose, guests = [], lang, onSent }) {
   const isAr = lang === 'ar';
   const count = guests.length;
@@ -24,10 +28,10 @@ export default function MessageModal({ open, onClose, guests = [], lang, onSent 
     const failed = [];
     for (const g of guests) {
       try {
-        await startConversationWithGuest(g.id, { body: text });
+        await startConversationWithGuest(g.personId, { body: text });
         sent += 1;
       } catch {
-        failed.push(g.fullName || g.name || g.id);
+        failed.push(g.fullName || g.name || g.personId);
       }
     }
     setSending(false);

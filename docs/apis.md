@@ -128,8 +128,8 @@
 | GET | `/event/{eventId}/flights` | Auth | — | `travelService` / `TravelView` |
 | GET | `/event/{eventId}/accommodation` | Auth | — | `TravelView` |
 | GET | `/event/{eventId}/transport` | Auth | — | `TravelView` |
-| GET | `/guest/{guestId}` | Auth | — | `GuestDetailView`/`TravelAccordion` |
-| POST | `/guest/{guestId}` | Auth | `GuestTravelRequest` | `TravelAccordion` |
+| GET | `/guest/{eventGuestId}` | Auth | — | `GuestDetailView`/`TravelAccordion` |
+| POST | `/guest/{eventGuestId}` | Auth | `GuestTravelRequest` | `TravelAccordion` |
 | DELETE | `/flight/{id}` | Auth | — | `TravelView` |
 | DELETE | `/accommodation/{id}` | Auth | — | `TravelView` |
 | DELETE | `/transport/{id}` | Auth | — | `TravelView` |
@@ -170,7 +170,7 @@ Reads (Auth): `GET enums/guest`, `flight-types`, `flight-classes`, `room-types`,
 | POST | `` | Perm:`Seating.Assign` | `RequestSeatAssignDto` | `seatingService.assign` / `SeatingView` |
 | DELETE | `/{seatId}` | Perm:`Seating.Assign` | `?venueBoxId&eventId&sessionId` | `SeatingView` |
 | GET | `/box/{venueBoxId}` | Perm:`Seating.View` | `?eventId&sessionId` | `SeatingView` |
-| GET | `/guest/{guestId}` **⚠ NC** | — | — | `seatingService.byGuest` |
+| GET | `/guest/{eventGuestId}` | — | — | `seatingService.byGuest` |
 
 ## Meetings — `MeetingController` (`api/v1/meeting`)
 | Method | Route | Auth | Request | FE |
@@ -197,7 +197,7 @@ Reads (Auth): `GET enums/guest`, `flight-types`, `flight-classes`, `room-types`,
 
 ## Support Chat — `SupportChatController` (`api/v1/support-chat`)
 Guest side (`/my/*`, guest-app auth): `GET my/conversations`, `GET my/messages`, `POST my/messages` (rate-limited `chat`, `SendSupportMessageRequest`), `POST my/messages/read`.
-Admin side: `GET conversations` (Perm:`SupportChat.View`, `SupportConversationPagedRequest`), `GET conversations/{id}/messages` (Perm:`SupportChat.View`), `POST conversations/{id}/messages` (Perm:`SupportChat.Manage`, rate-limited), `POST conversations/{id}/read|close|reopen` (Perm:`SupportChat.Manage`). FE: `supportChatService` / `SupportChatView` + `RichComposer`. **⚠ NC:** FE references `conversations/by-guest/{guestId}/messages` (start-by-guest) — confirm server route.
+Admin side: `GET conversations` (Perm:`SupportChat.View`, `SupportConversationPagedRequest`), `GET conversations/{id}/messages` (Perm:`SupportChat.View`), `POST conversations/{id}/messages` (Perm:`SupportChat.Manage`, rate-limited), `POST conversations/{id}/read|close|reopen` (Perm:`SupportChat.Manage`). FE: `supportChatService` / `SupportChatView` + `RichComposer`. FE references `conversations/by-guest/{personId}/messages` (start-by-guest) — person-scoped (`Guest.PublicId` / `GuestResponse.personId`), NOT an EventGuest id: one support thread per human, across all their events.
 
 ## VIP App (guest-facing) — `VipAppController` (`api/v1/vip-app`)
 Auth: `POST auth/request-otp` (Anon, `RequestOtpRequest`), `POST auth/verify-otp` (Anon, `VerifyOtpRequest`), `POST auth/refresh` (Anon, `RefreshTokenRequest`), `POST auth/logout`.

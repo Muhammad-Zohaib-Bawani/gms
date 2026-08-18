@@ -21,7 +21,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { pathForKey } from "./nav";
 import { LOOKUP_DEFS } from "./views/lookups/lookupConfig";
 import { getNationalities } from "./api/services/nationalityService";
-import { updateGuest, deleteGuest } from "./api/services/guestService";
+import { getGuest, updateGuest, deleteGuest } from "./api/services/guestService";
 import { uploadImageFile, stripSasToken } from "./api/services/uploadService";
 import { getMeetings, editMeeting } from "./api/services/meetingService";
 import {
@@ -643,6 +643,38 @@ function GuestDrawer({
   const [editSessions, setEditSessions] = React.useState(false);
   const [sessionsSaved, setSessionsSaved] = React.useState(false);
 
+  // Support chat is keyed by PERSON, but not every feed that opens this drawer
+  // carries personId (the dashboard's recent-guests rows are eventGuestId only),
+  // so it's fetched on demand rather than assumed present.
+  const [openingChat, setOpeningChat] = React.useState(false);
+  async function openSupportChat() {
+    if (openingChat) return;
+    let personId = guest.personId;
+    if (!personId) {
+      setOpeningChat(true);
+      try {
+        personId = (await getGuest(guest.id))?.personId;
+      } catch {
+        personId = null;
+      } finally {
+        setOpeningChat(false);
+      }
+    }
+    if (!personId) {
+      toast.error(
+        isAr ? "تعذّر تحديد هوية الضيف" : "Could not resolve this guest's identity",
+      );
+      return;
+    }
+    navigate("/support-chat", {
+      state: {
+        personId,
+        guestName,
+        guestOrganization: guest.organization || "",
+      },
+    });
+  }
+
   const [showBadge, setShowBadge] = React.useState(false);
   const [showMore, setShowMore] = React.useState(false);
   const [drawerNotice, setDrawerNotice] = React.useState("");
@@ -754,6 +786,10 @@ function GuestDrawer({
       .finally(() => setLoadingMeetings(false));
   }
 
+  // Meeting attendees are EventGuest.PublicIds: a meeting belongs to one event,
+  // and `guest.id` is this guest's participation in that same event. The
+  // meeting's existing guests carry the same kind of id, so the union below is
+  // apples-to-apples.
   async function addToMeeting(m) {
     if ((m.guests || []).some((g) => g.id === guest.id)) {
       setShowMeetingPicker(false);
@@ -766,11 +802,11 @@ function GuestDrawer({
     }
     setAddingMeetingId(m.id);
     try {
-      const guestIds = [
+      const eventGuestIds = [
         ...(m.guests || []).map((g) => g.id).filter(Boolean),
         guest.id,
       ];
-      await editMeeting({ meetId: m.id, eventId: activeEventId, guestIds });
+      await editMeeting({ meetId: m.id, eventId: activeEventId, eventGuestIds });
       setShowMeetingPicker(false);
       drawerMsg(isAr ? D.meetingAdded : D.meetingAdded);
     } catch (err) {
@@ -1127,15 +1163,8 @@ function GuestDrawer({
           <button
             className="btn primary"
             style={{ flex: 1 }}
-            onClick={() =>
-              navigate("/support-chat", {
-                state: {
-                  guestId: guest.id,
-                  guestName,
-                  guestOrganization: guest.organization || "",
-                },
-              })
-            }
+            onClick={openSupportChat}
+            disabled={openingChat}
           >
             <Icon name="message" size={14} /> {D.message}
           </button>
@@ -1539,7 +1568,9 @@ function GuestDrawer({
           const eventDatesLabel = fmtEventDates(activeEvent);
           const qrPayload = JSON.stringify({
             type: "gms-accreditation",
-            guestId: guest.id,
+            // Accreditation is issued against the event participation, so the
+            // badge identifies an eventGuestId, not the person.
+            eventGuestId: guest.id,
             ref: badgeRef,
             name: guestName,
             tier: guest.tier,

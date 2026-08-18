@@ -185,7 +185,7 @@ const transferExportRows = (rows) => rows.map((t) => [
 
 const MOVEMENT_EXPORT_BASE_HEADERS = ["Guest", "Email", "Inbound Flight", "Inbound From", "Inbound To", "Inbound Time", "Outbound Flight", "Outbound From", "Outbound To", "Outbound Time"];
 // The board's own dynamic columns (arrival lounge, meet & greet, ...) live on
-// a SEPARATE service (adService) keyed by guestId, not on the movement rows
+// a SEPARATE service (adService) keyed by eventGuestId, not on the movement rows
 // themselves — same join the on-screen table (adColumns) already does.
 const movementExportHeaders = (adFields, isAr) => [
   ...MOVEMENT_EXPORT_BASE_HEADERS,
@@ -198,7 +198,7 @@ function movementExportRows(rows, adFields, adEntriesByGuest) {
     return [leg.flightNumber || "", leg.departureCode || "", leg.arrivalCode || "", timeRange(leg.startTime, leg.endTime)];
   };
   return rows.map((r) => {
-    const entries = adEntriesByGuest[r.guestId] || [];
+    const entries = adEntriesByGuest[r.eventGuestId] || [];
     const extra = adFields.map((f) => entries
       .map((e) => e.values?.[f.key])
       .filter((v) => v != null && String(v).trim() !== "")
@@ -218,12 +218,15 @@ const serviceEntryExportRows = (entries, fields) => entries.map((e) => [
   ...fields.map((f) => e.values?.[f.key] ?? ""),
 ]);
 
+// One row per participation, its bookings stacked inside. Keyed by
+// eventGuestId — the same id POST /travel/guest/{eventGuestId} takes, so a row
+// action can go straight to the API without another lookup.
 function groupByGuest(bookings) {
   const byGuest = new Map();
   bookings.forEach((b) => {
-    if (!byGuest.has(b.guestId)) {
-      byGuest.set(b.guestId, {
-        guestId: b.guestId,
+    if (!byGuest.has(b.eventGuestId)) {
+      byGuest.set(b.eventGuestId, {
+        eventGuestId: b.eventGuestId,
         name: b.name,
         email: b.email,
         photoUrl: b.photoUrl,
@@ -234,7 +237,7 @@ function groupByGuest(bookings) {
         bookings: [],
       });
     }
-    byGuest.get(b.guestId).bookings.push(b);
+    byGuest.get(b.eventGuestId).bookings.push(b);
   });
   return [...byGuest.values()];
 }
@@ -260,7 +263,7 @@ function flightLegRows(b) {
 function mapFlight(r) {
   return {
     bookingId: r.id,
-    guestId: r.guestId,
+    eventGuestId: r.eventGuestId,
     name: r.guestName || "—",
     email: r.email || "",
     initials: initialsFromName(r.guestName),
@@ -292,7 +295,7 @@ function mapFlight(r) {
 function mapHotel(r) {
   return {
     bookingId: r.id,
-    guestId: r.guestId,
+    eventGuestId: r.eventGuestId,
     name: r.guestName || "—",
     photoUrl: r.photoUrl || "",
     email: r.email || "",
@@ -312,7 +315,7 @@ function mapHotel(r) {
 function mapTransfer(r) {
   return {
     bookingId: r.id,
-    guestId: r.guestId,
+    eventGuestId: r.eventGuestId,
     name: r.guestName || "—",
     email: r.email || "",
     initials: initialsFromName(r.guestName),
@@ -711,7 +714,7 @@ export default function TravelView({ lang, activeEventId }) {
   // Derived from the flights already loaded rather than the paged A&D endpoint,
   // whose totalCount only exists once that tab has been opened and filtered.
   const travellingGuests = useMemo(
-    () => new Set(flightRows.map((f) => f.guestId).filter(Boolean)).size,
+    () => new Set(flightRows.map((f) => f.eventGuestId).filter(Boolean)).size,
     [flightRows],
   );
 
@@ -789,10 +792,10 @@ export default function TravelView({ lang, activeEventId }) {
         if (cancelled) return;
         const byGuest = {};
         (res?.items || []).forEach((e) => {
-          if (!e.guestId) return;
+          if (!e.eventGuestId) return;
           // A guest may hold several entries; the board shows one row per guest,
           // so they stack inside the cell.
-          byGuest[e.guestId] = [...(byGuest[e.guestId] || []), e];
+          byGuest[e.eventGuestId] = [...(byGuest[e.eventGuestId] || []), e];
         });
         setAdEntries(byGuest);
       })
@@ -830,10 +833,10 @@ export default function TravelView({ lang, activeEventId }) {
   // page, so paging doesn't make the number jump around.
   const adOrphanEntries = useMemo(() => {
     const withFlights = new Set(
-      flightRows.map((f) => f.guestId).filter(Boolean),
+      flightRows.map((f) => f.eventGuestId).filter(Boolean),
     );
     return Object.entries(adEntries)
-      .filter(([guestId]) => !withFlights.has(guestId))
+      .filter(([eventGuestId]) => !withFlights.has(eventGuestId))
       .reduce((n, [, list]) => n + list.length, 0);
   }, [adEntries, flightRows]);
 
@@ -959,7 +962,9 @@ export default function TravelView({ lang, activeEventId }) {
       .catch(() => setTravelLookups({}));
   }, [activeEventId]);
 
-  const [editModal, setEditModal] = useState(null); // { type, guestId, guestName, form } | { type, loading: true }
+  // { type, eventGuestId, guestName, form } | { type, loading: true }
+  // eventGuestId is the row's participation id — what POST /travel/guest/{eventGuestId} takes.
+  const [editModal, setEditModal] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const isTransferEdit = editModal?.type === "transfer";
@@ -997,7 +1002,7 @@ export default function TravelView({ lang, activeEventId }) {
   async function openEdit(type, row) {
     setEditModal({
       type,
-      guestId: row.guestId,
+      eventGuestId: row.eventGuestId,
       guestName: row.name,
       form: null,
       loading: true,
@@ -1005,11 +1010,11 @@ export default function TravelView({ lang, activeEventId }) {
     try {
       // bookingId — the guest may hold several of this kind, and the row the user
       // clicked is the one to edit (not just the most recent).
-      const data = await getGuestTravel(row.guestId, row.bookingId);
+      const data = await getGuestTravel(row.eventGuestId, row.bookingId);
       const section = hydrateTravel(data)[TYPE_TO_SECTION[type]];
       setEditModal({
         type,
-        guestId: row.guestId,
+        eventGuestId: row.eventGuestId,
         guestName: row.name,
         form: { ...section, enabled: true },
         loading: false,
@@ -1052,7 +1057,7 @@ export default function TravelView({ lang, activeEventId }) {
     }));
   }
   async function saveEdit() {
-    const { type, guestId, form } = editModal;
+    const { type, eventGuestId, form } = editModal;
     const section = TYPE_TO_SECTION[type];
     const travelObj = {
       ...EMPTY_TRAVEL,
@@ -1066,7 +1071,7 @@ export default function TravelView({ lang, activeEventId }) {
 
     setSavingEdit(true);
     try {
-      await saveGuestTravel(guestId, buildTravelPayload(travelObj));
+      await saveGuestTravel(eventGuestId, buildTravelPayload(travelObj));
       await refetchTab({ flight: 0, hotel: 1, transfer: 2 }[type]);
       closeEdit();
       toast.success(isAr ? "تم الحفظ بنجاح" : "Saved successfully");
@@ -1084,7 +1089,7 @@ export default function TravelView({ lang, activeEventId }) {
   const [showNewBooking, setShowNewBooking] = useState(false);
   const [bookStep, setBookStep] = useState(1);
   const [bookGuest, setBookGuest] = useState("");
-  const [bookGuestId, setBookGuestId] = useState("");
+  const [bookEventGuestId, setBookEventGuestId] = useState("");
   const [guestSearch, setGuestSearch] = useState("");
   const [bookings, setBookings] = useState([]);
   const [savingBooking, setSavingBooking] = useState(false);
@@ -1168,13 +1173,13 @@ export default function TravelView({ lang, activeEventId }) {
 
   // Fetched when the guest is chosen, not on every keystroke of the picker.
   useEffect(() => {
-    if (!showNewBooking || !bookGuestId) {
+    if (!showNewBooking || !bookEventGuestId) {
       setBookPlan(null);
       return undefined;
     }
     let cancelled = false;
     setBookPlanLoading(true);
-    getGuestServicePlan(bookGuestId)
+    getGuestServicePlan(bookEventGuestId)
       .then((p) => {
         if (!cancelled) setBookPlan(p);
       })
@@ -1187,13 +1192,13 @@ export default function TravelView({ lang, activeEventId }) {
     return () => {
       cancelled = true;
     };
-  }, [showNewBooking, bookGuestId]);
+  }, [showNewBooking, bookEventGuestId]);
 
   function openNewBooking() {
     setShowNewBooking(true);
     setBookStep(1);
     setBookGuest("");
-    setBookGuestId("");
+    setBookEventGuestId("");
     setGuestSearch("");
     setTravel(EMPTY_TRAVEL);
     setBookPlan(null);
@@ -1223,12 +1228,12 @@ export default function TravelView({ lang, activeEventId }) {
   }
 
   // The board's dynamic fields (arrival lounge, meet & greet, ...) — joined
-  // onto the movement rows by guestId, same as the on-screen table does it.
+  // onto the movement rows by eventGuestId, same as the on-screen table does it.
   async function fetchAdServiceFieldData() {
     if (!adService) return { fields: [], byGuest: {} };
     const entries = await fetchDynamicServiceEntries(adService);
     const byGuest = {};
-    entries.forEach((e) => { (byGuest[e.guestId] ||= []).push(e); });
+    entries.forEach((e) => { (byGuest[e.eventGuestId] ||= []).push(e); });
     return { fields: allFormFields(adService.form), byGuest };
   }
 
@@ -1283,7 +1288,7 @@ export default function TravelView({ lang, activeEventId }) {
   }
 
   async function saveBooking() {
-    if (!activeEventId || !bookGuestId) return;
+    if (!activeEventId || !bookEventGuestId) return;
     // Ticking a service commits to completing it — the per-service Done button is
     // optional, so this is what enforces its required fields.
     const travelErr = validateServices(bookSlots, bookPending, travel, isAr);
@@ -1314,12 +1319,12 @@ export default function TravelView({ lang, activeEventId }) {
       // entry of its own. Sequential on purpose: a Fixed event rejects a service
       // whose predecessor is unfinished.
       if (anyTravelEnabled(travel)) {
-        await saveGuestTravel(bookGuestId, buildTravelPayload(travel));
+        await saveGuestTravel(bookEventGuestId, buildTravelPayload(travel));
       }
       for (const slot of filledSlots) {
         if (slot.isSystem) continue;
 
-        await saveGuestServiceEntry(bookGuestId, {
+        await saveGuestServiceEntry(bookEventGuestId, {
           id: null,
           serviceId: slot.serviceId,
           values: bookPending[slot.serviceId]?.values || {},
@@ -1336,11 +1341,11 @@ export default function TravelView({ lang, activeEventId }) {
         if (slot.isSystem) {
           const key = TRAVEL_SECTION[slot.code];
           for (const snap of extras) {
-            await saveGuestTravel(bookGuestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+            await saveGuestTravel(bookEventGuestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
           }
         } else {
           for (const snap of extras) {
-            await saveGuestServiceEntry(bookGuestId, {
+            await saveGuestServiceEntry(bookEventGuestId, {
               id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
             });
           }
@@ -1353,7 +1358,7 @@ export default function TravelView({ lang, activeEventId }) {
       setShowNewBooking(false);
       setBookStep(1);
       setBookGuest("");
-      setBookGuestId("");
+      setBookEventGuestId("");
       setGuestSearch("");
       setBookPending({});
       toast.success(
@@ -1477,7 +1482,7 @@ export default function TravelView({ lang, activeEventId }) {
         <GuestCell
           g={row.original}
           withOrg={withOrg}
-          onOpen={() => navigate(`/guests/${row.original.guestId}`)}
+          onOpen={() => navigate(`/guests/${row.original.eventGuestId}`)}
         />
       ),
     });
@@ -1778,7 +1783,7 @@ export default function TravelView({ lang, activeEventId }) {
           header: (isAr ? f.labelAr : null) || f.label || f.key,
           enableSorting: false,
           cell: ({ row }) => {
-            const entries = adEntries[row.original.guestId] || [];
+            const entries = adEntries[row.original.eventGuestId] || [];
             if (entries.length === 0) {
               return (
                 <span style={{ fontSize: 11.5, color: "var(--ink-faint)" }}>
@@ -2731,12 +2736,12 @@ export default function TravelView({ lang, activeEventId }) {
                   >
                     {guests.map((g) => {
                       const fullName = g.fullName || guestFullName(g);
-                      const selected = bookGuestId === g.id;
+                      const selected = bookEventGuestId === g.id;
                       return (
                         <div
                           key={g.id}
                           onClick={() => {
-                            setBookGuestId(g.id);
+                            setBookEventGuestId(g.id);
                             setBookGuest(fullName);
                           }}
                           style={{
@@ -2909,7 +2914,7 @@ export default function TravelView({ lang, activeEventId }) {
                 <button
                   className="btn primary"
                   onClick={() => setBookStep(2)}
-                  disabled={!bookGuestId}
+                  disabled={!bookEventGuestId}
                 >
                   {STR.next} <Icon name="arrow" size={13} />
                 </button>

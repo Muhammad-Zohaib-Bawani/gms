@@ -318,6 +318,10 @@ export default function SupportChatView({ lang, activeEventId }) {
   // lazily-loaded window, and so a brand-new conversation can be selected
   // before it's actually present in `chats.items`. ───────────────────────────
   const [activeConversation, setActiveConversation] = useState(null);
+  // A guest picked from the "New chat" tab who has no thread yet. Identified by
+  // `personId` (Guest.PublicId): a support conversation is per PERSON, one
+  // thread across every event they attend — the picker's own `id` is that
+  // person's participation in the active event and would 404 on the chat API.
   const [pendingGuest, setPendingGuest] = useState(null);
   const markedReadRef = useRef(new Set());
 
@@ -332,26 +336,37 @@ export default function SupportChatView({ lang, activeEventId }) {
     setActiveConversation(conv);
   }
 
+  // `guest` is a picker row (or a deep-link stub); its personId is what the chat
+  // API and the conversation rows' own `guestId` both key on.
   function startNewChat(guest) {
-    // If this guest already has a thread (possibly outside the loaded window),
+    const personId = guest.personId || null;
+    // Without a person id there is nothing to address — better a clear message
+    // than a request to /conversations/by-guest/null/messages.
+    if (!personId) {
+      toast.error(isAr ? "تعذّر تحديد هوية الضيف" : "Could not resolve this guest's identity");
+      return;
+    }
+    // If this person already has a thread (possibly outside the loaded window),
     // just open it instead of pretending there's no history.
-    const existing = chats.items.find((c) => c.guestId === guest.id);
+    const existing = chats.items.find((c) => c.guestId === personId);
     if (existing) { openConversation(existing); setListTab('chats'); return; }
     setActiveConversation(null);
-    setPendingGuest(guest);
+    setPendingGuest({ ...guest, personId });
   }
-  const incomingGuestId = location.state?.guestId || null;
+  // Deep-linked from a guest screen's "Message" action, which passes the PERSON
+  // id — see GuestsView / GuestDetailView / GuestOverviewView.
+  const incomingPersonId = location.state?.personId || null;
   useEffect(() => {
-    if (!incomingGuestId || chats.loading) return;
+    if (!incomingPersonId || chats.loading) return;
     startNewChat({
-      id: incomingGuestId,
+      personId: incomingPersonId,
       fullName: location.state.guestName || '',
       organization: location.state.guestOrganization || '',
     });
     setListTab('chats');
     navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingGuestId, chats.loading]);
+  }, [incomingPersonId, chats.loading]);
 
   // ── Open thread ─────────────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
@@ -447,10 +462,11 @@ export default function SupportChatView({ lang, activeEventId }) {
     setSending(true);
     try {
       if (pendingGuest) {
-        const msg = await startConversationWithGuest(pendingGuest.id, payload);
+        const msg = await startConversationWithGuest(pendingGuest.personId, payload);
         const newConv = {
           id: msg.conversationId,
-          guestId: pendingGuest.id,
+          // Conversation rows carry the PERSON id, same as the inbox feed.
+          guestId: pendingGuest.personId,
           guestName: pendingGuest.fullName,
           guestEmail: pendingGuest.email || null,
           status: 'Open',
@@ -725,7 +741,10 @@ export default function SupportChatView({ lang, activeEventId }) {
                   <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, padding: 24 }}>{STR.noGuests}</div>
                 ) : (
                   guestPicker.items.map((g) => {
-                    const isActive = pendingGuest?.id === g.id || activeConversation?.guestId === g.id;
+                    // Both sides compare on the person id — g.id is this
+                    // guest's participation in the active event, not their identity.
+                    const isActive = pendingGuest?.personId === g.personId
+                      || activeConversation?.guestId === g.personId;
                     return (
                       <div
                         key={g.id}
@@ -833,7 +852,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                   </div>
                 ) : (
                   <RichComposer
-                    key={pendingGuest ? `guest-${pendingGuest.id}` : activeConversation ? `conv-${activeConversation.id}` : 'none'}
+                    key={pendingGuest ? `guest-${pendingGuest.personId}` : activeConversation ? `conv-${activeConversation.id}` : 'none'}
                     isAr={isAr}
                     placeholder={STR.composerPh}
                     disabled={false}

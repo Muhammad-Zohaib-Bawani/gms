@@ -23,6 +23,8 @@ export const deleteService = (id) => apiClient.delete(ENDPOINTS.services.byId(id
 
 // Every guest in an event holding this service — the operational listings.
 // params: { eventId, pageNumber, pageSize, searchTerm }
+// Row shape: { entryId, eventGuestId, guestName, photoUrl, email, organization,
+// serviceLevelName, serviceLevelColor, status, completedAt, values }.
 export const getServiceEntries = (serviceId, params) =>
   apiClient.get(ENDPOINTS.services.entries(serviceId), { params });
 
@@ -41,16 +43,18 @@ export const createServiceLevel = (body) => apiClient.post(ENDPOINTS.serviceLeve
 export const updateServiceLevel = (id, body) => apiClient.put(ENDPOINTS.serviceLevels.byId(id), body);
 export const deleteServiceLevel = (id) => apiClient.delete(ENDPOINTS.serviceLevels.byId(id));
 
-// ── A guest's service plan ──────────────────────────────────────────────────
-// { guestId, serviceLevelId, serviceLevelName, guestModel, isComplete,
+// ── One participation's service plan ────────────────────────────────────────
+// A plan is per EVENT PARTICIPATION, so all three take an EventGuest.PublicId
+// (`GuestResponse.id`) — the master personId is not accepted.
+// { eventGuestId, serviceLevelId, serviceLevelName, guestModel, isComplete,
 //   slots: [{ serviceId, name, icon, form, entries: [...], status,
 //             isUnlocked, isRequired, lockedReason }] }
-export const getGuestServicePlan = (guestId) =>
-  apiClient.get(ENDPOINTS.guestServices.base(guestId));
+export const getGuestServicePlan = (eventGuestId) =>
+  apiClient.get(ENDPOINTS.guestServices.base(eventGuestId));
 
 // body: { id?, serviceId, values: {key: value}, markCompleted }
-export const saveGuestServiceEntry = (guestId, body) =>
-  apiClient.post(ENDPOINTS.guestServices.base(guestId), body);
+export const saveGuestServiceEntry = (eventGuestId, body) =>
+  apiClient.post(ENDPOINTS.guestServices.base(eventGuestId), body);
 
-export const deleteGuestServiceEntry = (guestId, entryId) =>
-  apiClient.delete(ENDPOINTS.guestServices.entry(guestId, entryId));
+export const deleteGuestServiceEntry = (eventGuestId, entryId) =>
+  apiClient.delete(ENDPOINTS.guestServices.entry(eventGuestId, entryId));
