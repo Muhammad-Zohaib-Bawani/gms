@@ -11,7 +11,7 @@ export function listEvents({ pageNumber = 1, pageSize = 20, search, status } = {
 export const getEvent = (id) => apiClient.get(ENDPOINTS.events.byId(id));
 export const createEvent = (body) => apiClient.post(ENDPOINTS.events.base, body);
 export const updateEvent = (id, body) => apiClient.put(ENDPOINTS.events.byId(id), body);
-export const updateEventStatus = (id, status) => apiClient.patch(ENDPOINTS.events.status(id), { status });
+export const updateEventStatus = (id, status) => apiClient.put(ENDPOINTS.events.status(id), { status });
 export const deleteEvent = (id) => apiClient.delete(ENDPOINTS.events.byId(id));
 
 export const listSessions = (eventId) => apiClient.get(ENDPOINTS.events.sessions(eventId));
