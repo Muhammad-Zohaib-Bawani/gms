@@ -14,6 +14,7 @@ export function toViewSession(s) {
     room: s.room || '',
     speaker: s.speaker || '',
     capacity: s.capacity ?? 0,
+    image: s.imageUrl || '',
   };
 }
 
@@ -26,10 +27,14 @@ export function toViewEvent(dto) {
     type: dto.type || 'Forum',
     theme: dto.theme || '',
     venue: dto.venueName || '',
+    venueId: dto.venueId || '',
     startDate: dto.startDate || '',
     endDate: dto.endDate || '',
     image: dto.imageUrl || '',
     status: dto.status || 'planning',
+    // Absent means flexible — the backend default, and how an event created
+    // before this field existed behaves.
+    guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
     uiTheme: {
       preset: isCustom ? 'custom' : 'default',
       accent: dto.themeAccent || '#8d0134',
@@ -48,9 +53,11 @@ export function toEventRequest(v) {
     type: v.type,
     theme: v.theme || null,
     venueName: v.venue || null,
+    venueId: v.venueId || null,
     startDate: v.startDate || null,
     endDate: v.endDate || null,
     status: v.status || 'planning',
+    guestModel: v.guestModel === 'fixed' ? 'fixed' : 'flexible',
     // SAS tokens are short-lived — persist the bare blob URL, BlobSasMiddleware
     // re-signs it on read.
     imageUrl: stripSasToken(v.image) || null,
@@ -70,5 +77,8 @@ export function toSessionRequest(s) {
     room: s.room || null,
     speaker: s.speaker || null,
     capacity: Number(s.capacity) || 0,
+    // SAS tokens are short-lived — persist the bare blob URL, same as the
+    // event's own image (BlobSasMiddleware re-signs it on read).
+    imageUrl: stripSasToken(s.image) || null,
   };
 }

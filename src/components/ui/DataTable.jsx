@@ -9,56 +9,12 @@ import {
 } from '@tanstack/react-table';
 import { Icon } from '../Icons';
 
-const S = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 0 },
-  toolbar: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 16px', borderBottom: '1px solid var(--glass-border)',
-    gap: 12, flexWrap: 'wrap',
-  },
-  search: {
-    background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
-    borderRadius: 8, padding: '7px 11px', color: 'var(--ink)', fontSize: 13,
-    outline: 'none', minWidth: 200,
-  },
-  table: { width: '100%', borderCollapse: 'collapse' },
-  th: {
-    padding: '10px 14px', textAlign: 'left',
-    fontSize: 10.5, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
-    color: 'var(--ink-mute)', borderBottom: '1px solid var(--glass-border)',
-    whiteSpace: 'nowrap', userSelect: 'none',
-  },
-  thSortable: { cursor: 'pointer' },
-  td: {
-    padding: '11px 14px', fontSize: 13,
-    color: 'var(--ink)', borderBottom: '1px solid rgba(255,255,255,0.04)',
-    verticalAlign: 'middle',
-  },
-  trHover: { background: 'rgba(255,255,255,0.02)' },
-  trSelected: { background: 'rgba(141, 1, 52,0.1)', boxShadow: 'inset 3px 0 0 var(--accent)' },
-  empty: { padding: '36px 16px', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 },
-  footer: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '10px 16px', borderTop: '1px solid var(--glass-border)',
-    fontSize: 12, color: 'var(--ink-mute)', flexWrap: 'wrap', gap: 8,
-  },
-  pageBtn: {
-    background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
-    borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12,
-    color: 'var(--ink-mute)', lineHeight: 1.4,
-  },
-  pageBtnActive: {
-    background: 'rgba(141, 1, 52,0.12)', border: '1px solid rgba(141, 1, 52,0.4)',
-    color: 'var(--accent)',
-  },
-  pageBtnDisabled: { opacity: 0.35, cursor: 'not-allowed' },
-  checkbox: { cursor: 'pointer', accentColor: 'var(--accent)', width: 15, height: 15 },
-  sizeSelect: {
-    background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
-    borderRadius: 6, padding: '4px 8px', fontSize: 12, color: 'var(--ink)',
-    cursor: 'pointer', outline: 'none',
-  },
-};
+// Presentation lives in styles/qoc-revamp.css under the `.dt-*` namespace.
+// It used to be an inline-style object here, but those values were tuned for
+// the dark shell (white-alpha borders and hover tints that vanish on a light
+// page) and inline styles can't respond to the theme at all. Only genuinely
+// dynamic values (column width, sort state) stay in JS.
+const CHECKBOX = { cursor: 'pointer', accentColor: 'var(--accent)', width: 15, height: 15 };
 
 export const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 
@@ -69,6 +25,13 @@ export default function DataTable({
   emptyText = 'No records found',
   searchPlaceholder = 'Search…',
   showSearch = true,
+  // Controlled/server-driven search — pass both together when the rows
+  // themselves come from the server (manualPagination): the local
+  // `globalFilter` state would otherwise only ever search the current page's
+  // handful of rows instead of the whole dataset. Omit both to keep the
+  // existing uncontrolled, filters-the-local-`data` behaviour.
+  searchValue,
+  onSearchChange,
   pageSize: initialPageSize = 15,
   // Server-driven paging. Pass `manualPagination` together with the current
   // page/size and the server's total row count; the table then renders exactly
@@ -91,10 +54,10 @@ export default function DataTable({
   // concept. Compared against getRowId(row.original).
   selectedRowId,
 }) {
+  const searchIsControlled = onSearchChange != null;
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState([]);
   const [rowSelection, setRowSelection] = useState({});
-  const [hoveredRow, setHoveredRow] = useState(null);
 
   // Reset selection when selectionResetKey changes
   useEffect(() => {
@@ -119,7 +82,7 @@ export default function DataTable({
     header: ({ table }) => (
       <input
         type="checkbox"
-        style={S.checkbox}
+        style={CHECKBOX}
         checked={table.getIsAllPageRowsSelected()}
         ref={el => { if (el) el.indeterminate = table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected(); }}
         onChange={table.getToggleAllPageRowsSelectedHandler()}
@@ -128,7 +91,7 @@ export default function DataTable({
     cell: ({ row }) => (
       <input
         type="checkbox"
-        style={S.checkbox}
+        style={CHECKBOX}
         checked={row.getIsSelected()}
         disabled={!row.getCanSelect()}
         onChange={row.getToggleSelectedHandler()}
@@ -146,7 +109,9 @@ export default function DataTable({
     data: data ?? [],
     columns: finalColumns,
     state: {
-      globalFilter,
+      // Controlled mode never feeds the local filter model — the server
+      // already returned only the matching rows.
+      globalFilter: searchIsControlled ? '' : globalFilter,
       sorting,
       ...(enableRowSelection ? { rowSelection } : {}),
     },
@@ -186,23 +151,23 @@ export default function DataTable({
   const showSizeSelector = manualPagination ? !!onPageSizeChange : true;
 
   return (
-    <div style={S.wrap}>
+    <div className="dt">
       {(showSearch || toolbar) && (
-        <div style={S.toolbar}>
+        <div className="dt-toolbar">
           {showSearch && (
             <input
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
+              value={searchIsControlled ? (searchValue ?? '') : globalFilter}
+              onChange={e => (searchIsControlled ? onSearchChange(e.target.value) : setGlobalFilter(e.target.value))}
               placeholder={searchPlaceholder}
-              style={S.search}
+              className="dt-search"
             />
           )}
           {toolbar && <div style={{ marginInlineStart: 'auto' }}>{toolbar}</div>}
         </div>
       )}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={S.table}>
+      <div className="dt-scroll">
+        <table className="dt-table">
           <thead>
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
@@ -212,17 +177,15 @@ export default function DataTable({
                   return (
                     <th
                       key={header.id}
-                      style={{
-                        ...S.th,
-                        ...(canSort ? S.thSortable : {}),
-                        width: header.column.columnDef.size,
-                      }}
+                      className={canSort ? 'dt-th sortable' : 'dt-th'}
+                      style={{ width: header.column.columnDef.size }}
                       onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                      aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : undefined}
                     >
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort && (
-                          <span style={{ fontSize: 10, opacity: sorted ? 1 : 0.3, color: sorted ? 'var(--accent)' : undefined }}>
+                          <span className={sorted ? 'dt-sort active' : 'dt-sort'}>
                             {sorted === 'asc' ? '▲' : sorted === 'desc' ? '▼' : '⇅'}
                           </span>
                         )}
@@ -236,24 +199,22 @@ export default function DataTable({
 
           <tbody>
             {loading ? (
-              <tr><td colSpan={finalColumns.length} style={S.empty}>Loading…</td></tr>
+              <tr><td colSpan={finalColumns.length} className="dt-empty">Loading…</td></tr>
             ) : table.getRowModel().rows.length === 0 ? (
-              <tr><td colSpan={finalColumns.length} style={S.empty}>{emptyText}</td></tr>
+              <tr><td colSpan={finalColumns.length} className="dt-empty">{emptyText}</td></tr>
             ) : (
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  style={{
-                    ...(hoveredRow === row.id ? S.trHover : {}),
-                    ...(selectedRowId != null && getRowId(row.original) === selectedRowId ? S.trSelected : {}),
-                    ...(onRowClick ? { cursor: 'pointer' } : {}),
-                  }}
-                  onMouseEnter={() => setHoveredRow(row.id)}
-                  onMouseLeave={() => setHoveredRow(null)}
+                  className={[
+                    'dt-row',
+                    selectedRowId != null && getRowId(row.original) === selectedRowId ? 'selected' : '',
+                    onRowClick ? 'clickable' : '',
+                  ].filter(Boolean).join(' ')}
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 >
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} style={S.td}>
+                    <td key={cell.id} className="dt-td">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -267,12 +228,12 @@ export default function DataTable({
       {/* Shown whenever paging is server-driven (the size picker must stay
           reachable even on a single page) or there's more than one local page. */}
       {!loading && (manualPagination || totalRows > pageSize) && (
-        <div style={S.footer}>
+        <div className="dt-footer">
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {from}–{to} of {totalRows}
             {showSizeSelector && (
               <select
-                style={S.sizeSelect}
+                className="dt-size"
                 value={pageSize}
                 onChange={e => changePageSize(Number(e.target.value))}
                 aria-label="Rows per page"
@@ -283,7 +244,7 @@ export default function DataTable({
           </span>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <button
-              style={{ ...S.pageBtn, ...(canPrev ? {} : S.pageBtnDisabled) }}
+              className="dt-page"
               onClick={() => goToPage(pageIndex - 1)}
               disabled={!canPrev}
             >‹ Prev</button>
@@ -293,13 +254,13 @@ export default function DataTable({
               .map(i => (
                 <button
                   key={i}
-                  style={{ ...S.pageBtn, ...(i === pageIndex ? S.pageBtnActive : {}) }}
+                  className={i === pageIndex ? 'dt-page active' : 'dt-page'}
                   onClick={() => goToPage(i)}
                 >{i + 1}</button>
               ))}
 
             <button
-              style={{ ...S.pageBtn, ...(canNext ? {} : S.pageBtnDisabled) }}
+              className="dt-page"
               onClick={() => goToPage(pageIndex + 1)}
               disabled={!canNext}
             >Next ›</button>

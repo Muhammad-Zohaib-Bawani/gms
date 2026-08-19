@@ -50,3 +50,12 @@ export function isTokenExpired(token, skewSeconds = 30) {
   if (!c?.exp) return false; // no exp claim → treat as non-expiring here
   return Date.now() >= (c.exp - skewSeconds) * 1000;
 }
+
+// True when a stored session can't be used as-is but is still recoverable: we
+// hold a refresh token and the access token is missing or expired. The app must
+// refresh before it decides the user is signed out — the access token's lifetime
+// is much shorter than the refresh token's, so this is the normal return visit.
+export function needsBootRefresh(session) {
+  if (!session?.refreshToken) return false;
+  return !session.accessToken || isTokenExpired(session.accessToken);
+}

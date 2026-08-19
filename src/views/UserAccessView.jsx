@@ -8,6 +8,10 @@ import { toast } from '../lib/toast';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+// Role codes (Core/Constants/Roles.cs) whose users never sign into this portal,
+// so they're excluded from the access list entirely.
+const NON_PORTAL_ROLES = ['guest', 'driver'];
+
 const DEMO_USERS = [
   { id: '1', firstName: 'Sara',  lastName: 'Ali',    email: 'sara@gms.local',  roleName: 'Event Manager' },
   { id: '2', firstName: 'Khalid',lastName: 'Hassan', email: 'khalid@gms.local',roleName: 'Guest Relations Manager' },
@@ -18,7 +22,7 @@ const DEMO_MODULES = [
   { slug: 'events',        displayName: 'Events',            isNative: true,  isGranted: false },
   { slug: 'guests',        displayName: 'Guests',            isNative: false, isGranted: true  },
   { slug: 'invitations',   displayName: 'Invitations',       isNative: false, isGranted: false },
-  { slug: 'travel',        displayName: 'Travel & Logistics',isNative: false, isGranted: false },
+  { slug: 'travel',        displayName: 'Services',isNative: false, isGranted: false },
   { slug: 'accreditation', displayName: 'Accreditation',     isNative: false, isGranted: false },
   { slug: 'venue',         displayName: 'Venue Config',      isNative: false, isGranted: false },
   { slug: 'seating',       displayName: 'Seating',           isNative: false, isGranted: false },
@@ -167,6 +171,13 @@ export default function UserAccessView() {
   }
 
   const filteredUsers = users.filter(u => {
+    // Guests and drivers have no portal access at all (their roles are
+    // PortalAccess=false — guests sign in via VIP-app OTP, drivers via the
+    // driver app), so granting them cross-module portal access is meaningless.
+    // Matched on the role CODE, which is stable, rather than the display name.
+    const roleCode = (u.role || '').toLowerCase();
+    if (NON_PORTAL_ROLES.includes(roleCode)) return false;
+
     const q = search.toLowerCase();
     return !q
       || u.email?.toLowerCase().includes(q)
@@ -188,7 +199,9 @@ export default function UserAccessView() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
+      {/* `split-pane` collapses this to one column below 768px — a fixed 280px
+          first column left the detail pane ~50px wide on a phone. */}
+      <div className="split-pane" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, alignItems: 'start' }}>
 
         {/* ── Left: user list ── */}
         <div className="card" style={{ padding: 12 }}>

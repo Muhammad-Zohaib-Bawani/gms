@@ -11,7 +11,9 @@ import {
   getVehicles, createVehicle, updateVehicle, deleteVehicle,
 } from '../api/services/vehicleService';
 import { getVehicleTypes } from '../api/services/travelService';
+import { getFleetProviders } from '../api/services/fleetProviderService';
 import { uploadImageFile, stripSasToken } from '../api/services/uploadService';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -24,11 +26,25 @@ const labelStyle = {
 };
 const hintStyle = { fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 };
 
-const EMPTY_FORM = { vehicleTypeId: '', vehicleModel: '', vehicleNumber: '', vehicleImage: '', capacity: '' };
+const EMPTY_FORM = {
+  vehicleTypeId: '', usageType: '', fleetProviderId: '', vehicleModel: '', vehicleNumber: '',
+  vehicleImage: '', capacity: '',
+};
+
+// VehicleUsageType (DomainPersistence/Enums/VehicleUsageType.cs). Fixed = dedicated
+// to one open driver; Open = shared pool car fixed drivers draw from per trip.
+// Hardcoded rather than fetched: two values that the pairing rules depend on, so a
+// lookup round-trip would buy nothing.
+const USAGE_TYPES = [
+  { value: 1, label: 'Fixed', labelAr: 'ثابت' },
+  { value: 2, label: 'Open', labelAr: 'مفتوح' },
+];
 
 // Fleet admin: the vehicles themselves plus their type lookup, as two tabs —
 // the types tab is the generic lookup screen, so it isn't duplicated here.
-export default function VehiclesView({ lang }) {
+// Scoped to the active event: a vehicle inherits its event from its provider, so
+// the list is this event's providers' cars plus the in-house ones.
+export default function VehiclesView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const { can } = useAuth();
   const canManage = can('Travel.Manage');
@@ -36,6 +52,7 @@ export default function VehiclesView({ lang }) {
   const [tab, setTab] = useState('vehicles');
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);   // row being edited, or null for "add"
@@ -47,10 +64,10 @@ export default function VehiclesView({ lang }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setRows((await getVehicles()) || []); }
+    try { setRows((await getVehicles(activeEventId)) || []); }
     catch { setRows([]); }
     finally { setLoading(false); }
-  }, []);
+  }, [activeEventId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -62,6 +79,16 @@ export default function VehiclesView({ lang }) {
   }, []);
 
   useEffect(() => { loadTypes(); }, [loadTypes, tab]);
+
+  // Providers feed the form dropdown too — managed on their own screen, and only
+  // the ones contracted for the active event are offered.
+  useEffect(() => {
+    (async () => {
+      if (!activeEventId) { setProviders([]); return; }
+      try { setProviders((await getFleetProviders(activeEventId)) || []); }
+      catch { setProviders([]); }
+    })();
+  }, [activeEventId]);
 
   const setF = (k, v) => {
     setForm((p) => ({ ...p, [k]: v }));
@@ -79,6 +106,8 @@ export default function VehiclesView({ lang }) {
     setEditing(row);
     setForm({
       vehicleTypeId: row.vehicleTypeId || '',
+      usageType: row.usageType ?? '',
+      fleetProviderId: row.fleetProviderId || '',
       vehicleModel: row.vehicleModel || '',
       vehicleNumber: row.vehicleNumber || '',
       vehicleImage: row.vehicleImage || '',
@@ -99,6 +128,7 @@ export default function VehiclesView({ lang }) {
   async function handleSave() {
     const errs = {};
     if (!form.vehicleTypeId) errs.vehicleTypeId = isAr ? 'النوع مطلوب' : 'Vehicle type is required';
+    if (!form.usageType) errs.usageType = isAr ? 'نوع الاستخدام مطلوب' : 'Usage type is required';
     if (!form.vehicleModel.trim()) errs.vehicleModel = isAr ? 'الطراز مطلوب' : 'Model is required';
     if (!form.vehicleNumber.trim()) errs.vehicleNumber = isAr ? 'رقم المركبة مطلوب' : 'Vehicle number is required';
     if (form.capacity !== '' && !(Number(form.capacity) > 0))
@@ -108,6 +138,8 @@ export default function VehiclesView({ lang }) {
 
     const body = {
       vehicleTypeId: form.vehicleTypeId,
+      usageType: Number(form.usageType),
+      fleetProviderId: form.fleetProviderId || null,
       vehicleModel: form.vehicleModel.trim(),
       vehicleNumber: form.vehicleNumber.trim(),
       vehicleImage: stripSasToken(form.vehicleImage) || null,
@@ -159,6 +191,27 @@ export default function VehiclesView({ lang }) {
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'vehicleTypeName', header: isAr ? 'النوع' : 'Type', accessorKey: 'vehicleTypeName',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
+      // Fixed cars also show whether a driver already holds them — the reason a car
+      // can be missing from the driver-invite picker.
+      { id: 'usageTypeName', header: isAr ? 'الاستخدام' : 'Usage', accessorKey: 'usageTypeName',
+        cell: ({ row: { original: r } }) => {
+          if (!r.usageTypeName) return <span style={{ color: 'var(--ink-faint)', fontSize: 13 }}>—</span>;
+          const label = isAr
+            ? (USAGE_TYPES.find((u) => u.value === r.usageType)?.labelAr || r.usageTypeName)
+            : r.usageTypeName;
+          return (
+            <span style={{ fontSize: 13 }}>
+              {label}
+              {r.isAssignedToDriver && (
+                <span style={{ color: 'var(--ink-faint)', fontSize: 11, marginInlineStart: 6 }}>
+                  {isAr ? '· مُخصَّصة' : '· assigned'}
+                </span>
+              )}
+            </span>
+          );
+        } },
+      { id: 'fleetProviderName', header: isAr ? 'المزوّد' : 'Provider', accessorKey: 'fleetProviderName',
+        cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() || '—'}</span> },
       { id: 'capacity', header: isAr ? 'السعة' : 'Capacity', accessorKey: 'capacity',
         cell: ({ getValue }) => <span style={{ fontSize: 13 }}>{getValue() ?? '—'}</span> },
     ];
@@ -177,6 +230,15 @@ export default function VehiclesView({ lang }) {
     return cols;
   }, [isAr, canManage, deletingId]);
 
+  function handleExport() {
+    const headers = [
+      isAr ? 'رقم المركبة' : 'Vehicle Number', isAr ? 'الطراز' : 'Model',
+      isAr ? 'النوع' : 'Type', isAr ? 'المزوّد' : 'Provider', isAr ? 'السعة' : 'Capacity',
+    ];
+    const csvRows = rows.map((r) => [r.vehicleNumber, r.vehicleModel, r.vehicleTypeName, r.fleetProviderName, r.capacity]);
+    downloadCsv('vehicles.csv', toCsv(headers, csvRows));
+  }
+
   return (
     <div>
       <div className="page-header">
@@ -184,11 +246,16 @@ export default function VehiclesView({ lang }) {
           <h1 className="page-title">{isAr ? 'المركبات' : 'Vehicles'}</h1>
           <div className="page-sub">{isAr ? 'أسطول النقل وأنواع المركبات' : 'Transport fleet and vehicle types'}</div>
         </div>
-        {tab === 'vehicles' && canManage && (
+        {tab === 'vehicles' && (
           <div className="page-actions">
-            <button className="btn primary" onClick={openAdd}>
-              <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+            <button className="btn" onClick={handleExport}>
+              <Icon name="download" size={14} /> {isAr ? 'تصدير' : 'Export'}
             </button>
+            {canManage && (
+              <button className="btn primary" onClick={openAdd}>
+                <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -243,6 +310,33 @@ export default function VehiclesView({ lang }) {
             placeholder={isAr ? '— اختر —' : '— Select —'}
           />
           {errors.vehicleTypeId && <div style={{ ...hintStyle, color: '#e05050' }}>{errors.vehicleTypeId}</div>}
+        </div>
+
+        <div>
+          <label style={labelStyle}>{isAr ? 'نوع الاستخدام' : 'Usage Type'} *</label>
+          <Select
+            value={form.usageType}
+            onChange={(v) => setF('usageType', v ?? '')}
+            options={USAGE_TYPES.map((u) => ({ value: u.value, label: isAr ? u.labelAr : u.label }))}
+            placeholder={isAr ? '— اختر —' : '— Select —'}
+          />
+          <div style={errors.usageType ? { ...hintStyle, color: '#e05050' } : hintStyle}>
+            {errors.usageType || (isAr
+              ? 'ثابت — مخصّصة لسائق مفتوح واحد · مفتوح — تُشترك بين السائقين الثابتين'
+              : 'Fixed — dedicated to one open driver · Open — shared by fixed drivers')}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>{isAr ? 'مزوّد الأسطول' : 'Fleet Provider'}</label>
+          <Select
+            value={form.fleetProviderId}
+            onChange={(v) => setF('fleetProviderId', v || '')}
+            options={providers.map((p) => ({ value: p.id, label: p.name }))}
+            placeholder={isAr ? '— اختر —' : '— Select —'}
+            isClearable
+          />
+          <div style={hintStyle}>{isAr ? 'اختياري — اتركه فارغًا للمركبات الداخلية' : 'Optional — leave empty for in-house vehicles'}</div>
         </div>
 
         <div>

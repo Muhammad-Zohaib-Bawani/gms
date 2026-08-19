@@ -23,7 +23,8 @@ export const updateUser = (userId, payload) => apiClient.put(ENDPOINTS.users.byI
 
 // Admin-only invite flow — no password is set until the invitee accepts by email.
 export const inviteUser = (payload) => apiClient.post(ENDPOINTS.users.invite, payload);
-export const getPendingUsers = () => apiClient.get(ENDPOINTS.users.pending);
+export const getPendingUsers = ({ pageNumber = 1, pageSize = 10, search } = {}) =>
+  apiClient.get(ENDPOINTS.users.pending, { params: { pageNumber, pageSize, search: search || undefined } });
 export const resendInvite = (userId) => apiClient.post(ENDPOINTS.users.resendInvite(userId));
 
 // Distinct from the user's own change-password flow: no current-password

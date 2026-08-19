@@ -8,7 +8,7 @@ import DataTable from '../components/ui/DataTable';
 import ActionMenu from '../components/ui/ActionMenu';
 
 const TABS = ['pending', 'approved', 'rejected'];
-const STATUS_COLOR = { pending: '#e0c47e', approved: '#5abf6e', rejected: '#e08a7e' };
+const STATUS_COLOR = { pending: '#e0c47e', approved: '#5abf6e', rejected: 'var(--danger)' };
 
 export default function AccountRequestsView() {
   const { can, isDemo } = useAuth();
@@ -113,7 +113,7 @@ export default function AccountRequestsView() {
         {loading ? (
           <div style={{ padding: 28, textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>Loading…</div>
         ) : error ? (
-          <div style={{ padding: 20, textAlign: 'center', color: '#e08a7e', fontSize: 13 }}>
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--danger)', fontSize: 13 }}>
             {error}
             <button className="btn" style={{ display: 'block', margin: '10px auto 0', fontSize: 11 }} onClick={reload}>Retry</button>
           </div>

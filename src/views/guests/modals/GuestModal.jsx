@@ -1,14 +1,27 @@
 // Single guest create/edit wizard — driven by the `guest` prop (null = create
-// a new guest for `activeEventId`; an object = edit that guest in place).
+// a new participation for `activeEventId`; an object = edit that participation
+// in place).
+//
+// Everything here is EVENT-scoped: `guest.id` is an eventGuestId
+// (EventGuest.PublicId), and it's what the update / travel / service-plan calls
+// take. The master person is only reached indirectly, through `email`: creating
+// with an email that already belongs to a guest reuses that person and adds a
+// second participation, which is how "add an existing guest to this event"
+// works — both from the Existing Guest tab and from the duplicate-email prompt
+// on step 1.
 import React, { useState, useMemo, useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useEvents } from "../../../events/EventsContext";
 import { Icon } from "../../../components/Icons";
 import Select from "../../../components/ui/Select";
+import { nationalityOptionLabel } from "../../../components/FlagIcon";
+import { useAuth } from "../../../auth/AuthContext";
 import toast from "../../../lib/toast";
 import {
   createGuest,
   updateGuest,
   getGuestEnums,
+  getGuestsFromOtherEvents,
 } from "../../../api/services/guestService";
 import {
   getTravelLookups,
@@ -19,23 +32,25 @@ import {
   uploadImageFile,
   stripSasToken,
 } from "../../../api/services/uploadService";
-import { addDaysIso } from "../../../lib/date";
-import TravelAccordion, {
+import { addDaysIso, fmtDate } from "../../../lib/date";
+import {
   EMPTY_TRAVEL,
   hydrateTravel,
   anyTravelEnabled,
   buildTravelPayload,
-  validateTravel,
 } from "./TravelAccordion";
-
-const GUEST_TYPES = [
-  "dignitary",
-  "delegate",
-  "media",
-  "staff",
-  "vip",
-  "observer",
-];
+import ImportGuestsPanel from "./ImportGuestsPanel";
+import ServiceAccordion, {
+  TRAVEL_SECTION,
+  validateServices,
+  slotExtras,
+} from "../ServiceAccordion";
+import {
+  getServices,
+  saveGuestServiceEntry,
+  getGuestServicePlan,
+} from "../../../api/services/serviceCatalogService";
+import ExistingGuestPicker from "./ExistingGuestPicker";
 
 // Module scope on purpose: defining this inside the component gives it a
 // fresh identity every render, remounting the label DOM on every keystroke.
@@ -80,12 +95,16 @@ const EMPTY_GUEST = {
   guestType: "delegate",
   organizationId: "",
   nationalityId: "",
-  tier: "delegate",
+  serviceLevelId: "",
   invitationStatus: "not_sent",
   arrivalDate: "",
   departureDate: "",
   photoUrl: "",
   accreditationRequired: false,
+  // Set when the user chooses to push past a failing level rule. The backend
+  // re-checks the permission, so ticking this without it changes nothing.
+  overrideServiceLevelRules: false,
+  serviceLevelOverrideReason: "",
 };
 
 function guestToForm(g) {
@@ -97,12 +116,14 @@ function guestToForm(g) {
     guestType: g.guestType || "delegate",
     organizationId: g.organizationId || "",
     nationalityId: g.nationalityId || "",
-    tier: g.tier || "delegate",
+    serviceLevelId: g.serviceLevelId || "",
     invitationStatus: g.invitationStatus || "not_sent",
     arrivalDate: g.arrivalDate || "",
     departureDate: g.departureDate || "",
     photoUrl: g.photoUrl || "",
     accreditationRequired: !!g.accreditationRequired,
+    overrideServiceLevelRules: false,
+    serviceLevelOverrideReason: "",
   };
 }
 
@@ -118,9 +139,9 @@ const contentStyle = {
   position: "fixed",
   inset: 0,
   margin: "auto",
-  width: 560,
+  width: 640,
   maxWidth: "94vw",
-  height: 680,
+  height: 700,
   maxHeight: "92vh",
   zIndex: 1101,
   display: "flex",
@@ -135,6 +156,81 @@ const contentStyle = {
 // in up to 7 days before the event starts or leave up to 7 days after it ends.
 const DATE_MARGIN_DAYS = 7;
 
+// Colour per tier code. Only the colours live here — the codes and their
+// bilingual labels come from GET /v1/lookups/enums/guest (GuestEnumCatalog on
+// the server), so the vocabulary has one source of truth.
+const TIER_COLORS = {
+  vvip: "#e0b864",
+  vip: "#a78bda",
+  speaker: "var(--accent)",
+  delegate: "#5abf6e",
+  press: "var(--danger)",
+  observer: "var(--ink-mute)",
+};
+
+function LegacyTierPicker({ value, onChange, isAr, options }) {
+  const current = (value || "").toLowerCase();
+  if (!options?.length) {
+    return (
+      <div style={{ fontSize: 12, color: "var(--ink-mute)" }}>
+        {isAr ? "جارٍ التحميل…" : "Loading…"}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}
+    >
+      {options.map((opt) => {
+        const t = {
+          code: opt.code,
+          label: (isAr ? opt.nameAr : null) || opt.name,
+          color: TIER_COLORS[opt.code] || "var(--ink-mute)",
+        };
+        const selected = current === String(t.code).toLowerCase();
+        return (
+          <div
+            key={t.code}
+            onClick={() => onChange(t.code)}
+            style={{
+              padding: "10px",
+              borderRadius: 10,
+              cursor: "pointer",
+              textAlign: "center",
+              border: `1px solid ${selected ? t.color : "var(--glass-border)"}`,
+              background: selected
+                ? "var(--accent-soft)"
+                : "var(--surface-soft-2)",
+              fontSize: 13,
+              fontWeight: selected ? 600 : 400,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  background: t.color,
+                }}
+              />
+              {t.label}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GuestModal({
   open,
   onClose,
@@ -144,14 +240,31 @@ export default function GuestModal({
   eventEndDate,
   nationalities,
   organizations,
+  serviceLevels,
   templates,
   sessions,
   lang,
   onSaved,
   initialStep = 1,
+  initialMode = "new",
+  initialImportBatchId = null,
 }) {
   const isAr = lang === "ar";
   const isEdit = !!guest;
+  const { can } = useAuth();
+  const { events, activeEvent } = useEvents();
+  const canOverrideRules = can("ServiceLevels.OverrideRules");
+
+  // Every event uses service levels in v2; the fixed/flexible model only
+  // governs how the level's services must be completed, which is handled on the
+  // guest's Services tab. See docs/service-levels-v2.md.
+
+  // Tabs (Add Guest only — editing always goes straight into the "new"
+  // wizard on the existing guest). "existing" is a self-contained
+  // multi-select table (ExistingGuestPicker) that creates guests directly —
+  // it never feeds into the wizard steps below.
+  const [mode, setMode] = useState(initialMode);
+  const [existingSaving, setExistingSaving] = useState(false);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(() => guestToForm(guest));
@@ -162,16 +275,26 @@ export default function GuestModal({
     new Set(guest?.sessionIds || []),
   );
   const [step1Errors, setStep1Errors] = useState({});
+  // Backend-reported email problem (GUEST_ALREADY_ON_EVENT / GUEST_EMAIL_CONFLICT),
+  // shown under the email field rather than only as a toast so it's clear which
+  // field is at fault.
+  const [emailConflict, setEmailConflict] = useState(null);
+  // A participation in ANOTHER event with this exact email — the same person, so
+  // saving reuses them instead of creating a duplicate. Informational: the
+  // create call already does the right thing, this just says so up front and
+  // offers to carry their details over.
+  const [existingPerson, setExistingPerson] = useState(null);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [enums, setEnums] = useState({});
-  // Raw GET /travel/guest/{id} response; hydrated into `travel` below once
-  // travelLookups is available too (it may still be loading when this
-  // resolves — deriving from both avoids a race where roomTypeId can't be
-  // resolved yet).
   const [rawTravel, setRawTravel] = useState(null);
   const [travel, setTravel] = useState(EMPTY_TRAVEL);
   const [travelLookups, setTravelLookups] = useState({});
+  const [servicesCatalog, setServicesCatalog] = useState([]);
+
+  const [pendingServices, setPendingServices] = useState({});
+
+  const [editPlan, setEditPlan] = useState(null);
 
   // Reset/prefill whenever the modal opens for a (possibly different) guest —
   // covers switching between two different edit targets and going from edit
@@ -183,13 +306,147 @@ export default function GuestModal({
     setGuestSessions(new Set(guest?.sessionIds || []));
     setStep(initialStep);
     setStep1Errors({});
+    setEmailConflict(null);
+    setExistingPerson(null);
     setRawTravel(null);
+    setMode(initialMode);
+    setPendingServices({});
+    setEditPlan(null);
     if (guest?.id) {
       getGuestTravel(guest.id)
         .then(setRawTravel)
         .catch(() => setRawTravel(null));
+      // Prefills step 3 with what the guest already has, so editing a service is
+      // the same accordion as adding one rather than a nested dialog.
+      getGuestServicePlan(guest.id)
+        .then(setEditPlan)
+        .catch(() => setEditPlan(null));
     }
   }, [open, guest?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Create only: does this email already belong to a guest on some OTHER event?
+  // If so the backend will reuse that master Guest rather than making a second
+  // person, so the wizard says so before the admin fills in details that would
+  // be silently ignored (name/photo stay on the person, not the participation).
+  // `other-events` already excludes anyone on THIS event, so a hit here always
+  // means "another event" — same-event duplicates surface as the 409 below.
+  useEffect(() => {
+    if (!open || isEdit || !activeEventId) { setExistingPerson(null); return undefined; }
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setExistingPerson(null); return undefined; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      getGuestsFromOtherEvents({ currentEventId: activeEventId, search: email, pageSize: 5 })
+        .then((r) => {
+          if (cancelled) return;
+          const hit = (r?.items || []).find(
+            (row) => (row.email || "").trim().toLowerCase() === email,
+          );
+          setExistingPerson(hit || null);
+        })
+        .catch(() => { if (!cancelled) setExistingPerson(null); });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [open, isEdit, activeEventId, form.email]);
+
+  // Copies the person's stored details across so the new participation shows the
+  // same human rather than a half-filled duplicate. Only the person-level fields
+  // — service level, sessions, accreditation and invitation stay this event's own
+  // decision.
+  function applyExistingPerson() {
+    if (!existingPerson) return;
+    setForm((f) => ({
+      ...f,
+      firstName: existingPerson.firstName || f.firstName,
+      lastName: existingPerson.lastName || f.lastName,
+      guestType: existingPerson.guestType || f.guestType,
+      organizationId: existingPerson.organizationId || f.organizationId,
+      nationalityId: existingPerson.nationalityId || f.nationalityId,
+      photoUrl: existingPerson.photoUrl || f.photoUrl,
+    }));
+    setStep1Errors({});
+  }
+
+  // Seed the accordion from the plan's existing entries — dynamic services only.
+  // The built-ins live in `travel`, hydrated from getGuestTravel above.
+  //
+  // Only the FIRST entry per service is loaded: this accordion is one form per
+  // service, so a guest holding two flights can't have both represented here. The
+  // Services list on the guest's detail page manages the extras.
+  useEffect(() => {
+    if (!editPlan?.slots) return;
+    const seeded = {};
+    editPlan.slots.forEach((s) => {
+      if (s.isSystem) return;
+      const first = (s.entries || [])[0];
+      if (!first) return;
+      seeded[s.serviceId] = {
+        selected: true,
+        values: { ...(first.values || {}) },
+        completed: first.status === "completed",
+        entryId: first.id,
+      };
+    });
+    if (Object.keys(seeded).length)
+      setPendingServices((p) => ({ ...seeded, ...p }));
+  }, [editPlan]);
+
+  // "Existing Guest" tab bulk-add — each entry adds a NEW PARTICIPATION for an
+  // existing person. Sending their email is what links it: the backend finds
+  // that master Guest, reuses their identity and login, and only inserts the
+  // EventGuest row, so nobody is duplicated. Personal info comes from the source
+  // row; service level, sessionIds and accreditationRequired are whatever was
+  // checked/edited per-row in the table, since those belong to THIS event.
+  // Travel is never carried over — every added participation starts empty.
+  async function handleExistingSubmit(entries, invitationTemplateId) {
+    setExistingSaving(true);
+    let success = 0,
+      failed = 0;
+    // Backend reasons (e.g. "This guest is already on this event.") — worth
+    // showing, since with a batch the count alone says nothing about which row.
+    const reasons = [];
+    for (const e of entries) {
+      try {
+        await createGuest({
+          firstName: e.firstName,
+          lastName: e.lastName,
+          email: e.email || null,
+          guestType: e.guestType,
+          organizationId: e.organizationId || null,
+          nationalityId: e.nationalityId || null,
+          serviceLevelId: e.serviceLevelId || null,
+          photoUrl: e.photoUrl ? stripSasToken(e.photoUrl) : null,
+          accreditationRequired: !!e.accreditationRequired,
+          invitationTemplateId: invitationTemplateId || null,
+          sessionIds: e.sessionIds,
+          eventId: activeEventId,
+        });
+        success++;
+      } catch (err) {
+        failed++;
+        const who = `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.email;
+        if (err?.message) reasons.push(`${who}: ${err.message}`);
+      }
+    }
+    setExistingSaving(false);
+    onSaved?.();
+    if (failed === 0) {
+      toast.success(
+        isAr
+          ? `تمت إضافة ${success} ضيف`
+          : `Added ${success} guest${success === 1 ? "" : "s"}`,
+      );
+      handleClose();
+    } else {
+      toast.warning(
+        isAr
+          ? `تمت إضافة ${success} — فشل ${failed}`
+          : `Added ${success} — ${failed} failed`,
+        { description: reasons.length ? reasons.slice(0, 5).join("\n") : undefined },
+      );
+      if (success > 0) handleClose();
+    }
+  }
 
   useEffect(() => {
     setTravel(
@@ -203,14 +460,20 @@ export default function GuestModal({
   // whether the dialog is actually visible yet.
   useEffect(() => {
     if (!open) return;
-    getGuestEnums().then(setEnums);
+    getGuestEnums()
+      .then(setEnums)
+      .catch(() => setEnums({}));
+    getServices(false)
+      .then(setServicesCatalog)
+      .catch(() => setServicesCatalog([]));
   }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    getTravelLookups()
+    getTravelLookups(activeEventId)
       .then(setTravelLookups)
       .catch(() => setTravelLookups({}));
-  }, [open]);
+  }, [open, activeEventId]);
 
   const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -267,7 +530,24 @@ export default function GuestModal({
   function handleClose() {
     setStep(1);
     setStep1Errors({});
+    setEmailConflict(null);
+    setExistingPerson(null);
     onClose();
+  }
+
+  // Only the "new" tab uses the step wizard below — "import" and "existing"
+  // are fully self-contained panels that create guests directly.
+  const activeSteps = [1, 2, 3, 4];
+  const stepPos = activeSteps.indexOf(step);
+  const isLastStep = stepPos === activeSteps.length - 1;
+  const showWizard = mode === "new";
+
+  // Both the step-3 "Next" and the final Save run this — Save has to as well,
+  // since the wizard can be finished from any step.
+  function servicesError() {
+    // Same rule in both flows now: a ticked service has to be complete, whether it
+    // was ticked just now or was already there when the modal opened.
+    return validateServices(wizardSlots, pendingServices, travel, isAr);
   }
 
   function handleNext() {
@@ -286,20 +566,43 @@ export default function GuestModal({
         return;
       }
     }
+    // No service has to be TICKED to move on — anything left unticked is added
+    // later from the guest's Services list. But a ticked one has to be complete:
+    // ticking it is the request, so a half-filled form is an error rather than
+    // something to silently drop.
     if (step === 3) {
-      const travelErr = validateTravel(travel, isAr);
-      if (travelErr) {
-        toast.error(travelErr);
+      const err = servicesError();
+      if (err) {
+        toast.error(err);
         return;
       }
     }
-    setStep((s) => s + 1);
+    setStep(activeSteps[stepPos + 1]);
   }
 
   async function handleSave() {
-    const travelErr = validateTravel(travel, isAr);
+    const travelErr = servicesError();
     if (travelErr) {
       toast.error(travelErr);
+      return;
+    }
+
+    // Stop here rather than letting the backend 409 — same rules, friendlier
+    // moment. The override path is only offered to those who hold the permission.
+    if (
+      ruleViolations.length > 0 &&
+      !(canOverrideRules && form.overrideServiceLevelRules)
+    ) {
+      toast.error(
+        canOverrideRules
+          ? isAr
+            ? "قواعد مستوى الخدمة غير مستوفاة — فعّل التجاوز للحفظ على أي حال."
+            : "This service level's rules aren't met — tick the override to save anyway."
+          : isAr
+            ? "قواعد مستوى الخدمة غير مستوفاة، وتحتاج صلاحية للتجاوز."
+            : "This service level's rules aren't met, and you don't have override permission.",
+      );
+      setStep(2);
       return;
     }
     setSaving(true);
@@ -311,7 +614,18 @@ export default function GuestModal({
         guestType: form.guestType,
         organizationId: form.organizationId || null,
         nationalityId: form.nationalityId || null,
-        tier: form.tier,
+        // Sent on both guest models — a level is what gives the guest a service
+        // checklist at all; the model only decides whether those services are
+        // mandatory and ordered (fixed) or optional (flexible).
+        serviceLevelId: form.serviceLevelId || null,
+        // Only sent when there's actually something to waive, so a stale tick
+        // can't record a phantom override on a clean save.
+        overrideServiceLevelRules:
+          ruleViolations.length > 0 && form.overrideServiceLevelRules,
+        serviceLevelOverrideReason:
+          ruleViolations.length > 0 && form.overrideServiceLevelRules
+            ? form.serviceLevelOverrideReason || null
+            : null,
         arrivalDate: form.arrivalDate || null,
         departureDate: form.departureDate || null,
         photoUrl: stripSasToken(form.photoUrl) || null,
@@ -320,7 +634,10 @@ export default function GuestModal({
         sessionIds: Array.from(guestSessions),
       };
 
-      let guestId = guest?.id;
+      // The participation everything below is saved against — GuestResponse.id,
+      // i.e. an EventGuest.PublicId. On create this is a brand-new participation
+      // even when the person already existed (same email, another event).
+      let eventGuestId = guest?.id;
       if (isEdit) {
         await updateGuest(guest.id, payload);
       } else {
@@ -328,13 +645,16 @@ export default function GuestModal({
           ...payload,
           eventId: activeEventId,
         });
-        guestId = created?.id;
+        eventGuestId = created?.id;
       }
 
-      if (guestId && anyTravelEnabled(travel)) {
+      // Both flows now, because step 3 edits travel in THIS modal either way. Each
+      // section carries the booking's own id when it was hydrated, so a save
+      // updates that booking rather than adding a second one.
+      if (eventGuestId && anyTravelEnabled(travel)) {
         try {
           await saveGuestTravel(
-            guestId,
+            eventGuestId,
             buildTravelPayload(travel, travelLookups),
           );
         } catch {
@@ -347,6 +667,75 @@ export default function GuestModal({
                 ? "تم حفظ الضيف لكن تعذّر حفظ بيانات السفر"
                 : "Guest saved, but travel details failed to save",
           );
+        }
+      }
+
+      // Services the wizard collected. Sequential on purpose: on a Fixed event
+      // the server rejects a service whose predecessor is not yet complete, so
+      // they have to go in order, and awaiting each keeps that true.
+      if (eventGuestId) {
+        for (const slot of wizardSlots) {
+          // The built-ins went to the travel endpoint above; the server refuses
+          // them here on purpose (SERVICE_STATIC).
+          if (slot.isSystem) continue;
+          const filled = pendingServices[slot.serviceId];
+          // A key existing is not the same as a value being there: opening a
+          // service and touching a field (or a date picker normalising itself)
+          // leaves blank keys behind. Only real input creates an entry — the
+          // others stay pending, which is what having no row already means.
+          const hasValue = Object.values(filled?.values || {}).some(
+            (v) => String(v ?? "").trim() !== "",
+          );
+          if (!hasValue) continue;
+          try {
+            await saveGuestServiceEntry(eventGuestId, {
+              // Set when this service already had an entry, so editing updates
+              // that row instead of leaving the guest with two of them.
+              id: filled.entryId || null,
+              serviceId: slot.serviceId,
+              values: filled.values,
+              // Ticked and past servicesError() means every required field is in,
+              // so it's complete whether or not the user pressed Done. Saving it
+              // as a draft instead would leave the NEXT service locked on a Fixed
+              // event, and the loop below it would then be rejected.
+              markCompleted: true,
+            });
+          } catch (err) {
+            // Surfaced with the reason, not a generic line — the API explains
+            // sequence and validation failures in a sentence worth reading.
+            toast.error(
+              isAr
+                ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}": ${err?.message || ""}`
+                : `Guest saved, but "${slot.name}" could not be saved: ${err?.message || ""}`,
+            );
+          }
+        }
+
+        // Every earlier entry this session's "Add another" queued up, one save
+        // call each — always a brand new row, never the ones saved above.
+        for (const slot of wizardSlots) {
+          const extras = slotExtras(slot, pendingServices);
+          if (extras.length === 0) continue;
+          try {
+            if (slot.isSystem) {
+              const key = TRAVEL_SECTION[slot.code];
+              for (const snap of extras) {
+                await saveGuestTravel(eventGuestId, buildTravelPayload({ ...EMPTY_TRAVEL, [key]: snap }));
+              }
+            } else {
+              for (const snap of extras) {
+                await saveGuestServiceEntry(eventGuestId, {
+                  id: null, serviceId: slot.serviceId, values: snap.values || {}, markCompleted: true,
+                });
+              }
+            }
+          } catch (err) {
+            toast.error(
+              isAr
+                ? `تم حفظ الضيف لكن تعذّر حفظ إدخال إضافي لخدمة "${slot.name}": ${err?.message || ""}`
+                : `Guest saved, but an extra "${slot.name}" entry could not be saved: ${err?.message || ""}`,
+            );
+          }
         }
       }
 
@@ -366,6 +755,15 @@ export default function GuestModal({
               : "Guest added successfully",
       );
     } catch (err) {
+      // Same email, same event -> the person is already a participant here.
+      // Same email, non-guest portal account -> the address is taken. Both are
+      // about the email field, so they're pinned to it and the wizard steps back
+      // to where it can be fixed instead of only flashing a toast.
+      if (err?.errorCode === "GUEST_ALREADY_ON_EVENT" || err?.errorCode === "GUEST_EMAIL_CONFLICT") {
+        setEmailConflict(err.message);
+        setStep1Errors((p) => ({ ...p, email: false }));
+        setStep(1);
+      }
       toast.fromError(
         err,
         isEdit
@@ -381,20 +779,23 @@ export default function GuestModal({
     }
   }
 
+  // Same source as the tier picker — GET /v1/lookups/enums/guest — rather than
+  // a hardcoded list duplicating the server's vocabulary.
   const guestTypeOpts = useMemo(
     () =>
-      GUEST_TYPES.map((gt) => ({
-        value: gt,
-        label: gt.charAt(0).toUpperCase() + gt.slice(1),
+      (enums?.GuestType || []).map((gt) => ({
+        value: gt.code,
+        label: (isAr ? gt.nameAr : null) || gt.name,
       })),
-    [],
+    [enums, isAr],
   );
 
   const nationalityOpts = useMemo(
     () =>
       nationalities.map((n) => ({
         value: n.id,
-        label: `${n.flag} ${isAr ? n.nameAr : n.name}`,
+        label: (isAr ? n.nameAr : n.name) || n.name,
+        code: n.code,
       })),
     [nationalities, isAr],
   );
@@ -403,21 +804,123 @@ export default function GuestModal({
     () =>
       (organizations || []).map((o) => ({
         value: o.id,
-        label: isAr ? (o.nameAr || o.name) : o.name,
+        label: isAr ? o.nameAr || o.name : o.name,
       })),
     [organizations, isAr],
   );
 
-  const stepLabels = isAr
-    ? ["المعلومات الشخصية", "الفئة والجلسات", "السفر والإقامة", "الدعوة"]
-    : ["Personal Info", "Matches & Tier", "Services", "Invitation"];
+  const selectedLevel = useMemo(
+    () =>
+      (serviceLevels || []).find((l) => l.id === form.serviceLevelId) || null,
+    [serviceLevels, form.serviceLevelId],
+  );
+
+  // Rules are evaluated client-side from data we already have (the level's
+  // capacity/headcount + this form's own field values), so the warning appears
+  // as you type instead of only on submit. The backend re-validates on save —
+  // this is a convenience, never the enforcement point.
+  const ruleViolations = useMemo(() => {
+    if (!selectedLevel) return [];
+    const out = [];
+
+    // On edit, a guest already on this level doesn't count against its capacity.
+    const alreadyHere = isEdit && guest?.serviceLevelId === selectedLevel.id;
+    if (
+      !alreadyHere &&
+      selectedLevel.capacity != null &&
+      selectedLevel.guestCount >= selectedLevel.capacity
+    ) {
+      out.push(
+        isAr
+          ? `"${selectedLevel.name}" ممتلئ (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`
+          : `"${selectedLevel.name}" is at capacity (${selectedLevel.guestCount} / ${selectedLevel.capacity}).`,
+      );
+    }
+
+    const FIELD_LABELS = {
+      email: isAr ? "البريد الإلكتروني" : "Email",
+      nationalityId: isAr ? "الجنسية" : "Nationality",
+      organizationId: isAr ? "المؤسسة" : "Organization",
+      photoUrl: isAr ? "الصورة" : "Photo",
+      arrivalDate: isAr ? "تاريخ الوصول" : "Arrival date",
+      departureDate: isAr ? "تاريخ المغادرة" : "Departure date",
+    };
+    const missing = (selectedLevel.requiredGuestFields || [])
+      .filter((key) => !String(form[key] ?? "").trim())
+      .map((key) => FIELD_LABELS[key] || key);
+
+    if (missing.length > 0) {
+      out.push(
+        isAr
+          ? `"${selectedLevel.name}" يتطلب: ${missing.join("، ")}.`
+          : `"${selectedLevel.name}" requires: ${missing.join(", ")}.`,
+      );
+    }
+
+    return out;
+  }, [selectedLevel, form, isAr, isEdit, guest?.serviceLevelId]);
+
+  // Step 2 is named after whichever classifier the event actually uses, so the
+  // stepper doesn't promise a Service Level on a flexible event. Steps 2 and 3
+  // are labelled for what they actually render ("Sessions, Tier & Accreditation"
+  // and "Travel & Stay") rather than the older "Matches & Tier"/"Services".
+  const allStepLabels = isAr
+    ? ["المعلومات الشخصية", "مستوى الخدمة والجلسات", "الخدمات", "الدعوة"]
+    : ["Personal Info", "Service Level & Sessions", "Services", "Invitation"];
+  // Mapped through activeSteps (from main) because the wizard can now skip
+  // steps — the label list is no longer a fixed 1:1 with what's rendered.
+  const stepLabels = activeSteps.map((s) => allStepLabels[s - 1]);
+
+  // The level's services, joined to their form schemas, in completion order.
+  //
+  // Editing prefers the guest's PLAN: same slots, but it also carries the entries
+  // they already hold, so step 3 can open pre-filled instead of blank. It falls
+  // back to the level while the plan is loading, or if the level was just changed
+  // on step 2 (the plan still describes the old one).
+  const wizardSlots = useMemo(() => {
+    const byId = new Map((servicesCatalog || []).map((x) => [x.id, x]));
+    const levelUnchanged =
+      isEdit && guest?.serviceLevelId === form.serviceLevelId;
+
+    if (levelUnchanged && editPlan?.slots?.length) {
+      return editPlan.slots.map((s) => ({
+        ...s,
+        form: s.form?.sections?.length
+          ? s.form
+          : byId.get(s.serviceId)?.form || { sections: [] },
+      }));
+    }
+
+    return (selectedLevel?.services || []).map((a) => ({
+      ...a,
+      form: byId.get(a.serviceId)?.form || { sections: [] },
+      // Flight / Accommodation / Transport are built in: static fields, own
+      // tables, saved by saveGuestTravel below rather than as a service entry.
+      isSystem: byId.get(a.serviceId)?.isSystem ?? !!TRAVEL_SECTION[a.code],
+    }));
+  }, [
+    selectedLevel,
+    servicesCatalog,
+    isEdit,
+    editPlan,
+    guest?.serviceLevelId,
+    form.serviceLevelId,
+  ]);
+
+  // On a Fixed event the order is a rule, so the wizard mirrors the server's
+  // gate locally — nothing is saved yet, but you still cannot fill service 2
+  // before service 1.
+  const isFixedEvent = activeEvent?.guestModel === "fixed";
+  const firstIncomplete = wizardSlots.findIndex(
+    (x) => !pendingServices[x.serviceId]?.completed,
+  );
 
   const inputStyle = {
     width: "100%",
     background: "var(--surface-soft-3)",
     border: "1px solid var(--glass-border)",
     borderRadius: 8,
-    padding: "9px 12px",
+    padding: "7px 12px",
     color: "var(--ink)",
     fontSize: 13,
   };
@@ -429,16 +932,34 @@ export default function GuestModal({
       <Dialog.Portal>
         <Dialog.Overlay style={overlayStyle} />
         <Dialog.Content
-          className="modal-solid"
-          style={contentStyle}
+          // `guest-modal-content` is the hook the ≤768px rule uses to turn this
+          // fixed 640×700 box into a full-height sheet (styles/qoc-revamp.css).
+          className="modal-solid guest-modal-content"
+          style={
+            mode === "existing"
+              ? { ...contentStyle, width: 1040 }
+              : contentStyle
+          }
           onInteractOutside={(e) => e.preventDefault()}
           onFocusOutside={(e) => e.preventDefault()}
         >
+          {/* No mode switcher here any more. The three ways to add a guest are
+              picked from the "Add Guest" dropdown on the Guests page, so by the
+              time this dialog opens the choice is already made — a tab strip
+              restating it just crowded the top of all three. `mode` still drives
+              which body renders; it now comes in via initialMode and doesn't
+              change while the dialog is open. */}
+
           {/* Header */}
           <div
             style={{
-              padding: "18px 24px",
-              borderBottom: "1px solid var(--glass-border)",
+              padding: "4px 24px 16px",
+              // The divider belongs to whichever row is last before the body.
+              // With the wizard showing that's the step row; without it (Import
+              // / Existing Guest) the title is last and carries it here.
+              borderBottom: showWizard
+                ? "none"
+                : "1px solid var(--glass-border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
@@ -449,13 +970,24 @@ export default function GuestModal({
               <Dialog.Title
                 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 600 }}
               >
+                {/* Names the specific flow, not just "Add Guest" — with the mode
+                    tabs gone this title is the only thing telling the user which
+                    of the three they picked. */}
                 {isEdit
                   ? isAr
                     ? "تعديل الضيف"
                     : "Edit Guest"
-                  : isAr
-                    ? "ضيف جديد"
-                    : "Add New Guest"}
+                  : mode === "existing"
+                    ? isAr
+                      ? "إضافة ضيف حالي"
+                      : "Add Existing Guest"
+                    : mode === "import"
+                      ? isAr
+                        ? "استيراد ضيوف من CSV"
+                        : "Import Guests from CSV"
+                      : isAr
+                        ? "ضيف جديد"
+                        : "Add New Guest"}
                 {isEdit && (
                   <span
                     style={{
@@ -469,72 +1001,6 @@ export default function GuestModal({
                   </span>
                 )}
               </Dialog.Title>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                {stepLabels.map((label, i) => {
-                  const s = i + 1,
-                    done = step > s,
-                    active = step === s;
-                  return (
-                    <React.Fragment key={i}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            display: "grid",
-                            placeItems: "center",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            flexShrink: 0,
-                            background: done
-                              ? "var(--accent-deep)"
-                              : active
-                                ? "var(--accent)"
-                                : "var(--surface-soft-4)",
-                            color: done || active ? "#fff" : "var(--ink-mute)",
-                          }}
-                        >
-                          {done ? <Icon name="check" size={11} /> : s}
-                        </div>
-                        <span
-                          style={{
-                            fontSize: 11.5,
-                            whiteSpace: "nowrap",
-                            color: active
-                              ? "var(--accent)"
-                              : done
-                                ? "var(--ink-dim)"
-                                : "var(--ink-mute)",
-                            fontWeight: active ? 600 : 400,
-                          }}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                      {i < stepLabels.length - 1 && (
-                        <div
-                          style={{
-                            width: 18,
-                            height: 1,
-                            background: done
-                              ? "var(--accent-deep)"
-                              : "var(--glass-border)",
-                            margin: "0 5px",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
             </div>
             <Dialog.Close asChild>
               <button
@@ -545,6 +1011,37 @@ export default function GuestModal({
               </button>
             </Dialog.Close>
           </div>
+
+          {showWizard && (
+            /* Every step carries its label all the time, and the connecting
+               bars flex to fill the row — one continuous progress bar
+               spanning the full modal width, not a cluster of dots. */
+            <div className="wizard-steps" role="group" aria-label="Progress">
+              {stepLabels.map((label, i) => {
+                const s = activeSteps[i];
+                const done = stepPos > i;
+                const active = step === s;
+                return (
+                  <React.Fragment key={i}>
+                    <div
+                      className={`wizard-step${active ? " active" : ""}${done ? " done" : ""}`}
+                      aria-current={active ? "step" : undefined}
+                    >
+                      <span className="wizard-dot">
+                        {done ? <Icon name="check" size={11} /> : s}
+                      </span>
+                      <span className="wizard-label" title={label}>
+                        {label}
+                      </span>
+                    </div>
+                    {i < stepLabels.length - 1 && (
+                      <span className={`wizard-bar${done ? " done" : ""}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
 
           {/* Body */}
           <div
@@ -557,8 +1054,29 @@ export default function GuestModal({
               gap: 14,
             }}
           >
+            {mode === "import" && (
+              <ImportGuestsPanel
+                activeEventId={activeEventId}
+                lang={lang}
+                onImported={onSaved}
+                initialBatchId={initialImportBatchId}
+              />
+            )}
+
+            {mode === "existing" && (
+              <ExistingGuestPicker
+                activeEventId={activeEventId}
+                lang={lang}
+                sessions={sessions}
+                enums={enums}
+                templates={templates}
+                saving={existingSaving}
+                onSubmit={handleExistingSubmit}
+              />
+            )}
+
             {/* STEP 1 — Personal Info */}
-            {step === 1 && (
+            {showWizard && step === 1 && (
               <>
                 <div
                   style={{
@@ -622,6 +1140,7 @@ export default function GuestModal({
                         accept="image/*"
                         onChange={handlePhotoSelect}
                         disabled={photoUploading}
+                        title="Guest Photo"
                         style={{ display: "none" }}
                       />
                     </label>
@@ -633,11 +1152,12 @@ export default function GuestModal({
                         : "Uploading…"
                       : isAr
                         ? "صورة الوجه (اختياري)"
-                        : "Facial photo"}
+                        : ""}
                   </div>
                   {form.photoUrl && !photoUploading && (
                     <button
                       onClick={() => setF("photoUrl", "")}
+                      title=""
                       style={{
                         background: "none",
                         border: "none",
@@ -699,30 +1219,78 @@ export default function GuestModal({
                     onChange={(e) => {
                       setF("email", e.target.value);
                       setStep1Errors((p) => ({ ...p, email: false }));
+                      setEmailConflict(null);
                     }}
-                    style={step1Errors.email ? errorBorder : inputStyle}
+                    style={
+                      step1Errors.email || emailConflict ? errorBorder : inputStyle
+                    }
                   />
                   {step1Errors.email && (
                     <div style={errMsg}>{isAr ? "مطلوب" : "Required"}</div>
                   )}
+                  {/* Straight from the backend (GUEST_ALREADY_ON_EVENT /
+                      GUEST_EMAIL_CONFLICT) — its wording already explains which
+                      case it is. */}
+                  {emailConflict && !step1Errors.email && (
+                    <div style={errMsg}>{emailConflict}</div>
+                  )}
+                  {/* Same email, DIFFERENT event: not an error. Saving adds this
+                      person to this event, reusing their identity and login. */}
+                  {existingPerson && !emailConflict && (
+                    <div
+                      className="alert alert-info"
+                      style={{
+                        marginTop: 8, fontSize: 12, display: "flex",
+                        alignItems: "flex-start", gap: 8,
+                      }}
+                    >
+                      <Icon name="alert" size={14} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div>
+                          {isAr
+                            ? `${existingPerson.firstName || ""} ${existingPerson.lastName || ""} مسجّل بالفعل في "${existingPerson.eventTitle}". سيتم إضافة نفس الشخص إلى هذه الفعالية دون إنشاء ضيف مكرر.`
+                            : `${`${existingPerson.firstName || ""} ${existingPerson.lastName || ""}`.trim()} is already a guest on "${existingPerson.eventTitle}". Saving adds that same person to this event — no duplicate is created.`}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ marginTop: 8 }}
+                          onClick={applyExistingPerson}
+                        >
+                          <Icon name="check" size={12} />
+                          {isAr ? "استخدام بيانات الضيف الحالي" : "Use existing guest's details"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <FieldLabel>{isAr ? "نوع الضيف" : "Guest Type"}</FieldLabel>
-                  <Select
-                    value={form.guestType}
-                    onChange={(v) => setF("guestType", v)}
-                    options={guestTypeOpts}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{isAr ? "المؤسسة" : "Organization"}</FieldLabel>
-                  <Select
-                    value={form.organizationId}
-                    onChange={(v) => setF("organizationId", v)}
-                    options={organizationOpts}
-                    placeholder={isAr ? "— اختر —" : "— Select —"}
-                    isClearable
-                  />
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <FieldLabel>{isAr ? "نوع الضيف" : "Guest Type"}</FieldLabel>
+                    <Select
+                      value={form.guestType}
+                      onChange={(v) => setF("guestType", v)}
+                      options={guestTypeOpts}
+                      placeMenu="top"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>{isAr ? "المؤسسة" : "Organization"}</FieldLabel>
+                    <Select
+                      value={form.organizationId}
+                      onChange={(v) => setF("organizationId", v)}
+                      options={organizationOpts}
+                      placeholder={isAr ? "— اختر —" : "— Select —"}
+                      isClearable
+                      placeMenu="top"
+                    />
+                  </div>
                 </div>
                 <div>
                   <FieldLabel>{isAr ? "الجنسية" : "Nationality"}</FieldLabel>
@@ -730,15 +1298,17 @@ export default function GuestModal({
                     value={form.nationalityId}
                     onChange={(v) => setF("nationalityId", v)}
                     options={nationalityOpts}
+                    formatOptionLabel={nationalityOptionLabel}
                     placeholder={isAr ? "— اختر —" : "— Select —"}
                     isClearable
+                    placeMenu="top"
                   />
                 </div>
               </>
             )}
 
             {/* STEP 2 — Sessions, Tier & Accreditation */}
-            {step === 2 && (
+            {showWizard && step === 2 && (
               <>
                 <div>
                   <div
@@ -858,7 +1428,7 @@ export default function GuestModal({
                               }}
                             >
                               <span style={{ fontFamily: "var(--mono)" }}>
-                                {s.date} · {s.time}
+                                {fmtDate(s.date)} · {s.time}
                               </span>
                               {s.venueName || s.room
                                 ? ` · ${[s.venueName, s.room].filter(Boolean).join(" · ")}`
@@ -887,36 +1457,256 @@ export default function GuestModal({
                   </div>
                 </div>
                 <div>
-                  <SectionLabel>{isAr ? "الفئة" : "Tier"}</SectionLabel>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 8,
-                    }}
-                  >
-                    {enums?.GuestTier?.map((tier) => (
+                  <SectionLabel>
+                    {isAr ? "مستوى الخدمة" : "Service Level"}
+                  </SectionLabel>
+                  {(serviceLevels || []).length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 10,
+                        fontSize: 12.5,
+                        color: "#e0c47e",
+                        background: "rgba(224,196,126,0.12)",
+                        border: "1px solid rgba(224,196,126,0.4)",
+                      }}
+                    >
+                      <Icon name="alert" size={13} />{" "}
+                      {isAr
+                        ? "لا توجد مستويات خدمة لهذه الفعالية — أضفها من صفحة مستويات الخدمة أولاً."
+                        : "This event has no service levels yet — add some on the Service Levels page first."}
+                    </div>
+                  ) : (
+                    <>
                       <div
-                        key={tier.code}
-                        onClick={() => setF("tier", tier.code)}
                         style={{
-                          padding: "12px 10px",
-                          borderRadius: 10,
-                          cursor: "pointer",
-                          textAlign: "center",
-                          border: `1px solid ${form.tier === tier.code ? "var(--accent)" : "var(--glass-border)"}`,
-                          background:
-                            form.tier === tier.code
-                              ? "rgba(26,174,196,0.12)"
-                              : "var(--surface-soft-2)",
-                          fontSize: 13,
-                          fontWeight: form.tier === tier.code ? 600 : 400,
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr 1fr",
+                          gap: 8,
                         }}
                       >
-                        {tier.name}
+                        {serviceLevels.map((lvl) => {
+                          const selected = form.serviceLevelId === lvl.id;
+                          const full =
+                            lvl.capacity != null &&
+                            lvl.guestCount >= lvl.capacity;
+                          return (
+                            <div
+                              key={lvl.id}
+                              onClick={() => setF("serviceLevelId", lvl.id)}
+                              title={
+                                full
+                                  ? isAr
+                                    ? "ممتلئ"
+                                    : "At capacity"
+                                  : undefined
+                              }
+                              style={{
+                                padding: "10px",
+                                borderRadius: 10,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                border: `1px solid ${selected ? lvl.color || "var(--accent)" : "var(--glass-border)"}`,
+                                background: selected
+                                  ? `${lvl.color || "#8d0134"}1f`
+                                  : "var(--surface-soft-2)",
+                                fontSize: 13,
+                                fontWeight: selected ? 600 : 400,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: "50%",
+                                    flexShrink: 0,
+                                    background: lvl.color || "var(--ink-mute)",
+                                  }}
+                                />
+                                {(isAr ? lvl.nameAr : null) || lvl.name}
+                              </div>
+                              {lvl.capacity != null && (
+                                <div
+                                  style={{
+                                    fontSize: 10,
+                                    marginTop: 3,
+                                    fontFamily: "var(--mono)",
+                                    color: full
+                                      ? "#e0c47e"
+                                      : "var(--ink-faint)",
+                                  }}
+                                >
+                                  {lvl.guestCount} / {lvl.capacity}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+
+                      {/* What this level includes — read-only, inherited by the guest. */}
+                      {selectedLevel &&
+                        (selectedLevel.services || []).length > 0 && (
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: "10px 12px",
+                              borderRadius: 10,
+                              background: "var(--surface-soft-2)",
+                              border: "1px solid var(--glass-border)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "var(--ink-mute)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.08em",
+                                marginBottom: 6,
+                              }}
+                            >
+                              {isAr ? "يشمل" : "Includes"}
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 5,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {selectedLevel.services.map((s, i) => (
+                                <React.Fragment key={s.serviceId}>
+                                  {i > 0 && (
+                                    <Icon
+                                      name="chevronRight"
+                                      size={10}
+                                      style={{ color: "var(--ink-faint)" }}
+                                    />
+                                  )}
+                                  <span
+                                    className="chip"
+                                    style={{ fontSize: 10.5 }}
+                                  >
+                                    {(isAr ? s.nameAr : null) || s.name}
+                                  </span>
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Rule violations — blocking unless the user may override. */}
+                      {ruleViolations.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            fontSize: 12.5,
+                            color: "#e0c47e",
+                            background: "rgba(224,196,126,0.12)",
+                            border: "1px solid rgba(224,196,126,0.4)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              fontWeight: 600,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Icon name="alert" size={13} />
+                            {isAr ? "قواعد المستوى" : "Level rules"}
+                          </div>
+                          <ul
+                            style={{
+                              margin: 0,
+                              paddingInlineStart: 18,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 3,
+                            }}
+                          >
+                            {ruleViolations.map((v, i) => (
+                              <li key={i}>{v}</li>
+                            ))}
+                          </ul>
+
+                          {canOverrideRules ? (
+                            <>
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginTop: 10,
+                                  cursor: "pointer",
+                                  color: "var(--ink)",
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={form.overrideServiceLevelRules}
+                                  onChange={(e) =>
+                                    setF(
+                                      "overrideServiceLevelRules",
+                                      e.target.checked,
+                                    )
+                                  }
+                                  style={{
+                                    accentColor: "var(--accent)",
+                                    cursor: "pointer",
+                                  }}
+                                />
+                                {isAr
+                                  ? "تجاوز القواعد وحفظ على أي حال"
+                                  : "Override the rules and save anyway"}
+                              </label>
+                              {form.overrideServiceLevelRules && (
+                                <input
+                                  style={{ ...inputStyle, marginTop: 8 }}
+                                  value={form.serviceLevelOverrideReason}
+                                  placeholder={
+                                    isAr
+                                      ? "سبب التجاوز (اختياري، يُسجَّل)"
+                                      : "Reason for the override (optional, recorded)"
+                                  }
+                                  onChange={(e) =>
+                                    setF(
+                                      "serviceLevelOverrideReason",
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <div
+                              style={{
+                                marginTop: 8,
+                                fontSize: 11.5,
+                                color: "var(--ink-mute)",
+                              }}
+                            >
+                              {isAr
+                                ? "تحتاج صلاحية تجاوز القواعد لإضافة هذا الضيف لهذا المستوى."
+                                : "You need override permission to place this guest on this level."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div>
                   <label
@@ -965,24 +1755,63 @@ export default function GuestModal({
               </>
             )}
 
-            {/* STEP 3 — Travel & Stay */}
-            {step === 3 && (
+            {/* STEP 3 — Services from the guest's level */}
+            {showWizard && step === 3 && (
               <>
-                <TravelAccordion
-                  travel={travel}
-                  onChange={setTravel}
-                  lookups={travelLookups}
-                  isAr={isAr}
-                  dateMinDate={dateWindowMin}
-                  dateMaxDate={dateWindowMax}
-                  eventMinDate={eventStartDate}
-                  eventMaxDate={eventEndDate}
-                />
+                {!selectedLevel ? (
+                  <div className="alert alert-info" style={{ fontSize: 12.5 }}>
+                    <Icon name="alert" size={14} />
+                    <div>
+                      {isAr
+                        ? "اختر مستوى خدمة في الخطوة السابقة لعرض الخدمات."
+                        : "Pick a service level on the previous step to see its services."}
+                    </div>
+                  </div>
+                ) : wizardSlots.length === 0 ? (
+                  <div className="alert alert-warn" style={{ fontSize: 12.5 }}>
+                    <Icon name="alert" size={14} />
+                    <div>
+                      {isAr
+                        ? `لا توجد خدمات مُسنَدة إلى "${selectedLevel.name}" بعد.`
+                        : `No services are assigned to "${selectedLevel.name}" yet. Add some on the Service Levels page.`}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
+                      {isFixedEvent
+                        ? isAr
+                          ? "ضع علامة على الخدمة لإضافتها الآن — بالترتيب. ما تتركه يمكن إضافته لاحقاً من زر الحجز الجديد."
+                          : "Tick a service to add it now, in order. Anything you leave unticked can be added later from New Booking."
+                        : isAr
+                          ? "ضع علامة على ما تريد إضافته الآن — كل الخدمات اختيارية."
+                          : "Tick whichever you want to add now — all of them are optional."}
+                    </div>
+
+                    <ServiceAccordion
+                      slots={wizardSlots}
+                      pending={pendingServices}
+                      onPendingChange={setPendingServices}
+                      travel={travel}
+                      onTravelChange={setTravel}
+                      travelLookups={travelLookups}
+                      isFixed={isFixedEvent}
+                      lang={lang}
+                      eventId={activeEventId}
+                      eventStart={eventStartDate}
+                      eventEnd={eventEndDate}
+                      dateMinDate={dateWindowMin}
+                      dateMaxDate={dateWindowMax}
+                      allowAddAnother={false}
+                      lockOnDone={isEdit}
+                    />
+                  </>
+                )}
               </>
             )}
 
             {/* STEP 4 — Invitation */}
-            {step === 4 && (
+            {showWizard && step === 4 && (
               <>
                 <div>
                   <div
@@ -1192,9 +2021,13 @@ export default function GuestModal({
           >
             <button
               className="btn"
-              onClick={() => (step > 1 ? setStep(step - 1) : handleClose())}
+              onClick={() => {
+                if (showWizard && stepPos > 0)
+                  setStep(activeSteps[stepPos - 1]);
+                else handleClose();
+              }}
             >
-              {step > 1 ? (
+              {showWizard && stepPos > 0 ? (
                 <>
                   <Icon name="arrowLeft" size={13} /> {isAr ? "السابق" : "Back"}
                 </>
@@ -1204,11 +2037,12 @@ export default function GuestModal({
                 "Cancel"
               )}
             </button>
-            {step < 4 ? (
+            {showWizard && !isLastStep && (
               <button className="btn primary" onClick={handleNext}>
                 {isAr ? "التالي" : "Next"} <Icon name="arrow" size={13} />
               </button>
-            ) : (
+            )}
+            {showWizard && isLastStep && (
               <button
                 className="btn primary"
                 onClick={handleSave}

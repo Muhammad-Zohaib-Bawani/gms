@@ -29,11 +29,20 @@ function normalize(dto) {
     title: dto.title,
     subtitle,
     status: dto.status,
+    // Consumed by the dynamic service forms, whose date fields can be
+    // constrained to the event window.
+    startDate: dto.startDate || null,
+    endDate: dto.endDate || null,
     accent: dto.themeAccent || '#8d0134',
     secondary: dto.themeSecondary || '#e0c47e',
     logoDark: dto.logoDarkUrl || '',
     logoLight: dto.logoLightUrl || '',
     image: dto.imageUrl || '',
+    // 'fixed' runs the Service Level flow (levels, bundled services, capacity
+    // and required-field rules); 'flexible' is the older unrestricted flow
+    // where Guest.Tier is a plain string. Absent means flexible — that is the
+    // backend default and what an event that predates the field behaves as.
+    guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
   };
 }
 

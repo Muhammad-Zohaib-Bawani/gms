@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { fmtNum, toArDigits } from '../i18n/translations';
 import { Icon } from '../components/Icons';
 import ActionMenu from '../components/ui/ActionMenu';
@@ -8,11 +9,11 @@ import { getVenues } from '../api/services/venueService';
 import { uploadImageFile } from '../api/services/uploadService';
 import { toViewEvent, toEventRequest, toSessionRequest } from '../api/adapters/eventAdapters';
 import { toast } from '../lib/toast';
+import ImportEventsModal from './ImportEventsModal';
 import Select from '../components/ui/Select';
 import DateField from '../components/ui/DateField';
-import { startOfToday, isPastDate, toDate, toIsoDate } from '../lib/date';
+import { startOfToday, isPastDate, toDate, toIsoDate, fmtDate } from '../lib/date';
 
-const EVENT_TYPES = ["Conference","Sports","Exhibition","Food Festival", "Others"];
 const EVENT_TYPE_ICONS = {
   Conference: "meetings", Forum: "globe", Summit: "protocol", Gala: "star",
   Workshop: "edit", Exhibition: "image", Bilateral: "guests", Ceremony: "badge", default: "meetings",
@@ -52,18 +53,6 @@ const INITIAL_EVENTS = [
     sessions: [],
   },
 ];
-
-function toHex(color) {
-  if (!color) return '#000000';
-  const s = color.trim();
-  if (s.startsWith('#')) {
-    if (s.length === 4) return '#' + s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
-    return s.toLowerCase().slice(0, 7);
-  }
-  const m = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-  if (m) return '#' + [m[1],m[2],m[3]].map(n => parseInt(n).toString(16).padStart(2,'0')).join('');
-  return s;
-}
 
 const DEFAULT_UI_THEME = { preset: 'default', accent: '#8d0134', secondary: '#e0c47e', logoDark: '', logoLight: '' };
 function getStoredThemes() {
@@ -248,11 +237,66 @@ function StatusMenu({ status, labels, onPick, canChange, isAr }) {
   );
 } 
 
+// Fixed vs flexible decides whether the event runs the Service Level flow at
+// all, so it gets two explained cards instead of a dropdown — a bare
+// "Fixed/Flexible" select gives no clue what either does.
+function GuestModelPicker({ value, onChange, STR }) {
+  const opts = [
+    { v: "fixed", label: STR.gmFixed, hint: STR.gmFixedHint, icon: "star" },
+    { v: "flexible", label: STR.gmFlexible, hint: STR.gmFlexibleHint, icon: "guests" },
+  ];
+  return (
+    <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {opts.map(o => {
+          const active = value === o.v;
+          return (
+            <button
+              key={o.v}
+              type="button"
+              onClick={() => onChange(o.v)}
+              aria-pressed={active}
+              style={{
+                textAlign: "start", cursor: "pointer",
+                padding: "11px 12px", borderRadius: 10,
+                background: active ? "var(--accent-soft)" : "var(--bg-1)",
+                border: `1px solid ${active ? "var(--accent)" : "var(--glass-border)"}`,
+                boxShadow: active ? "var(--shadow-xs)" : "none",
+                transition: "background .16s, border-color .16s",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+                <Icon name={o.icon} size={13} style={{ color: active ? "var(--accent)" : "var(--ink-mute)" }} />
+                <span style={{ fontSize: 12.5, fontWeight: 650, color: active ? "var(--accent)" : "var(--ink)" }}>
+                  {o.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, lineHeight: 1.45, color: "var(--ink-mute)" }}>{o.hint}</div>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10.5, color: "var(--ink-faint)", marginTop: 6, lineHeight: 1.5 }}>
+        {STR.gmLockedHint}
+      </div>
+    </>
+  );
+}
+
 // Hoisted to module scope (not redefined per EventsView render) so typed-but-
 // unsaved form state survives unrelated parent re-renders — e.g. reload()
 // after a session edit no longer resets whatever the user is mid-typing here.
-function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, venuesLoading }) {
-  const [form, setForm] = useState({ ...ev });
+function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, venuesLoading, eventTypes, eventTypesLoading }) {
+  const [form, setForm] = useState(() => {
+    // Older events saved before VenueId was tracked only have a venue name —
+    // match it against the current venues list so the dropdown doesn't open
+    // empty for them.
+    if (!ev.venueId && ev.venue) {
+      const matched = venues.find(v => v.name === ev.venue);
+      if (matched) return { ...ev, venueId: matched.id };
+    }
+    return { ...ev };
+  });
   const [uiTheme, setUiTheme] = useState(() => {
     if (ev.appKey) {
       const stored = getStoredThemes()[ev.appKey];
@@ -290,18 +334,33 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
           </div>
         ) : (
           <Select
-            value={form.venue || ""}
-            onChange={v => setForm(f => ({ ...f, venue: v || "" }))}
+            value={form.venueId || ""}
+            onChange={v => {
+              const picked = venues.find(x => x.id === v);
+              setForm(f => ({ ...f, venueId: v || "", venue: picked?.name || "" }));
+            }}
             placeholder={isAr ? "— اختر مكاناً —" : "— Select venue —"}
-            options={venues.map(v => ({ value: v.name, label: v.name }))}
+            options={venues.map(v => ({ value: v.id, label: v.name }))}
             isClearable
           />
         )}
       </div>
       <div>
+        <label style={lStyle}>{STR.fGuestModel}</label>
+        <GuestModelPicker
+          value={form.guestModel || "flexible"}
+          onChange={v => setForm(f => ({ ...f, guestModel: v }))}
+          STR={STR}
+        />
+      </div>
+      <div>
         <label style={lStyle}>{STR.fType}</label>
-        <Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
-          options={EVENT_TYPES.map(t => ({ value: t, label: t }))} />
+        {eventTypesLoading ? (
+          <div style={{ fontSize: 12, color: "var(--ink-mute)" }}>{isAr ? "جارٍ التحميل…" : "Loading…"}</div>
+        ) : (
+          <Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))}
+            options={eventTypes.map(t => ({ value: t.name, label: t.name }))} />
+        )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <div>
@@ -317,56 +376,6 @@ function EventForm({ ev, onSave, onCancel, isNew = false, isAr, STR, venues, ven
       </div>
       <LogoInput label={STR.fImage}
         value={form.image} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
-      {/* Visual Theme */}
-      {/* <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 14, marginTop: 2 }}>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--ink-mute)', marginBottom: 10 }}>
-          {isAr ? 'السمة المرئية' : 'Visual Theme'}
-        </div>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
-          {['default', 'custom'].map(p => (
-            <button key={p} type="button" onClick={() => setUiTheme(t => ({ ...t, preset: p }))}
-              style={{ flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: uiTheme.preset === p ? 600 : 400,
-                border: `1px solid ${uiTheme.preset === p ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: uiTheme.preset === p ? 'rgba(141, 1, 52,0.1)' : 'var(--surface-soft-3)',
-                color: uiTheme.preset === p ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer', transition: 'all 0.15s' }}>
-              {p === 'default' ? (isAr ? 'الافتراضي' : 'Default') : (isAr ? 'مخصص' : 'Custom')}
-            </button>
-          ))}
-        </div>
-        {uiTheme.preset === 'custom' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div>
-                <label style={lStyle}>{isAr ? 'اللون الأساسي' : 'Primary Color'}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="color" value={toHex(uiTheme.accent)} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
-                    style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
-                  <input type="text" value={uiTheme.accent} onChange={e => setUiTheme(t => ({ ...t, accent: e.target.value }))}
-                    onBlur={e => setUiTheme(t => ({ ...t, accent: toHex(e.target.value) }))}
-                    placeholder="#000000"
-                    style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
-                </div>
-              </div>
-              <div>
-                <label style={lStyle}>{isAr ? 'اللون الثانوي' : 'Secondary Color'}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="color" value={toHex(uiTheme.secondary)} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
-                    style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--glass-border)', padding: 3, cursor: 'pointer', background: 'var(--surface-soft-3)', flexShrink: 0 }}/>
-                  <input type="text" value={uiTheme.secondary} onChange={e => setUiTheme(t => ({ ...t, secondary: e.target.value }))}
-                    onBlur={e => setUiTheme(t => ({ ...t, secondary: toHex(e.target.value) }))}
-                    placeholder="#000000"
-                    style={{ ...iStyle, fontFamily: 'var(--mono)', fontSize: 12 }}/>
-                </div>
-              </div>
-            </div>
-            <LogoInput label={isAr ? 'شعار (خلفية داكنة)' : 'Logo — Dark background'}
-              value={uiTheme.logoDark} onChange={v => setUiTheme(t => ({ ...t, logoDark: v }))} isAr={isAr}/>
-            <LogoInput label={isAr ? 'شعار (خلفية فاتحة)' : 'Logo — Light background'}
-              value={uiTheme.logoLight} onChange={v => setUiTheme(t => ({ ...t, logoLight: v }))} isAr={isAr}/>
-          </div>
-        )}
-      </div> */}
-
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
         <button className="btn" onClick={onCancel}>{STR.cancel}</button>
         <button className="btn primary" onClick={trySave} disabled={!form.title}>
@@ -438,6 +447,8 @@ function SessionForm({ session, evId, event, onSave, onCancel, isAr, STR, venues
         <label style={lStyle}>{STR.sSpeaker}</label>
         <input style={iStyle} value={form.speaker} onChange={e => setForm(f => ({ ...f, speaker: e.target.value }))}/>
       </div>
+      <LogoInput label={STR.sImage }
+        value={form.image || ""} onChange={v => setForm(f => ({ ...f, image: v }))} isAr={isAr}/>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button className="btn" onClick={onCancel}>{STR.cancel}</button>
         <button className="btn primary" onClick={trySave} disabled={!form.title}>
@@ -490,7 +501,36 @@ export default function EventsView({ lang }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Event types — admin-managed lookup (Lookups > Event Types), replacing the
+  // old hardcoded EVENT_TYPES list.
+  const [eventTypes, setEventTypes] = useState([]);
+  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    eventsApi.getEventTypes()
+      .then(list => { if (!cancelled) setEventTypes(list || []); })
+      .catch(() => { if (!cancelled) setEventTypes([]); })
+      .finally(() => { if (!cancelled) setEventTypesLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const [showNewEvent, setShowNewEvent] = useState(false);
+  const [showImportEvents, setShowImportEvents] = useState(false);
+  const [importBatchId, setImportBatchId] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep-link from an "import finished" notification (?importBatch=<id>) —
+  // reopen the modal straight into its results view.
+  useEffect(() => {
+    const batchId = searchParams.get('importBatch');
+    if (!batchId) return;
+    setImportBatchId(batchId);
+    setShowImportEvents(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('importBatch');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const [showNewSession, setShowNewSession] = useState(false);
   const [editEventId, setEditEventId] = useState(null);
   const [editSessionId, setEditSessionId] = useState(null);
@@ -512,8 +552,8 @@ export default function EventsView({ lang }) {
     return true;
   });
 
-  const [newEvent, setNewEvent] = useState({ title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" });
-  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 });
+  const [newEvent, setNewEvent] = useState({ title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" });
+  const [newSession, setNewSession] = useState({ title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200, image: "" });
 
   const selectedEvent = events.find(e => e.id === selectedId) || events[0];
 
@@ -524,8 +564,8 @@ export default function EventsView({ lang }) {
 
   function showMsg(msg) { toast.success(msg); }
 
-  const blankEvent = { title: "", type: "Forum", theme: "", venue: "", startDate: "", endDate: "", image: "", status: "planning" };
-  const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200 };
+  const blankEvent = { title: "", type: "", theme: "", venue: "", venueId: "", startDate: "", endDate: "", image: "", status: "planning", guestModel: "flexible" };
+  const blankSession = { title: "", date: "", time: "09:00", venue: "", venueId: "", room: "", speaker: "", capacity: 200, image: "" };
 
   async function saveNewEvent(ev) {
     if (!ev.title) return;
@@ -647,7 +687,12 @@ export default function EventsView({ lang }) {
     confirm: "تأكيد الحذف",
     fTitle: "اسم الفعالية", fType: "النوع", fTheme: "الموضوع", fVenue: "المكان",
     fStart: "تاريخ البداية", fEnd: "تاريخ النهاية", fImage: "صورة الغلاف", fStatus: "الحالة",
-    sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة",
+    fGuestModel: "نموذج الضيوف",
+    gmFixed: "ثابت", gmFlexible: "مرن",
+    gmFixedHint: "يُصنَّف كل ضيف على مستوى خدمة يحدّد خدماته وقواعده (السعة والحقول المطلوبة).",
+    gmFlexibleHint: "بدون مستويات خدمة أو قيود — التصنيف نص حر كما في السابق.",
+    gmLockedHint: "يمكن تغيير النموذج لاحقاً. التبديل إلى «مرن» يوقف تطبيق القواعد لكنه لا يحذف تصنيفات الضيوف.",
+    sTitle: "عنوان الجلسة", sDate: "التاريخ", sTime: "الوقت", sVenue: "المكان", sRoom: "القاعة", sSpeaker: "المتحدث", sCapacity: "السعة", sImage: "صورة الجلسة",
     status: { active: "نشط", planning: "تخطيط", completed: "مكتمل", cancelled: "ملغى" },
     tabs: { all: "الكل", ongoing: "جارٍ", upcoming: "قادم", past: "منتهٍ" },
     searchPh: "بحث في الفعاليات…",
@@ -661,7 +706,12 @@ export default function EventsView({ lang }) {
     confirm: "Confirm delete",
     fTitle: "Event title", fType: "Type", fTheme: "Theme", fVenue: "Venue",
     fStart: "Start date", fEnd: "End date", fImage: "Cover image", fStatus: "Status",
-    sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity",
+    fGuestModel: "Guest model",
+    gmFixed: "Fixed", gmFlexible: "Flexible",
+    gmFixedHint: "Every guest sits on a service level that defines their services and rules (capacity, required fields).",
+    gmFlexibleHint: "No service levels and no restrictions — the tier is a free form.",
+    gmLockedHint: "You can change this later. Switching to Flexible stops enforcing the rules but never deletes existing level assignments.",
+    sTitle: "Session title", sDate: "Date", sTime: "Time", sVenue: "Venue", sRoom: "Room / Hall", sSpeaker: "Speaker", sCapacity: "Capacity", sImage: "Session image",
     status: { active: "Active", planning: "Planning", completed: "Completed", cancelled: "Cancelled" },
     tabs: { all: "All", ongoing: "Ongoing", upcoming: "Upcoming", past: "Past" },
     searchPh: "Search events…",
@@ -676,12 +726,25 @@ export default function EventsView({ lang }) {
         </div>
         <div className="page-actions">
           {can('Events.Create') && (
+            <button className="btn" onClick={() => setShowImportEvents(true)}>
+              <Icon name="upload" size={14}/> {isAr ? 'استيراد فعاليات' : 'Import Events'}
+            </button>
+          )}
+          {can('Events.Create') && (
             <button className="btn primary" onClick={() => setShowNewEvent(true)}>
               <Icon name="plus" size={14}/> {STR.newEvent}
             </button>
           )}
         </div>
       </div>
+
+      <ImportEventsModal
+        open={showImportEvents}
+        onClose={() => { setShowImportEvents(false); setImportBatchId(null); }}
+        lang={lang}
+        onImported={reload}
+        initialBatchId={importBatchId}
+      />
 
 
       <div className="events-layout" style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -719,7 +782,7 @@ export default function EventsView({ lang }) {
               {isAr ? "جارٍ التحميل…" : "Loading…"}
             </div>
           ) : loadError ? (
-            <div style={{ padding: "16px 12px", textAlign: "center", color: "#e08a7e", fontSize: 12, border: "1px solid rgba(224,138,126,0.25)", borderRadius: 10 }}>
+            <div style={{ padding: "16px 12px", textAlign: "center", color: "var(--danger)", fontSize: 12, border: "1px solid var(--danger-border)", borderRadius: 10 }}>
               {loadError}
               <button className="btn" style={{ display: "block", margin: "10px auto 0", fontSize: 11 }} onClick={reload}>
                 {isAr ? "إعادة المحاولة" : "Retry"}
@@ -742,7 +805,7 @@ export default function EventsView({ lang }) {
                   <EventCover type={ev.type} image={ev.image} width={44} height={44} radius={8}/>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
-                    <div style={{ fontSize: 11, color: "var(--ink-mute)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.venue || (ev.type + " · " + ev.startDate)}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-mute)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.venue || (ev.type + " · " + fmtDate(ev.startDate))}</div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: evClass === "ongoing" ? "var(--accent)" : evClass === "upcoming" ? "#e0c47e" : "var(--ink-mute)", flexShrink: 0 }}/>
                       <span style={{ fontSize: 11, color: "var(--ink-mute)" }}>{STR.tabs[evClass]}</span>
@@ -766,14 +829,18 @@ export default function EventsView({ lang }) {
                 <>
                   <div style={{ fontSize: 11, color: "var(--ink-mute)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 14 }}>{STR.editEvent}</div>
                   <EventForm ev={selectedEvent} onSave={saveEditEvent} onCancel={() => setEditEventId(null)}
-                    isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
+                    isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}
+                    eventTypes={eventTypes} eventTypesLoading={eventTypesLoading}/>
                 </>
               ) : (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 18, flexWrap: "wrap" }}>
                   <EventCover type={selectedEvent.type} image={selectedEvent.image} width={80} height={80} radius={12}/>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-                      <div>
+                  {/* minWidth:0 lets this actually shrink — a flex item won't go
+                      below its content's min-content width without it, which is
+                      what pushed the long event title past the card on mobile. */}
+                  <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ minWidth: 0 }}>
                         <h2 style={{ fontFamily: "var(--serif)", fontSize: 28, margin: "0 0 4px", fontWeight: 400 }}>{selectedEvent.title}</h2>
                         <div style={{ fontSize: 13, color: "var(--ink-dim)", marginBottom: 8 }}>
                           {selectedEvent.theme && <span>{selectedEvent.theme} · </span>}
@@ -781,7 +848,7 @@ export default function EventsView({ lang }) {
                         </div>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <span className="chip"><span className="dot" style={{ background: EVENT_TYPE_COLORS[selectedEvent.type] || "var(--accent)" }}/>{selectedEvent.type}</span>
-                          <span className="chip" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{selectedEvent.startDate} → {selectedEvent.endDate}</span>
+                          <span className="chip" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{fmtDate(selectedEvent.startDate)} → {fmtDate(selectedEvent.endDate)}</span>
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
@@ -798,7 +865,7 @@ export default function EventsView({ lang }) {
                           </button>
                         )}
                         {can('Events.Delete') && (
-                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "#e08a7e" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
+                          <button className="btn ghost" style={{ padding: "5px 10px", fontSize: 11, color: "var(--danger)" }} onClick={() => setConfirmDelete({ type: "event", id: selectedEvent.id, name: selectedEvent.title })}>
                             <Icon name="trash" size={12}/>
                           </button>
                         )}
@@ -840,6 +907,13 @@ export default function EventsView({ lang }) {
                         </div>
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          {s.image ? (
+                            <img src={s.image} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}/>
+                          ) : (
+                            <div style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0, background: "var(--surface-soft-3)", display: "grid", placeItems: "center" }}>
+                              <Icon name="calendar" size={15} style={{ color: "var(--ink-faint)" }}/>
+                            </div>
+                          )}
                           <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--accent)", direction: "ltr", width: 36, flexShrink: 0 }}>{s.time}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 500 }}>{s.title}</div>
@@ -850,7 +924,7 @@ export default function EventsView({ lang }) {
                               {s.capacity && <span><Icon name="seating" size={10}/> {ad(s.capacity)}</span>}
                             </div>
                           </div>
-                          <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{s.date}</span>
+                          <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--ink-mute)", marginInlineEnd: 8 }}>{fmtDate(s.date)}</span>
                           {can('Events.ManageSessions') && (
                             <ActionMenu items={[
                               { label: STR.edit || (isAr ? 'تعديل' : 'Edit'), icon: 'edit', onClick: () => setEditSessionId(s.id) },
@@ -879,7 +953,8 @@ export default function EventsView({ lang }) {
             </div>
             <div style={{ padding: "20px 22px", overflowY: "auto", flex: 1 }}>
               <EventForm ev={newEvent} onSave={saveNewEvent} onCancel={() => setShowNewEvent(false)} isNew
-                isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}/>
+                isAr={isAr} STR={STR} venues={venues} venuesLoading={venuesLoading}
+                eventTypes={eventTypes} eventTypesLoading={eventTypesLoading}/>
             </div>
           </div>
         </div>
@@ -907,7 +982,7 @@ export default function EventsView({ lang }) {
       {/* Confirm Delete Modal */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}>
-          <div className="card glass modal-solid" style={{ width: 360, padding: "22px 24px" }}>
+          <div className="card glass modal-solid" style={{ width: 360, maxWidth: "92vw", padding: "22px 24px" }}>
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
               {confirmDelete.type === "session" ? (isAr ? "حذف الجلسة؟" : "Delete session?") : STR.confirmDeleteEvent}
             </div>
@@ -915,7 +990,7 @@ export default function EventsView({ lang }) {
             <div style={{ fontSize: 12, color: "var(--ink-mute)", marginBottom: 20 }}>{STR.confirmDeleteMsg}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn" onClick={() => setConfirmDelete(null)}>{STR.cancel}</button>
-              <button className="btn" style={{ color: "#e08a7e", borderColor: "rgba(224,138,126,0.3)", background: "rgba(224,138,126,0.1)" }}
+              <button className="btn" style={{ color: "var(--danger)", borderColor: "var(--danger-border)", background: "var(--danger-bg)" }}
                 onClick={() => {
                   const cd = confirmDelete;
                   setConfirmDelete(null);

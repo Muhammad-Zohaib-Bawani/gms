@@ -36,6 +36,48 @@ export function toIsoDateTime(date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// ── Display ──────────────────────────────────────────────────────────────────
+// One format across the whole portal: DD-MM-YYYY. Storage and the wire stay ISO
+// ('YYYY-MM-DD') — this is only ever what a user reads. Deliberately not
+// toLocaleDateString: that shifts with the browser locale, which is exactly the
+// inconsistency this replaces.
+
+/** react-datepicker's format token for the same thing. */
+export const DISPLAY_DATE_FORMAT = 'dd-MM-yyyy';
+export const DISPLAY_DATETIME_FORMAT = 'dd-MM-yyyy HH:mm';
+
+const DASH = '—';
+
+/** '2026-08-05' | Date → '05-08-2026'. Blank/unparsable → '—'. */
+export function fmtDate(value, fallback = DASH) {
+  const d = value instanceof Date ? value : toDateTime(value);
+  if (!d) return fallback;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
+
+/** '05-08' — for chart axes and grid columns too narrow for the full date. */
+export function fmtDayMonth(value, fallback = DASH) {
+  const d = value instanceof Date ? value : toDateTime(value);
+  if (!d) return fallback;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}`;
+}
+
+/** '09:30' from a datetime. 24-hour, matching the pickers. */
+export function fmtTime(value, fallback = DASH) {
+  const d = value instanceof Date ? value : toDateTime(value);
+  if (!d) return fallback;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** '05-08-2026 09:30'. */
+export function fmtDateTime(value, fallback = DASH) {
+  const d = value instanceof Date ? value : toDateTime(value);
+  return d ? `${fmtDate(d)} ${fmtTime(d)}` : fallback;
+}
+
 export function startOfToday() {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());

@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar } from '../components/UI.jsx';
-import FlagIcon from '../components/FlagIcon.jsx';
+import GuestCell from '../components/GuestCell.jsx';
 import { Icon } from '../components/Icons.jsx';
 import Select from '../components/ui/Select.jsx';
 import toast from '../lib/toast.js';
-import { getVenues, getVenue } from '../api/services/venueService.js';
-import { listSessions } from '../api/services/eventService.js';
+import { getVenue } from '../api/services/venueService.js';
+import { listSessions, getEvent } from '../api/services/eventService.js';
 import { listGuests } from '../api/services/guestService.js';
 import { assignSeat, unassignSeat, getSeatAssignments } from '../api/services/seatingService.js';
 import {
@@ -15,10 +14,6 @@ import {
 import CanvasElement from './venue/canvas/CanvasElement.jsx';
 
 const MIN_ZOOM = 0.3, MAX_ZOOM = 2.5;
-
-function guestInitials(g) {
-  return ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase() || '?';
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -35,7 +30,8 @@ export default function SeatingView({ lang, activeEventId }) {
     noSeat: '—', assigned: 'معيّن', unassigned: 'غير معيّن',
     totalAssigned: 'مقعد معيّن', totalSeats: 'إجمالي المقاعد',
     venue: 'المكان', session: 'الجلسة',
-    noVenues: '— لا أماكن —', noSessions: '— لا جلسات —',
+    noVenues: '— لا مكان —', noVenueAssigned: 'لم يتم تسجيل مكان لهذه الفعالية/الجلسة',
+    noSessions: '— لا جلسات —',
     viewFullscreen: 'عرض ملء الشاشة', loadingFloor: 'جارٍ تحميل المخطط…',
     noFloor: 'لا يوجد مخطط لهذا الاختيار', selectEventFirst: 'يرجى اختيار فعالية من الأعلى لتعيين الضيوف',
     noResults: 'لا نتائج', seatDisabled: 'هذا المقعد معطّل ولا يمكن تعيينه',
@@ -48,7 +44,8 @@ export default function SeatingView({ lang, activeEventId }) {
     noSeat: '—', assigned: 'Assigned', unassigned: 'Unassigned',
     totalAssigned: 'seats assigned', totalSeats: 'total seats',
     venue: 'Venue', session: 'Session',
-    noVenues: '— No venues —', noSessions: '— No sessions —',
+    noVenues: '— No venue —', noVenueAssigned: 'No venue registered for this event/session',
+    noSessions: '— No sessions —',
     viewFullscreen: 'View fullscreen', loadingFloor: 'Loading layout…',
     noFloor: 'No layout for this selection', selectEventFirst: 'Select an event from the top bar to assign guests',
     noResults: 'No results', seatDisabled: 'This seat is disabled and cannot be assigned',
@@ -57,44 +54,55 @@ export default function SeatingView({ lang, activeEventId }) {
   // ── Venue / Session selection — event comes from the app's active event,
   // not a local dropdown, so it always matches what the rest of the app is
   // showing (top bar / sidebar), and there's no local eventId state at all.
+  // There's no venue dropdown either: the venue is whichever one the event
+  // (or, once a session is picked, that session) is actually registered
+  // against — never a free pick. See `effectiveVenueId`/`effectiveVenueName`
+  // below.
   const eventId = activeEventId || '';
-  const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState('');
+  const [event, setEvent] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [sessionId, setSessionId] = useState('');
 
   useEffect(() => {
-    getVenues()
-      .then(list => {
-        const mapped = (list || []).map(v => ({ id: v.id, name: v.venueName }));
-        setVenues(mapped);
-        setVenueId(prev => prev || mapped[0]?.id || '');
-      })
-      .catch(() => setVenues([]));
-  }, []);
-
-  // Sessions load per active event; no event or an event with none → empty dropdown.
-  useEffect(() => {
-    setSessionId('');
-    if (!eventId) { setSessions([]); return; }
-    listSessions(eventId).then(r => setSessions(r || [])).catch(() => setSessions([]));
+    if (!eventId) { setEvent(null); return; }
+    getEvent(eventId).then(setEvent).catch(() => setEvent(null));
   }, [eventId]);
 
-  const venueOptions = venues.map(v => ({ value: v.id, label: v.name }));
+  // Sessions load per active event; no event or an event with none → empty dropdown.
+  // Default to the first session, same as opening the layout that's already
+  // "current" for this event.
+  useEffect(() => {
+    if (!eventId) { setSessions([]); setSessionId(''); return; }
+    listSessions(eventId)
+      .then(r => {
+        const list = r || [];
+        setSessions(list);
+        setSessionId(list[0]?.id || '');
+      })
+      .catch(() => { setSessions([]); setSessionId(''); });
+  }, [eventId]);
+
   const sessionOptions = sessions.map(s => ({ value: s.id, label: s.title }));
+
+  // The session's own venue wins when it has one; otherwise fall back to the
+  // event's venue. Recomputes whenever the selected session (or the event
+  // itself) changes, so switching sessions switches the venue automatically.
+  const selectedSession = sessions.find(s => s.id === sessionId) || null;
+  const effectiveVenueId = selectedSession?.venueId || event?.venueId || '';
+  const effectiveVenueName = selectedSession?.venueName || event?.venueName || '';
 
   // ── Floor plan (real venue data) ────────────────────────────────────────────
   const [box, setBox] = useState(null);
   const [tables, setTables] = useState([]);
   const [canvasSize, setCanvasSize] = useState({ w: 1400, h: 900 });
   const [loadingFloor, setLoadingFloor] = useState(false);
-  const [assignments, setAssignments] = useState({}); // seatId -> guestId
+  const [assignments, setAssignments] = useState({}); // seatId -> eventGuestId
 
   useEffect(() => {
-    if (!venueId) { setTables([]); setBox(null); return; }
+    if (!effectiveVenueId) { setTables([]); setBox(null); return; }
     let cancelled = false;
     setLoadingFloor(true);
-    getVenue(venueId).then(v => {
+    getVenue(effectiveVenueId).then(v => {
       if (cancelled) return;
       const b = pickBox(v.venueBoxes, eventId || null, sessionId || null);
       const tbls = boxToTables(b);
@@ -104,7 +112,7 @@ export default function SeatingView({ lang, activeEventId }) {
     }).catch(() => { if (!cancelled) { setTables([]); setBox(null); } })
       .finally(() => { if (!cancelled) setLoadingFloor(false); });
     return () => { cancelled = true; };
-  }, [venueId, eventId, sessionId]);
+  }, [effectiveVenueId, eventId, sessionId]);
 
   // Real seat->guest assignments for this (venue box, event, session) scope.
   // Assigning requires a real event (mirrors the backend's Seating model, which
@@ -115,7 +123,7 @@ export default function SeatingView({ lang, activeEventId }) {
     getSeatAssignments(box.id, { eventId, sessionId: sessionId || undefined }).then(list => {
       if (cancelled) return;
       const map = {};
-      (list || []).forEach(a => { map[a.seatId] = a.guestId; });
+      (list || []).forEach(a => { map[a.seatId] = a.eventGuestId; });
       setAssignments(map);
     }).catch(() => { if (!cancelled) setAssignments({}); });
     return () => { cancelled = true; };
@@ -156,7 +164,7 @@ export default function SeatingView({ lang, activeEventId }) {
   function openFullscreenView() {
     const params = new URLSearchParams({
       screen: 'venueView',
-      venueId: venueId || '',
+      venueId: effectiveVenueId || '',
       eventId: eventId || '',
       sessionId: sessionId || '',
       lang,
@@ -170,20 +178,23 @@ export default function SeatingView({ lang, activeEventId }) {
       toast.error(isAr ? 'تعذّر تحديد هذا المقعد' : 'Could not identify this seat');
       return;
     }
-    setAssignModal({ table, seatIdx, seatId, guestId: assignments[seatId] || null });
+    setAssignModal({ table, seatIdx, seatId, eventGuestId: assignments[seatId] || null });
     setAssignSearch('');
   }
 
-  async function doAssign(guestId) {
+  // `eventGuestId` is the picked guest's participation in THIS event
+  // (GuestResponse.id from the event roster) — seating is event-scoped, so the
+  // master personId is never what goes on a seat.
+  async function doAssign(eventGuestId) {
     if (!eventId) return;
     setAssigning(true);
     try {
-      await assignSeat({ seatId: assignModal.seatId, guestId, eventId, sessionId: sessionId || null });
+      await assignSeat({ seatId: assignModal.seatId, eventGuestId, eventId, sessionId: sessionId || null });
       setAssignments(prev => {
         const next = { ...prev };
         // A guest can only sit in one seat within this scope — drop wherever they were.
-        for (const k of Object.keys(next)) if (next[k] === guestId) delete next[k];
-        next[assignModal.seatId] = guestId;
+        for (const k of Object.keys(next)) if (next[k] === eventGuestId) delete next[k];
+        next[assignModal.seatId] = eventGuestId;
         return next;
       });
       setAssignModal(null);
@@ -214,12 +225,14 @@ export default function SeatingView({ lang, activeEventId }) {
     }
   }
 
-  const assignedGuest = assignModal?.guestId ? guests.find(g => g.id === assignModal.guestId) : null;
+  const assignedGuest = assignModal?.eventGuestId ? guests.find(g => g.id === assignModal.eventGuestId) : null;
   // Disabled seats can't be assigned (the backend enforces this too — this is
   // just so the UI doesn't let someone search/pick a guest for a seat that's
   // guaranteed to be rejected). A seat that was assigned before being disabled
   // can still be unassigned, just not newly assigned to someone else.
   const isSeatDisabled = !!assignModal?.table?.seatMeta?.[assignModal?.seatIdx]?.isDisabled;
+  // eventGuestIds already seated in this scope — compared against the roster's
+  // own `id`, which is the same participation id.
   const alreadyAssigned = new Set(Object.values(assignments));
   const filteredForAssign = guests
     .filter(g => !alreadyAssigned.has(g.id) && (!assignSearch || g.fullName?.toLowerCase().includes(assignSearch.toLowerCase())))
@@ -246,10 +259,11 @@ export default function SeatingView({ lang, activeEventId }) {
     return { ...t, seatMeta };
   });
 
-  const seatByGuest = {};
-  Object.entries(assignments).forEach(([seatId, gId]) => {
+  // Keyed by eventGuestId, matching the roster rows' `id` (GuestResponse.id).
+  const seatByEventGuest = {};
+  Object.entries(assignments).forEach(([seatId, egId]) => {
     const loc = seatIdIndex[seatId];
-    if (loc) seatByGuest[gId] = loc;
+    if (loc) seatByEventGuest[egId] = loc;
   });
 
   const totalSeats = tables.reduce((acc, t) => {
@@ -280,12 +294,7 @@ export default function SeatingView({ lang, activeEventId }) {
       {/* Venue / Event / Session selectors */}
       <div className="card" style={{ padding: '10px 14px', marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
-            {STR.venue}
-          </span>
-          <div style={{ minWidth: 200, flexShrink: 0 }}>
-            <Select value={venueId} onChange={setVenueId} options={venueOptions} placeholder={STR.noVenues}/>
-          </div>
+
           <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
             {STR.session}
           </span>
@@ -293,9 +302,23 @@ export default function SeatingView({ lang, activeEventId }) {
             <Select value={sessionId} onChange={v => setSessionId(v || '')} options={sessionOptions}
               placeholder={STR.noSessions} isDisabled={!eventId} isClearable/>
           </div>
-          <button className="btn" style={{ marginLeft: 'auto', flexShrink: 0 }} onClick={openFullscreenView} disabled={!venueId}>
+                    <span style={{ fontSize: 10.5, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
+            {STR.venue}
+          </span>
+          {/* Read-only — plain text, deliberately NOT styled like a Select
+              control, since the venue always follows the event/session and
+              is never a free pick. */}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
+            color: effectiveVenueName ? 'var(--ink)' : 'var(--ink-faint)', flexShrink: 0,
+          }}>
+            <Icon name="venue" size={13} style={{ color: 'var(--ink-mute)' }}/>
+            {effectiveVenueName || STR.noVenues}
+          </span>
+          <button className="btn" style={{ marginLeft: 'auto', flexShrink: 0 }} onClick={openFullscreenView} disabled={!effectiveVenueId}>
             <Icon name="expand" size={14}/> {STR.viewFullscreen}
           </button>
+          
         </div>
       </div>
 
@@ -331,8 +354,8 @@ export default function SeatingView({ lang, activeEventId }) {
           <div ref={scrollRef} style={{ overflow:'auto', minHeight:460, position: 'relative' }}>
             {loadingFloor ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>{STR.loadingFloor}</div>
-            ) : !venueId ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>{STR.noVenues}</div>
+            ) : !effectiveVenueId ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>{STR.noVenueAssigned}</div>
             ) : tables.length === 0 ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>{STR.noFloor}</div>
             ) : (
@@ -347,16 +370,17 @@ export default function SeatingView({ lang, activeEventId }) {
                   <svg style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none' }}>
                     <defs>
                       <pattern id="sgrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--glass-border)" strokeWidth="0.4"/>
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="var(--canvas-grid)" strokeWidth="1"/>
                       </pattern>
                     </defs>
                     <rect width="100%" height="100%" fill="url(#sgrid)"/>
                   </svg>
 
-                  {renderTables.map(t => (
+                  {renderTables.map((t, i) => (
                     <CanvasElement
                       key={t.id}
                       table={t}
+                      index={i}
                       selected={false}
                       showDeleteSeat={false}
                       selectedSeatIndex={null}
@@ -408,17 +432,11 @@ export default function SeatingView({ lang, activeEventId }) {
                   {eventId ? STR.noResults : STR.selectEventFirst}
                 </td></tr>
               ) : guests.map(g => {
-                const info = seatByGuest[g.id];
+                const info = seatByEventGuest[g.id];
                 return (
                   <tr key={g.id}>
                     <td>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <Avatar initials={guestInitials(g)} size={26} tier={g.tier}/>
-                        <div>
-                          <div style={{ fontSize:12.5, fontWeight:500 }}>{g.fullName}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{g.organization}</div>
-                        </div>
-                      </div>
+                      <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={26} />
                     </td>
                     <td style={{ fontSize:12, fontFamily:'var(--mono)' }}>
                       {info ? info.table.label : <span style={{ color:'var(--ink-faint)' }}>—</span>}
@@ -453,10 +471,10 @@ export default function SeatingView({ lang, activeEventId }) {
 
       {assignModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div className="card glass modal-solid" style={{ width:360, padding:0 }}>
+          <div className="card glass modal-solid" style={{ width:360, maxWidth:'92vw', padding:0 }}>
             <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--glass-border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <div>
-                <div style={{ fontWeight:600, fontSize:14 }}>{assignModal.guestId ? STR.seatAssigned : STR.assignSeat}</div>
+                <div style={{ fontWeight:600, fontSize:14 }}>{assignModal.eventGuestId ? STR.seatAssigned : STR.assignSeat}</div>
                 <div style={{ fontSize:11, color:'var(--ink-mute)', marginTop:2, fontFamily:'var(--mono)' }}>
                   <span style={{ color: assignModal.table.color || 'var(--accent)' }}>{assignModal.table.label}</span>
                   {' · '}
@@ -477,18 +495,11 @@ export default function SeatingView({ lang, activeEventId }) {
               ) : assignedGuest ? (
                 <>
                   <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18, padding:'10px 14px', background:'var(--surface-soft-2)', borderRadius:10 }}>
-                    <Avatar initials={guestInitials(assignedGuest)} size={36} tier={assignedGuest.tier}/>
-                    <div>
-                      <div style={{ fontWeight:600 }}>{assignedGuest.fullName}</div>
-                      <div style={{ fontSize:11, color:'var(--ink-mute)' }}>{assignedGuest.guestType} · {assignedGuest.organization}</div>
-                      <div style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2, display:'flex', alignItems:'center', gap:5 }}>
-                        {assignedGuest.tier} · <FlagIcon code={assignedGuest.nationalityCode} size={12} /> {assignedGuest.nationalityName}
-                      </div>
-                    </div>
+                    <GuestCell name={assignedGuest.fullName} email={assignedGuest.email} photoUrl={assignedGuest.photoUrl} tier={assignedGuest.tier} size={36} />
                   </div>
                   <div style={{ display:'flex', gap:8 }}>
                     <button className="btn" style={{ flex:1 }} onClick={() => setAssignModal(null)} disabled={assigning}>{STR.cancel}</button>
-                    <button className="btn" style={{ flex:1, color:'#e08a7e', borderColor:'rgba(224,138,126,0.3)' }} onClick={doUnassign} disabled={assigning}>
+                    <button className="btn" style={{ flex:1, color:'var(--danger)', borderColor:'var(--danger-border)' }} onClick={doUnassign} disabled={assigning}>
                       <Icon name="x" size={13}/> {STR.unassign}
                     </button>
                   </div>
@@ -503,10 +514,8 @@ export default function SeatingView({ lang, activeEventId }) {
                         style={{ padding:'8px 10px', borderRadius:8, cursor: assigning ? 'default' : 'pointer', opacity: assigning ? 0.6 : 1, display:'flex', alignItems:'center', gap:10, border:'1px solid var(--glass-border)', background:'var(--surface-soft-2)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}>
-                        <Avatar initials={guestInitials(g)} size={28} tier={g.tier}/>
                         <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:13, fontWeight:500 }}>{g.fullName}</div>
-                          <div style={{ fontSize:11, color:'var(--ink-mute)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{g.guestType} · {g.organization}</div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
                         </div>
                         <Icon name="plus" size={13} style={{ color:'var(--accent)', flexShrink:0 }}/>
                       </div>

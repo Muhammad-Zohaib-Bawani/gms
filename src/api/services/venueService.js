@@ -7,6 +7,14 @@ export const getVenues = () => apiClient.get(ENDPOINTS.venues.base);
 
 export const getVenue = (id) => apiClient.get(ENDPOINTS.venues.byId(id));
 
+// Edit-only fields: name, location, image. Floor-plan layout is untouched.
+export const updateVenue = (id, body) => apiClient.put(ENDPOINTS.venues.byId(id), body);
+
+// Deep-clones one layout (box) of this venue into a brand-new, independent
+// venue — no event/session attached yet. Returns the new venue (with its one
+// cloned box) same shape as getVenue.
+export const cloneVenue = (id, body) => apiClient.post(ENDPOINTS.venues.clone(id), body);
+
 // Create an arrangement (box) for a venue — event/session scoped.
 export const createVenueBox = (body) => apiClient.post(ENDPOINTS.venues.box, body);
 

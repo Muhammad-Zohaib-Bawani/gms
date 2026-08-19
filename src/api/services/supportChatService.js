@@ -5,7 +5,9 @@ import { ENDPOINTS } from '../endpoints';
 // { items, totalCount, pageNumber, pageSize }. Ordered server-side
 // unread-first, then most-recently-active (SupportChatService.GetConversationsAsync).
 // Row shape: { id, guestId, guestName, guestEmail, status, lastMessagePreview,
-// lastMessageAt, lastMessageFromGuest, unreadCount }.
+// lastMessageAt, lastMessageFromGuest, unreadCount }. `guestId` here is the
+// PERSON id (Guest.PublicId / GuestResponse.personId) — support chat is one
+// thread per human, so it is never an eventGuestId.
 export const getConversations = ({
   pageNumber = 1, pageSize = 10, search, onlyUnread, status, organizationId, nationalityId, tier,
 } = {}) =>
@@ -38,11 +40,13 @@ export const getMessages = (conversationId, { pageSize = 50 } = {}) =>
 export const replyToConversation = (conversationId, message) =>
   apiClient.post(ENDPOINTS.supportChat.messages(conversationId), message);
 
-// Admin-initiated: no conversation needs to exist for this guest yet. Safe to
+// Admin-initiated: no conversation needs to exist for this person yet. Safe to
 // call even if one already does (e.g. the admin's local list was stale) — the
 // backend just continues that thread instead of erroring or duplicating it.
-export const startConversationWithGuest = (guestId, message) =>
-  apiClient.post(ENDPOINTS.supportChat.startByGuest(guestId), message);
+// Takes the PERSON id (`GuestResponse.personId`), not an eventGuestId: a guest
+// has one support thread across all their events.
+export const startConversationWithGuest = (personId, message) =>
+  apiClient.post(ENDPOINTS.supportChat.startByGuest(personId), message);
 
 // Marks every unread *guest* message in this conversation read (admin's side).
 export const markConversationRead = (conversationId) =>

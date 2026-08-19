@@ -1,16 +1,23 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { toArDigits } from '../i18n/translations.js';
-import { Avatar, TierChip } from '../components/UI.jsx';
+import { ServiceLevelChip } from '../components/UI.jsx';
 import { Icon } from '../components/Icons.jsx';
 import FlagIcon from '../components/FlagIcon.jsx';
+import GuestCell from '../components/GuestCell.jsx';
+import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
+// Accreditation is per event: the roster comes from listGuests (scoped to
+// activeEventId), so every `g.id` on this screen is an eventGuestId and that is
+// exactly what issue/revoke take. No personId is involved anywhere here.
 import { listGuests, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
 import { getGuestEnums } from '../api/services/lookupService';
+import { getEvent } from '../api/services/eventService';
+import AccreditationCardModal from './accreditation/AccreditationCardModal';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 const TIER_COLOR = {
   vvip: '#e0b864', vip: '#a78bda', speaker: 'var(--accent)',
-  delegate: '#5abf6e', press: '#e08a7e', observer: 'var(--ink-mute)',
+  delegate: '#5abf6e', press: 'var(--danger)', observer: 'var(--ink-mute)',
 };
 
 export default function AccreditationView({ lang, activeEventId }) {
@@ -22,9 +29,9 @@ export default function AccreditationView({ lang, activeEventId }) {
     total: 'يتطلب اعتماد', issued: 'صدر الاعتماد', pending: 'قيد الانتظار',
     rate: 'نسبة الإصدار', searchPlaceholder: 'بحث عن ضيف أو جهة…',
     filterAll: 'الكل', filterIssued: 'صادر', filterPending: 'قيد الانتظار',
-    tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', tier: 'الفئة',
+    tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', serviceLevel: 'الفئة',
     arrival: 'تاريخ الوصول', status: 'الاعتماد', actions: 'إجراءات',
-    issue: 'إصدار', revoke: 'سحب', issueSelected: 'إصدار المحدد',
+    issue: 'إصدار', revoke: 'سحب', viewCard: 'عرض البطاقة', issueSelected: 'إصدار المحدد',
     revokeSelected: 'سحب المحدد', selected: 'محدد',
     issueAll: 'إصدار الكل', clearSel: 'إلغاء التحديد',
     badgeIssued: 'صادر', badgePending: 'قيد الانتظار',
@@ -41,9 +48,9 @@ export default function AccreditationView({ lang, activeEventId }) {
     total: 'Require accreditation', issued: 'Badges issued', pending: 'Pending',
     rate: 'Issue rate', searchPlaceholder: 'Search guest or organisation…',
     filterAll: 'All', filterIssued: 'Issued', filterPending: 'Pending',
-    tierAll: 'All tiers', guest: 'Guest', org: 'Organisation', tier: 'Tier',
+    serviceLevelAll: 'All service levels', guest: 'Guest', org: 'Organisation', serviceLevel: 'Service Level',
     arrival: 'Arrival', status: 'Accreditation', actions: 'Actions',
-    issue: 'Issue', revoke: 'Revoke', issueSelected: 'Issue selected',
+    issue: 'Issue', revoke: 'Revoke', viewCard: 'View card', issueSelected: 'Issue selected',
     revokeSelected: 'Revoke selected', selected: 'selected',
     issueAll: 'Issue all pending', clearSel: 'Clear selection',
     badgeIssued: 'Issued', badgePending: 'Pending',
@@ -66,10 +73,16 @@ export default function AccreditationView({ lang, activeEventId }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [tierFilter, setTierFilter] = useState('all');
   const [sel, setSel] = useState(new Set());
-  const [previewGuest, setPreviewGuest] = useState(null);
+  const [cardGuest, setCardGuest] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'cards'
+  const [activeEvent, setActiveEvent] = useState(null);
 
   useEffect(() => { getGuestEnums().then(setEnums).catch(() => {}); }, []);
+
+  useEffect(() => {
+    if (!activeEventId) { setActiveEvent(null); return; }
+    getEvent(activeEventId).then(setActiveEvent).catch(() => setActiveEvent(null));
+  }, [activeEventId]);
 
   const loadGuests = useCallback(async () => {
     if (!activeEventId) { setGuests([]); return; }
@@ -172,19 +185,44 @@ export default function AccreditationView({ lang, activeEventId }) {
   const allSelected = filtered.length > 0 && sel.size === filtered.length;
   const someSelected = sel.size > 0;
 
+  // No persisted badge number exists on the backend — the printed badge
+  // (AccreditationCard.jsx) derives one from the guest's own id, so the
+  // export reuses that exact same derivation rather than inventing a
+  // different one that wouldn't match what's on the physical card.
+  function badgeNoFor(g) {
+    return g.accreditationStatus === 'issued'
+      ? (g.id || '').replace(/-/g, '').slice(0, 10).toUpperCase()
+      : '';
+  }
+
+  function handleExport() {
+    const headers = [
+      STR.guest, isAr ? 'البريد الإلكتروني' : 'Email', STR.org, STR.serviceLevel,
+      isAr ? 'حالة الدعوة' : 'Invitation Status', STR.status, STR.badgeNo,
+    ];
+    const rows = filtered.map((g) => [
+      g.fullName, g.email, g.organization, g.serviceLevelName || g.tier,
+      g.invitationStatus, g.accreditationStatus === 'issued' ? STR.badgeIssued : STR.badgePending,
+      badgeNoFor(g),
+    ]);
+    downloadCsv('accreditation.csv', toCsv(headers, rows));
+  }
+
   const kpis = [
     { label: STR.total,   value: ad(guests.length),  icon: 'guests',  color: 'var(--ink)' },
-    { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--accent)' },
+    { label: STR.issued,  value: ad(totalIssued),    icon: 'badge',   color: 'var(--ok)' },
     { label: STR.pending, value: ad(totalPending),   icon: 'clock',   color: '#e0b864' },
     { label: STR.rate,    value: `${ad(issueRate)}%`, icon: 'reports', color: '#5abf6e' },
   ];
 
+  // Issued reads as green everywhere (chips, dots) — matches the same
+  // success tokens used for "Accepted"/"Confirmed" elsewhere in the app.
   const chipStyle = issued => ({
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-    background: issued ? 'rgba(141, 1, 52,0.15)' : 'rgba(224,184,100,0.15)',
-    color: issued ? 'var(--accent)' : '#e0b864',
-    border: `1px solid ${issued ? 'rgba(141, 1, 52,0.3)' : 'rgba(224,184,100,0.3)'}`,
+    background: issued ? 'var(--ok-bg)' : 'rgba(224,184,100,0.15)',
+    color: issued ? 'var(--ok)' : '#e0b864',
+    border: `1px solid ${issued ? 'var(--ok-border)' : 'rgba(224,184,100,0.3)'}`,
   });
 
   return (
@@ -195,6 +233,9 @@ export default function AccreditationView({ lang, activeEventId }) {
           <div className="page-sub">{STR.sub}</div>
         </div>
         <div className="page-actions">
+          <button className="btn" onClick={handleExport}>
+            <Icon name="download" size={14}/> {isAr ? 'تصدير' : 'Export'}
+          </button>
           <button className="btn" onClick={issueAllPending} disabled={totalPending === 0}>
             <Icon name="badge" size={14}/> {STR.issueAll}
           </button>
@@ -274,7 +315,7 @@ export default function AccreditationView({ lang, activeEventId }) {
               <button className="btn primary" style={{ fontSize: 12 }} onClick={() => bulkSet('issue')}>
                 <Icon name="badge" size={13}/> {STR.issueSelected}
               </button>
-              <button className="btn" style={{ fontSize: 12, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={() => bulkSet('revoke')}>
+              <button className="btn" style={{ fontSize: 12, color: 'var(--danger)', borderColor: 'var(--danger-border)' }} onClick={() => bulkSet('revoke')}>
                 <Icon name="x" size={13}/> {STR.revokeSelected}
               </button>
               <button className="btn" style={{ fontSize: 12 }} onClick={() => setSel(new Set())}>
@@ -294,9 +335,9 @@ export default function AccreditationView({ lang, activeEventId }) {
                         style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
                     </th>
                     <th>{STR.guest}</th>
+                    <th>{STR.serviceLevel}</th>
                     <th>{STR.org}</th>
-                    <th>{STR.tier}</th>
-                    <th>{STR.arrival}</th>
+                    {/* <th>{STR.arrival}</th> */}
                     <th>{STR.status}</th>
                     <th>{STR.actions}</th>
                   </tr>
@@ -309,7 +350,6 @@ export default function AccreditationView({ lang, activeEventId }) {
                     const isIssued = g.accreditationStatus === 'issued';
                     const isChecked = sel.has(g.id);
                     const busy = busyIds.has(g.id);
-                    const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
                     return (
                       <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
                         <td style={{ paddingRight: 0 }}>
@@ -317,44 +357,26 @@ export default function AccreditationView({ lang, activeEventId }) {
                             style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                            <Avatar initials={initials} size={30} tier={g.tier} src={g.photoUrl}/>
-                            <div>
-                              <button onClick={() => setPreviewGuest(g)}
-                                style={{ fontSize: 13, fontWeight: 500, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: isAr ? 'right' : 'left' }}>
-                                {g.fullName}
-                              </button>
-                              <div style={{ fontSize: 11, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                                {g.guestType} · <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName}
-                              </div>
-                            </div>
-                          </div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={30} onOpen={() => setCardGuest(g)} />
                         </td>
+                        <td><ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/></td>
                         <td style={{ fontSize: 12, color: 'var(--ink-mute)', maxWidth: 160 }}>
                           <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         </td>
-                        <td><TierChip tier={g.tier} lang={lang}/></td>
-                        <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td>
+                        {/* <td style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>{g.arrivalDate || '—'}</td> */}
                         <td>
                           <span style={chipStyle(isIssued)}>
-                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864', flexShrink: 0 }}/>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--ok)' : '#e0b864', flexShrink: 0 }}/>
                             {isIssued ? STR.badgeIssued : STR.badgePending}
                           </span>
                         </td>
                         <td>
-                          {isIssued ? (
-                            <button className="btn" disabled={busy} style={{ fontSize: 11, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '4px 12px' }}
-                              onClick={() => revoke(g.id)}>
-                              <Icon name="x" size={12}/> {STR.revoke}
-                            </button>
-                          ) : (
-                            <button className="btn primary" disabled={busy || !canIssue(g)}
-                              title={!canIssue(g) ? STR.notAccepted : undefined}
-                              style={{ fontSize: 11, padding: '4px 12px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
-                              onClick={() => issue(g.id)}>
-                              <Icon name="badge" size={12}/> {STR.issue}
-                            </button>
-                          )}
+                          <ActionMenu items={[
+                            isIssued && { label: STR.viewCard, icon: 'badge', onClick: () => setCardGuest(g) },
+                            isIssued
+                              ? { label: STR.revoke, icon: 'x', danger: true, disabled: busy, onClick: () => revoke(g.id) }
+                              : { label: STR.issue, icon: 'badge', disabled: busy || !canIssue(g), onClick: () => issue(g.id) },
+                          ]}/>
                         </td>
                       </tr>
                     );
@@ -383,48 +405,35 @@ export default function AccreditationView({ lang, activeEventId }) {
                   const isIssued = g.accreditationStatus === 'issued';
                   const busy = busyIds.has(g.id);
                   const tierCol = TIER_COLOR[g.tier] || 'var(--ink-mute)';
-                  const initials = ((g.firstName?.[0] || '') + (g.lastName?.[0] || '')).toUpperCase();
                   return (
                     <div key={g.id} className="card" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                      onClick={() => setPreviewGuest(g)}
+                      onClick={() => setCardGuest(g)}
                       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)'; }}
                       onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}>
                       <div style={{ height: 5, background: tierCol }}/>
                       <div style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                          <Avatar initials={initials} size={38} tier={g.tier} src={g.photoUrl}/>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.fullName}</div>
-                            <div style={{ fontSize: 10.5, color: 'var(--ink-mute)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.guestType}</div>
-                          </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={38} />
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-mute)', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.organization}</div>
                         <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
                           <FlagIcon code={g.nationalityCode} size={12} /> {g.nationalityName} · {g.arrivalDate || '—'}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <TierChip tier={g.tier} lang={lang}/>
+                          <ServiceLevelChip name={g.serviceLevelName} nameAr={g.serviceLevelNameAr} color={g.serviceLevelColor} lang={lang}/>
                           <span style={chipStyle(isIssued)}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
+                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: isIssued ? 'var(--ok)' : '#e0b864' }}/>
                             {isIssued ? STR.badgeIssued : STR.badgePending}
                           </span>
                         </div>
                       </div>
-                      <div style={{ padding: '8px 16px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
+                      <div style={{ padding: '6px 10px', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'flex-end' }}
                         onClick={e => e.stopPropagation()}>
-                        {isIssued ? (
-                          <button className="btn" disabled={busy} style={{ fontSize: 10.5, color: '#e08a7e', borderColor: 'rgba(224,138,126,0.25)', padding: '3px 10px' }}
-                            onClick={() => revoke(g.id)}>
-                            <Icon name="x" size={11}/> {STR.revoke}
-                          </button>
-                        ) : (
-                          <button className="btn primary" disabled={busy || !canIssue(g)}
-                            title={!canIssue(g) ? STR.notAccepted : undefined}
-                            style={{ fontSize: 10.5, padding: '3px 10px', ...(canIssue(g) ? {} : { opacity: 0.4, cursor: 'not-allowed' }) }}
-                            onClick={() => issue(g.id)}>
-                            <Icon name="badge" size={11}/> {STR.issue}
-                          </button>
-                        )}
+                        <ActionMenu items={[
+                          isIssued && { label: STR.viewCard, icon: 'badge', onClick: () => setCardGuest(g) },
+                          isIssued
+                            ? { label: STR.revoke, icon: 'x', danger: true, disabled: busy, onClick: () => revoke(g.id) }
+                            : { label: STR.issue, icon: 'badge', disabled: busy || !canIssue(g), onClick: () => issue(g.id) },
+                        ]}/>
                       </div>
                     </div>
                   );
@@ -435,109 +444,21 @@ export default function AccreditationView({ lang, activeEventId }) {
         </>
       )}
 
-      {/* Badge preview modal */}
-      {previewGuest && (() => {
-        const isIssued = previewGuest.accreditationStatus === 'issued';
-        const tierCol = TIER_COLOR[previewGuest.tier] || 'var(--ink-mute)';
-        const initials = ((previewGuest.firstName?.[0] || '') + (previewGuest.lastName?.[0] || '')).toUpperCase();
-        const busy = busyIds.has(previewGuest.id);
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="card glass modal-solid" style={{ width: 440, padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, fontSize: 14 }}>{STR.previewTitle}</span>
-                <button className="icon-btn" onClick={() => setPreviewGuest(null)}><Icon name="close" size={14}/></button>
-              </div>
-
-              <div style={{ padding: '24px 32px' }}>
-                <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}>
-                  <div style={{ height: 8, background: tierCol }}/>
-                  <div style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
-                      <Avatar initials={initials} size={56} tier={previewGuest.tier} src={previewGuest.photoUrl}/>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.2, marginBottom: 4 }}>{previewGuest.fullName}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginBottom: 2 }}>{previewGuest.guestType}</div>
-                        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{previewGuest.organization}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: tierCol, background: `${tierCol}18`, border: `1px solid ${tierCol}44`, borderRadius: 20, padding: '3px 12px' }}>
-                        {previewGuest.tier}
-                      </span>
-                      <span style={{ fontSize: 12, color: 'var(--ink-mute)', padding: '3px 10px', borderRadius: 20, background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <FlagIcon code={previewGuest.nationalityCode} /> {previewGuest.nationalityName}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 18 }}>
-                      {[
-                        // [STR.badgeNo, previewGuest.id?.slice(0, 8)],
-                        [STR.arrival, previewGuest.arrivalDate],
-                      ].map(([lbl, val]) => (
-                        <div key={lbl}>
-                          <div style={{ fontSize: 9.5, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 1 }}>{lbl}</div>
-                          <div style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: 500 }}>{val || '—'}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--glass-border)', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={chipStyle(isIssued)}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: isIssued ? 'var(--accent)' : '#e0b864' }}/>
-                          {isIssued ? STR.badgeIssued : STR.badgePending}
-                        </span>
-                      </div>
-                      {isIssued ? (
-                        <div style={{ background: '#fff', padding: 5, borderRadius: 6, border: '1px solid var(--glass-border)', flexShrink: 0 }}>
-                          <QRCodeSVG
-                            value={`gms://accreditation/${previewGuest.id}`}
-                            size={72}
-                            bgColor="#ffffff"
-                            fgColor="#5e0022"
-                            level="M"
-                          />
-                        </div>
-                      ) : (
-                        <div style={{
-                          width: 82, height: 82, borderRadius: 6, flexShrink: 0,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                          background: 'var(--surface-soft-2)', border: '1px dashed var(--glass-border)',
-                          fontSize: 9.5, color: 'var(--ink-faint)', padding: 4, lineHeight: 1.3,
-                        }}>
-                          {isAr ? 'يظهر رمز QR بعد إصدار الاعتماد' : 'QR appears once issued'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ padding: '12px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button className="btn" onClick={() => setPreviewGuest(null)}>{STR.close}</button>
-                {isIssued ? (
-                  <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }}
-                    onClick={() => { revoke(previewGuest.id); setPreviewGuest(null); }}>
-                    <Icon name="x" size={13}/> {STR.revoke}
-                  </button>
-                ) : (
-                  <button className="btn primary" disabled={busy || !canIssue(previewGuest)}
-                    title={!canIssue(previewGuest) ? STR.notAccepted : undefined}
-                    style={canIssue(previewGuest) ? undefined : { opacity: 0.4, cursor: 'not-allowed' }}
-                    onClick={() => { issue(previewGuest.id); setPreviewGuest(null); }}>
-                    <Icon name="badge" size={13}/> {STR.issue}
-                  </button>
-                )}
-                <button className="btn" onClick={() => window.print()}>
-                  <Icon name="download" size={13}/> {STR.printBadge}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Accreditation card — the click target for both a guest's name (list
+          view) and their card (cards view), issued or not; the card itself
+          shows an empty-QR "not issued yet" state when it isn't. */}
+      <AccreditationCardModal
+        open={!!cardGuest}
+        guest={cardGuest}
+        event={activeEvent}
+        lang={lang}
+        onClose={() => setCardGuest(null)}
+        busy={cardGuest ? busyIds.has(cardGuest.id) : false}
+        canIssue={cardGuest ? canIssue(cardGuest) : true}
+        notAcceptedTitle={STR.notAccepted}
+        onIssue={cardGuest ? () => issue(cardGuest.id) : undefined}
+        onRevoke={cardGuest ? () => revoke(cardGuest.id) : undefined}
+      />
     </div>
   );
 }

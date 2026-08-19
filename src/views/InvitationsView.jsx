@@ -7,7 +7,7 @@ import toast from '../lib/toast';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../api/services/invitationTemplateService';
 import EmailTemplateBuilder, { EmailPreview } from './invitations/EmailTemplateBuilder';
 
-const TEMPLATE_COLORS = ['#8d0134', '#e0b864', '#a78bda', '#5abf6e', '#e08a7e', '#5e0022'];
+const TEMPLATE_COLORS = ['#8d0134', '#e0b864', '#a78bda', '#5abf6e', 'var(--danger)', '#5e0022'];
 const TIERS = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
 const LANG_OPTIONS = [
   { value: 'en',   label: 'EN (English)' },
@@ -34,7 +34,7 @@ const EMPTY_FORM = {
   name: '', nameAr: '', language: 'en',
   subject: '', subjectAr: '', body: '', bodyAr: '',
   bodyType: 'html', designConfig: '',
-  color: TEMPLATE_COLORS[0], targetTiers: [],
+  // color: TEMPLATE_COLORS[0], targetTiers: [],
 };
 
 function validate(form) {
@@ -159,12 +159,12 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
         </div>
       )}
 
-      <div>
+      {/* <div>
         <FieldLabel>{STR.color}</FieldLabel>
         <ColorPicker value={form.color} onChange={v => setField('color', v)}/>
-      </div>
+      </div> */}
 
-      <div>
+      {/* <div>
         <FieldLabel>{STR.targetTiers}</FieldLabel>
         <Select
           isMulti
@@ -174,7 +174,7 @@ function TemplateForm({ form, setField, errors, isAr, STR, bodyTypeOptions }) {
           placeholder={STR.selectPlaceholder}
           isClearable
         />
-      </div>
+      </div> */}
     </>
   );
 }
@@ -212,7 +212,7 @@ export default function InvitationsView({ lang, activeEventId }) {
     variables: 'متغيرات',
     selectPlaceholder: '— اختر —',
   } : {
-    pageTitle: ['Invitations', ''],
+    pageTitle: ['Invitation templates', ''],
     pageSub: 'Design · automate · track delivery across channels',
     newTemplate: 'New template',
     tabs: { templates: 'Templates', builder: 'Builder' },
@@ -291,8 +291,8 @@ export default function InvitationsView({ lang, activeEventId }) {
         body:       builder.body.trim() || null,
         bodyAr:     builder.bodyAr.trim() || null,
         designConfig: builder.designConfig || null,
-        color:      builder.color,
-        targetTiers: builder.targetTiers,
+        // color:      builder.color,
+        // targetTiers: builder.targetTiers,
       });
       loadTemplates();
       setBuilder(EMPTY_FORM);
@@ -318,8 +318,8 @@ export default function InvitationsView({ lang, activeEventId }) {
       body:        tmpl.body || '',
       bodyAr:      tmpl.bodyAr || '',
       designConfig: tmpl.designConfig || '',
-      color:       tmpl.color || TEMPLATE_COLORS[0],
-      targetTiers: tmpl.targetTiers || [],
+      // color:       tmpl.color || TEMPLATE_COLORS[0],
+      // targetTiers: tmpl.targetTiers || [],
     });
     setEditErrors({});
     setEditTmpl(tmpl);
@@ -341,8 +341,8 @@ export default function InvitationsView({ lang, activeEventId }) {
         body:        editForm.body.trim() || null,
         bodyAr:      editForm.bodyAr.trim() || null,
         designConfig: editForm.designConfig || null,
-        color:       editForm.color,
-        targetTiers: editForm.targetTiers,
+        // color:       editForm.color,
+        // targetTiers: editForm.targetTiers,
       });
       loadTemplates();
       setEditTmpl(null);
@@ -401,23 +401,23 @@ export default function InvitationsView({ lang, activeEventId }) {
         </span>
       ),
     },
-    {
-      id: 'tiers',
-      header: STR.colTiers,
-      enableSorting: false,
-      size: 180,
-      cell: ({ row: { original: t } }) =>
-        t.targetTiers?.length > 0 ? (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {t.targetTiers.slice(0, 3).map(tier => (
-              <span key={tier} className="chip" style={{ fontSize: 10.5 }}>{tier}</span>
-            ))}
-            {t.targetTiers.length > 3 && (
-              <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>+{t.targetTiers.length - 3}</span>
-            )}
-          </div>
-        ) : <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>—</span>,
-    },
+    // {
+    //   id: 'tiers',
+    //   header: STR.colTiers,
+    //   enableSorting: false,
+    //   size: 180,
+    //   cell: ({ row: { original: t } }) =>
+    //     t.targetTiers?.length > 0 ? (
+    //       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+    //         {t.targetTiers.slice(0, 3).map(tier => (
+    //           <span key={tier} className="chip" style={{ fontSize: 10.5 }}>{tier}</span>
+    //         ))}
+    //         {t.targetTiers.length > 3 && (
+    //           <span style={{ fontSize: 11, color: 'var(--ink-mute)' }}>+{t.targetTiers.length - 3}</span>
+    //         )}
+    //       </div>
+    //     ) : <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>—</span>,
+    // },
     {
       id: 'actions',
       header: '',

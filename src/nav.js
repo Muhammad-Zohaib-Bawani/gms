@@ -6,7 +6,12 @@ export const KEY_PATH = {
   dashboard:       '/dashboard',
   invitations:     '/invitations',
   guests:          '/guests',
+  guestOverview:   '/guest-overview',
+  serviceLevels:   '/service-levels',
   travel:          '/travel',
+  // Not in the sidebar — the dynamic services show as tabs inside /travel. The
+  // route stays so an existing deep link still resolves.
+  serviceOps:      '/service-ops',
   accreditation:   '/accreditation',
   seating:         '/seating',
   meetings:        '/meetings',
@@ -16,7 +21,12 @@ export const KEY_PATH = {
   userAccess:      '/user-access',
   users:           '/users',
   organizations:   '/organizations',
+  services:        '/services',
+  venues:          '/venues',
   vehicles:        '/vehicles',
+  fleetProviders:  '/fleet-providers',
+  fleetBookings:   '/fleet-bookings',
+  roomInventory:   '/room-inventory',
   supportChat:     '/support-chat',
 };
 

@@ -63,6 +63,29 @@ function ImageField({ value, onChange, isAr }) {
   );
 }
 
+// A lookup row's `type: 'image'` column: the real image, or a dummy
+// placeholder box (not a bare "—") when it has none set, or its url 404s.
+function ImageCell({ src, isAr }) {
+  const [broken, setBroken] = useState(false);
+  const showPlaceholder = !src || broken;
+
+  return showPlaceholder ? (
+    <div
+      title={isAr ? 'لا توجد صورة' : 'No image'}
+      style={{
+        width: 44, height: 32, borderRadius: 5, flexShrink: 0,
+        background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
+        display: 'grid', placeItems: 'center',
+      }}
+    >
+      <Icon name="image" size={14} style={{ color: 'var(--ink-faint)' }}/>
+    </div>
+  ) : (
+    <img src={src} alt="" style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 5 }}
+      onError={() => setBroken(true)}/>
+  );
+}
+
 // Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
 export default function LookupsView({ lookupKey, lang }) {
   const isAr = lang === 'ar';
@@ -72,6 +95,9 @@ export default function LookupsView({ lookupKey, lang }) {
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editRow, setEditRow] = useState(null); // location-picker lookups only
+  // The row being edited in the standard form modal — null while adding. Same
+  // modal either way: the field set is identical, only the target differs.
+  const [editing, setEditing] = useState(null);
   const [form, setForm]       = useState({});
   const [errors, setErrors]   = useState({});
   const [saving, setSaving]   = useState(false);
@@ -102,9 +128,22 @@ export default function LookupsView({ lookupKey, lang }) {
   if (!def) return null;
 
   const label = isAr ? def.label.ar : def.label.en;
-  // Only the map-picker lookup has an update endpoint so far.
-  const canEdit = def.customAdd === 'location-picker';
-  const openAdd = () => { setForm({}); setErrors({}); setShowAdd(true); };
+  // Locations edit through the map picker; every other lookup edits through the
+  // standard form — but only once it declares an `update` (i.e. the backend has
+  // a PUT for it). The name-only lookups are still create-only.
+  const editsOnMap = def.customAdd === 'location-picker';
+  const canEdit = editsOnMap || !!def.update;
+  const openAdd = () => { setEditing(null); setForm({}); setErrors({}); setShowAdd(true); };
+  const openEdit = (row) => {
+    // Prefill straight off the row: field keys match the list's DTO keys, which
+    // is the same mapping `columns` relies on.
+    const next = {};
+    def.fields.forEach(f => { next[f.key] = row[f.key] ?? ''; });
+    setEditing(row);
+    setForm(next);
+    setErrors({});
+    setShowAdd(true);
+  };
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const columns = useMemo(() => {
@@ -113,10 +152,7 @@ export default function LookupsView({ lookupKey, lang }) {
       header: isAr ? c.label.ar : c.label.en,
       accessorFn: (r) => r[c.key],
       cell: ({ getValue }) => (c.type === 'image'
-        ? (getValue()
-            ? <img src={getValue()} alt="" style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 5 }}
-                onError={e => { e.target.style.display = 'none'; }}/>
-            : <span style={{ fontSize: 13 }}>—</span>)
+        ? <ImageCell src={getValue()} isAr={isAr} />
         : <span style={{ fontSize: 13 }}>{getValue() || '—'}</span>),
     }));
     if (canEdit) {
@@ -124,13 +160,16 @@ export default function LookupsView({ lookupKey, lang }) {
         id: 'actions', header: '', size: 50, enableSorting: false, enableGlobalFilter: false,
         cell: ({ row }) => (
           <ActionMenu items={[
-            { label: isAr ? 'تعديل' : 'Edit', icon: 'edit', onClick: () => setEditRow(row.original) },
+            {
+              label: isAr ? 'تعديل' : 'Edit', icon: 'edit',
+              onClick: () => (editsOnMap ? setEditRow(row.original) : openEdit(row.original)),
+            },
           ]} />
         ),
       });
     }
     return cols;
-  }, [def, isAr, canEdit]);
+  }, [def, isAr, canEdit, editsOnMap]);
 
   async function handleSave() {
     const errs = {};
@@ -139,16 +178,20 @@ export default function LookupsView({ lookupKey, lang }) {
 
     setSaving(true);
     try {
-      await def.create(form);
+      if (editing) await def.update(editing.id, form);
+      else await def.create(form);
       setShowAdd(false);
+      setEditing(null);
       load();
-      toast.success(isAr ? 'تمت الإضافة' : 'Added');
+      toast.success(editing ? (isAr ? 'تم التحديث' : 'Updated') : (isAr ? 'تمت الإضافة' : 'Added'));
     } catch (err) {
       toast.error(err?.response?.data?.message || (isAr ? 'خطأ أثناء الحفظ' : 'Error saving'));
     } finally {
       setSaving(false);
     }
   }
+
+  const closeForm = () => { setShowAdd(false); setEditing(null); };
 
   return (
     <div>
@@ -176,7 +219,7 @@ export default function LookupsView({ lookupKey, lang }) {
         />
       </div>
 
-      {canEdit && (
+      {editsOnMap && (
         <LocationPickerModal
           open={!!editRow}
           location={editRow}
@@ -196,12 +239,12 @@ export default function LookupsView({ lookupKey, lang }) {
       ) : (
       <Modal
         open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title={`${isAr ? 'إضافة' : 'Add'} — ${label}`}
+        onClose={closeForm}
+        title={`${editing ? (isAr ? 'تعديل' : 'Edit') : (isAr ? 'إضافة' : 'Add')} — ${label}`}
         width={440}
         footer={
           <>
-            <button className="btn" onClick={() => setShowAdd(false)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+            <button className="btn" onClick={closeForm}>{isAr ? 'إلغاء' : 'Cancel'}</button>
             <button className="btn primary" onClick={handleSave} disabled={saving}>
               <Icon name="check" size={13} /> {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ' : 'Save')}
             </button>

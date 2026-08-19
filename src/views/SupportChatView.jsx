@@ -10,7 +10,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icons';
+import { fmtDate, fmtDayMonth } from '../lib/date';
+import MessageList from './supportChat/MessageList.jsx';
 import { Avatar } from '../components/UI';
+import GuestCell from '../components/GuestCell';
 import Select from '../components/ui/Select';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
@@ -56,7 +59,9 @@ function relativeTime(iso, isAr) {
   const daysDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (daysDiff === 1) return isAr ? 'أمس' : 'Yesterday';
   if (daysDiff < 7) return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { weekday: 'short' });
-  return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'short' });
+  // Older than a week: an actual date, in the portal's DD-MM (no room for the
+  // year in an inbox row).
+  return fmtDayMonth(d);
 }
 
 function timeOfDay(iso, isAr) {
@@ -72,7 +77,7 @@ function dayLabel(iso, isAr) {
   const daysDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (daysDiff === 0) return isAr ? 'اليوم' : 'Today';
   if (daysDiff === 1) return isAr ? 'أمس' : 'Yesterday';
-  return d.toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  return fmtDate(d);
 }
 
 // Client-side approximation of the backend's ComputePreview, used only for
@@ -313,6 +318,10 @@ export default function SupportChatView({ lang, activeEventId }) {
   // lazily-loaded window, and so a brand-new conversation can be selected
   // before it's actually present in `chats.items`. ───────────────────────────
   const [activeConversation, setActiveConversation] = useState(null);
+  // A guest picked from the "New chat" tab who has no thread yet. Identified by
+  // `personId` (Guest.PublicId): a support conversation is per PERSON, one
+  // thread across every event they attend — the picker's own `id` is that
+  // person's participation in the active event and would 404 on the chat API.
   const [pendingGuest, setPendingGuest] = useState(null);
   const markedReadRef = useRef(new Set());
 
@@ -327,26 +336,37 @@ export default function SupportChatView({ lang, activeEventId }) {
     setActiveConversation(conv);
   }
 
+  // `guest` is a picker row (or a deep-link stub); its personId is what the chat
+  // API and the conversation rows' own `guestId` both key on.
   function startNewChat(guest) {
-    // If this guest already has a thread (possibly outside the loaded window),
+    const personId = guest.personId || null;
+    // Without a person id there is nothing to address — better a clear message
+    // than a request to /conversations/by-guest/null/messages.
+    if (!personId) {
+      toast.error(isAr ? "تعذّر تحديد هوية الضيف" : "Could not resolve this guest's identity");
+      return;
+    }
+    // If this person already has a thread (possibly outside the loaded window),
     // just open it instead of pretending there's no history.
-    const existing = chats.items.find((c) => c.guestId === guest.id);
+    const existing = chats.items.find((c) => c.guestId === personId);
     if (existing) { openConversation(existing); setListTab('chats'); return; }
     setActiveConversation(null);
-    setPendingGuest(guest);
+    setPendingGuest({ ...guest, personId });
   }
-  const incomingGuestId = location.state?.guestId || null;
+  // Deep-linked from a guest screen's "Message" action, which passes the PERSON
+  // id — see GuestsView / GuestDetailView / GuestOverviewView.
+  const incomingPersonId = location.state?.personId || null;
   useEffect(() => {
-    if (!incomingGuestId || chats.loading) return;
+    if (!incomingPersonId || chats.loading) return;
     startNewChat({
-      id: incomingGuestId,
+      personId: incomingPersonId,
       fullName: location.state.guestName || '',
       organization: location.state.guestOrganization || '',
     });
     setListTab('chats');
     navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingGuestId, chats.loading]);
+  }, [incomingPersonId, chats.loading]);
 
   // ── Open thread ─────────────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
@@ -442,10 +462,11 @@ export default function SupportChatView({ lang, activeEventId }) {
     setSending(true);
     try {
       if (pendingGuest) {
-        const msg = await startConversationWithGuest(pendingGuest.id, payload);
+        const msg = await startConversationWithGuest(pendingGuest.personId, payload);
         const newConv = {
           id: msg.conversationId,
-          guestId: pendingGuest.id,
+          // Conversation rows carry the PERSON id, same as the inbox feed.
+          guestId: pendingGuest.personId,
           guestName: pendingGuest.fullName,
           guestEmail: pendingGuest.email || null,
           status: 'Open',
@@ -525,9 +546,9 @@ export default function SupportChatView({ lang, activeEventId }) {
   ], [nationalities, isAr]);
 
   const threadGuest = activeConversation
-    ? { name: activeConversation.guestName, email: activeConversation.guestEmail }
+    ? { name: activeConversation.guestName, email: activeConversation.guestEmail, photoUrl: activeConversation.guestPhotoUrl }
     : pendingGuest
-      ? { name: pendingGuest.fullName, email: pendingGuest.organization }
+      ? { name: pendingGuest.fullName, email: pendingGuest.email, photoUrl: pendingGuest.photoUrl }
       : null;
 
   return (
@@ -542,9 +563,15 @@ export default function SupportChatView({ lang, activeEventId }) {
       {/* Fixed-height two-pane inbox — sizes off the viewport rather than
           growing with content, since a chat thread behaves like an app, not
           a scrolling document. */}
-      <div className="card" style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}>
+      {/* `has-thread` drives the mobile layout: below 768px only one pane is on
+          screen at a time — the list until a conversation is picked, then the
+          thread (with a back button in its header). See styles/qoc-revamp.css. */}
+      <div
+        className={`card chat-shell${threadGuest ? ' has-thread' : ''}`}
+        style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}
+      >
         {/* ── Left: two lazy-loaded lists behind a tab switch ── */}
-        <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
+        <div className="chat-list" style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', borderInlineEnd: '1px solid var(--glass-border)', minHeight: 0 }}>
           {canManage && (
           <div style={{ display: 'flex', borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
             {['chats', 'new'].map((tab) => (
@@ -667,7 +694,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                         borderBottom: '1px solid var(--glass-border)',
                       }}
                     >
-                      <Avatar initials={initialsFromName(c.guestName)} size={34} />
+                      <Avatar initials={initialsFromName(c.guestName)} size={34} src={c.guestPhotoUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
@@ -714,7 +741,10 @@ export default function SupportChatView({ lang, activeEventId }) {
                   <div style={{ textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13, padding: 24 }}>{STR.noGuests}</div>
                 ) : (
                   guestPicker.items.map((g) => {
-                    const isActive = pendingGuest?.id === g.id || activeConversation?.guestId === g.id;
+                    // Both sides compare on the person id — g.id is this
+                    // guest's participation in the active event, not their identity.
+                    const isActive = pendingGuest?.personId === g.personId
+                      || activeConversation?.guestId === g.personId;
                     return (
                       <div
                         key={g.id}
@@ -726,12 +756,8 @@ export default function SupportChatView({ lang, activeEventId }) {
                           borderBottom: '1px solid var(--glass-border)',
                         }}
                       >
-                        <Avatar initials={initialsFromName(g.fullName)} size={34} src={g.photoUrl} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.fullName || '—'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {[g.organization, g.tier].filter(Boolean).join(' · ') || '—'}
-                          </div>
+                          <GuestCell name={g.fullName} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={34} />
                         </div>
                         <Icon name="message" size={14} style={{ color: 'var(--ink-faint)', flexShrink: 0 }} />
                       </div>
@@ -745,7 +771,7 @@ export default function SupportChatView({ lang, activeEventId }) {
         </div>
 
         {/* ── Right: open thread ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
+        <div className="chat-thread" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           {!threadGuest ? (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--ink-faint)' }}>
               <Icon name="message" size={40} style={{ opacity: 0.4 }} />
@@ -755,7 +781,17 @@ export default function SupportChatView({ lang, activeEventId }) {
             <>
               {/* Thread header */}
               <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
-                <Avatar initials={initialsFromName(threadGuest.name)} size={36} />
+                {/* Mobile only — the list is off-screen at this width, so the
+                    thread needs its own way back to it. */}
+                <button
+                  className="icon-btn chat-back-btn"
+                  title={isAr ? 'رجوع' : 'Back'}
+                  aria-label={isAr ? 'رجوع' : 'Back'}
+                  onClick={() => { setActiveConversation(null); setPendingGuest(null); }}
+                >
+                  <Icon name={isAr ? 'chevronRight' : 'arrowLeft'} size={16} />
+                </button>
+                <Avatar initials={initialsFromName(threadGuest.name)} size={36} src={threadGuest.photoUrl} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{threadGuest.name || '—'}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{threadGuest.email || '—'}</div>
@@ -788,63 +824,17 @@ export default function SupportChatView({ lang, activeEventId }) {
                         </button>
                       </div>
                     )}
-                    {messages.map((m, i) => {
-                      const prev = messages[i - 1];
-                      const showDivider = !prev || !sameDay(prev.sentAt, m.sentAt);
-                      // isMine, not fromGuest: SupportMessageResponse has no
-                      // fromGuest field, so the old `m.fromGuest === false` was
-                      // always false and every message rendered on the left.
-                      // The admin endpoints set isMine = !FromGuest server-side.
-                      const mine = m.isMine === true;
-                      return (
-                        <React.Fragment key={m.id}>
-                          {showDivider && (
-                            <div style={{ textAlign: 'center', margin: '14px 0', fontSize: 11, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              {dayLabel(m.sentAt, isAr)}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 10 }}>
-                            <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-                              {mine && m.senderName && (
-                                <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', marginBottom: 2 }}>{m.senderName}</div>
-                              )}
-                              <div style={{
-                                padding: '9px 13px', borderRadius: mine ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                                background: mine ? 'var(--accent)' : 'var(--surface-soft-3)', color: mine ? '#fff' : 'var(--ink)',
-                                fontSize: 13.5, lineHeight: 1.45, wordBreak: 'break-word',
-                              }}>
-                                {/* Plain text both ways — bodies are no longer HTML (the
-                                    composer sends text), so nothing is ever set as innerHTML.
-                                    React escapes the string; pre-wrap keeps the line breaks. */}
-                                {m.body && (
-                                  <div style={{ whiteSpace: 'pre-wrap' }}>{plainBody(m.body)}</div>
-                                )}
-                                {m.attachmentUrl && (
-                                  m.attachmentType?.startsWith('image') ? (
-                                    <a href={m.attachmentUrl} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: m.body ? 8 : 0 }}>
-                                      <img src={m.attachmentUrl} alt="" style={{ maxWidth: '100%', borderRadius: 8, display: 'block' }} />
-                                    </a>
-                                  ) : (
-                                    <a href={m.attachmentUrl} target="_blank" rel="noreferrer"
-                                      style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: m.body ? 8 : 0, color: 'inherit', textDecoration: 'underline', fontSize: 12 }}>
-                                      <Icon name="doc" size={13} /> {isAr ? 'مرفق' : 'Attachment'}
-                                    </a>
-                                  )
-                                )}
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 10.5, color: 'var(--ink-faint)' }}>
-                                {timeOfDay(m.sentAt, isAr)}
-                                {mine && (
-                                  <span title={m.isRead ? STR.read : STR.sent} style={{ display: 'inline-flex', color: m.isRead ? 'var(--accent)' : 'var(--ink-faint)' }}>
-                                    <Icon name="checkDouble" size={12} />
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </React.Fragment>
-                      );
-                    })}
+                    <MessageList
+                      messages={messages}
+                      isAr={isAr}
+                      STR={STR}
+                      plainBody={plainBody}
+                      sameDay={sameDay}
+                      dayLabel={dayLabel}
+                      timeOfDay={timeOfDay}
+                      initialsFromName={initialsFromName}
+                      guestName={activeConversation?.guestName}
+                    />
                   </>
                 )}
               </div>
@@ -862,7 +852,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                   </div>
                 ) : (
                   <RichComposer
-                    key={pendingGuest ? `guest-${pendingGuest.id}` : activeConversation ? `conv-${activeConversation.id}` : 'none'}
+                    key={pendingGuest ? `guest-${pendingGuest.personId}` : activeConversation ? `conv-${activeConversation.id}` : 'none'}
                     isAr={isAr}
                     placeholder={STR.composerPh}
                     disabled={false}

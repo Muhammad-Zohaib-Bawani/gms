@@ -8,6 +8,8 @@ import { KEY_PATH } from './nav';
 import DashboardView from './views/DashboardView';
 import InvitationsView from './views/InvitationsView';
 import GuestsView from './views/GuestsView';
+import GuestOverviewView from './views/GuestOverviewView';
+import ServiceOpsView from './views/ServiceOpsView';
 import TravelView from './views/TravelView';
 import AccreditationView from './views/AccreditationView';
 import SeatingView from './views/SeatingView';
@@ -18,7 +20,13 @@ import AccountRequestsView from './views/AccountRequestsView';
 import UserAccessView from './views/UserAccessView';
 import UsersView from './views/UsersView';
 import OrganizationsView from './views/OrganizationsView';
+import ServicesView from './views/ServicesView';
+import ServiceLevelsView from './views/ServiceLevelsView';
+import VenuesView from './views/VenuesView';
 import VehiclesView from './views/VehiclesView';
+import FleetProvidersView from './views/FleetProvidersView';
+import FleetBookingsView from './views/FleetBookingsView';
+import AccommodationInventoryView from './views/AccommodationInventoryView';
 import SupportChatView from './views/SupportChatView';
 import LookupsView from './views/lookups/LookupsView';
 import GuestDetailView from './views/GuestDetailView';
@@ -29,7 +37,15 @@ const MODULE_ROUTES = [
   { key: 'dashboard',       Component: DashboardView,       permission: 'Dashboard.View' },
   { key: 'invitations',     Component: InvitationsView,     permission: 'Invitations.View' },
   { key: 'guests',          Component: GuestsView,          permission: 'Guests.View' },
+  { key: 'guestOverview',   Component: GuestOverviewView,   permission: 'Guests.View' },
+  { key: 'serviceLevels',   Component: ServiceLevelsView,   permission: 'ServiceLevels.View' },
+  { key: 'services',        Component: ServicesView,        permission: 'Services.View' },
+  // One page for every service: TravelView renders the three built-in relational
+  // ones (Core/Constants/SystemServices.cs) on its own tabs and embeds
+  // ServiceOpsView for each dynamic one. /service-ops is kept, unlinked, so an
+  // existing bookmark still lands somewhere sensible.
   { key: 'travel',          Component: TravelView,          permission: 'Travel.View' },
+  { key: 'serviceOps',      Component: ServiceOpsView,      permission: 'Travel.View' },
   { key: 'accreditation',   Component: AccreditationView,   permission: 'Accreditation.View' },
   { key: 'seating',         Component: SeatingView,         permission: 'Seating.View' },
   { key: 'meetings',        Component: MeetingsView,        permission: 'Meetings.View' },
@@ -39,7 +55,11 @@ const MODULE_ROUTES = [
   { key: 'userAccess',      Component: UserAccessView,      permission: 'UserAccess.Manage' },
   { key: 'users',           Component: UsersView,           permission: 'Users.View' },
   { key: 'organizations',   Component: OrganizationsView,   permission: 'Organizations.View' },
+  { key: 'venues',          Component: VenuesView,          permission: 'Venue.View' },
   { key: 'vehicles',        Component: VehiclesView,        permission: 'Travel.View' },
+  { key: 'fleetProviders',  Component: FleetProvidersView,  permission: 'Travel.View' },
+  { key: 'fleetBookings',   Component: FleetBookingsView,   permission: 'Travel.View' },
+  { key: 'roomInventory',   Component: AccommodationInventoryView, permission: 'Travel.View' },
   { key: 'supportChat',     Component: SupportChatView,     permission: 'SupportChat.View' },
 ];
 
@@ -56,23 +76,30 @@ function LookupAdapter() {
   return <LookupsView lookupKey={lookupKey} lang={ctx.lang} />;
 }
 
+// /guests/:id — :id is an eventGuestId (EventGuest.PublicId), the participation
+// being viewed. A personId here would 404: the cross-event view of a human is
+// Guest Overview, not this route.
 function GuestDetailAdapter() {
   const ctx = useOutletContext();
   const { id } = useParams();
-  return <GuestDetailView guestId={id} lang={ctx.lang} />;
+  return <GuestDetailView eventGuestId={id} lang={ctx.lang} />;
 }
 
 // Redirect helpers ----------------------------------------------------------
 
 function RequireAuth() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isBooting } = useAuth();
   const location = useLocation();
+  // Startup refresh in flight — deciding either way here would flash the wrong
+  // screen (and used to send a returning user straight to /login).
+  if (isBooting) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location }} />;
   return <App />; // App is the shell/layout; it renders <Outlet/> for the active module
 }
 
 function LoginRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isBooting } = useAuth();
+  if (isBooting) return null;
   if (isAuthenticated) return <Navigate to="/" replace />;
   return <AuthView />;
 }

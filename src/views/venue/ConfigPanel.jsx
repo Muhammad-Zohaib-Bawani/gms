@@ -662,8 +662,8 @@ export default function ConfigPanel({
               style={{
                 width: "100%",
                 justifyContent: "center",
-                color: "#e08a7e",
-                borderColor: "rgba(224,138,126,0.3)",
+                color: "var(--danger)",
+                borderColor: "var(--danger-border)",
               }}
               onClick={() => removeTable(selectedTable.id)}
             >

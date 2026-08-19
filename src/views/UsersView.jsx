@@ -3,20 +3,24 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/apiClient';
 import { ENDPOINTS } from '../api/endpoints';
-import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser } from '../api/services/userAccessService';
+import { deleteUser, inviteUser, resendInvite, adminSetPassword, updateUser, getPendingUsers } from '../api/services/userAccessService';
 import { listRoles } from '../api/services/roleService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getDriverTypes } from '../api/services/lookupService';
+import { getVehicles } from '../api/services/vehicleService';
 import { uploadImageFileAnon, stripSasToken } from '../api/services/uploadService';
 import { toast } from '../lib/toast';
+import { fmtDate } from '../lib/date';
 import DataTable from '../components/ui/DataTable';
 import ActionMenu from '../components/ui/ActionMenu';
 import Select from '../components/ui/Select';
+import { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import { Icon } from '../components/Icons';
 // Country-code picker + validation (libphonenumber-js under the hood).
 import PhoneInput, { isValidPhoneNumber, parsePhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
+import { toCsv, downloadCsv } from '../lib/csvExport';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -31,11 +35,8 @@ function initials(u) {
   return [u.firstName?.[0], u.lastName?.[0]].filter(Boolean).join('').toUpperCase() || '?';
 }
 
-function formatDate(val) {
-  if (!val) return '—';
-  const d = new Date(val);
-  return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+// Portal-wide DD-MM-YYYY — see lib/date.
+const formatDate = (val) => fmtDate(val);
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -82,11 +83,11 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
           Delete user?
         </div>
         <div style={{ fontSize: 13, color: 'var(--ink-mute)', lineHeight: 1.6, marginBottom: 22 }}>
-          This will permanently delete{' '}
+This will permanently delete{' '}
           <strong style={{ color: 'var(--ink)' }}>
             {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
           </strong>{' '}
-          ({user.email}). This action cannot be undone.
+          {user.email}. This action cannot be undone.
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn" onClick={onCancel} disabled={busy}
@@ -99,8 +100,8 @@ function DeleteModal({ user, onConfirm, onCancel, busy }) {
             disabled={busy}
             style={{
               padding: '8px 18px', fontSize: 13, opacity: busy ? 0.7 : 1,
-              background: 'rgba(224,138,126,0.14)', color: '#e08a7e',
-              border: '1px solid rgba(224,138,126,0.35)',
+              background: 'var(--danger-bg)', color: 'var(--danger)',
+              border: '1px solid var(--danger-border)',
             }}>
             {busy ? 'Deleting…' : 'Delete'}
           </button>
@@ -123,15 +124,41 @@ function splitPhone(e164) {
 const EMPTY_INVITE = {
   firstName: '', lastName: '', email: '', phone: '', roleId: '',
   driverType: '', driverLicenseNumber: '', driverLicenseExpiry: '',
-  driverNationalityId: '', driverPhotoUrl: '',
+  driverNationalityId: '', driverPhotoUrl: '', assignedVehicleId: '',
 };
 
-function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onInvited }) {
+// Enum values from the backend (DriverType.cs / VehicleUsageType.cs). An open
+// driver roams, so they keep one fixed car of their own; a fixed driver is tied to
+// a guest and draws an open pool car per trip, so no car is stored for them here.
+const DRIVER_TYPE_OPEN = 2;
+const VEHICLE_USAGE_FIXED = 1;
+
+function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, activeEventId, onInvited }) {
   const [form, setForm] = useState(EMPTY_INVITE);
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
   useEffect(() => { if (open) setForm(EMPTY_INVITE); }, [open]);
+
+  const isOpenDriver = Number(form.driverType) === DRIVER_TYPE_OPEN;
+
+  // Only fixed cars nobody else holds can be handed to an open driver, and the
+  // server enforces the same rule — this just keeps an impossible pick off the list.
+  // Scoped to the active event, so the cars offered are the ones this event's fleet
+  // providers supply (plus in-house cars, which belong to no provider and serve every
+  // event — the same ForEvent rule the fleet screens use).
+  useEffect(() => {
+    if (!open || !isOpenDriver) { setVehicles([]); return; }
+    let cancelled = false;
+    setVehiclesLoading(true);
+    getVehicles(activeEventId, { usageType: VEHICLE_USAGE_FIXED, unassigned: true })
+      .then((r) => { if (!cancelled) setVehicles(Array.isArray(r) ? r : []); })
+      .catch(() => { if (!cancelled) setVehicles([]); })
+      .finally(() => { if (!cancelled) setVehiclesLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, isOpenDriver, activeEventId]);
 
   if (!open) return null;
 
@@ -140,7 +167,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
   const isDriver = selectedRole?.code === 'driver';
 
   const roleOpts = roles.map((r) => ({ value: r.id, label: r.name }));
-  const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: `${n.flag || ''} ${n.name}`.trim() }));
+  const nationalityOpts = nationalities.map((n) => ({ value: n.id, label: n.name, code: n.code }));
   const driverTypeOpts = driverTypes.map((d) => ({ value: d.value, label: d.name }));
 
   // Upload happens immediately on pick; only the resulting URL is sent with the
@@ -171,6 +198,10 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
       toast.warning('License number and driver type are required for a driver');
       return;
     }
+    if (isDriver && isOpenDriver && !form.assignedVehicleId) {
+      toast.warning('An open driver needs a fixed vehicle assigned');
+      return;
+    }
     if (form.phone && !isValidPhoneNumber(form.phone)) {
       toast.warning('Enter a valid phone number for the selected country');
       return;
@@ -187,6 +218,8 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
         ...(isDriver ? {
           driverProfile: {
             driverType: Number(form.driverType),
+            // Only sent for an open driver — the server rejects it on a fixed one.
+            assignedVehicleId: isOpenDriver ? form.assignedVehicleId : null,
             licenseNumber: form.driverLicenseNumber.trim(),
             licenseExpiry: form.driverLicenseExpiry || null,
             nationalityId: form.driverNationalityId || null,
@@ -254,9 +287,29 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
                 <label style={labelStyle}>Driver type *</label>
                 <Select value={form.driverType} onChange={(v) => setF('driverType', v)} options={driverTypeOpts} placeholder="— Select —" />
               </div>
+              {isOpenDriver && (
+                <div>
+                  <label style={labelStyle}>Vehicle *</label>
+                  <Select
+                    value={form.assignedVehicleId}
+                    onChange={(v) => setF('assignedVehicleId', v || '')}
+                    options={vehicles.map((v) => ({
+                      value: v.id,
+                      label: [v.vehicleNumber, v.vehicleModel].filter(Boolean).join(' · '),
+                    }))}
+                    placeholder={vehiclesLoading ? 'Loading…' : '— Select —'}
+                    isDisabled={vehiclesLoading}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>
+                    {vehiclesLoading || vehicles.length
+                      ? "Fixed vehicles from this event's fleet, not already assigned to a driver"
+                      : 'No free fixed vehicle for this event — mark one as Fixed under Fleet first'}
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Nationality</label>
-                <Select value={form.driverNationalityId} onChange={(v) => setF('driverNationalityId', v)} options={nationalityOpts} placeholder="— Select —" isClearable />
+                <Select value={form.driverNationalityId} onChange={(v) => setF('driverNationalityId', v)} options={nationalityOpts} formatOptionLabel={nationalityOptionLabel} placeholder="— Select —" isClearable />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -266,7 +319,7 @@ function InviteUserModal({ open, onClose, roles, nationalities, driverTypes, onI
               </div>
               <div>
                 <label style={labelStyle}>License expiry</label>
-                <DateField value={form.driverLicenseExpiry} onChange={(v) => setF('driverLicenseExpiry', v || '')} placeholder="YYYY-MM-DD" />
+                <DateField value={form.driverLicenseExpiry} onChange={(v) => setF('driverLicenseExpiry', v || '')} clearable />
               </div>
             </div>
             <div>
@@ -483,10 +536,23 @@ function SetPasswordModal({ user, onClose, onDone }) {
 const col = createColumnHelper();
 const TABS = ['all', 'pending'];
 
-export default function UsersView() {
+// activeEventId comes from the router outlet context — the driver invite form uses
+// it to offer only the vehicles this event's fleet providers supply.
+export default function UsersView({ activeEventId }) {
   const { user: me, can, isDemo } = useAuth();
 
-  const [users, setUsers]         = useState([]);
+  // The page's own rows — one server page at a time, not the whole table.
+  // Which endpoint fills it depends on the active tab: /users for All,
+  // /users/pending for Pending (a genuinely different query server-side, not
+  // a client-side filter over the same list).
+  const [rows, setRows]           = useState([]);
+  const [totalRows, setTotalRows] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize]   = useState(10);
+  const [search, setSearch]       = useState('');
+  // Just for the "Pending (N)" tab label/page-sub — independent of whichever
+  // tab/page is currently loaded.
+  const [pendingCount, setPendingCount] = useState(0);
   const [roles, setRoles]         = useState([]);
   const [nationalities, setNationalities] = useState([]);
   const [driverTypes, setDriverTypes] = useState([]);
@@ -498,25 +564,54 @@ export default function UsersView() {
   const [passwordTarget, setPasswordTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
   const [resendingId, setResendingId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const canCreate = can('Users.Create');
   const canUpdate = can('Users.Update');
   const canDelete = can('Users.Delete');
 
   const load = useCallback(async () => {
-    if (isDemo) { setUsers(DEMO_USERS); setLoading(false); return; }
+    if (isDemo) {
+      setRows(tab === 'pending' ? [] : DEMO_USERS);
+      setTotalRows(tab === 'pending' ? 0 : DEMO_USERS.length);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const res = await apiClient.get(ENDPOINTS.users.base, { params: { pageSize: 500 } });
-      setUsers(res?.items ?? res ?? []);
+      if (tab === 'pending') {
+        const res = await getPendingUsers({ pageNumber: pageIndex + 1, pageSize, search });
+        setRows((res?.items ?? []).map((u) => ({ ...u, isPending: true })));
+        setTotalRows(res?.totalCount ?? 0);
+      } else {
+        const res = await apiClient.get(ENDPOINTS.users.base, {
+          params: { pageNumber: pageIndex + 1, pageSize, search: search || undefined },
+        });
+        setRows(res?.items ?? []);
+        setTotalRows(res?.totalCount ?? 0);
+      }
     } catch (err) {
       toast.error(err.message || 'Could not load users');
     } finally {
       setLoading(false);
     }
-  }, [isDemo]);
+  }, [isDemo, tab, pageIndex, pageSize, search]);
 
   useEffect(() => { load(); }, [load]);
+  // Switching tabs or searching starts over from page 1 — staying on, say,
+  // page 3 of "All" and flipping to "Pending" would otherwise ask the server
+  // for a page that likely doesn't exist for the new list.
+  useEffect(() => { setPageIndex(0); }, [tab, search]);
+
+  const loadPendingCount = useCallback(async () => {
+    if (isDemo) { setPendingCount(0); return; }
+    try {
+      const res = await getPendingUsers({ pageNumber: 1, pageSize: 1 });
+      setPendingCount(res?.totalCount ?? 0);
+    } catch { /* cosmetic badge only */ }
+  }, [isDemo]);
+  useEffect(() => { loadPendingCount(); }, [loadPendingCount]);
+
   useEffect(() => {
     // Roles feed both the invite form and the edit form.
     if (isDemo || !(canCreate || canUpdate)) return;
@@ -534,6 +629,7 @@ export default function UsersView() {
       toast.success(`${toDelete.firstName || toDelete.email} deleted`);
       setToDelete(null);
       await load();
+      loadPendingCount();
     } catch (err) {
       toast.error(err.message || 'Delete failed');
     } finally {
@@ -553,8 +649,39 @@ export default function UsersView() {
     }
   }
 
-  const rows = useMemo(() => tab === 'pending' ? users.filter((u) => u.isPending) : users, [users, tab]);
-  const pendingCount = useMemo(() => users.filter((u) => u.isPending).length, [users]);
+  function handleInvited() {
+    load();
+    loadPendingCount();
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      let all = rows;
+      if (!isDemo) {
+        if (tab === 'pending') {
+          const res = await getPendingUsers({ pageNumber: 1, pageSize: Math.max(totalRows, 1), search });
+          all = (res?.items ?? []).map((u) => ({ ...u, isPending: true }));
+        } else {
+          const res = await apiClient.get(ENDPOINTS.users.base, {
+            params: { pageNumber: 1, pageSize: Math.max(totalRows, 1), search: search || undefined },
+          });
+          all = res?.items ?? [];
+        }
+      }
+      const headers = ['First Name', 'Last Name', 'Email', 'Role', 'Status', 'Joined', 'Driver License Number'];
+      const csvRows = all.map((u) => [
+        u.firstName, u.lastName, u.email, u.roleName,
+        u.isPending ? 'Pending' : (u.isActive ? 'Active' : 'Inactive'),
+        formatDate(u.createdAt), u.driverProfile?.licenseNumber || '',
+      ]);
+      downloadCsv(`users-${tab}.csv`, toCsv(headers, csvRows));
+    } catch (err) {
+      toast.error(err.message || 'Could not export users');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const columns = useMemo(() => [
     col.display({
@@ -666,11 +793,11 @@ export default function UsersView() {
         onClick: () => handleResend(u),
       },
 
-      !u.isPending && canUpdate && {
-        label: 'Set password',
-        icon: 'shield',
-        onClick: () => setPasswordTarget(u),
-      },
+      // !u.isPending && canUpdate && {
+      //   label: 'Set password',
+      //   icon: 'shield',
+      //   onClick: () => setPasswordTarget(u),
+      // },
 
       canDelete && {
         label: isSelf
@@ -696,17 +823,20 @@ export default function UsersView() {
         <div>
           <h1 className="page-title">Users</h1>
           <div className="page-sub">
-            {loading ? 'Loading…' : `${users.length} account${users.length !== 1 ? 's' : ''}`}
-            {pendingCount > 0 && !loading && ` · ${pendingCount} pending`}
+            {loading ? 'Loading…' : `${totalRows} ${tab === 'pending' ? 'pending invite' : 'account'}${totalRows !== 1 ? 's' : ''}`}
+            {tab !== 'pending' && pendingCount > 0 && !loading && ` · ${pendingCount} pending`}
           </div>
         </div>
-        {canCreate && (
-          <div className="page-actions">
+        <div className="page-actions">
+          <button className="btn" onClick={handleExport} disabled={exporting}>
+            <Icon name="download" size={14} /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          {canCreate && (
             <button className="btn primary" onClick={() => setShowInvite(true)}>
               <Icon name="plus" size={14} /> Invite User
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 16 }}>
@@ -718,13 +848,24 @@ export default function UsersView() {
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Keyed by tab so switching between All/Pending remounts the table
+            instead of keeping its old page — the rows come from a fresh
+            server query either way. */}
         <DataTable
+          key={tab}
           columns={columns}
           data={rows}
           loading={loading}
           searchPlaceholder="Search by name, email or role…"
+          searchValue={search}
+          onSearchChange={setSearch}
           emptyText={tab === 'pending' ? 'No pending invites' : 'No users found'}
-          pageSize={15}
+          manualPagination
+          pageIndex={pageIndex}
+          pageSize={pageSize}
+          totalRows={totalRows}
+          onPageChange={setPageIndex}
+          onPageSizeChange={(n) => { setPageSize(n); setPageIndex(0); }}
         />
       </div>
 
@@ -741,7 +882,8 @@ export default function UsersView() {
         roles={roles}
         nationalities={nationalities}
         driverTypes={driverTypes}
-        onInvited={load}
+        activeEventId={activeEventId}
+        onInvited={handleInvited}
       />
 
       <EditUserModal

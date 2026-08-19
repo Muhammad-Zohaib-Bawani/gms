@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createVenueBox, deleteVenueBox, deleteVenue, getVenues, getVenue, addVenueBlock as addVenueBlockApi, getElementTypes } from '../../api/services/venueService.js';
+import { createVenueBox, deleteVenueBox, deleteVenue, cloneVenue, getVenues, getVenue, addVenueBlock as addVenueBlockApi, getElementTypes } from '../../api/services/venueService.js';
 import { listSessions } from '../../api/services/eventService.js';
 import toast from '../../lib/toast.js';
 import {
@@ -17,8 +17,15 @@ export default function useVenueEditor({ lang, activeEventId }) {
   const [sessions, setSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [activeBoxId, setActiveBoxId] = useState(null);
+  // Whichever box pickBox actually resolved for the current venue/event/session —
+  // set even when it's the venue's shared fallback box (unlike activeBoxId,
+  // which is only set for a box genuinely owned by this event/session). This is
+  // "the layout currently open in the editor", i.e. what Clone Venue clones.
+  const [viewingBoxId, setViewingBoxId] = useState(null);
   const [clearingLayout, setClearingLayout] = useState(false);
   const [deletingVenue, setDeletingVenue] = useState(false);
+  const [showCloneVenue, setShowCloneVenue] = useState(false);
+  const [cloningVenue, setCloningVenue] = useState(false);
 
   const [selectedId, setSelectedId] = useState(null);
   const [selectedSeat, setSelectedSeat] = useState(null); // { tableId, index } | null
@@ -64,7 +71,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
 
   // Load the selected venue's saved arrangement (box) for the current event/session.
   useEffect(() => {
-    if (!activeVenueId || !isGuid(activeVenueId)) { setActiveBoxId(null); return; }
+    if (!activeVenueId || !isGuid(activeVenueId)) { setActiveBoxId(null); setViewingBoxId(null); return; }
     let cancelled = false;
     getVenue(activeVenueId).then(v => {
       if (cancelled || !v) return;
@@ -76,10 +83,11 @@ export default function useVenueEditor({ lang, activeEventId }) {
       // be deleted/overwritten as if it were this event's own arrangement.
       const isOwnBox = box && box.eventId === activeEventId && (box.sessionId || null) === (selectedSessionId || null);
       setActiveBoxId(isOwnBox ? box.id : null);
+      setViewingBoxId(box?.id || null);
       setVenues(prev => prev.map(x => x.id === activeVenueId
         ? { ...x, tables, boxWidth: box?.width || null, boxHeight: box?.height || null, hasAnyLayout: (v.venueBoxes || []).length > 0 }
         : x));
-    }).catch(() => setActiveBoxId(null));
+    }).catch(() => { setActiveBoxId(null); setViewingBoxId(null); });
     return () => { cancelled = true; };
   }, [activeVenueId, selectedSessionId, activeEventId]);
 
@@ -197,7 +205,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
         venueLayouts: tables.map(toLayoutDto),
       });
       const newBox = pickBox(result?.venueBoxes, activeEventId, selectedSessionId || null);
-      if (newBox?.id) setActiveBoxId(newBox.id);
+      if (newBox?.id) { setActiveBoxId(newBox.id); setViewingBoxId(newBox.id); }
       // Refresh local tables from what was actually persisted — most importantly,
       // a brand-new table's temp local id gets replaced with its real backend id,
       // so the *next* save (even without a page reload) can match it by that real
@@ -225,7 +233,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
         sessionId: selectedSessionId || null,
       });
       setTables([]); setSelectedId(null); setSelectedSeat(null);
-      setActiveBoxId(null);
+      setActiveBoxId(null); setViewingBoxId(null);
       toast.success(isAr ? 'تم حذف المخطط' : 'Layout cleared');
     } catch (err) {
       toast.error(err?.message || (isAr ? 'تعذّر حذف المخطط' : 'Could not clear layout'));
@@ -338,6 +346,24 @@ export default function useVenueEditor({ lang, activeEventId }) {
     loadVenues();
   }
 
+  // Clones the currently-open layout into a brand-new, independent venue
+  // (no event/session attached — see CloneVenueModal / pickBox). Switches to
+  // it on success, same as creating a venue via AddVenueModal.
+  async function cloneCurrentVenue(details) {
+    if (!isGuid(activeVenue?.id) || !viewingBoxId) return;
+    setCloningVenue(true);
+    try {
+      const venue = await cloneVenue(activeVenue.id, { ...details, sourceBoxId: viewingBoxId });
+      setShowCloneVenue(false);
+      handleVenueCreated(venue);
+      toast.success(isAr ? 'تم نسخ المكان' : 'Venue cloned');
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر نسخ المكان' : 'Could not clone venue');
+    } finally {
+      setCloningVenue(false);
+    }
+  }
+
   async function confirmDeleteVenue() {
     const vid = pendingDeleteVenueId;
     if (!vid) { setPendingDeleteVenueId(null); return; }
@@ -378,6 +404,7 @@ export default function useVenueEditor({ lang, activeEventId }) {
     saved, savingLayout, clearingLayout, deletingVenue,
     showClearConfirm, setShowClearConfirm,
     showAddVenue, setShowAddVenue,
+    viewingBoxId, showCloneVenue, setShowCloneVenue, cloningVenue, cloneCurrentVenue,
     elementTypes,
     pendingDeleteVenueId, setPendingDeleteVenueId,
     deleteSeatMode, setDeleteSeatMode,

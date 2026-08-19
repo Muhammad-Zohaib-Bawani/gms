@@ -3,12 +3,21 @@
 // the quick GuestDrawer). Read-only display of every field the API has for
 // this guest; Edit/Delete reuse the same modals as the Guests list so the
 // actual mutation logic isn't duplicated.
+//
+// This is the EVENT PARTICIPATION detail, not the person overview: it is keyed
+// by eventGuestId and every action on it (edit, delete, accreditation, travel,
+// seating, services) is scoped to that one event. The cross-event view of the
+// same human lives in Guest Overview (GuestDetail.jsx), keyed by personId. The
+// only person-level jump from here is Message, which sends `guest.personId`.
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar } from '../components/UI';
+import { Avatar, ServiceLevelChip } from '../components/UI';
 import { Icon } from '../components/Icons';
+import FlagIcon from '../components/FlagIcon';
 import toast from '../lib/toast';
-import { getGuest, issueAccreditation, revokeAccreditation } from '../api/services/guestService';
+import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../lib/date';
+import { useAuth } from '../auth/AuthContext';
+import { getGuest, issueAccreditation, revokeAccreditation, updateGuest } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getOrganizations } from '../api/services/organizationService';
 import { getTemplates } from '../api/services/invitationTemplateService';
@@ -18,20 +27,29 @@ import { getGuestSeatAssignments } from '../api/services/seatingService';
 import GuestModal from './guests/modals/GuestModal';
 import { flightTypeLabel, legTitle } from './guests/modals/TravelAccordion';
 import DeleteGuestsModal from './guests/modals/DeleteGuestsModal';
+import GuestProfileEditModal from './guests/modals/GuestProfileEditModal';
+import GuestServicesPanel from './guests/GuestServicesPanel';
+import ActionMenu from '../components/ui/ActionMenu';
+import AccreditationCardModal from './accreditation/AccreditationCardModal';
+import {
+  GuestCard, CardHeader, CardDivider, CardSlider, SessionCard, SeatCard,
+  GuestDetailSkeleton,
+} from './guests/cards/GuestDetailCards';
 
-// Each guest's own travel rows out of the event-wide lists — those already
-// carry resolved display names (hotel, vehicle, driver...), unlike
-// GET /travel/guest/{id} which only ever returns the single most-recent
-// booking of each kind (that endpoint is built for the edit wizard's
-// single-accordion prefill, not for showing every booking a guest has).
-const forGuest = (rows, guestId) => (rows || []).filter((r) => r.guestId === guestId);
+// Each participation's own travel rows out of the event-wide lists — those
+// already carry resolved display names (hotel, vehicle, driver...), unlike
+// GET /travel/guest/{eventGuestId} which only ever returns the single
+// most-recent booking of each kind (that endpoint is built for the edit
+// wizard's single-accordion prefill, not for showing every booking a guest has).
+const forEventGuest = (rows, eventGuestId) =>
+  (rows || []).filter((r) => r.eventGuestId === eventGuestId);
 
 const INVITE_BADGE = {
   not_sent: { label: { en: 'Not sent', ar: 'لم تُرسل' }, color: '#9CA3AF' },
   sent:     { label: { en: 'Sent',     ar: 'أُرسلت' },   color: '#3B82F6' },
   opened:   { label: { en: 'Opened',   ar: 'فُتحت' },    color: '#F59E0B' },
   accepted: { label: { en: 'Accepted', ar: 'مقبولة' },   color: '#5abf6e' },
-  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: '#e08a7e' },
+  declined: { label: { en: 'Declined', ar: 'مرفوضة' },   color: 'var(--danger)' },
 };
 const ACCRED_BADGE = {
   not_issued: { label: { en: 'Not issued', ar: 'غير صادر' }, color: '#9CA3AF' },
@@ -39,37 +57,22 @@ const ACCRED_BADGE = {
   revoked:    { label: { en: 'Revoked',    ar: 'ملغى' },     color: '#e05050' },
 };
 
-function fmtDate(d, isAr) {
-  if (!d) return null;
-  try { return new Date(d).toLocaleDateString(isAr ? 'ar' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }); }
-  catch { return d; }
-}
-function fmtDateTime(d, isAr) {
-  if (!d) return null;
-  try {
-    return new Date(d).toLocaleString(isAr ? 'ar' : 'en-US', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    });
-  } catch { return d; }
-}
+// Thin wrappers over lib/date so this screen reads the portal's DD-MM-YYYY like
+// everywhere else. Null (not '—') when empty: callers here hide the whole field.
+const fmtDate = (d) => (d ? isoDate(d, null) : null);
+const fmtDateTime = (d) => (d ? isoDateTime(d, null) : null);
 
-function Section({ icon, title, children, action }) {
+// Built on the same shell as every service card (guests/cards) so the whole
+// screen reads as one family of boxes rather than two competing card styles.
+function Section({ icon, title, children, action, embedded }) {
   return (
-    <div className="card" style={{ padding: 0, display: 'flex', flexDirection: 'column' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-        padding: '13px 18px', borderBottom: '1px solid var(--glass-border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name={icon} size={15} style={{ color: 'var(--accent)' }} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>
-        </div>
-        {action}
-      </div>
-      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+    <GuestCard embedded={embedded}>
+      <CardHeader icon={icon} title={title}>{action}</CardHeader>
+      <CardDivider />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
         {children}
       </div>
-    </div>
+    </GuestCard>
   );
 }
 
@@ -94,63 +97,113 @@ function Empty({ children }) {
   );
 }
 
-// One slide visible at a time with prev/next + dot nav — used wherever a guest
-// can hold more than one booking of the same kind (flight/accommodation/
-// transport), so a second or third booking doesn't just pile up under the first.
-function BookingCarousel({ items, renderItem }) {
-  const [idx, setIdx] = useState(0);
-  const count = items.length;
-  const safeIdx = idx < count ? idx : 0;
+const fieldGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 };
 
-  if (count === 0) return null;
+// Admin-only "which sessions is this guest in" popup — just the sessions,
+// not the full guest wizard. Saves through the same full-payload update every
+// guest edit uses (the API replaces the whole record), so everything else on
+// the guest is carried over unchanged and only sessionIds actually changes.
+function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
+  const isAr = lang === 'ar';
+  const [selected, setSelected] = useState(() => new Set(guest?.sessionIds || []));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) setSelected(new Set(guest?.sessionIds || []));
+  }, [open, guest]);
+
+  if (!open) return null;
+  const allSessions = event?.sessions || [];
+
+  function toggle(id) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await updateGuest(guest.id, {
+        firstName: guest.firstName,
+        lastName: guest.lastName,
+        email: guest.email || null,
+        guestType: guest.guestType,
+        organization: guest.organization || null,
+        // Omitting either of these nulls out the guest's linked organization
+        // and service level (and with the latter, their whole services
+        // checklist) — the update endpoint resolves both fresh from the
+        // request and overwrites the guest's existing links either way.
+        organizationId: guest.organizationId || null,
+        nationalityId: guest.nationalityId || null,
+        serviceLevelId: guest.serviceLevelId || null,
+        overrideServiceLevelRules: !!guest.serviceLevelRulesOverridden,
+        serviceLevelOverrideReason: guest.serviceLevelOverrideReason || null,
+        tier: guest.tier,
+        arrivalDate: guest.arrivalDate || null,
+        departureDate: guest.departureDate || null,
+        photoUrl: guest.photoUrl || null,
+        accreditationRequired: guest.accreditationRequired,
+        invitationTemplateId: guest.invitationTemplateId || null,
+        sessionIds: Array.from(selected),
+      });
+      toast.success(isAr ? 'تم حفظ الجلسات' : 'Sessions saved');
+      onSaved?.(updated);
+      onClose();
+    } catch (err) {
+      toast.fromError(err, isAr ? 'تعذّر الحفظ' : 'Could not save');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <div>
-      {count > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 26, height: 26 }}
-            onClick={() => setIdx((i) => (i - 1 + count) % count)}
-          >
-            <Icon name="arrowLeft" size={12} />
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            {items.map((_, i) => (
-              <button
-                type="button"
-                key={i}
-                onClick={() => setIdx(i)}
-                aria-label={`${i + 1}`}
-                style={{
-                  width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, padding: 0, border: 'none',
-                  cursor: 'pointer', background: i === safeIdx ? 'var(--accent)' : 'var(--glass-border)',
-                  transition: 'width 0.15s ease',
-                }}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 26, height: 26 }}
-            onClick={() => setIdx((i) => (i + 1) % count)}
-          >
-            <Icon name="arrow" size={12} />
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}
+      onClick={onClose}>
+      <div className="card glass modal-solid" style={{ width: 420, maxWidth: '92vw', padding: 0, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+        onClick={(e) => e.stopPropagation()}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ margin: 0, fontSize: 15 }}>{isAr ? 'جلسات الضيف' : 'Guest Sessions'}</h3>
+          <button className="icon-btn" onClick={onClose}><Icon name="close" size={14} /></button>
+        </div>
+        <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {allSessions.length === 0 ? (
+            <Empty>{isAr ? 'لا توجد جلسات لهذه الفعالية' : 'This event has no sessions'}</Empty>
+          ) : allSessions.map((s) => (
+            <label key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
+              border: `1px solid ${selected.has(s.id) ? 'var(--accent)' : 'var(--glass-border)'}`,
+              background: selected.has(s.id) ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+            }}>
+              <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500 }}>{s.title}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
+                  {[fmtDate(s.date, isAr), s.time, s.room].filter(Boolean).join(' · ') || '—'}
+                </div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--glass-border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn" onClick={onClose} disabled={saving}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+          <button className="btn primary" onClick={handleSave} disabled={saving}>
+            <Icon name="check" size={13} /> {saving ? (isAr ? 'جارٍ الحفظ…' : 'Saving…') : (isAr ? 'حفظ' : 'Save')}
           </button>
         </div>
-      )}
-      {renderItem(items[safeIdx], safeIdx)}
+      </div>
     </div>
   );
 }
 
-const fieldGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 };
-
-export default function GuestDetailView({ guestId, lang }) {
+export default function GuestDetailView({ eventGuestId, lang, embedded = false }) {
   const isAr = lang === 'ar';
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const canEditGuest = can('Guests.Update');
+  const canSeeSeating = can('Seating.View');
 
   const [guest, setGuest] = useState(null);
   const [event, setEvent] = useState(null);
@@ -166,12 +219,15 @@ export default function GuestDetailView({ guestId, lang }) {
   const [busy, setBusy] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [showSessionsEdit, setShowSessionsEdit] = useState(false);
+  const [showAccredCard, setShowAccredCard] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setNotFound(false);
     try {
-      const g = await getGuest(guestId);
+      const g = await getGuest(eventGuestId);
       if (!g) { setNotFound(true); return; }
       setGuest(g);
       const [ev, fl, acc, tr, st, nats, orgs, tmpls] = await Promise.all([
@@ -185,9 +241,9 @@ export default function GuestDetailView({ guestId, lang }) {
         getTemplates(g.eventId).catch(() => []),
       ]);
       setEvent(ev);
-      setFlights(forGuest(fl?.items, g.id));
-      setAccommodations(forGuest(acc?.items, g.id));
-      setTransports(forGuest(tr?.items, g.id));
+      setFlights(forEventGuest(fl?.items, g.id));
+      setAccommodations(forEventGuest(acc?.items, g.id));
+      setTransports(forEventGuest(tr?.items, g.id));
       setSeats(st || []);
       setNationalities(nats || []);
       setOrganizations(orgs || []);
@@ -197,7 +253,7 @@ export default function GuestDetailView({ guestId, lang }) {
     } finally {
       setLoading(false);
     }
-  }, [guestId]);
+  }, [eventGuestId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -244,7 +300,7 @@ export default function GuestDetailView({ guestId, lang }) {
   }
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>{isAr ? 'جارٍ التحميل…' : 'Loading…'}</div>;
+    return <GuestDetailSkeleton embedded={embedded} lang={lang} />;
   }
   if (notFound || !guest) {
     return (
@@ -259,197 +315,230 @@ export default function GuestDetailView({ guestId, lang }) {
     );
   }
 
-  return (
-    <div style={{ maxWidth: 1080, margin: '0 auto' }}>
-      <button
-        className="btn"
-        style={{ marginBottom: 14, fontSize: 12.5 }}
-        onClick={() => navigate('/guests')}
-      >
-        <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
-      </button>
+  // Header actions for the two paged cards below — declared once because each
+  // renders in both the populated and the empty branch.
+  const sessionsEditBtn = canEditGuest && (
+    <button className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
+      title={isAr ? 'تعديل الجلسات' : 'Edit sessions'} onClick={() => setShowSessionsEdit(true)}>
+      <Icon name="edit" size={12} />
+    </button>
+  );
+  const seatingBtn = canSeeSeating && (
+    <button className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
+      title={isAr ? 'الذهاب إلى الجلوس' : 'Go to Seating'} onClick={() => navigate('/seating')}>
+      <Icon name="arrow" size={12} />
+    </button>
+  );
 
-      {/* Header */}
-      <div className="card" style={{ padding: '20px 22px', marginBottom: 16 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: '1 1 320px', minWidth: 260 }}>
-            <Avatar initials={initials} size={64} tier={guest.tier} src={guest.photoUrl} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{guestName}</div>
-              {guest.organization && <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginTop: 2 }}>{guest.organization}</div>}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
-                <span className="chip" style={{ borderColor: `${inviteBadge.color}55`, color: inviteBadge.color, background: `${inviteBadge.color}18` }}>
-                  <span className="dot" style={{ background: inviteBadge.color }} />
-                  {inviteBadge.label[isAr ? 'ar' : 'en']}
-                </span>
-                {guest.accreditationRequired && (
-                  <span className="chip" style={{ borderColor: `${accredBadge.color}55`, color: accredBadge.color, background: `${accredBadge.color}18` }}>
-                    <span className="dot" style={{ background: accredBadge.color }} />
-                    {accredBadge.label[isAr ? 'ar' : 'en']}
+  return (
+    <div style={{ margin: '0 auto' }}>
+      {!embedded && (
+        <button
+          className="btn"
+          style={{ marginBottom: 14, fontSize: 12.5 }}
+          onClick={() => navigate('/guests')}
+        >
+          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
+        </button>
+      )}
+
+      {!embedded && (
+        <div className="card" style={{ padding: '20px 22px', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: '1 1 320px', minWidth: 260 }}>
+              <Avatar initials={initials} size={64} tier={guest.tier} src={guest.photoUrl} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{cursor: 'pointer', fontSize: 19, fontWeight: 700, lineHeight: 1.2, overflowWrap: 'anywhere' }}>{guestName}</div>
+                {guest.email && <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: 2 }}>{guest.email}</div>}
+                {guest.organization && <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginTop: 1 }}>{guest.organization}</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+                  <span className="chip" style={{ borderColor: `${inviteBadge.color}55`, color: inviteBadge.color, background: `${inviteBadge.color}18` }}>
+                    <span className="dot" style={{ background: inviteBadge.color }} />
+                    {inviteBadge.label[isAr ? 'ar' : 'en']}
                   </span>
-                )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button className="btn" onClick={() => navigate('/support-chat', {
-              state: { guestId: guest.id, guestName, guestOrganization: guest.organization || '' },
-            })}>
-              <Icon name="message" size={13} /> {isAr ? 'رسالة' : 'Message'}
-            </button>
-            {guest.accreditationRequired && (
-              guest.accreditationStatus === 'issued' ? (
-                <button className="btn" disabled={busy} style={{ color: '#e08a7e', borderColor: 'rgba(224,138,126,0.3)' }} onClick={handleRevoke}>
-                  <Icon name="x" size={13} /> {isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
-                </button>
-              ) : (
-                <button className="btn" disabled={busy || !canIssue} title={!canIssue ? (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first') : undefined}
-                  style={canIssue ? undefined : { opacity: 0.4, cursor: 'not-allowed' }} onClick={handleIssue}>
-                  <Icon name="badge" size={13} /> {isAr ? 'إصدار الاعتماد' : 'Issue Accreditation'}
-                </button>
-              )
-            )}
-            <button className="btn primary" onClick={() => setShowEdit(true)}>
-              <Icon name="edit" size={13} /> {isAr ? 'تعديل' : 'Edit'}
-            </button>
-            <button className="btn" style={{ color: '#e05050', borderColor: 'rgba(224,80,80,0.3)' }} onClick={() => setShowDelete(true)}>
-              <Icon name="trash" size={13} /> {isAr ? 'حذف' : 'Delete'}
-            </button>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+              <button
+                className="icon-btn" title={isAr ? 'رسالة' : 'Message'} aria-label={isAr ? 'رسالة' : 'Message'}
+                /* Support chat is one thread per PERSON, so it takes
+                   guest.personId — the participation id would 404 there. */
+                onClick={() => navigate('/support-chat', {
+                  state: { personId: guest.personId, guestName, guestOrganization: guest.organization || '' },
+                })}
+              >
+                <Icon name="message" size={14} />
+              </button>
+              {guest.accreditationRequired && (
+                guest.accreditationStatus === 'issued' ? (
+                  <button
+                    className="icon-btn" style={{ color: 'var(--danger)' }} disabled={busy}
+                    title={isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
+                    aria-label={isAr ? 'سحب الاعتماد' : 'Revoke Accreditation'}
+                    onClick={handleRevoke}
+                  >
+                    <Icon name="x" size={14} />
+                  </button>
+                ) : (
+                  <button
+                    className="icon-btn" disabled={busy || !canIssue}
+                    title={canIssue
+                      ? (isAr ? 'إصدار الاعتماد' : 'Issue Accreditation')
+                      : (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first')}
+                    aria-label={isAr ? 'إصدار الاعتماد' : 'Issue Accreditation'}
+                    onClick={handleIssue}
+                  >
+                    <Icon name="badge" size={14} />
+                  </button>
+                )
+              )}
+              <button
+                className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} aria-label={isAr ? 'تعديل' : 'Edit'}
+                onClick={() => setShowEdit(true)}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              <button
+                className="icon-btn" style={{ color: 'var(--danger)' }}
+                title={isAr ? 'حذف' : 'Delete'} aria-label={isAr ? 'حذف' : 'Delete'}
+                onClick={() => setShowDelete(true)}
+              >
+                <Icon name="trash" size={14} />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Detail grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <Section icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}>
+        <Section embedded={embedded} icon="guests" title={isAr ? 'المعلومات الشخصية' : 'Personal Info'}
+          action={canEditGuest && (
+            <button className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} onClick={() => setShowProfileEdit(true)}>
+              <Icon name="edit" size={13} />
+            </button>
+          )}>
           <div style={fieldGrid}>
             <Field label={isAr ? 'البريد الإلكتروني' : 'Email'} value={guest.email} />
             <Field label={isAr ? 'نوع الضيف' : 'Guest Type'} value={guest.guestType} />
-            <Field label={isAr ? 'الفئة' : 'Tier'} value={guest.tier} />
-            <Field label={isAr ? 'الدولة' : 'Country'} value={guest.nationalityName ? `${guest.nationalityFlag || ''} ${guest.nationalityName}`.trim() : null} />
-            <Field label={isAr ? 'تاريخ الإنشاء' : 'Created'} value={fmtDate(guest.createdAt, isAr)} />
-            {/* GuestServiceType.Transport (3) on the guest's allowed-services
-                list — whether they may book a car from the app themselves,
-                regardless of what's booked for them in the Transport section. */}
             <Field
-              label={isAr ? 'طلب النقل من التطبيق' : 'Self-book transport'}
-              value={(guest.allowedServices || []).includes(3)
-                ? (isAr ? 'مسموح' : 'Allowed')
-                : (isAr ? 'غير مسموح' : 'Not allowed')}
+              label={isAr ? 'مستوى الخدمة' : 'Service Level'}
+              value={guest.serviceLevelName
+                ? <ServiceLevelChip name={guest.serviceLevelName} nameAr={guest.serviceLevelNameAr}
+                    color={guest.serviceLevelColor} lang={lang} />
+                : null}
+            />
+            <Field
+              label={isAr ? 'الدولة' : 'Country'}
+              value={guest.nationalityName ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                  {/* Real flag image, not the emoji — Windows renders flag
+                      emoji as a bare "QA". Same component the tables use. */}
+                  <FlagIcon code={guest.nationalityCode} size={15} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{guest.nationalityName}</span>
+                </span>
+              ) : null}
+            />
+            {/* Organization sits here rather than in the split view's guest
+                list, which stays down to name + email. Six fields keeps the
+                grid even; "Created" was the one nobody came to this card for. */}
+            <Field label={isAr ? 'المؤسسة' : 'Organization'} value={guest.organization} />
+            <Field
+              label={isAr ? 'الاعتماد' : 'Accreditation'}
+              value={guest.accreditationRequired
+                ? <button
+                    type="button"
+                    className=""
+                    style={{display: "flex",gap: 4,alignItems: "center", borderBottom: '1px solid #000 !important',border: "none", background: 'transparent', padding: 0, fontSize: 12, color: 'var(--accent)', cursor: 'pointer' }}
+                    onClick={() => setShowAccredCard(true)}
+                  >
+                    <Icon name="badge" size={12} />
+                    {isAr ? 'عرض الاعتماد' : 'View Pass'}
+                  </button>
+                : (isAr ? 'غير مطلوب' : 'Not required')}
             />
           </div>
         </Section>
 
-        <Section icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
-          {sessions.length === 0 ? (
+        {/* Sessions — one card, one session at a time. A guest on five
+            sessions used to stretch this box past every other card in the
+            row; the pager keeps it the same size whatever the count. */}
+        {sessions.length === 0 ? (
+          <GuestCard embedded={embedded}>
+            <CardHeader icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
+              {sessionsEditBtn}
+            </CardHeader>
             <Empty>{isAr ? 'لم يسجل الضيف في أي جلسة' : 'Not registered for any session'}</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {sessions.map((s) => (
-                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5, paddingBottom: 8, borderBottom: '1px solid var(--glass-border)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
-                    <div style={{ color: 'var(--ink-mute)', fontSize: 11, marginTop: 2 }}>
-                      {[s.venueName, s.room].filter(Boolean).join(' · ') || '—'}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: isAr ? 'left' : 'right', flexShrink: 0, color: 'var(--ink-mute)', fontSize: 11.5 }}>
-                    <div>{fmtDate(s.date, isAr)}</div>
-                    <div style={{ fontFamily: 'var(--mono)' }}>{s.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
+          </GuestCard>
+        ) : (
+          <CardSlider items={sessions}>
+            {(s, pager) => (
+              <SessionCard
+                lang={lang}
+                embedded={embedded}
+                header={
+                  <CardHeader icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
+                    {sessionsEditBtn}
+                  </CardHeader>
+                }
+                footer={pager}
+                title={s.title}
+                category={event?.type}
+                imageUrl={s.imageUrl}
+                dateLabel={fmtDate(s.date)}
+                timeLabel={s.time}
+                venue={[s.venueName, s.room].filter(Boolean).join(' · ')}
+              />
+            )}
+          </CardSlider>
+        )}
 
-        <Section icon="venue" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
-          {seats.length === 0 ? (
+        {/* Seat assignment — same pager treatment, and the card itself is the
+            way through to the floor plan. */}
+        {seats.length === 0 ? (
+          <GuestCard embedded={embedded}>
+            <CardHeader icon="seating" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
+              {seatingBtn}
+            </CardHeader>
             <Empty>{isAr ? 'لم يُخصص مقعد بعد' : 'No seat assigned'}</Empty>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {seats.map((s, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, paddingBottom: 8, borderBottom: '1px solid var(--glass-border)' }}>
-                  <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''}
-                  </div>
-                  <span className="chip pending" style={{ flexShrink: 0 }}>{isAr ? 'مقعد' : 'Seat'} {s.seatCode}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
+          </GuestCard>
+        ) : (
+          <CardSlider items={seats}>
+            {(s, pager) => (
+              <SeatCard
+                lang={lang}
+                embedded={embedded}
+                header={
+                  <CardHeader icon="seating" title={isAr ? 'المقعد المخصص' : 'Seat Assignment'}>
+                    {seatingBtn}
+                  </CardHeader>
+                }
+                footer={pager}
+                seatCode={s.seatCode}
+                eventTitle={s.eventTitle}
+                sessionTitle={s.sessionTitle}
+                onOpen={canSeeSeating ? () => navigate('/seating') : undefined}
+              />
+            )}
+          </CardSlider>
+        )}
 
-        <Section icon="flight" title={isAr ? 'الطيران' : 'Flight'}>
-          {flights.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز طيران' : 'No flight booked'}</Empty>
-          ) : (
-            <BookingCarousel items={flights} renderItem={(f) => (
-              <>
-                <div style={fieldGrid}>
-                  <Field label={isAr ? 'النوع' : 'Type'} value={flightTypeLabel(f.flightType, isAr)} />
-                  <Field label={isAr ? 'الدرجة' : 'Class'} value={f.flightClass} />
-                  <Field label={isAr ? 'المقعد' : 'Seat'} value={f.seat} />
-                  <Field label={isAr ? 'الحالة' : 'Status'} value={f.status} />
-                </div>
-                {/* One block per leg — a return booking has two. */}
-                {(f.legs || []).map((l, i) => (
-                  <div key={l.id || i} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border)' }}>
-                    {(f.legs.length > 1) && (
-                      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent)', marginBottom: 6 }}>
-                        {legTitle(f.flightType, i, isAr)}
-                      </div>
-                    )}
-                    <div style={fieldGrid}>
-                      <Field label={isAr ? 'رقم الرحلة' : 'Flight No.'} value={l.flightNumber} />
-                      <Field label={isAr ? 'من' : 'From'} value={[l.departureCity, l.departureCode].filter(Boolean).join(' · ')} />
-                      <Field label={isAr ? 'إلى' : 'To'} value={[l.arrivalCity, l.arrivalCode].filter(Boolean).join(' · ')} />
-                      <Field label={isAr ? 'الإقلاع' : 'Departure'} value={fmtDateTime(l.startTime, isAr)} />
-                      <Field label={isAr ? 'الوصول' : 'Arrival'} value={fmtDateTime(l.endTime, isAr)} />
-                    </div>
-                  </div>
-                ))}
-              </>
-            )} />
-          )}
-        </Section>
-
-        <Section icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
-          {accommodations.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز إقامة' : 'No accommodation booked'}</Empty>
-          ) : (
-            <BookingCarousel items={accommodations} renderItem={(a) => (
-              <div style={fieldGrid}>
-                {a.hotelImageUrl && (
-                  <img src={a.hotelImageUrl} alt="" style={{ gridColumn: '1 / -1', width: '100%', height: 120, objectFit: 'cover', borderRadius: 8, marginBottom: 4 }}
-                    onError={e => { e.target.style.display = 'none'; }}/>
-                )}
-                <Field label={isAr ? 'الفندق' : 'Hotel'} value={a.hotel} />
-                <Field label={isAr ? 'نوع الغرفة' : 'Room Type'} value={a.roomType} />
-                <Field label={isAr ? 'تسجيل الوصول' : 'Check-in'} value={fmtDate(a.checkIn, isAr)} />
-                <Field label={isAr ? 'تسجيل المغادرة' : 'Check-out'} value={fmtDate(a.checkOut, isAr)} />
-              </div>
-            )} />
-          )}
-        </Section>
-
-        <Section icon="car" title={isAr ? 'النقل' : 'Transport'}>
-          {transports.length === 0 ? (
-            <Empty>{isAr ? 'لا يوجد حجز نقل' : 'No transport booked'}</Empty>
-          ) : (
-            <BookingCarousel items={transports} renderItem={(t) => (
-              <div style={fieldGrid}>
-                <Field label={isAr ? 'المركبة' : 'Vehicle'} value={t.vehicle} />
-                <Field label={isAr ? 'السائق' : 'Driver'} value={t.driverName} />
-                <Field label={isAr ? 'الاستلام' : 'Pickup'} value={t.pickup} />
-                <Field label={isAr ? 'التوصيل' : 'Dropoff'} value={t.dropoff} />
-                <Field label={isAr ? 'وقت الاستلام' : 'Pickup Time'} value={fmtDateTime(t.pickupTime, isAr)} />
-                <Field label={isAr ? 'الحالة' : 'Status'} value={t.tripStatus} />
-              </div>
-            )} />
-          )}
-        </Section>
+        {/* Each service the guest's level assigns gets its own card here —
+            Flight, Transport, Accommodation, Arrival/Departure, then any
+            dynamic services — instead of one "Services" box containing all
+            of them. GuestServicesPanel renders its cards as siblings (not
+            wrapped in a Section), so they drop into this same grid. */}
+        <GuestServicesPanel eventGuestId={eventGuestId} lang={lang} onChanged={load}
+          eventStart={guest?.eventStartDate} eventEnd={guest?.eventEndDate}
+          eventId={guest?.eventId}
+          arrivalDate={guest?.arrivalDate} departureDate={guest?.departureDate}
+          embedded={embedded}
+          /* The event-wide travel rows this view already loaded — they carry
+             airport codes, cities, class and room type, none of which the
+             plan's flat display values have. */
+          travelRows={{ flights, accommodations, transports }} />
       </div>
 
       {showEdit && (
@@ -473,12 +562,42 @@ export default function GuestDetailView({ guestId, lang }) {
         <DeleteGuestsModal
           open={showDelete}
           onClose={() => setShowDelete(false)}
-          selectedGuests={[guest]}
+          selectedEventGuests={[guest]}
           activeEventId={guest.eventId}
           lang={lang}
           onDeleted={() => navigate('/guests')}
         />
       )}
+
+      <GuestProfileEditModal
+        open={showProfileEdit}
+        guest={guest}
+        lang={lang}
+        onClose={() => setShowProfileEdit(false)}
+        onSaved={() => load()}
+      />
+
+      <SessionsEditModal
+        open={showSessionsEdit}
+        guest={guest}
+        event={event}
+        lang={lang}
+        onClose={() => setShowSessionsEdit(false)}
+        onSaved={() => load()}
+      />
+
+      <AccreditationCardModal
+        open={showAccredCard}
+        guest={guest}
+        event={event}
+        lang={lang}
+        onClose={() => setShowAccredCard(false)}
+        onIssue={handleIssue}
+        onRevoke={handleRevoke}
+        canIssue={canIssue}
+        busy={busy}
+        notAcceptedTitle={isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first'}
+      />
     </div>
   );
 }

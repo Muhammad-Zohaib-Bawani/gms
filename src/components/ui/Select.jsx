@@ -3,7 +3,7 @@
 // Pass isMulti={true} for multi-select — value becomes string[] and onChange
 // receives string[].
 import React from 'react';
-import ReactSelect from 'react-select';
+import ReactSelect, { components as RSComponents } from 'react-select';
 
 const styles = {
   control: (base, state) => ({
@@ -52,6 +52,10 @@ const styles = {
   clearIndicator: (base) => ({ ...base, color: 'var(--ink-mute)', padding: 6 }),
 };
 
+function ScrollableMenuList(props) {
+  return <RSComponents.MenuList {...props} innerProps={{ ...props.innerProps, onWheel: (e) => e.stopPropagation() }} />;
+}
+
 export default function Select({
   value,
   onChange,
@@ -60,6 +64,8 @@ export default function Select({
   isDisabled = false,
   isClearable = false,
   isMulti = false,
+  placeMenu = 'auto',
+  components: componentsOverride,
   ...rest
 }) {
   const selected = isMulti
@@ -85,20 +91,16 @@ export default function Select({
       isClearable={isClearable}
       isMulti={isMulti}
       menuPortalTarget={document.body}
+      components={{ MenuList: ScrollableMenuList, ...componentsOverride }}
       styles={{
-    ...styles,
-    // Radix Dialog sets `pointer-events: none` on <body> while open, only
-    // re-enabling it on the dialog's own content node. This menu is portaled
-    // straight to <body> as a sibling, so without an explicit override here
-    // it inherits `none` and becomes unclickable while still visible.
-    menuPortal: (base) => ({
+    ...styles,    menuPortal: (base) => ({
       ...base,
       zIndex: 999999,
       pointerEvents: 'auto',
     }),
   }}
       // menuPosition="fixed"
-      menuPlacement="auto"
+      menuPlacement={placeMenu}
       maxMenuHeight={200}
       menuShouldScrollIntoView={true}
       {...rest}

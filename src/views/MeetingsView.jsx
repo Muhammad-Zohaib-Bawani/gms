@@ -5,11 +5,13 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { toArDigits } from '../i18n/translations.js';
 import { Avatar } from '../components/UI.jsx';
+import GuestCell from '../components/GuestCell.jsx';
 import { Icon } from '../components/Icons.jsx';
 import toast from '../lib/toast.js';
 import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
 import { listGuests } from '../api/services/guestService.js';
 import DateField from '../components/ui/DateField.jsx';
+import { fmtDate } from '../lib/date.js';
 
 const ANCHOR = new Date();
 
@@ -34,7 +36,10 @@ function mapMeeting(m) {
     location: m.location || '',
     notes: m.meetingAgenda || '',
     color: '#8d0134',
-    guests: (m.guests || []).map(g => ({ id: g.id, name: g.name || '' })),
+    // g.id is the attendee's eventGuestId (their participation in this
+    // meeting's event); g.personId is the master person, kept for person-level
+    // links (support chat) rather than anything meeting-scoped.
+    guests: (m.guests || []).map(g => ({ id: g.id, personId: g.personId || null, name: g.name || '', email: g.email || '', photoUrl: g.photoUrl || '' })),
   };
 }
 
@@ -57,7 +62,6 @@ export default function MeetingsView({ lang, activeEventId }) {
     searchGuest: 'بحث عن ضيف…',
     cancel: 'إلغاء', back: 'السابق', next: 'التالي', save: 'حفظ الاجتماع', saving: 'جارٍ الحفظ…',
     days: ['أح','اث','ث','أر','خ','ج','س'],
-    months: ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
     newTitle: 'اجتماع جديد',
     addAttendee: 'إضافة مشارك',
     noMeetings: 'لا اجتماعات هذا الأسبوع',
@@ -82,7 +86,6 @@ export default function MeetingsView({ lang, activeEventId }) {
     searchGuest: 'Search guest…',
     cancel: 'Cancel', back: 'Back', next: 'Next', save: 'Save Meeting', saving: 'Saving…',
     days: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
-    months: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     newTitle: 'New Meeting',
     addAttendee: 'Add attendee',
     noMeetings: 'No meetings this week',
@@ -164,6 +167,7 @@ export default function MeetingsView({ lang, activeEventId }) {
     setNewNotes(meeting.notes);
     // The edit form's attendee chips render firstName/lastName (matching the
     // real guest-list shape); the meeting's own guests only carry a full name.
+    // `id` stays the eventGuestId — that's what the save below sends back.
     setNewAttendees(meeting.guests.map(g => {
       const [firstName, ...rest] = g.name.split(' ');
       return { id: g.id, firstName, lastName: rest.join(' ') };
@@ -178,7 +182,10 @@ export default function MeetingsView({ lang, activeEventId }) {
     if (!activeEventId) { toast.error(STR.noEvent); return; }
     setSaving(true);
     try {
-      const guestIds = newAttendees.map(g => g.id);
+      // Attendees come from this event's roster (listGuests is scoped to
+      // activeEventId), so every `id` is already an EventGuest.PublicId — which
+      // is exactly what the meeting API takes.
+      const eventGuestIds = newAttendees.map(g => g.id);
       if (editingMeetingId) {
         const res = await editMeeting({
           meetId: editingMeetingId,
@@ -188,7 +195,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
           endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
           agenda: newNotes || null,
-          guestIds,
+          eventGuestIds,
         });
         setMeetings(prev => prev.map(m => m.id === editingMeetingId ? mapMeeting(res) : m));
         toast.success(STR.updated);
@@ -201,7 +208,7 @@ export default function MeetingsView({ lang, activeEventId }) {
           startTime: newForm.startTime ? `${newForm.startTime}:00` : null,
           endTime: newForm.endTime ? `${newForm.endTime}:00` : null,
           meetingAgenda: newNotes || null,
-          guestIds,
+          eventGuestIds,
         });
         setMeetings(prev => [...prev, mapMeeting(res)]);
         toast.success(STR.created);
@@ -278,8 +285,8 @@ export default function MeetingsView({ lang, activeEventId }) {
               {[...meetings]
                 .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
                 .map(m => {
-                  const [, mo, dy] = m.date.split('-').map(Number);
-                  const dateStr = `${STR.months[mo-1]} ${ad(dy)}`;
+                  // Portal-wide DD-MM-YYYY (lib/date), was "Aug 5" off STR.months.
+                  const dateStr = ad(fmtDate(m.date));
                   const firstAttendees = m.guests.slice(0, 3);
                   return (
                     <div key={m.id} onClick={() => setSelectedMeeting(m)}
@@ -333,9 +340,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                 <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, margin: 0, fontWeight: 400, lineHeight: 1.3 }}>{selectedMeeting.title}</h2>
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-                {(() => { const [, mo, dy] = selectedMeeting.date.split('-').map(Number); return (
-                  <span className="chip"><Icon name="calendar" size={11}/> {STR.months[mo-1]} {ad(dy)}</span>
-                ); })()}
+                <span className="chip"><Icon name="calendar" size={11}/> {ad(fmtDate(selectedMeeting.date))}</span>
                 <span className="chip" style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{selectedMeeting.startTime}–{selectedMeeting.endTime}</span>
                 <span className="chip"><Icon name="venue" size={11}/> {selectedMeeting.location}</span>
               </div>
@@ -349,9 +354,8 @@ export default function MeetingsView({ lang, activeEventId }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {selectedMeeting.guests.map(g => (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
-                    <Avatar initials={initialsFromName(g.name)} size={28}/>
-                    <div style={{ fontSize: 12.5, fontWeight: 500 }}>{g.name}</div>
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--surface-soft-2)' }}>
+                    <GuestCell name={g.name} email={g.email} photoUrl={g.photoUrl} size={28} />
                   </div>
                 ))}
               </div>
@@ -428,7 +432,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {newAttendees.map(g => (
                         <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(141, 1, 52,0.15)', border: '1px solid rgba(141, 1, 52,0.3)', fontSize: 11.5 }}>
-                          <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18}/>
+                          <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18} src={g.photoUrl}/>
                           {g.firstName} {g.lastName}
                           <button onClick={() => setNewAttendees(a => a.filter(x => x.id !== g.id))}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-mute)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
@@ -444,10 +448,8 @@ export default function MeetingsView({ lang, activeEventId }) {
                         style={{ padding: '8px 12px', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--glass-border)', background: 'var(--surface-soft-2)' }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-soft-3)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-soft-2)'}>
-                        <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={28}/>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{g.firstName} {g.lastName}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>{[g.tier, g.organization].filter(Boolean).join(' · ')}</div>
+                          <GuestCell name={`${g.firstName} ${g.lastName}`} email={g.email} photoUrl={g.photoUrl} tier={g.tier} size={28} />
                         </div>
                         <Icon name="plus" size={13} style={{ color: 'var(--accent)', flexShrink: 0 }}/>
                       </div>

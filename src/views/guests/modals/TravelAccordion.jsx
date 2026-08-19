@@ -16,16 +16,25 @@
 // Trip status and the actual pickup/dropoff times are dispatch-side only — the
 // backend owns them, this form neither shows nor sends them.
 //   }
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../../../components/Icons';
 import Select from '../../../components/ui/Select';
 import DateField from '../../../components/ui/DateField';
+import DateRangeCalendar from '../../../components/ui/DateRangeCalendar';
+import ImageField from '../../../components/ui/ImageField';
+import { stripSasToken } from '../../../api/services/uploadService';
+import { useAvailableVehicles, useAvailableDrivers } from '../../../lib/useAvailableVehicles';
+import { useHotelRoomTypes, useRoomAvailability } from '../../../lib/useRoomInventory';
+import { addDaysIso, fmtDate } from '../../../lib/date';
 
 // `id` (a specific booking's public id) is populated only when hydrating an
 // existing booking — see the module doc comment above. Saving with it set
 // updates that exact booking in place; saving with it blank adds a new one.
+// flightClassId/seat live per leg — a return booking's two legs can be on
+// different fare classes/seats (e.g. Business outbound, Economy inbound).
 export const EMPTY_LEG = {
   id: '', flightNumber: '', fromAirportId: '', toAirportId: '', startTime: '', endTime: '',
+  flightClassId: '', seat: '',
 };
 
 // A return booking is one flight with two legs (outbound + inbound); inbound and
@@ -36,11 +45,17 @@ export const EMPTY_TRAVEL = {
   flight: {
     enabled: false, id: '',
     flightType: 'inbound', flightClassId: '', status: 'confirmed', seat: '',
+    // Ticket / boarding pass. A blob url from the upload endpoint, stored on
+    // Flights.ImageUrl — see ImageField below.
+    imageUrl: '',
     legs: [{ ...EMPTY_LEG }],
   },
   accommodation: {
     enabled: false, id: '',
     hotelId: '', roomTypeId: '', checkIn: '', checkOut: '',
+    // Voucher or room photo, stored on Accommodations.ImageUrl. Not the hotel's
+    // own picture — that lives on the hotel lookup.
+    imageUrl: '',
     roomView: '', guestCount: '', conciergeName: '', conciergePhone: '',
   },
   transport: {
@@ -81,6 +96,12 @@ function hydrateFlight(data) {
   const flight = hydrateSection(EMPTY_TRAVEL.flight, data);
   const type = (data?.flightType || 'inbound').toLowerCase();
   const legs = (data?.legs || []).map((l) => hydrateSection(EMPTY_LEG, l));
+  // Bookings saved before class/seat moved to the leg only have the
+  // booking-level value — show it on the first leg instead of blank.
+  if (legs[0] && !legs[0].flightClassId && !legs[0].seat) {
+    legs[0].flightClassId = flight.flightClassId;
+    legs[0].seat = flight.seat;
+  }
   flight.flightType = type;
   flight.legs = padLegs(legs, FLIGHT_LEG_COUNT[type] ?? 1);
   return flight;
@@ -93,7 +114,7 @@ export function padLegs(legs, count) {
   return out;
 }
 
-// Build state from GET /travel/guest/{id} → { flight?, accommodation?, transport? }.
+// Build state from GET /travel/guest/{eventGuestId} → { flight?, accommodation?, transport? }.
 // roomTypeId/vehicleId/hotelId/flightClassId/pickupLocationId/dropoffLocationId
 // all come back as real lookup-table public ids already; flightType is an enum code.
 export function hydrateTravel(data) {
@@ -105,17 +126,55 @@ export function hydrateTravel(data) {
   };
 }
 
+const isBlank = (v) => v === '' || v == null;
+
+/**
+ * Has anything actually been typed into this section?
+ *
+ * An open-but-untouched section is "not added yet", not "added and invalid" —
+ * that is what lets the guest wizard walk past a service the user intends to fill
+ * in later, without a service being required at creation time. A section with
+ * SOME fields filled is still validated in full: a half-booking is an error.
+ *
+ * Compared against the empty shape rather than tested for falsiness, because
+ * flightType/status carry defaults that are not user input.
+ */
+export function sectionHasData(travel, key) {
+  const sec = travel?.[key];
+  const empty = EMPTY_TRAVEL[key];
+  if (!sec || !empty) return false;
+
+  return Object.keys(empty).some((k) => {
+    if (k === 'enabled' || k === 'id') return false;
+    if (k === 'legs') {
+      return (sec.legs || []).some((leg) => Object.keys(EMPTY_LEG).some(
+        (lk) => lk !== 'id' && !isBlank(leg?.[lk]) && leg[lk] !== EMPTY_LEG[lk],
+      ));
+    }
+    return !isBlank(sec[k]) && sec[k] !== empty[k];
+  });
+}
+
+/** Sections that will actually be saved: switched on AND filled in. */
+const activeSections = (t) =>
+  ['flight', 'accommodation', 'transport'].filter((k) => t?.[k]?.enabled && sectionHasData(t, k));
+
 // Allowing the guest to book their own transport counts as something to save —
 // it's the whole point of the toggle that it needs no booking alongside it.
 export const anyTravelEnabled = (t) =>
-  !!(t.flight.enabled || t.accommodation.enabled || t.transport.enabled || t.allowTransportRequest);
+  activeSections(t).length > 0 || !!t.allowTransportRequest;
 
 // Returns an error message for the first missing required field, or null if OK.
-// A checked-but-empty section is what this guards against: once a section is
-// enabled, its core identifying fields become required — fill them in, or
-// uncheck the section to skip it entirely.
-export function validateTravel(t, isAr = false) {
-  if (t.flight.enabled) {
+// A PARTLY filled section is what this guards against: start one and its core
+// fields become required. An untouched section is skipped entirely — nothing here
+// forces a guest to be given travel at all.
+//
+// `only` narrows it to a single section ('flight' | 'accommodation' | 'transport'),
+// so confirming one service's form doesn't report a problem in another's.
+export function validateTravel(t, isAr = false, only = null) {
+  const active = (key) => (!only || only === key) && t?.[key]?.enabled && sectionHasData(t, key);
+
+  if (active('flight')) {
     if (!t.flight.flightType) return isAr ? 'نوع الرحلة مطلوب' : 'Flight Type is required';
     // Every leg is required in full — a return booking is only useful with both
     // halves filled in.
@@ -129,16 +188,27 @@ export function validateTravel(t, isAr = false) {
       if (!leg.startTime) return (isAr ? 'وقت الإقلاع مطلوب' : 'Departure time is required') + n;
     }
   }
-  if (t.accommodation.enabled) {
+  if (active('accommodation')) {
     if (!t.accommodation.hotelId) return isAr ? 'الفندق مطلوب' : 'Hotel is required';
-    if (!t.accommodation.checkIn) return isAr ? 'تاريخ تسجيل الوصول مطلوب' : 'Check-in date is required';
-    if (!t.accommodation.checkOut) return isAr ? 'تاريخ تسجيل المغادرة مطلوب' : 'Check-out date is required';
+    // Half a range is as unusable as none — the calendar leaves it that way
+    // between the two clicks, so both are checked.
+    if (!t.accommodation.checkIn || !t.accommodation.checkOut)
+      return isAr ? 'ليالي الإقامة مطلوبة' : 'Pick the stay dates on the calendar';
+    // A stay occupies the nights from check-in up to (not including) check-out, so
+    // a same-day pair is zero nights — nothing to book a room for.
+    if (t.accommodation.checkOut <= t.accommodation.checkIn)
+      return isAr ? 'تاريخ المغادرة يجب أن يكون بعد الوصول' : 'Check-out must be after check-in';
   }
-  if (t.transport.enabled) {
+  if (active('transport')) {
     if (!t.transport.vehicleId) return isAr ? 'المركبة مطلوبة' : 'Vehicle is required';
     if (!t.transport.pickupLocationId) return isAr ? 'موقع الاستلام مطلوب' : 'Pickup location is required';
     if (!t.transport.dropoffLocationId) return isAr ? 'موقع التوصيل مطلوب' : 'Dropoff location is required';
     if (!t.transport.pickupTime) return isAr ? 'وقت الاستلام مطلوب' : 'Pickup time is required';
+    // Required, not optional: the drop-off is what bounds the vehicle's busy
+    // window, so without it the same car can be booked twice over.
+    if (!t.transport.dropoffTime) return isAr ? 'وقت التوصيل مطلوب' : 'Dropoff time is required';
+    if (t.transport.dropoffTime <= t.transport.pickupTime)
+      return isAr ? 'وقت التوصيل يجب أن يكون بعد وقت الاستلام' : 'Dropoff time must be after the pickup time';
   }
   return null;
 }
@@ -163,21 +233,29 @@ export function legTitle(type, i, isAr = false) {
   return isAr ? 'قادمة' : 'Inbound';
 }
 
+// `imageUrl` keeps its empty string rather than collapsing to null: the API reads
+// null as "not sent, leave the stored image alone" and "" as an explicit clear, so
+// removing an image has to survive this step as ''.
+const KEEP_EMPTY = ['imageUrl'];
+
 function cleanSection(sec, numericKeys = []) {
   const out = {};
   for (const [k, v] of Object.entries(sec)) {
     if (k === 'enabled') continue;
-    if (v === '' || v == null) { out[k] = null; continue; }
+    if (v === '' || v == null) { out[k] = KEEP_EMPTY.includes(k) ? '' : null; continue; }
     out[k] = numericKeys.includes(k) ? Number(v) : v;
   }
   return out;
 }
 
-// Build the POST body — only the enabled sections, with the `enabled` flag
-// stripped. Every id field is sent as-is (already the real lookup public id).
+// Build the POST body — only the sections that were switched on AND filled in,
+// with the `enabled` flag stripped. Every id field is sent as-is (already the real
+// lookup public id). An untouched section is left out rather than POSTed empty.
 export function buildTravelPayload(travel) {
   const body = {};
-  if (travel.flight.enabled) {
+  const active = activeSections(travel);
+
+  if (active.includes('flight')) {
     const { legs, ...rest } = travel.flight;
     body.flight = cleanSection(rest);
     body.flight.legs = (legs || []).map((l) => cleanSection(l));
@@ -185,9 +263,14 @@ export function buildTravelPayload(travel) {
     // itinerary ends, so listings don't have to walk the legs.
     body.flight.departureTime = body.flight.legs[0]?.startTime ?? null;
     body.flight.arrivalTime = body.flight.legs.at(-1)?.endTime ?? null;
+    // Booking-level FlightClassId/Seat are a "primary" copy mirrored from the
+    // first leg — same pattern as departure/arrival time above — since class
+    // and seat are now edited per leg (see FlightFields).
+    body.flight.flightClassId = body.flight.legs[0]?.flightClassId ?? null;
+    body.flight.seat = body.flight.legs[0]?.seat ?? null;
   }
-  if (travel.accommodation.enabled) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
-  if (travel.transport.enabled) body.transport = cleanSection(travel.transport);
+  if (active.includes('accommodation')) body.accommodation = cleanSection(travel.accommodation, ['guestCount']);
+  if (active.includes('transport')) body.transport = cleanSection(travel.transport);
   // Only when it was actually set — see EMPTY_TRAVEL.allowTransportRequest.
   if (typeof travel.allowTransportRequest === 'boolean')
     body.allowTransportRequest = travel.allowTransportRequest;
@@ -264,19 +347,6 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
         </div>
       </div>
 
-      {grid2(<>
-        <div>
-          <Label>{isAr ? 'الدرجة' : 'Flight Class'}</Label>
-          <Select value={flight.flightClassId} onChange={(v) => setFlight({ flightClassId: v })}
-            options={flightClassOpts} placeholder={selPlaceholder} isClearable/>
-        </div>
-        <div>
-          <Label>{isAr ? 'المقعد' : 'Seat'}</Label>
-          <input style={inputStyle} placeholder="3A" value={flight.seat}
-            onChange={(e) => setFlight({ seat: e.target.value })}/>
-        </div>
-      </>)}
-
       {legs.map((leg, i) => (
         <div key={i} style={{
           display: 'flex', flexDirection: 'column', gap: 12,
@@ -308,16 +378,28 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
           </div>
           {grid2(<>
             <div>
+              <Label>{isAr ? 'الدرجة' : 'Flight Class'}</Label>
+              <Select value={leg.flightClassId} onChange={(v) => setLeg(i, 'flightClassId', v)}
+                options={flightClassOpts} placeholder={selPlaceholder} isClearable/>
+            </div>
+            <div>
+              <Label>{isAr ? 'المقعد' : 'Seat'}</Label>
+              <input style={inputStyle} placeholder="3A" value={leg.seat}
+                onChange={(e) => setLeg(i, 'seat', e.target.value)}/>
+            </div>
+          </>)}
+          {grid2(<>
+            <div>
               <Label>{isAr ? 'وقت الإقلاع' : 'Departure Time'} *</Label>
               <DateField value={leg.startTime} onChange={(v) => setLeg(i, 'startTime', v || '')}
                 minDate={legs[i - 1]?.endTime || legs[i - 1]?.startTime || eventMinDate} maxDate={eventMaxDate}
-                showTime placeholder="YYYY-MM-DD HH:mm"/>
+                showTime placeholder="DD-MM-YYYY HH:mm"/>
             </div>
             <div>
               <Label>{isAr ? 'وقت الوصول' : 'Arrival Time'}</Label>
               <DateField value={leg.endTime} onChange={(v) => setLeg(i, 'endTime', v || '')}
                 minDate={leg.startTime || eventMinDate} maxDate={eventMaxDate}
-                showTime placeholder="YYYY-MM-DD HH:mm"/>
+                showTime placeholder="DD-MM-YYYY HH:mm"/>
             </div>
           </>)}
         </div>
@@ -400,11 +482,44 @@ export default function TravelAccordion({
   // Raw event start/end (no margin) — bounds the flight departure/arrival
   // datetimes. Hotel and transport dates use the wider dateMinDate/dateMaxDate.
   eventMinDate, eventMaxDate,
+  // Narrows the vehicle dropdown to this event's fleet. Optional — omitting it
+  // only means the whole fleet is offered.
+  eventId,
+  // Render only these sections ('flight' | 'accommodation' | 'transport'), with
+  // no enable/disable chrome — the guest's service checklist already decided
+  // which ones apply, so a checkbox there would just be a second answer to the
+  // same question. Omit for the wizard's pick-what-you-want accordion.
+  only,
 }) {
   const selPlaceholder = isAr ? '— اختر —' : '— Select —';
 
+  const pinned = only ? (Array.isArray(only) ? only : [only]) : null;
+
+  // A pinned section is always on: nothing offers to turn it off, so leaving
+  // `enabled` false would silently drop everything typed into it on save.
+  useEffect(() => {
+    if (!pinned) return;
+    const off = pinned.filter((s) => travel[s] && !travel[s].enabled);
+    if (off.length === 0) return;
+    onChange((p) => off.reduce((acc, s) => ({ ...acc, [s]: { ...acc[s], enabled: true } }), p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinned?.join(','), travel.flight.enabled, travel.accommodation.enabled, travel.transport.enabled]);
+
   const setField = (section, key, value) =>
-    onChange((p) => ({ ...p, [section]: { ...p[section], [key]: value } }));
+    onChange((p) => ({
+      ...p,
+      [section]: {
+        ...p[section],
+        [key]: value,
+        // Both of these move the room block the stay calendar is bounded by, so
+        // dates picked against the old one no longer mean anything — and a room
+        // type belongs to its hotel, so that goes with it too.
+        ...(section === 'accommodation' && key === 'hotelId'
+          ? { roomTypeId: '', checkIn: '', checkOut: '' } : {}),
+        ...(section === 'accommodation' && key === 'roomTypeId'
+          ? { checkIn: '', checkOut: '' } : {}),
+      },
+    }));
 
   // Closing a section clears its fields rather than just hiding them — so
   // reopening it (or leaving it closed) never silently resubmits stale data.
@@ -416,11 +531,48 @@ export default function TravelAccordion({
     }));
   };
 
-  const roomTypeOpts = mapOpts(lookups.roomTypes, (x) => x.name);
-  const vehicleOpts = mapOpts(lookups.vehicles, vehicleLabel);
+  // Room types narrow to the ones the event actually holds rooms of at the chosen
+  // hotel; an unmanaged hotel falls back to the global list.
+  const heldRoomTypes = useHotelRoomTypes({
+    eventId,
+    hotelId: travel.accommodation.enabled ? travel.accommodation.hotelId : '',
+    fallback: lookups.roomTypes,
+  });
+  const roomTypeOpts = mapOpts(heldRoomTypes, (x) => x.name);
+
+  // Per-night capacity for that hotel + room type: bounds the date pickers to the
+  // held window and greys out nights with nothing left.
+  const rooms = useRoomAvailability({
+    eventId,
+    hotelId: travel.accommodation.enabled ? travel.accommodation.hotelId : '',
+    roomTypeId: travel.accommodation.enabled ? travel.accommodation.roomTypeId : '',
+  });
+
+  // Once both transport times are set, only cars actually free in that window are
+  // offered — before that (or if the lookup fails) the full fleet is.
+  const freeVehicles = useAvailableVehicles({
+    pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
+    dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
+    eventId,
+    excludeTransportId: travel.transport.id,
+    fallback: lookups.vehicles,
+  });
+  const vehicleOpts = mapOpts(freeVehicles, vehicleLabel);
+
+  // Same for drivers: a driver already on a ride in that window is not offered.
+  const freeDrivers = useAvailableDrivers({
+    pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
+    dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
+    excludeTransportId: travel.transport.id,
+    fallback: lookups.drivers,
+  });
+  // The stay calendar is bounded by the room block for this hotel + room type, so
+  // it has nothing to draw until both are chosen.
+  const accommodationDatesReady = !!(travel.accommodation.hotelId && travel.accommodation.roomTypeId);
+
   const hotelOpts = mapOpts(lookups.hotels, (x) => x.name);
   const locationOpts = mapOpts(lookups.locations, (x) => x.address);
-  const driverOpts = mapOpts(lookups.drivers, driverLabel);
+  const driverOpts = mapOpts(freeDrivers, driverLabel);
 
   // ── field renderers (plain functions → stable element types, no focus loss) ──
   // eslint-disable-next-line no-unused-vars
@@ -437,7 +589,7 @@ export default function TravelAccordion({
     </div>
   );
 
-  const sel = (section, key, label, options, { required = false } = {}) => (
+  const sel = (section, key, label, options, { required = false, disabled = false } = {}) => (
     <div>
       <Label>{label}{required ? ' *' : ''}</Label>
       <Select
@@ -446,19 +598,7 @@ export default function TravelAccordion({
         options={options}
         placeholder={selPlaceholder}
         isClearable={!required}
-      />
-    </div>
-  );
-
-  const date = (section, key, label, { minDate, maxDate, required = false } = {}) => (
-    <div>
-      <Label>{label}{required ? ' *' : ''}</Label>
-      <DateField
-        value={travel[section][key]}
-        onChange={(v) => setField(section, key, v || '')}
-        minDate={minDate}
-        maxDate={maxDate}
-        placeholder="YYYY-MM-DD"
+        isDisabled={disabled}
       />
     </div>
   );
@@ -472,7 +612,7 @@ export default function TravelAccordion({
         minDate={minDate}
         maxDate={maxDate}
         showTime
-        placeholder="YYYY-MM-DD HH:mm"
+        placeholder="DD-MM-YYYY HH:mm"
       />
     </div>
   );
@@ -481,9 +621,40 @@ export default function TravelAccordion({
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>{children}</div>
   );
 
+  // Optional attachment for the booking. The SAS token is stripped before it goes
+  // into state: it expires within minutes, and the backend re-signs the bare URL
+  // on every read (BlobSasMiddleware). '' clears it, which the API treats as an
+  // explicit "remove" — null there would mean "leave whatever is stored".
+  const image = (section, label, hint) => (
+    <div>
+      <Label>{label}</Label>
+      <ImageField
+        value={travel[section].imageUrl || ''}
+        onChange={(url) => setField(section, 'imageUrl', stripSasToken(url) || '')}
+        isAr={isAr}
+      />
+      <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 4 }}>{hint}</div>
+    </div>
+  );
+
+  // Pinned mode drops the collapsible chrome and renders the fields bare. A plain
+  // function, not a component: an inline component would be a new element type on
+  // every render and remount its children, losing focus mid-typing.
+  const section = (key, icon, title, children) => {
+    if (pinned && !pinned.includes(key)) return null;
+    if (pinned) {
+      return <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>;
+    }
+    return (
+      <Section enabled={travel[key].enabled} onToggle={() => toggle(key)} icon={icon} title={title}>
+        {children}
+      </Section>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Section enabled={travel.flight.enabled} onToggle={() => toggle('flight')} icon="flight" title={isAr ? 'الرحلة الجوية' : 'Flight'}>
+      {section('flight', 'flight', isAr ? 'الرحلة الجوية' : 'Flight', (<>
         <FlightFields
           flight={travel.flight}
           setFlight={(patch) => onChange((p) => ({ ...p, flight: { ...p.flight, ...patch } }))}
@@ -492,17 +663,83 @@ export default function TravelAccordion({
           eventMinDate={eventMinDate}
           eventMaxDate={eventMaxDate}
         />
-      </Section>
+        {image('flight',
+          isAr ? 'صورة التذكرة' : 'Upload Itinerary' ,
+          isAr
+            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            : 'Optional — ticket or boarding pass.')}
+      </>))}
 
-      <Section enabled={travel.accommodation.enabled} onToggle={() => toggle('accommodation')} icon="hotel" title={isAr ? 'الإقامة' : 'Accommodation'}>
+      {section('accommodation', 'hotel', isAr ? 'الإقامة' : 'Accommodation', (<>
         {grid(<>
           {sel('accommodation', 'hotelId', isAr ? 'الفندق' : 'Hotel', hotelOpts, { required: true })}
-          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts)}
+          {/* Which room types exist at all depends on the hotel, and capacity is
+              tracked per type — so there is nothing to offer until one is picked. */}
+          {sel('accommodation', 'roomTypeId', isAr ? 'نوع الغرفة' : 'Room Type', roomTypeOpts, {
+            required: rooms.managed,
+            disabled: !travel.accommodation.hotelId,
+          })}
         </>)}
-        {grid(<>
-          {date('accommodation', 'checkIn', isAr ? 'تسجيل الوصول' : 'Check-in', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {date('accommodation', 'checkOut', isAr ? 'تسجيل المغادرة' : 'Check-out', { minDate: travel.accommodation.checkIn || dateMinDate, maxDate: dateMaxDate, required: true })}
-        </>)}
+
+        {/* One calendar instead of two date fields: the stay is a range, and which
+            nights are free depends on the hotel + room type above — so the dates
+            only appear once both are chosen, with the room block's window as the
+            bounds and sold-out nights struck out. */}
+        <div>
+          <Label>{isAr ? 'ليالي الإقامة *' : 'Stay Dates *'}</Label>
+          {!accommodationDatesReady ? (
+            <div style={{
+              padding: '14px 12px', borderRadius: 8, fontSize: 12, color: 'var(--ink-faint)',
+              background: 'var(--surface-soft-2)', border: '1px dashed var(--glass-border)',
+            }}>
+              {isAr
+                ? 'اختر الفندق ونوع الغرفة لعرض الليالي المتاحة'
+                : 'Pick a hotel and room type to see the nights available'}
+            </div>
+          ) : (
+            <>
+              <DateRangeCalendar
+                start={travel.accommodation.checkIn}
+                end={travel.accommodation.checkOut}
+                onChange={(checkIn, checkOut) => onChange((p) => ({
+                  ...p, accommodation: { ...p.accommodation, checkIn, checkOut },
+                }))}
+                minDate={rooms.window?.min || dateMinDate}
+                maxDate={rooms.window?.max || dateMaxDate}
+                excludeDates={rooms.fullDates}
+                // Check-out is the morning after the last night slept, so it may
+                // fall one day past the window — and it can't reach past the first
+                // sold-out night, which is what caps the stay.
+                endMaxFor={(s) => rooms.firstFullAfter(s)
+                  || (rooms.window && addDaysIso(rooms.window.max, 1))
+                  || dateMaxDate}
+                isAr={isAr}
+              />
+              <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6 }}>
+                {(() => {
+                  const { checkIn, checkOut } = travel.accommodation;
+                  if (!checkIn) {
+                    return isAr ? 'اختر ليلة الوصول' : 'Pick the check-in night';
+                  }
+                  if (!checkOut) {
+                    return isAr ? 'اختر تاريخ المغادرة' : 'Now pick the check-out date';
+                  }
+                  const nights = Math.max(0, Math.round(
+                    (new Date(`${checkOut}T00:00:00`) - new Date(`${checkIn}T00:00:00`)) / 86400000,
+                  ));
+                  const left = rooms.managed ? rooms.availableOn(checkIn) : null;
+                  const stay = isAr
+                    ? `${fmtDate(checkIn)} ← ${fmtDate(checkOut)} · ${nights} ليلة`
+                    : `${fmtDate(checkIn)} → ${fmtDate(checkOut)} · ${nights} night${nights === 1 ? '' : 's'}`;
+                  if (left === null) return stay;
+                  return isAr
+                    ? `${stay} · ${left} غرفة متاحة ليلة الوصول`
+                    : `${stay} · ${left} room(s) left on the first night`;
+                })()}
+              </div>
+            </>
+          )}
+        </div>
         {/* {grid(<>
           {txt('accommodation', 'roomView', isAr ? 'إطلالة الغرفة' : 'Room View', { ph: isAr ? 'إطلالة بحرية' : 'Sea view' })}
           {txt('accommodation', 'guestCount', isAr ? 'عدد النزلاء' : 'Guest Count', { type: 'number' })}
@@ -511,9 +748,14 @@ export default function TravelAccordion({
           {txt('accommodation', 'conciergeName', isAr ? 'اسم الكونسيرج' : 'Concierge Name')}
           {txt('accommodation', 'conciergePhone', isAr ? 'هاتف الكونسيرج' : 'Concierge Phone')}
         </>)} */}
-      </Section>
+        {image('accommodation',
+          isAr ? 'صورة الحجز' : 'Upload Itinerary',
+          isAr
+            ? 'اختياري — قسيمة الحجز أو صورة الغرفة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            : 'Optional — Upload itinerary')}
+      </>))}
 
-      <Section enabled={travel.transport.enabled} onToggle={() => toggle('transport')} icon="car" title={isAr ? 'النقل' : 'Transport'}>
+      {section('transport', 'car', isAr ? 'النقل' : 'Transport', (<>
         {/* Guest-level permission, not part of this booking — kept in `travel`
             root state (not travel.transport), so unticking the section afterwards
             clears the booking fields but keeps the permission. */}
@@ -530,15 +772,39 @@ export default function TravelAccordion({
           {sel('transport', 'pickupLocationId', isAr ? 'موقع الاستلام' : 'Pickup Location', locationOpts, { required: true })}
           {sel('transport', 'dropoffLocationId', isAr ? 'موقع التوصيل' : 'Dropoff Location', locationOpts, { required: true })}
         </>)}
-        {grid(<>
-          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts)}
-          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
-        </>)}
+        {/* Times come first: the vehicle list below is filtered to what's free in
+            that window, so picking a car before the times would offer the whole
+            fleet and then quietly narrow it. */}
         {grid(<>
           {dt('transport', 'pickupTime', isAr ? 'وقت الاستلام' : 'Pickup Time', { minDate: dateMinDate, maxDate: dateMaxDate, required: true })}
-          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate })}
+          {dt('transport', 'dropoffTime', isAr ? 'وقت التوصيل' : 'Dropoff Time', { minDate: travel.transport.pickupTime || dateMinDate, maxDate: dateMaxDate, required: true })}
         </>)}
-      </Section>
+        {grid(<>
+          {sel('transport', 'vehicleId', isAr ? 'المركبة' : 'Vehicle', vehicleOpts, { required: true })}
+          {sel('transport', 'driverId', isAr ? 'السائق' : 'Driver', driverOpts)}
+        </>)}
+        {travel.transport.enabled && travel.transport.pickupTime && travel.transport.dropoffTime && (
+          <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>
+            {isAr
+              ? 'المركبات المحجوزة في هذا الوقت مستثناة من القائمة'
+              : 'Vehicles already booked in this window are left out of the list'}
+          </div>
+        )}
+      </>))}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

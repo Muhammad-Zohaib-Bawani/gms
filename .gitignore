@@ -5,5 +5,5 @@ dist/
 tweaks_decoded.txt
 app_extracted.js
 .claude/
-
+.env.local
 .vercel
