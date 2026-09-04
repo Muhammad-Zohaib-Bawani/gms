@@ -141,7 +141,7 @@ export default function FleetBookingsView({ lang, activeEventId }) {
       ),
     },
     {
-      id: 'guest', header: isAr ? 'الضيف' : 'Guest', accessorKey: 'guestName',
+      id: 'guest', header: isAr ? 'المندوب' : 'Delegate', accessorKey: 'guestName',
       cell: ({ getValue }) => <span style={{ fontSize: 12.5 }}>{getValue() || '—'}</span>,
     },
     {
@@ -165,7 +165,7 @@ export default function FleetBookingsView({ lang, activeEventId }) {
     const headers = [
       isAr ? 'رقم المركبة' : 'Vehicle Number', isAr ? 'الطراز' : 'Model', isAr ? 'النوع' : 'Type',
       isAr ? 'المزوّد' : 'Provider', isAr ? 'الاستلام' : 'Pickup Time', isAr ? 'التوصيل' : 'Dropoff Time',
-      isAr ? 'السائق' : 'Driver', isAr ? 'هاتف السائق' : 'Driver Phone', isAr ? 'الضيف' : 'Guest',
+      isAr ? 'السائق' : 'Driver', isAr ? 'هاتف السائق' : 'Driver Phone', isAr ? 'المندوب' : 'Delegate',
       isAr ? 'موقع الاستلام' : 'Pickup Location', isAr ? 'موقع التوصيل' : 'Dropoff Location',
       isAr ? 'الحالة' : 'Status',
     ];
@@ -280,7 +280,7 @@ export default function FleetBookingsView({ lang, activeEventId }) {
               showSearch
               toolbar={toolbar}
               pageSize={15}
-              searchPlaceholder={isAr ? 'بحث بالمركبة أو السائق أو الضيف…' : 'Search vehicle, driver or guest…'}
+              searchPlaceholder={isAr ? 'بحث بالمركبة أو السائق أو المندوب…' : 'Search vehicle, driver or delegate…'}
               emptyText={isAr ? 'لا توجد حجوزات' : 'No bookings'}
             />
           )}

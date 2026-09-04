@@ -12,6 +12,7 @@ import Select from '../components/ui/Select';
 import { ServiceLevelChip } from '../components/UI';
 import { useAuth } from '../auth/AuthContext';
 import toast from '../lib/toast';
+import { brandHex } from '../lib/brandColor';
 import {
   getServices,
   getServiceLevels, createServiceLevel, updateServiceLevel, deleteServiceLevel,
@@ -27,7 +28,7 @@ const REQUIRABLE_FIELDS = [
   { key: 'departureDate', en: 'Departure date', ar: 'تاريخ المغادرة' },
 ];
 
-const PRESET_COLORS = ['#e0b864', '#a78bda', '#8d0134', '#5abf6e', 'var(--danger)', '#4a9edd', '#9CA3AF'];
+const PRESET_COLORS = ['#e0b864', '#a78bda', brandHex(), '#5abf6e', 'var(--danger)', '#4a9edd', '#9CA3AF'];
 
 const EMPTY_FORM = {
   name: '', nameAr: '', code: '', description: '', color: PRESET_COLORS[0],
@@ -50,15 +51,15 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
   const canManage = can('ServiceLevels.Manage');
 
   const STR = isAr ? {
-    title: 'مستويات الخدمة', sub: 'درجات الضيوف لهذه الفعالية — كل مستوى يجمع خدمات وقواعد',
+    title: 'مستويات الخدمة', sub: 'درجات المندوبين لهذه الفعالية — كل مستوى يجمع خدمات وقواعد',
     add: 'إضافة مستوى', edit: 'تعديل', del: 'حذف',
     name: 'الاسم', nameAr: 'الاسم بالعربية', code: 'الرمز', desc: 'الوصف',
     color: 'اللون', order: 'الترتيب',
     included: 'الخدمات المضمّنة', rules: 'القواعد',
-    requiredFields: 'حقول مطلوبة للضيف',
-    requiredHint: 'لا يمكن إضافة ضيف لهذا المستوى قبل تعبئة هذه الحقول (يمكن تجاوزها بصلاحية).',
-    guests: 'ضيوف', noEvent: 'يرجى اختيار فعالية أولاً لعرض مستويات الخدمة.',
-    empty: 'لا توجد مستويات بعد', emptyHint: 'أضف أول مستوى خدمة لتصنيف الضيوف',
+    requiredFields: 'حقول مطلوبة للمندوب',
+    requiredHint: 'لا يمكن إضافة مندوب لهذا المستوى قبل تعبئة هذه الحقول (يمكن تجاوزها بصلاحية).',
+    guests: 'مندوبين', noEvent: 'يرجى اختيار فعالية أولاً لعرض مستويات الخدمة.',
+    empty: 'لا توجد مستويات بعد', emptyHint: 'أضف أول مستوى خدمة لتصنيف المندوبين',
     save: 'حفظ', cancel: 'إلغاء', saving: 'جارٍ الحفظ…',
     addTitle: 'إضافة مستوى خدمة', editTitle: 'تعديل مستوى الخدمة',
     noServices: 'لا توجد خدمات في هذه الفعالية بعد — أضفها من صفحة الخدمات أولاً.',
@@ -66,15 +67,15 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
     delTitle: 'حذف المستوى', delBody: (n) => `هل أنت متأكد من حذف "${n}"؟`,
     noneIncluded: 'لا خدمات مضمّنة',
   } : {
-    title: 'Service Levels', sub: 'This event\'s guest grades — each bundles services and carries its own rules',
+    title: 'Service Levels', sub: 'This event\'s delegate grades — each bundles services and carries its own rules',
     add: 'Add Level', edit: 'Edit', del: 'Delete',
     name: 'Name', nameAr: 'Arabic name', code: 'Code', desc: 'Description',
     color: 'Colour', order: 'Order',
     included: 'Included services', rules: 'Rules',
-    requiredFields: 'Required guest fields',
-    requiredHint: 'A guest can\'t be placed on this level until these are filled in (overridable with permission).',
+    requiredFields: 'Required delegate fields',
+    requiredHint: 'A delegate can\'t be placed on this level until these are filled in (overridable with permission).',
     guests: 'guests', noEvent: 'Select an active event to manage its service levels.',
-    empty: 'No service levels yet', emptyHint: 'Add your first level to start grading guests',
+    empty: 'No service levels yet', emptyHint: 'Add your first level to start grading delegates',
     save: 'Save', cancel: 'Cancel', saving: 'Saving…',
     addTitle: 'Add Service Level', editTitle: 'Edit Service Level',
     noServices: 'This event has no services yet — add some on the Services page first.',
@@ -455,8 +456,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                   style={{
                     cursor: 'pointer', fontSize: 11.5,
                     color: on ? 'var(--accent)' : 'var(--ink-mute)',
-                    background: on ? 'rgba(141,1,52,0.12)' : 'var(--surface-soft-3)',
-                    borderColor: on ? 'rgba(141,1,52,0.45)' : 'var(--glass-border)',
+                    background: on ? 'hsl(var(--brand-hsl) / 0.12)' : 'var(--surface-soft-3)',
+                    borderColor: on ? 'hsl(var(--brand-hsl) / 0.45)' : 'var(--glass-border)',
                   }}>
                   {on && <Icon name="check" size={10} />}
                   {isAr ? f.ar : f.en}
@@ -492,8 +493,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
           }}>
             <Icon name="alert" size={13} />{' '}
             {isAr
-              ? `${toDelete.guestCount} ضيف على هذا المستوى — أعد تعيينهم أولاً.`
-              : `${toDelete.guestCount} guest${toDelete.guestCount === 1 ? ' is' : 's are'} on this level — reassign them first.`}
+              ? `${toDelete.guestCount} مندوب على هذا المستوى — أعد تعيينهم أولاً.`
+              : `${toDelete.guestCount} delegate${toDelete.guestCount === 1 ? ' is' : 's are'} on this level — reassign them first.`}
           </div>
         )}
       </Modal>

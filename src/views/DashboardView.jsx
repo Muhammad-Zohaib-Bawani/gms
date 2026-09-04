@@ -32,6 +32,7 @@ import {
 } from "./dashboard/parts";
 import toast from "../lib/toast";
 import { getDashboard } from "../api/services/dashboardService";
+import { brandHex } from '../lib/brandColor';
 
 // The shared StatusChip was built around a mock vocabulary
 // (confirmed/pending/declined); map the real InvitationStatus onto it.
@@ -126,8 +127,8 @@ export default function DashboardView({
     ? {
         export: "تصدير",
         newInvite: "دعوة جديدة",
-        viewGuests: "كل الضيوف",
-        totalGuests: "إجمالي الضيوف",
+        viewGuests: "كل المندوبين",
+        totalGuests: "إجمالي المندوبين",
         confirmed: "مؤكدون",
         awaiting: "في الانتظار",
         travel: "حجوزات السفر",
@@ -140,14 +141,14 @@ export default function DashboardView({
         accredTitle: "الاعتماد",
         accredSub: "حسب حالة الشارة",
         levelsTitle: "مستويات الخدمة",
-        levelsSub: "الضيوف حسب المستوى",
+        levelsSub: "المندوبين حسب المستوى",
         natTitle: "الجنسيات",
         natSub: "الأكثر تمثيلاً",
         orgTitle: "المؤسسات",
         orgSub: "الأكثر تمثيلاً",
         moveTitle: "الوصول والمغادرة",
         moveSub: "حسب اليوم",
-        recentTitle: "آخر نشاط الضيوف",
+        recentTitle: "آخر نشاط المندوبين",
         recentSub: "أحدث الإضافات والتحديثات",
         todayTitle: "برنامج اليوم",
         meetingsTitle: "الاجتماعات القادمة",
@@ -158,9 +159,9 @@ export default function DashboardView({
         flightBookings: "حجوزات الطيران",
         accommodationBookings: "حجوزات الفنادق",
         transportBookings: "حجوزات النقل",
-        ofGuests: "من إجمالي الضيوف",
+        ofGuests: "من إجمالي المندوبين",
         cols: {
-          guest: "الضيف",
+          guest: "المندوب",
           level: "المستوى",
           org: "المؤسسة",
           status: "الحالة",
@@ -168,17 +169,17 @@ export default function DashboardView({
         },
         noSessionsToday: "لا توجد جلسات اليوم",
         noMeetings: "لا توجد اجتماعات قادمة",
-        noGuests: "لا يوجد ضيوف بعد",
-        noGuestsHint: "أضف ضيوفاً لتظهر هنا",
+        noGuests: "لا يوجد مندوبين بعد",
+        noGuestsHint: "أضف مندوبين لتظهر هنا",
         noData: "لا توجد بيانات بعد",
-        noDataHint: "ستظهر هنا عند إضافة الضيوف.",
+        noDataHint: "ستظهر هنا عند إضافة المندوبين.",
         noEvent: "اختر فعالية",
         noEventHint: "اختر فعالية من الشريط العلوي لعرض لوحة المعلومات.",
         loadError: "تعذّر تحميل لوحة المعلومات",
         loadErrorHint: "تحقّق من الاتصال ثم أعد المحاولة.",
         retry: "إعادة المحاولة",
         of: "من",
-        guests: "ضيوف",
+        guests: "مندوبين",
         arrivals: "الوصول",
         departures: "المغادرة",
         accredIssued: "اعتماد صادر",
@@ -188,7 +189,7 @@ export default function DashboardView({
         daysToGo: "يوم متبقٍ",
         inProgress: "جارية الآن",
         qa: {
-          addGuest: "إضافة ضيف",
+          addGuest: "إضافة مندوب",
           addMeeting: "إضافة اجتماع",
           invite: "إرسال دعوة",
           accredit: "الاعتماد",
@@ -210,8 +211,8 @@ export default function DashboardView({
     : {
         export: "Export",
         newInvite: "New Invitation",
-        viewGuests: "All guests",
-        totalGuests: "Total Guests",
+        viewGuests: "All delegates",
+        totalGuests: "Total Delegates",
         confirmed: "Confirmed",
         awaiting: "Awaiting Response",
         travel: "Travel Booked",
@@ -224,14 +225,14 @@ export default function DashboardView({
         accredTitle: "Accreditation",
         accredSub: "By badge status",
         levelsTitle: "Service levels",
-        levelsSub: "Guests per level",
+        levelsSub: "Delegates per level",
         natTitle: "Nationalities",
         natSub: "Most represented",
         orgTitle: "Organisations",
         orgSub: "Most represented",
         moveTitle: "Arrivals & departures",
         moveSub: "By day",
-        recentTitle: "Recent guest activity",
+        recentTitle: "Recent delegate activity",
         recentSub: "Latest additions and updates",
         todayTitle: "Today's programme",
         meetingsTitle: "Upcoming meetings",
@@ -242,9 +243,9 @@ export default function DashboardView({
         flightBookings: "Flight Bookings",
         accommodationBookings: "Accommodation Bookings",
         transportBookings: "Transport Bookings",
-        ofGuests: "of total guests",
+        ofGuests: "of total delegates",
         cols: {
-          guest: "Guest",
+          guest: "Delegate",
           level: "Service Level",
           org: "Organisation",
           status: "Status",
@@ -252,17 +253,17 @@ export default function DashboardView({
         },
         noSessionsToday: "No sessions today",
         noMeetings: "No upcoming meetings",
-        noGuests: "No guests yet",
-        noGuestsHint: "Guests you add to this event will appear here.",
+        noGuests: "No delegates yet",
+        noGuestsHint: "Delegates you add to this event will appear here.",
         noData: "Nothing to show yet",
-        noDataHint: "This fills in as you add guests.",
+        noDataHint: "This fills in as you add delegates.",
         noEvent: "No event selected",
         noEventHint: "Pick an event from the top bar to see its dashboard.",
         loadError: "Could not load the dashboard",
         loadErrorHint: "Check your connection and try again.",
         retry: "Retry",
         of: "of",
-        guests: "Guests",
+        guests: "Delegates",
         arrivals: "Arrivals",
         departures: "Departures",
         accredIssued: "Accreditation issued",
@@ -272,7 +273,7 @@ export default function DashboardView({
         daysToGo: "days to go",
         inProgress: "In progress",
         qa: {
-          addGuest: "Add guest",
+          addGuest: "Add delegate",
           invite: "Send invitation",
           accredit: "Accreditation",
           seating: "Seating",
@@ -428,10 +429,10 @@ export default function DashboardView({
       (g) =>
         `"${g.name}","${g.organization || ""}","${g.serviceLevelName || ""}","${g.invitationStatus || ""}"`,
     );
-    const csv = "Guest,Organization,Service Level,Status\n" + rows.join("\n");
+    const csv = "Delegate,Organization,Service Level,Status\n" + rows.join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "dashboard-guests.csv";
+    a.download = "dashboard-delegates.csv";
     a.click();
     toast.success(isAr ? "تم التصدير" : "Exported");
   }
@@ -551,7 +552,7 @@ export default function DashboardView({
                 label={STR.totalGuests}
                 value={fmtN(total)}
                 icon="guests"
-                tint="#8d0134"
+                tint={brandHex()}
                 lines={[
                   {
                     label: STR.rsvp.accepted,

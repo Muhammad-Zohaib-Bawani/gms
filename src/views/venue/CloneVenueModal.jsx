@@ -6,10 +6,11 @@ import ImageField from '../../components/ui/ImageField';
 import LocationPickerModal from '../../components/ui/LocationPickerModal';
 import { getVenue, getVenueTypes } from '../../api/services/venueService';
 import { VENUE_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from './venueHelpers';
+import { brandHex } from '../../lib/brandColor';
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
-const SWATCHES = ['#8d0134', '#e0c47e', '#e05252', '#16a34a', '#2563eb', '#7c3aed', '#db2777', '#ea7c1e'];
+const SWATCHES = [brandHex(), '#e0c47e', '#e05252', '#16a34a', '#2563eb', '#7c3aed', '#db2777', '#ea7c1e'];
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',

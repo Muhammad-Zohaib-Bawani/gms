@@ -40,7 +40,7 @@ export default function MessageModal({ open, onClose, guests = [], lang, onSent 
     onSent?.({ sent, failed });
     if (failed.length === 0) {
       toast.success(
-        isAr ? `تم إرسال الرسالة إلى ${fmtNum(sent, lang)} ضيف` : `Message sent to ${sent} guest${sent === 1 ? '' : 's'}`,
+        isAr ? `تم إرسال الرسالة إلى ${fmtNum(sent, lang)} مندوب` : `Message sent to ${sent} delegate${sent === 1 ? '' : 's'}`,
       );
     } else {
       toast.warning(
@@ -56,7 +56,7 @@ export default function MessageModal({ open, onClose, guests = [], lang, onSent 
       open={open}
       onClose={onClose}
       title={isAr ? 'إرسال رسالة' : 'Send Message'}
-      subtitle={isAr ? `إلى ${fmtNum(count, lang)} ضيف` : `To ${fmtNum(count, lang)} guest${count > 1 ? 's' : ''}`}
+      subtitle={isAr ? `إلى ${fmtNum(count, lang)} مندوب` : `To ${fmtNum(count, lang)} delegate${count > 1 ? 's' : ''}`}
       width={480}
       footer={
         <>
@@ -77,8 +77,8 @@ export default function MessageModal({ open, onClose, guests = [], lang, onSent 
       />
       <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 6 }}>
         {isAr
-          ? 'يبدأ هذا محادثة دعم مع كل ضيف على حدة — يمكن للضيف الرد من تطبيق VIP.'
-          : 'This starts (or continues) a support chat with each guest — they can reply from the VIP app.'}
+          ? 'يبدأ هذا محادثة دعم مع كل مندوب على حدة — يمكن للمندوب الرد من تطبيق VIP.'
+          : 'This starts (or continues) a support chat with each delegate — they can reply from the VIP app.'}
       </div>
     </Modal>
   );

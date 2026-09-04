@@ -51,6 +51,7 @@ import {
   getGuestServicePlan,
 } from "../../../api/services/serviceCatalogService";
 import ExistingGuestPicker from "./ExistingGuestPicker";
+import { brandTint } from '../../../lib/brandColor';
 
 // Module scope on purpose: defining this inside the component gives it a
 // fresh identity every render, remounting the label DOM on every keystroke.
@@ -433,8 +434,8 @@ export default function GuestModal({
     if (failed === 0) {
       toast.success(
         isAr
-          ? `تمت إضافة ${success} ضيف`
-          : `Added ${success} guest${success === 1 ? "" : "s"}`,
+          ? `تمت إضافة ${success} مندوب`
+          : `Added ${success} delegate${success === 1 ? "" : "s"}`,
       );
       handleClose();
     } else {
@@ -661,11 +662,11 @@ export default function GuestModal({
           toast.error(
             isEdit
               ? isAr
-                ? "تم تحديث الضيف لكن تعذّر حفظ بيانات السفر"
-                : "Guest updated, but travel details failed to save"
+                ? "تم تحديث المندوب لكن تعذّر حفظ بيانات السفر"
+                : "Delegate updated, but travel details failed to save"
               : isAr
-                ? "تم حفظ الضيف لكن تعذّر حفظ بيانات السفر"
-                : "Guest saved, but travel details failed to save",
+                ? "تم حفظ المندوب لكن تعذّر حفظ بيانات السفر"
+                : "Delegate saved, but travel details failed to save",
           );
         }
       }
@@ -705,8 +706,8 @@ export default function GuestModal({
             // sequence and validation failures in a sentence worth reading.
             toast.error(
               isAr
-                ? `تم حفظ الضيف لكن تعذّر حفظ خدمة "${slot.name}": ${err?.message || ""}`
-                : `Guest saved, but "${slot.name}" could not be saved: ${err?.message || ""}`,
+                ? `تم حفظ المندوب لكن تعذّر حفظ خدمة "${slot.name}": ${err?.message || ""}`
+                : `Delegate saved, but "${slot.name}" could not be saved: ${err?.message || ""}`,
             );
           }
         }
@@ -732,8 +733,8 @@ export default function GuestModal({
           } catch (err) {
             toast.error(
               isAr
-                ? `تم حفظ الضيف لكن تعذّر حفظ إدخال إضافي لخدمة "${slot.name}": ${err?.message || ""}`
-                : `Guest saved, but an extra "${slot.name}" entry could not be saved: ${err?.message || ""}`,
+                ? `تم حفظ المندوب لكن تعذّر حفظ إدخال إضافي لخدمة "${slot.name}": ${err?.message || ""}`
+                : `Delegate saved, but an extra "${slot.name}" entry could not be saved: ${err?.message || ""}`,
             );
           }
         }
@@ -744,15 +745,15 @@ export default function GuestModal({
       toast.success(
         isEdit
           ? isAr
-            ? "تم تحديث بيانات الضيف"
-            : "Guest updated successfully"
+            ? "تم تحديث بيانات المندوب"
+            : "Delegate updated successfully"
           : templateId
             ? isAr
-              ? "تمت إضافة الضيف وإرسال الدعوة"
-              : "Guest added & invitation sent"
+              ? "تمت إضافة المندوب وإرسال الدعوة"
+              : "Delegate added & invitation sent"
             : isAr
-              ? "تمت إضافة الضيف بنجاح"
-              : "Guest added successfully",
+              ? "تمت إضافة المندوب بنجاح"
+              : "Delegate added successfully",
       );
     } catch (err) {
       // Same email, same event -> the person is already a participant here.
@@ -768,11 +769,11 @@ export default function GuestModal({
         err,
         isEdit
           ? isAr
-            ? "حدث خطأ أثناء تحديث الضيف"
-            : "Error updating guest"
+            ? "حدث خطأ أثناء تحديث المندوب"
+            : "Error updating delegate"
           : isAr
-            ? "حدث خطأ أثناء إضافة الضيف"
-            : "Error adding guest",
+            ? "حدث خطأ أثناء إضافة المندوب"
+            : "Error adding delegate",
       );
     } finally {
       setSaving(false);
@@ -975,19 +976,19 @@ export default function GuestModal({
                     of the three they picked. */}
                 {isEdit
                   ? isAr
-                    ? "تعديل الضيف"
-                    : "Edit Guest"
+                    ? "تعديل المندوب"
+                    : "Edit Delegate"
                   : mode === "existing"
                     ? isAr
-                      ? "إضافة ضيف حالي"
-                      : "Add Existing Guest"
+                      ? "إضافة مندوب حالي"
+                      : "Add Existing Delegate"
                     : mode === "import"
                       ? isAr
-                        ? "استيراد ضيوف من CSV"
-                        : "Import Guests from CSV"
+                        ? "استيراد مندوبين من CSV"
+                        : "Import Delegates from CSV"
                       : isAr
-                        ? "ضيف جديد"
-                        : "Add New Guest"}
+                        ? "مندوب جديد"
+                        : "Add New Delegate"}
                 {isEdit && (
                   <span
                     style={{
@@ -1140,7 +1141,7 @@ export default function GuestModal({
                         accept="image/*"
                         onChange={handlePhotoSelect}
                         disabled={photoUploading}
-                        title="Guest Photo"
+                        title="Delegate Photo"
                         style={{ display: "none" }}
                       />
                     </label>
@@ -1248,8 +1249,8 @@ export default function GuestModal({
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div>
                           {isAr
-                            ? `${existingPerson.firstName || ""} ${existingPerson.lastName || ""} مسجّل بالفعل في "${existingPerson.eventTitle}". سيتم إضافة نفس الشخص إلى هذه الفعالية دون إنشاء ضيف مكرر.`
-                            : `${`${existingPerson.firstName || ""} ${existingPerson.lastName || ""}`.trim()} is already a guest on "${existingPerson.eventTitle}". Saving adds that same person to this event — no duplicate is created.`}
+                            ? `${existingPerson.firstName || ""} ${existingPerson.lastName || ""} مسجّل بالفعل في "${existingPerson.eventTitle}". سيتم إضافة نفس الشخص إلى هذه الفعالية دون إنشاء مندوب مكرر.`
+                            : `${`${existingPerson.firstName || ""} ${existingPerson.lastName || ""}`.trim()} is already a delegate on "${existingPerson.eventTitle}". Saving adds that same person to this event — no duplicate is created.`}
                         </div>
                         <button
                           type="button"
@@ -1258,7 +1259,7 @@ export default function GuestModal({
                           onClick={applyExistingPerson}
                         >
                           <Icon name="check" size={12} />
-                          {isAr ? "استخدام بيانات الضيف الحالي" : "Use existing guest's details"}
+                          {isAr ? "استخدام بيانات المندوب الحالي" : "Use existing delegate's details"}
                         </button>
                       </div>
                     </div>
@@ -1272,7 +1273,7 @@ export default function GuestModal({
                   }}
                 >
                   <div>
-                    <FieldLabel>{isAr ? "نوع الضيف" : "Guest Type"}</FieldLabel>
+                    <FieldLabel>{isAr ? "نوع المندوب" : "Delegate Type"}</FieldLabel>
                     <Select
                       value={form.guestType}
                       onChange={(v) => setF("guestType", v)}
@@ -1508,7 +1509,7 @@ export default function GuestModal({
                                 textAlign: "center",
                                 border: `1px solid ${selected ? lvl.color || "var(--accent)" : "var(--glass-border)"}`,
                                 background: selected
-                                  ? `${lvl.color || "#8d0134"}1f`
+                                  ? (lvl.color ? `${lvl.color}1f` : brandTint(0.12))
                                   : "var(--surface-soft-2)",
                                 fontSize: 13,
                                 fontWeight: selected ? 600 : 400,
@@ -1699,8 +1700,8 @@ export default function GuestModal({
                               }}
                             >
                               {isAr
-                                ? "تحتاج صلاحية تجاوز القواعد لإضافة هذا الضيف لهذا المستوى."
-                                : "You need override permission to place this guest on this level."}
+                                ? "تحتاج صلاحية تجاوز القواعد لإضافة هذا المندوب لهذا المستوى."
+                                : "You need override permission to place this delegate on this level."}
                             </div>
                           )}
                         </div>
@@ -1914,7 +1915,7 @@ export default function GuestModal({
                         </div>
                         <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>
                           {isAr
-                            ? "إضافة الضيف فقط"
+                            ? "إضافة المندوب فقط"
                             : "No email sent (automatically accepted)"}
                         </div>
                       </div>
@@ -2062,8 +2063,8 @@ export default function GuestModal({
                         ? "إضافة وإرسال دعوة"
                         : "Add & Send Invite"
                       : isAr
-                        ? "إضافة الضيف"
-                        : "Add Guest"}
+                        ? "إضافة المندوب"
+                        : "Add Delegate"}
               </button>
             )}
           </div>

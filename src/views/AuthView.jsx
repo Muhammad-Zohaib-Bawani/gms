@@ -1,7 +1,6 @@
 // Sign-in. Split layout: a QOC-branded art panel and the form.
 //
 // The art panel's imagery is CSS-only for now (see .login-art in
-// styles/qoc-revamp.css — maroon gradient + the QOC pattern + a skyline
 // silhouette). Dropping in a real Doha skyline photo is a one-line change:
 // add `backgroundImage` to the .login-art rule.
 import React, { useState } from 'react';
@@ -91,7 +90,7 @@ export default function AuthView() {
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
         >
           <h1 className="login-art-title">Qatar Olympic Committee</h1>
-          <div className="login-art-sub">Event Guest Management System</div>
+          <div className="login-art-sub">Event Delegate Management System</div>
         </motion.div>
 
         <motion.p
@@ -100,7 +99,7 @@ export default function AuthView() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.22 }}
         >
-          Seamless guest management for successful events - invitations,
+          Seamless delegate management for successful events - invitations,
           accreditation, travel and seating in one place.
         </motion.p>
       </div>

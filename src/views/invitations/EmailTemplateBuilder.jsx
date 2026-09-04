@@ -9,6 +9,7 @@ import FontFamily from '@tiptap/extension-font-family';
 import TextAlign from '@tiptap/extension-text-align';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
+import { brandHex } from '../../lib/brandColor';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 export const TEMPLATE_VARIABLES = ['{{GuestName}}', '{{EventName}}', '{{EventDate}}', '{{Venue}}'];
@@ -40,7 +41,7 @@ export const DEFAULT_DESIGN = {
   fontSize: 15,
   textColor: '#1a1a1a',
   buttonLabel: 'View Invitation & Respond',
-  buttonColor: '#8d0134',
+  buttonColor: brandHex(),  // email HTML needs a real hex, not var()
   buttonTextColor: '#ffffff',
   align: 'left',
 };
@@ -223,7 +224,7 @@ function Toolbar({ editor, design, setDesign, isAr }) {
       <Btn title="Insert image" on={() => fileRef.current?.click()}>🖼</Btn>
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
       {sep()}
-      <button type="button" title="Insert the guest RSVP button at the cursor"
+      <button type="button" title="Insert the delegate RSVP button at the cursor"
         style={{ ...tbBtnStyle(false), background: 'var(--accent)', color: '#fff', fontWeight: 600, padding: '0 12px' }}
         onMouseDown={e => { e.preventDefault(); editor.chain().focus().insertInviteButton({
           label: design.buttonLabel, bg: design.buttonColor, color: design.buttonTextColor }).run(); }}>

@@ -14,13 +14,13 @@ const NON_PORTAL_ROLES = ['guest', 'driver'];
 
 const DEMO_USERS = [
   { id: '1', firstName: 'Sara',  lastName: 'Ali',    email: 'sara@gms.local',  roleName: 'Event Manager' },
-  { id: '2', firstName: 'Khalid',lastName: 'Hassan', email: 'khalid@gms.local',roleName: 'Guest Relations Manager' },
+  { id: '2', firstName: 'Khalid',lastName: 'Hassan', email: 'khalid@gms.local',roleName: 'Delegate Relations Manager' },
   { id: '3', firstName: 'Noor',  lastName: 'Ahmed',  email: 'noor@gms.local',  roleName: 'Venue Manager' },
 ];
 
 const DEMO_MODULES = [
   { slug: 'events',        displayName: 'Events',            isNative: true,  isGranted: false },
-  { slug: 'guests',        displayName: 'Guests',            isNative: false, isGranted: true  },
+  { slug: 'guests',        displayName: 'Delegates',            isNative: false, isGranted: true  },
   { slug: 'invitations',   displayName: 'Invitations',       isNative: false, isGranted: false },
   { slug: 'travel',        displayName: 'Services',isNative: false, isGranted: false },
   { slug: 'accreditation', displayName: 'Accreditation',     isNative: false, isGranted: false },
@@ -42,15 +42,15 @@ function UserRow({ user, selected, onClick }) {
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-        background: selected ? 'rgba(141, 1, 52,0.10)' : 'transparent',
-        border: selected ? '1px solid rgba(141, 1, 52,0.35)' : '1px solid transparent',
+        background: selected ? 'hsl(var(--brand-hsl) / 0.10)' : 'transparent',
+        border: selected ? '1px solid hsl(var(--brand-hsl) / 0.35)' : '1px solid transparent',
         borderRadius: 8, cursor: 'pointer', width: '100%', textAlign: 'left',
         transition: 'background 0.15s',
       }}
     >
       <div style={{
         width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-        background: selected ? 'rgba(141, 1, 52,0.22)' : 'var(--surface-soft-3)',
+        background: selected ? 'hsl(var(--brand-hsl) / 0.22)' : 'var(--surface-soft-3)',
         color: selected ? 'var(--accent)' : 'var(--ink-mute)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 12, fontWeight: 600,
@@ -73,8 +73,8 @@ function ModuleToggle({ mod, onChange }) {
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '10px 14px', borderRadius: 8,
-      background: active ? 'rgba(141, 1, 52,0.06)' : 'var(--surface-soft)',
-      border: `1px solid ${active ? 'rgba(141, 1, 52,0.25)' : 'var(--glass-border)'}`,
+      background: active ? 'hsl(var(--brand-hsl) / 0.06)' : 'var(--surface-soft)',
+      border: `1px solid ${active ? 'hsl(var(--brand-hsl) / 0.25)' : 'var(--glass-border)'}`,
       opacity: mod.isNative ? 0.72 : 1,
     }}>
       <div>
@@ -87,8 +87,8 @@ function ModuleToggle({ mod, onChange }) {
       {mod.isNative ? (
         <span style={{
           fontSize: 10.5, padding: '2px 8px', borderRadius: 20,
-          background: 'rgba(141, 1, 52,0.14)', color: 'var(--accent)',
-          border: '1px solid rgba(141, 1, 52,0.3)',
+          background: 'hsl(var(--brand-hsl) / 0.14)', color: 'var(--accent)',
+          border: '1px solid hsl(var(--brand-hsl) / 0.3)',
         }}>Native</span>
       ) : (
         <button
@@ -273,7 +273,7 @@ export default function UserAccessView() {
               {/* Info banner */}
               <div style={{
                 marginBottom: 16, padding: '9px 13px', borderRadius: 8,
-                background: 'rgba(141, 1, 52,0.06)', border: '1px solid rgba(141, 1, 52,0.2)',
+                background: 'hsl(var(--brand-hsl) / 0.06)', border: '1px solid hsl(var(--brand-hsl) / 0.2)',
                 fontSize: 12, color: 'var(--ink-mute)', lineHeight: 1.5,
               }}>
                 <strong style={{ color: 'var(--accent)' }}>Read-only grants</strong> — toggling a module on gives this

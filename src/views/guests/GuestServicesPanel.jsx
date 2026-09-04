@@ -572,8 +572,8 @@ export default function GuestServicesPanel({
       ) : (
         <div style={{ gridColumn: '1 / -1', fontSize: 12.5, color: 'var(--ink-faint)', fontStyle: 'italic' }}>
           {isAr
-            ? 'لم يتم تعيين مستوى خدمة لهذا الضيف.'
-            : 'This guest has no service level, so there are no built-in services to complete.'}
+            ? 'لم يتم تعيين مستوى خدمة لهذا المندوب.'
+            : 'This delegate has no service level, so there are no built-in services to complete.'}
         </div>
       )}
 
@@ -618,8 +618,8 @@ export default function GuestServicesPanel({
         <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
           {confirmDelete?.slot.isSystem
             ? (isAr
-              ? 'سيتم حذف هذا الحجز نهائياً من سجل الضيف. لا يمكن التراجع عن هذا الإجراء.'
-              : "This permanently deletes the booking from the guest's record. It cannot be undone.")
+              ? 'سيتم حذف هذا الحجز نهائياً من سجل المندوب. لا يمكن التراجع عن هذا الإجراء.'
+              : "This permanently deletes the booking from the delegate's record. It cannot be undone.")
             : (isAr
               ? 'سيتم حذف هذا الإدخال نهائياً. لا يمكن التراجع عن هذا الإجراء.'
               : 'This permanently deletes the entry. It cannot be undone.')}

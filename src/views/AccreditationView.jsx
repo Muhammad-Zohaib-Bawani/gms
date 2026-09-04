@@ -25,43 +25,43 @@ export default function AccreditationView({ lang, activeEventId }) {
   const ad = s => isAr ? toArDigits(String(s)) : String(s);
 
   const STR = isAr ? {
-    title: 'الاعتماد', sub: 'إصدار وإدارة بطاقات الاعتماد للضيوف الذين يتطلبون اعتمادًا',
+    title: 'الاعتماد', sub: 'إصدار وإدارة بطاقات الاعتماد للمندوبين الذين يتطلبون اعتمادًا',
     total: 'يتطلب اعتماد', issued: 'صدر الاعتماد', pending: 'قيد الانتظار',
-    rate: 'نسبة الإصدار', searchPlaceholder: 'بحث عن ضيف أو جهة…',
+    rate: 'نسبة الإصدار', searchPlaceholder: 'بحث عن مندوب أو جهة…',
     filterAll: 'الكل', filterIssued: 'صادر', filterPending: 'قيد الانتظار',
-    tierAll: 'جميع الفئات', guest: 'الضيف', org: 'الجهة', serviceLevel: 'الفئة',
+    tierAll: 'جميع الفئات', guest: 'المندوب', org: 'الجهة', serviceLevel: 'الفئة',
     arrival: 'تاريخ الوصول', status: 'الاعتماد', actions: 'إجراءات',
     issue: 'إصدار', revoke: 'سحب', viewCard: 'عرض البطاقة', issueSelected: 'إصدار المحدد',
     revokeSelected: 'سحب المحدد', selected: 'محدد',
     issueAll: 'إصدار الكل', clearSel: 'إلغاء التحديد',
     badgeIssued: 'صادر', badgePending: 'قيد الانتظار',
-    noResults: 'لا يوجد ضيوف يتطلبون اعتمادًا', country: 'الدولة', role: 'الدور',
+    noResults: 'لا يوجد مندوبين يتطلبون اعتمادًا', country: 'الدولة', role: 'الدور',
     previewTitle: 'معاينة بطاقة الاعتماد',
     close: 'إغلاق', printBadge: 'طباعة البطاقة',
     badgeNo: 'رقم الاعتماد',
     noEvent: 'يرجى اختيار فعالية أولاً لعرض الاعتماد.',
-    notAccepted: 'يجب أن يقبل الضيف الدعوة أولاً قبل إصدار الاعتماد',
-    notAcceptedToast: 'لا يمكن إصدار الاعتماد قبل قبول الضيف للدعوة',
-    skippedNotAccepted: (n) => `تم تخطي ${ad(n)} ضيف لم يقبلوا الدعوة بعد`,
+    notAccepted: 'يجب أن يقبل المندوب الدعوة أولاً قبل إصدار الاعتماد',
+    notAcceptedToast: 'لا يمكن إصدار الاعتماد قبل قبول المندوب للدعوة',
+    skippedNotAccepted: (n) => `تم تخطي ${ad(n)} مندوب لم يقبلوا الدعوة بعد`,
   } : {
-    title: 'Accreditation', sub: 'Issue and manage accreditation badges for guests who require one',
+    title: 'Accreditation', sub: 'Issue and manage accreditation badges for delegates who require one',
     total: 'Require accreditation', issued: 'Badges issued', pending: 'Pending',
-    rate: 'Issue rate', searchPlaceholder: 'Search guest or organisation…',
+    rate: 'Issue rate', searchPlaceholder: 'Search delegate or organisation…',
     filterAll: 'All', filterIssued: 'Issued', filterPending: 'Pending',
-    serviceLevelAll: 'All service levels', guest: 'Guest', org: 'Organisation', serviceLevel: 'Service Level',
+    serviceLevelAll: 'All service levels', guest: 'Delegate', org: 'Organisation', serviceLevel: 'Service Level',
     arrival: 'Arrival', status: 'Accreditation', actions: 'Actions',
     issue: 'Issue', revoke: 'Revoke', viewCard: 'View card', issueSelected: 'Issue selected',
     revokeSelected: 'Revoke selected', selected: 'selected',
     issueAll: 'Issue all pending', clearSel: 'Clear selection',
     badgeIssued: 'Issued', badgePending: 'Pending',
-    noResults: 'No guests require accreditation', country: 'Country', role: 'Role',
+    noResults: 'No delegates require accreditation', country: 'Country', role: 'Role',
     previewTitle: 'Accreditation Badge Preview',
     close: 'Close', printBadge: 'Print badge',
     badgeNo: 'Badge No.',
     noEvent: 'Select an active event to view accreditation.',
-    notAccepted: 'Guest must accept the invitation before accreditation can be issued',
-    notAcceptedToast: 'Cannot issue accreditation until the guest has accepted their invitation',
-    skippedNotAccepted: (n) => `Skipped ${n} guest${n !== 1 ? 's' : ''} who haven't accepted their invitation yet`,
+    notAccepted: 'Delegate must accept the invitation before accreditation can be issued',
+    notAcceptedToast: 'Cannot issue accreditation until the delegate has accepted their invitation',
+    skippedNotAccepted: (n) => `Skipped ${n} delegate${n !== 1 ? 's' : ''} who haven't accepted their invitation yet`,
   };
 
   const [guests, setGuests] = useState([]);
@@ -307,7 +307,7 @@ export default function AccreditationView({ lang, activeEventId }) {
 
           {/* Bulk action bar */}
           {someSelected && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'hsl(var(--brand-hsl) / 0.1)', border: '1px solid hsl(var(--brand-hsl) / 0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}>
                 {ad(sel.size)} {STR.selected}
               </span>
@@ -351,7 +351,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                     const isChecked = sel.has(g.id);
                     const busy = busyIds.has(g.id);
                     return (
-                      <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
+                      <tr key={g.id} style={{ background: isChecked ? 'hsl(var(--brand-hsl) / 0.05)' : undefined }}>
                         <td style={{ paddingRight: 0 }}>
                           <input type="checkbox" checked={isChecked} onChange={() => toggleSel(g.id)}
                             style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>

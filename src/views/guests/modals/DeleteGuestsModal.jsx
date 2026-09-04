@@ -44,11 +44,11 @@ export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, 
       onClose();
       toast.success(
         isAr
-          ? `تم حذف ${fmtNum(count, lang)} ضيف`
-          : `${count} guest${count !== 1 ? 's' : ''} deleted`
+          ? `تم حذف ${fmtNum(count, lang)} مندوب`
+          : `${count} delegate${count !== 1 ? 's' : ''} deleted`
       );
     } catch {
-      toast.error(isAr ? 'حدث خطأ أثناء الحذف' : 'Error deleting guests');
+      toast.error(isAr ? 'حدث خطأ أثناء الحذف' : 'Error deleting delegates');
     } finally {
       setDeleting(false);
     }
@@ -58,7 +58,7 @@ export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, 
     <Modal
       open={open}
       onClose={onClose}
-      title={isAr ? 'تأكيد الحذف' : 'Delete Guests'}
+      title={isAr ? 'تأكيد الحذف' : 'Delete Delegates'}
       width={420}
       footer={
         <>
@@ -77,8 +77,8 @@ export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, 
     >
       <p style={{ color: 'var(--ink-dim)', marginBottom: 12 }}>
         {isAr
-          ? `هل أنت متأكد من حذف ${fmtNum(count, lang)} ضيف؟ سيتم أيضًا حذف الخدمات المرتبطة به (الطيران، الإقامة، النقل). لا يمكن التراجع عن هذا الإجراء.`
-          : `Are you sure you want to delete ${count} selected guest${count !== 1 ? 's' : ''}? This will also delete their associated services (flight, accommodation, transport). This cannot be undone.`
+          ? `هل أنت متأكد من حذف ${fmtNum(count, lang)} مندوب؟ سيتم أيضًا حذف الخدمات المرتبطة به (الطيران، الإقامة، النقل). لا يمكن التراجع عن هذا الإجراء.`
+          : `Are you sure you want to delete ${count} selected delegate${count !== 1 ? 's' : ''}? This will also delete their associated services (flight, accommodation, transport). This cannot be undone.`
         }
       </p>
 
@@ -104,7 +104,7 @@ export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, 
                       {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · {isAr ? 'مقعد' : 'Seat'} {s.seatCode}
                     </span>
                   ))}
-                  . هل أنت متأكد أنك تريد حذف هذا الضيف؟ بحذف هذا الضيف سيصبح المقعد متاحًا تلقائيًا لتخصيصه لضيف آخر.
+                  . هل أنت متأكد أنك تريد حذف هذا المندوب؟ بحذف هذا المندوب سيصبح المقعد متاحًا تلقائيًا لتخصيصه لمندوب آخر.
                 </>
               ) : (
                 <>
@@ -116,7 +116,7 @@ export default function DeleteGuestsModal({ open, onClose, selectedEventGuests, 
                       {s.eventTitle}{s.sessionTitle ? ` · ${s.sessionTitle}` : ''} · Seat {s.seatCode}
                     </span>
                   ))}
-                  . Are you sure you want to delete this guest? By deleting this guest, the seat will automatically become available to assign to another guest.
+                  . Are you sure you want to delete this delegate? By deleting this delegate, the seat will automatically become available to assign to another delegate.
                 </>
               )}
             </div>

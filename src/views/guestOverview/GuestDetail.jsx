@@ -143,7 +143,7 @@ export default function GuestDetail({ personId, guest }) {
     setError(null);
     getGuestOverviewDetail(personId)
       .then((d) => { if (!cancelled) setDetail(d); })
-      .catch((err) => { if (!cancelled) setError(err?.message || 'Could not load this guest'); })
+      .catch((err) => { if (!cancelled) setError(err?.message || 'Could not load this delegate'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [personId]);
@@ -199,7 +199,7 @@ export default function GuestDetail({ personId, guest }) {
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <ActionBtn icon="guests" label="View profile" onClick={goParticipation} />
             <ActionBtn icon="message" label="Message" onClick={goChat} />
-            <ActionBtn icon="edit" label="Edit guest" onClick={goParticipation} />
+            <ActionBtn icon="edit" label="Edit delegate" onClick={goParticipation} />
             <ActionBtn icon="badge" label="Accreditation" onClick={() => navigate('/accreditation')} />
           </div>
         </div>

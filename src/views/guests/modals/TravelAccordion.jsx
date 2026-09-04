@@ -335,7 +335,7 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
                 display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
                 padding: '7px 12px', borderRadius: 8, fontSize: 12.5,
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: active ? 'rgba(141, 1, 52, 0.12)' : 'var(--surface-soft-3)',
+                background: active ? 'hsl(var(--brand-hsl) / 0.12)' : 'var(--surface-soft-3)',
                 color: active ? 'var(--accent)' : 'var(--ink-mute)',
               }}>
                 <input type="radio" name="flightType" value={t.code} checked={active}
@@ -418,7 +418,7 @@ function CheckRow({ checked, onChange, label, hint }) {
       display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
       padding: '11px 12px', borderRadius: 8,
       border: `1px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
-      background: checked ? 'rgba(141, 1, 52, 0.10)' : 'var(--surface-soft-3)',
+      background: checked ? 'hsl(var(--brand-hsl) / 0.10)' : 'var(--surface-soft-3)',
       transition: 'border-color 0.15s ease, background 0.15s ease',
     }}>
       <input
@@ -666,7 +666,7 @@ export default function TravelAccordion({
         {image('flight',
           isAr ? 'صورة التذكرة' : 'Upload Itinerary' ,
           isAr
-            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            ? 'اختياري — تذكرة أو بطاقة صعود الطائرة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها المندوب في التطبيق'
             : 'Optional — ticket or boarding pass.')}
       </>))}
 
@@ -751,7 +751,7 @@ export default function TravelAccordion({
         {image('accommodation',
           isAr ? 'صورة الحجز' : 'Upload Itinerary',
           isAr
-            ? 'اختياري — قسيمة الحجز أو صورة الغرفة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها الضيف في التطبيق'
+            ? 'اختياري — قسيمة الحجز أو صورة الغرفة. صورة واضحة ومستوية أفضل لقراءة OCR، ويراها المندوب في التطبيق'
             : 'Optional — Upload itinerary')}
       </>))}
 
@@ -762,10 +762,10 @@ export default function TravelAccordion({
         <CheckRow
           checked={!!travel.allowTransportRequest}
           onChange={(v) => onChange((p) => ({ ...p, allowTransportRequest: v }))}
-          label={isAr ? 'السماح للضيف بطلب النقل من التطبيق' : 'Allow guest to book transport themselves'}
+          label={isAr ? 'السماح للمندوب بطلب النقل من التطبيق' : 'Allow delegate to book transport themselves'}
           hint={isAr
-            ? 'يمكن للضيف طلب سيارة من التطبيق حتى بدون حجز نقل هنا'
-            : 'Guest can request a car from the app, even with no transport booked here'}
+            ? 'يمكن للمندوب طلب سيارة من التطبيق حتى بدون حجز نقل هنا'
+            : 'Delegate can request a car from the app, even with no transport booked here'}
         />
 
         {grid(<>

@@ -1,0 +1,52 @@
+/* ==========================================================================
+   BRAND COLOUR — SINGLE SOURCE OF TRUTH
+   --------------------------------------------------------------------------
+   Every brand-coloured pixel in the portal derives from --brand-h below.
+   One hue, one dial — change that number and the app re-skins.
+   226 is a deep indigo blue (11.6:1 on white).
+
+     226 = indigo (current)   212 = azure   250 = violet-blue
+     160 = teal               25 = orange   338 = the original QOC maroon
+
+   The saturation/lightness pairs below are the flavour. Move those only on
+   purpose — they hold the contrast ratios.
+
+   Nothing else needs touching: the accent ramp, the sidebar gradient, the
+   dark-theme page backgrounds, hover/selected tints, focus rings and chart
+   fills are all expressed as hsl() against this hue, so they move together.
+
+   HOW TO USE IT IN CODE
+     solid brand fill ....... var(--accent)   / var(--accent-2) / var(--accent-deep)
+     branded SURFACE ........ var(--brand-gradient)      (135deg, accent → deeper)
+                              var(--brand-gradient-h)    (90deg, for thin strips)
+     translucent tint ....... hsl(var(--brand-hsl) / 0.12)
+     an off-ramp shade ...... hsl(var(--brand-h) 73% 37%)
+   Charts and progress bars stay SOLID — a gradient there reads as data.
+   Never write a brand hex literal again — it silently escapes this file.
+
+   The three JS-only exceptions (SVG presentation attributes, <canvas>, and
+   email HTML, none of which can resolve var()) read these tokens at runtime
+   via lib/brandColor.js, so they stay in sync too.
+   ========================================================================== */
+
+:root {
+  /* ── The dial ─────────────────────────────────────────────────────────── */
+  --brand-h: 226;
+
+  /* ── The ramp ─────────────────────────────────────────────────────────── */
+  --brand-hsl:      var(--brand-h) 62% 30%;   /* primary — 11.6:1 on white  */
+  --brand-2-hsl:    var(--brand-h) 51% 46%;   /* lighter, for dark bgs      */
+  --brand-deep-hsl: var(--brand-h) 71% 21%;   /* pressed / gradient end     */
+  --brand-tint-hsl: var(--brand-h) 60% 96%;   /* near-white wash            */
+
+  --brand:      hsl(var(--brand-hsl));
+  --brand-2:    hsl(var(--brand-2-hsl));
+  --brand-deep: hsl(var(--brand-deep-hsl));
+  --brand-tint: hsl(var(--brand-tint-hsl));
+
+  /* Depth, not a second colour: branded surfaces (primary buttons, avatars,
+     the brand mark, hero bands) shade from the accent into its own darker end.
+     Flat chips, icons, borders and every data mark stay solid var(--accent). */
+  --brand-gradient:   linear-gradient(135deg, hsl(var(--brand-hsl)) 0%, hsl(var(--brand-deep-hsl)) 100%);
+  --brand-gradient-h: linear-gradient(90deg,  hsl(var(--brand-hsl)) 0%, hsl(var(--brand-2-hsl)) 100%);
+}

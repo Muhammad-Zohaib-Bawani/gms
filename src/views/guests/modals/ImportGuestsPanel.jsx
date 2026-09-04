@@ -47,7 +47,7 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
     if (status.status === 'failed') {
       toast.error(status.errorMessage || (isAr ? 'فشل الاستيراد' : 'Import failed'));
     } else if (status.failed === 0) {
-      toast.success(isAr ? `تم استيراد ${status.imported} ضيف` : `Imported ${status.imported} guest${status.imported === 1 ? '' : 's'}`);
+      toast.success(isAr ? `تم استيراد ${status.imported} مندوب` : `Imported ${status.imported} delegate${status.imported === 1 ? '' : 's'}`);
     } else {
       toast.warning(isAr
         ? `تم استيراد ${status.imported} من ${status.total} — فشل ${status.failed}`
@@ -84,7 +84,7 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'guest-import-template.xlsx';
+      a.download = 'delegate-import-template.xlsx';
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -108,7 +108,7 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
             style={{
               border: `2px dashed ${dragging ? 'var(--accent)' : 'var(--glass-border)'}`,
               borderRadius: 12, padding: '32px 20px', textAlign: 'center', cursor: 'pointer',
-              background: dragging ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+              background: dragging ? 'hsl(var(--brand-hsl) / 0.08)' : 'var(--surface-soft-2)',
               transition: 'border-color 0.15s, background 0.15s',
             }}
           >
@@ -149,7 +149,7 @@ export default function ImportGuestsPanel({ activeEventId, lang, onImported, ini
             <div>
               {isAr ? 'الحقول المطلوبة: الاسم الأول، الاسم الأخير، والبريد الإلكتروني.' : 'Required fields: First Name, Last Name and Email.'}
               {' '}
-              {isAr ? 'إذا حددت مستوى خدمة، يمكن إضافة خدماته لكل ضيف لاحقاً من صفحة' : "If you assign a Service Level, its services can be added per guest afterwards from the"}
+              {isAr ? 'إذا حددت مستوى خدمة، يمكن إضافة خدماته لكل مندوب لاحقاً من صفحة' : "If you assign a Service Level, its services can be added per delegate afterwards from the"}
               {' '}
               <a href="/travel" onClick={(e) => { e.preventDefault(); navigate('/travel'); }} style={{ color: 'var(--accent)', textDecoration: 'underline' }}>
                 {isAr ? 'السفر والخدمات اللوجستية' : 'Services'}

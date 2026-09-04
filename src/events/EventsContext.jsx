@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { listEvents } from '../api/services/eventService';
+import { brandHex } from '../lib/brandColor';
 
 const EventsContext = createContext(null);
 
@@ -12,7 +13,7 @@ const ACTIVE_KEY = 'gms-active-event';
 
 // Demo fallback (no backend) — keeps the original three branded events.
 const DEMO_EVENTS = [
-  { id: 'doha-forum', key: 'doha-forum', title: 'Doha Forum', subtitle: '22nd Edition · 7–9 Dec', status: 'active', accent: '#8d0134', secondary: '#c21857', logoDark: 'assets/doha-forum-logo-white.png', logoLight: 'assets/doha-forum-logo.png' },
+  { id: 'doha-forum', key: 'doha-forum', title: 'Doha Forum', subtitle: '22nd Edition · 7–9 Dec', status: 'active', accent: brandHex(), secondary: brandHex('--brand-2-hsl'), logoDark: 'assets/doha-forum-logo-white.png', logoLight: 'assets/doha-forum-logo.png' },
   { id: 'qef', key: 'qef', title: 'Qatar Economic Forum', subtitle: 'Powered by Bloomberg · May', status: 'active', accent: '#c9943a', secondary: '#e8c068', logoDark: 'assets/qef-logo-white.png', logoLight: 'assets/qef-logo-white.png' },
   { id: 'qabf', key: 'qabf', title: 'Qatar–Africa Business Forum', subtitle: 'Doha · October', status: 'active', accent: '#3d7ab5', secondary: '#6aabdf', logoDark: 'assets/qabf-logo.png', logoLight: 'assets/qabf-logo.png' },
 ];
@@ -33,7 +34,7 @@ function normalize(dto) {
     // constrained to the event window.
     startDate: dto.startDate || null,
     endDate: dto.endDate || null,
-    accent: dto.themeAccent || '#8d0134',
+    accent: dto.themeAccent || brandHex(),
     secondary: dto.themeSecondary || '#e0c47e',
     logoDark: dto.logoDarkUrl || '',
     logoLight: dto.logoLightUrl || '',

@@ -110,8 +110,8 @@ export function ServiceLevelChip({ name, nameAr, color, lang, size = 11 }) {
 }
 
 export function Avatar({ initials, size = 32, tier, src }) {
-  const ring = tier === "VVIP" ? "0 0 0 2px rgba(194, 24, 87,0.7)"
-    : tier === "VIP" ? "0 0 0 2px rgba(141, 1, 52,0.4)" : "none";
+  const ring = tier === "VVIP" ? "0 0 0 2px hsl(var(--brand-2-hsl) / 0.7)"
+    : tier === "VIP" ? "0 0 0 2px hsl(var(--brand-hsl) / 0.4)" : "none";
   if (src) {
     return (
       <img src={src} alt="" style={{

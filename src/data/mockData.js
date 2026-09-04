@@ -1,3 +1,5 @@
+// Demo/seed data only — these colours are sample values, not the brand (the
+// brand hue lives in styles/brand.css).
 // GMS mock data
 export const FIRST = ["Amal","Khalid","Sara","Mohammed","Layla","Yousef","Fatima","Hassan","Mariam","Omar","Noor","Tariq","Reem","Ali","Hind","Saeed","Aisha","Faisal","Rania","Ahmed","Dana","Ibrahim","Lina","Zayed","Hala","Karim","Maya","Nasser","Yara","Salim"];
 export const LAST = ["Al-Mansouri","Al-Thani","Al-Khalifa","Al-Sayed","Hamdan","El-Bashir","Al-Naimi","Khoury","Al-Ansari","Al-Mahmoud","Haddad","Saleh","Al-Marri","Sultan","Al-Suwaidi","Aziz","Al-Otaibi","Nazari","Karam","Al-Kuwari"];
@@ -57,7 +59,7 @@ export const GUESTS = Array.from({ length: 64 }, (_, i) => {
 export const INVITATION_TEMPLATES = [
   {
     id: "t1", name: "Heads of State · Formal", nameAr: "رؤساء الدول · رسمي",
-    lang: "EN/AR", sent: 84, opened: 78, accepted: 62, color: "#5e0022",
+    lang: "EN/AR", sent: 84, opened: 78, accepted: 62, color: "#3c005e",
     subject: "Your personal invitation to the 23rd Doha Forum",
     subjectAr: "دعوتكم الخاصة لحضور منتدى الدوحة الـ ٢٣",
     opening: "Your Excellency / Your Highness,",
@@ -68,7 +70,7 @@ export const INVITATION_TEMPLATES = [
   },
   {
     id: "t2", name: "Speakers · Personal", nameAr: "المتحدثون · شخصي",
-    lang: "EN", sent: 132, opened: 128, accepted: 119, color: "#8d0134",
+    lang: "EN", sent: 132, opened: 128, accepted: 119, color: "#5a018d",
     subject: "Your role as a speaker at the 23rd Doha Forum",
     subjectAr: "دورك كمتحدث في منتدى الدوحة الـ ٢٣",
     opening: "Dear Professor / Dear Colleague,",
@@ -79,7 +81,7 @@ export const INVITATION_TEMPLATES = [
   },
   {
     id: "t3", name: "Press Pool · Brief", nameAr: "كوادر صحفية · موجز",
-    lang: "EN/AR/FR", sent: 248, opened: 201, accepted: 180, color: "#c21857",
+    lang: "EN/AR/FR", sent: 248, opened: 201, accepted: 180, color: "#8318c2",
     subject: "Press accreditation — 23rd Doha Forum",
     subjectAr: "اعتماد الصحافة — منتدى الدوحة الـ ٢٣",
     opening: "Dear Colleague,",
@@ -102,12 +104,12 @@ export const INVITATION_TEMPLATES = [
 ];
 
 export const MEETINGS = [
-  { id: "M-001", title: "Opening Plenary Briefing", date: "2025-12-07", startTime: "08:00", endTime: "09:00", location: "Al Mayassa Hall", attendees: ["G-2025000","G-2025001","G-2025002","G-2025003"], notes: "Pre-forum protocol briefing for all delegation leads.", color: "#8d0134" },
+  { id: "M-001", title: "Opening Plenary Briefing", date: "2025-12-07", startTime: "08:00", endTime: "09:00", location: "Al Mayassa Hall", attendees: ["G-2025000","G-2025001","G-2025002","G-2025003"], notes: "Pre-forum protocol briefing for all delegation leads.", color: "#5a018d" },
   { id: "M-002", title: "VVIP Bilateral — Japan", date: "2025-12-07", startTime: "10:00", endTime: "11:00", location: "Executive Suite A", attendees: ["G-2025004","G-2025005"], notes: "Bilateral between FM Qatar and Ambassador of Japan.", color: "#3aa3b5" },
-  { id: "M-003", title: "Press Coordination", date: "2025-12-07", startTime: "12:00", endTime: "12:30", location: "Media Center", attendees: ["G-2025010","G-2025011","G-2025012"], notes: "Coordination with press pool before afternoon sessions.", color: "#c21857" },
-  { id: "M-004", title: "AI & Public Square — Speaker Prep", date: "2025-12-08", startTime: "09:00", endTime: "10:30", location: "Studio 4", attendees: ["G-2025020","G-2025021","G-2025022"], notes: "Speaker briefing before main session.", color: "#8d0134" },
+  { id: "M-003", title: "Press Coordination", date: "2025-12-07", startTime: "12:00", endTime: "12:30", location: "Media Center", attendees: ["G-2025010","G-2025011","G-2025012"], notes: "Coordination with press pool before afternoon sessions.", color: "#8318c2" },
+  { id: "M-004", title: "AI & Public Square — Speaker Prep", date: "2025-12-08", startTime: "09:00", endTime: "10:30", location: "Studio 4", attendees: ["G-2025020","G-2025021","G-2025022"], notes: "Speaker briefing before main session.", color: "#5a018d" },
   { id: "M-005", title: "Multilateralism Working Group", date: "2025-12-08", startTime: "14:00", endTime: "16:00", location: "Pearl Auditorium", attendees: ["G-2025030","G-2025031","G-2025032","G-2025033"], notes: "Working group on reimagining multilateral frameworks.", color: "#3aa3b5" },
-  { id: "M-006", title: "Protocol Dinner Seating Review", date: "2025-12-08", startTime: "11:00", endTime: "11:30", location: "Protocol Office", attendees: ["G-2025000","G-2025040"], notes: "Final review of closing dinner seating arrangement.", color: "#5e0022" },
-  { id: "M-007", title: "Closing Ceremony Rehearsal", date: "2025-12-09", startTime: "08:30", endTime: "09:30", location: "Sheraton Grand Ballroom", attendees: ["G-2025050","G-2025051"], notes: "Run-through of closing ceremony programme.", color: "#8d0134" },
-  { id: "M-008", title: "Post-Forum Debrief", date: "2025-12-09", startTime: "20:00", endTime: "21:00", location: "Executive Lounge", attendees: ["G-2025000","G-2025001","G-2025002"], notes: "Internal debrief with core team.", color: "#c21857" },
+  { id: "M-006", title: "Protocol Dinner Seating Review", date: "2025-12-08", startTime: "11:00", endTime: "11:30", location: "Protocol Office", attendees: ["G-2025000","G-2025040"], notes: "Final review of closing dinner seating arrangement.", color: "#3c005e" },
+  { id: "M-007", title: "Closing Ceremony Rehearsal", date: "2025-12-09", startTime: "08:30", endTime: "09:30", location: "Sheraton Grand Ballroom", attendees: ["G-2025050","G-2025051"], notes: "Run-through of closing ceremony programme.", color: "#5a018d" },
+  { id: "M-008", title: "Post-Forum Debrief", date: "2025-12-09", startTime: "20:00", endTime: "21:00", location: "Executive Lounge", attendees: ["G-2025000","G-2025001","G-2025002"], notes: "Internal debrief with core team.", color: "#8318c2" },
 ];

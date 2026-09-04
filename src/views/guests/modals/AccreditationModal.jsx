@@ -24,8 +24,8 @@ export default function AccreditationModal({ open, onClose, count, lang, onConfi
     >
       <p style={{ color: 'var(--ink-dim)' }}>
         {isAr
-          ? `سيتم إصدار الاعتماد لـ ${fmtNum(count, lang)} ضيف. هل تريد المتابعة؟`
-          : `Issue accreditation for ${fmtNum(count, lang)} selected guest${count > 1 ? 's' : ''}. Proceed?`
+          ? `سيتم إصدار الاعتماد لـ ${fmtNum(count, lang)} مندوب. هل تريد المتابعة؟`
+          : `Issue accreditation for ${fmtNum(count, lang)} selected delegate${count > 1 ? 's' : ''}. Proceed?`
         }
       </p>
     </Modal>

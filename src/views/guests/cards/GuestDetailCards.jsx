@@ -266,7 +266,7 @@ export function GuestDetailSkeleton({ embedded, lang }) {
   );
 
   return (
-    <div role="status" aria-busy="true" aria-label={isAr ? 'جارٍ التحميل' : 'Loading guest'}>
+    <div role="status" aria-busy="true" aria-label={isAr ? 'جارٍ التحميل' : 'Loading delegate'}>
       {/* Only the standalone page shows the identity header — see GuestDetailView. */}
       {!embedded && (
         <GuestCard style={{ marginBottom: 16 }}>

@@ -27,7 +27,7 @@ import { toCsv, downloadCsv } from '../lib/csvExport';
 const DEMO_USERS = [
   { id: '1', firstName: 'System', lastName: 'Administrator', email: 'admin@gms.local',  roleName: 'Administrator', isActive: true,  createdAt: '2026-01-01' },
   { id: '2', firstName: 'Sara',   lastName: 'Ali',           email: 'sara@gms.local',   roleName: 'Event Manager', isActive: true,  createdAt: '2026-05-10' },
-  { id: '3', firstName: 'Khalid', lastName: 'Hassan',        email: 'khalid@gms.local', roleName: 'Guest Relations Manager', isActive: true, createdAt: '2026-05-15' },
+  { id: '3', firstName: 'Khalid', lastName: 'Hassan',        email: 'khalid@gms.local', roleName: 'Delegate Relations Manager', isActive: true, createdAt: '2026-05-15' },
   { id: '4', firstName: 'Noor',   lastName: 'Ahmed',         email: 'noor@gms.local',   roleName: 'Venue Manager', isActive: false, createdAt: '2026-06-01' },
 ];
 

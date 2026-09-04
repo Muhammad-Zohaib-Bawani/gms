@@ -309,7 +309,7 @@ export default function ServiceAccordion({
               background: 'var(--surface-soft-2)',
               opacity: locked ? 0.55 : viewOnly ? 0.85 : 1,
               overflow: 'hidden',
-              boxShadow: expanded ? '0 0 0 3px rgba(141, 1, 52, 0.14)' : 'none',
+              boxShadow: expanded ? '0 0 0 3px hsl(var(--brand-hsl) / 0.14)' : 'none',
               transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
               scrollMarginBlock: 16,
             }}

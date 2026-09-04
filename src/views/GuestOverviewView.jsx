@@ -39,13 +39,14 @@ import {
   INVITATION_TONE, INVITATION_LABEL, ACCREDITATION_TONE, ACCREDITATION_LABEL,
 } from './guestOverview/parts';
 import GuestDetail from './guestOverview/GuestDetail';
+import { brandHex } from '../lib/brandColor';
 
 const ALL = 'all';
 
 // key -> label. `core: true` columns are on by default; the rest are opt-in
 // from the Columns picker.
 const COLUMNS = [
-  { key: 'guest', label: 'Guest profile', core: true, always: true },
+  { key: 'guest', label: 'Delegate profile', core: true, always: true },
   { key: 'nationality', label: 'Nationality', core: true },
   { key: 'organisation', label: 'Organisation', core: true },
   { key: 'level', label: 'Service level', core: true },
@@ -58,7 +59,7 @@ const COLUMNS = [
   { key: 'arrival', label: 'Arrival / departure', core: true },
   { key: 'invitation', label: 'Invitation', core: true },
   { key: 'accreditation', label: 'Accreditation', core: true },
-  { key: 'guestType', label: 'Guest type' },
+  { key: 'guestType', label: 'Delegate type' },
   { key: 'seats', label: 'Seats' },
   { key: 'created', label: 'Added on' },
 ];
@@ -169,12 +170,12 @@ export default function GuestOverviewView({ lang }) {
       // participation); fall back to the latest block the detail returned.
       const block = blocks.find((b) => b.eventId === row.eventId) || blocks[blocks.length - 1];
       if (!block?.eventGuestId) {
-        toast.error('This guest has no event participation to open.');
+        toast.error('This delegate has no event participation to open.');
         return;
       }
       navigate(`/guests/${block.eventGuestId}`);
     } catch (err) {
-      toast.fromError(err, 'Could not open this guest');
+      toast.fromError(err, 'Could not open this delegate');
     } finally {
       setOpeningProfile(null);
     }
@@ -290,7 +291,7 @@ export default function GuestOverviewView({ lang }) {
         if (cancelled) return;
         setRows([]);
         setTotalCount(0);
-        toast.error(err?.message || 'Could not load guests');
+        toast.error(err?.message || 'Could not load delegates');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -337,7 +338,7 @@ export default function GuestOverviewView({ lang }) {
 
       // The Guest column shows a name over an email; a sheet wants those as two
       // columns, so that one selection contributes two.
-      const headers = shown.flatMap((c) => (c.key === 'guest' ? ['Guest', 'Email'] : [c.label]));
+      const headers = shown.flatMap((c) => (c.key === 'guest' ? ['Delegate', 'Email'] : [c.label]));
       const body = all.map((g) => shown.flatMap((c) => (
         c.key === 'guest' ? [guestName(g), g.email || ''] : [textFor(c, g)]
       )));
@@ -426,18 +427,18 @@ export default function GuestOverviewView({ lang }) {
       // One tab per element. Guests leads because it's the sheet that answers
       // "who's in this export"; the rest are its detail, each keyed back to a
       // guest by name + email.
-      await downloadWorkbook('guest-overview.xlsx', [
-        { name: 'Guests', headers, rows: body },
-        { name: 'Events', headers: ['Guest', 'Email', 'Event', 'Type', 'Start', 'End', 'Venue', 'Service Level', 'Invitation', 'Accreditation', 'Arrival', 'Departure'], rows: events },
-        { name: 'Sessions', headers: ['Guest', 'Email', 'Event', 'Session', 'Date', 'Time', 'Room', 'Speaker', 'Status'], rows: sessions },
-        { name: 'Flights', headers: ['Guest', 'Email', 'Event', 'Booking Type', 'Status', 'Leg', 'Flight No.', 'From', 'From City', 'To', 'To City', 'Departure', 'Arrival', 'Class', 'Seat'], rows: flights },
-        { name: 'Accommodation', headers: ['Guest', 'Email', 'Event', 'Hotel', 'Room Type', 'Check-in', 'Check-out'], rows: stays },
-        { name: 'Transport', headers: ['Guest', 'Email', 'Event', 'Status', 'Vehicle', 'Driver', 'Pickup', 'Dropoff', 'Pickup Time', 'Dropoff Time'], rows: rides },
-        { name: 'Seating', headers: ['Guest', 'Email', 'Event', 'Session', 'Seat'], rows: seats },
-        { name: 'Other Services', headers: ['Guest', 'Email', 'Event', 'Service', 'Status', 'Locked Reason', 'Details'], rows: services },
+      await downloadWorkbook('delegate-overview.xlsx', [
+        { name: 'Delegates', headers, rows: body },
+        { name: 'Events', headers: ['Delegate', 'Email', 'Event', 'Type', 'Start', 'End', 'Venue', 'Service Level', 'Invitation', 'Accreditation', 'Arrival', 'Departure'], rows: events },
+        { name: 'Sessions', headers: ['Delegate', 'Email', 'Event', 'Session', 'Date', 'Time', 'Room', 'Speaker', 'Status'], rows: sessions },
+        { name: 'Flights', headers: ['Delegate', 'Email', 'Event', 'Booking Type', 'Status', 'Leg', 'Flight No.', 'From', 'From City', 'To', 'To City', 'Departure', 'Arrival', 'Class', 'Seat'], rows: flights },
+        { name: 'Accommodation', headers: ['Delegate', 'Email', 'Event', 'Hotel', 'Room Type', 'Check-in', 'Check-out'], rows: stays },
+        { name: 'Transport', headers: ['Delegate', 'Email', 'Event', 'Status', 'Vehicle', 'Driver', 'Pickup', 'Dropoff', 'Pickup Time', 'Dropoff Time'], rows: rides },
+        { name: 'Seating', headers: ['Delegate', 'Email', 'Event', 'Session', 'Seat'], rows: seats },
+        { name: 'Other Services', headers: ['Delegate', 'Email', 'Event', 'Service', 'Status', 'Locked Reason', 'Details'], rows: services },
       ]);
     } catch (err) {
-      toast.error(err?.message || 'Could not export guests');
+      toast.error(err?.message || 'Could not export delegates');
     } finally {
       setExporting(false);
       setExportProgress(null);
@@ -500,8 +501,8 @@ export default function GuestOverviewView({ lang }) {
   return (
     <div>
       <PageHeader
-        title="Guest Overview"
-        subtitle="Every guest across every event"
+        title="Delegate Overview"
+        subtitle="Every delegate across every event"
         actions={
           <>
             <button className="btn" onClick={handleExport} disabled={exporting || loading}>
@@ -523,7 +524,7 @@ export default function GuestOverviewView({ lang }) {
       />
 
       {/* <Grid min={200} style={{ marginBottom: 16 }}>
-        <StatCard label="Guests" value={totalCount} icon="guests" tint="#8d0134" />
+        <StatCard label="Guests" value={totalCount} icon="guests" tint={brandHex()} />
       </Grid> */}
 
       <div className="filter-bar" style={{ marginBottom: 12 }}>
@@ -553,7 +554,7 @@ export default function GuestOverviewView({ lang }) {
         )}
 
         <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--ink-mute)' }}>
-          {loading ? 'Loading…' : `${totalCount} guest${totalCount === 1 ? '' : 's'}`}
+          {loading ? 'Loading…' : `${totalCount} delegate${totalCount === 1 ? '' : 's'}`}
         </span>
       </div>
 
@@ -574,7 +575,6 @@ export default function GuestOverviewView({ lang }) {
                   style={{
                     cursor: 'pointer', fontSize: 11,
                     background: on ? 'var(--accent-soft)' : 'var(--bg-1)',
-                    // Not --accent: maroon-on-maroon is unreadable in dark mode.
                     color: on ? 'var(--accent-ink)' : 'var(--ink-mute)',
                     borderColor: on ? 'var(--gc-accent)' : 'var(--glass-border)',
                   }}
@@ -631,7 +631,7 @@ export default function GuestOverviewView({ lang }) {
                 options={[{ value: ALL, label: 'Any' },
                   ...organisations.map((o) => ({ value: o.id, label: o.name }))]} />
             </Filter>
-            <Filter label="Guest type">
+            <Filter label="Delegate type">
               <Select value={f.guestType} onChange={(v) => set('guestType', v || ALL)}
                 options={[{ value: ALL, label: 'Any' },
                   ...['dignitary', 'delegate', 'media', 'staff', 'vip', 'observer'].map((t) => ({ value: t, label: t }))]} />
@@ -666,7 +666,7 @@ export default function GuestOverviewView({ lang }) {
 
       <Card padded={false}>
         {!loading && rows.length === 0 ? (
-          <EmptyState icon="search" title="No guests match">
+          <EmptyState icon="search" title="No delegates match">
             Try clearing a filter or widening the search.
           </EmptyState>
         ) : (

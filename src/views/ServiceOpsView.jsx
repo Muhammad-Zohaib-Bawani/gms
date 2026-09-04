@@ -134,7 +134,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
 
   const guestColumn = {
     id: 'guest',
-    header: isAr ? 'الضيف' : 'Guest',
+    header: isAr ? 'المندوب' : 'Delegate',
     enableSorting: false,
     cell: ({ row: { original: r } }) => (
       <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
@@ -283,7 +283,7 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
 
   const scheduleColumns = useMemo(() => ([
     {
-      id: 'guest', header: isAr ? 'الضيف' : 'Guest', enableSorting: false,
+      id: 'guest', header: isAr ? 'المندوب' : 'Delegate', enableSorting: false,
       cell: ({ row: { original: r } }) => (
         <GuestCell name={r.guestName} email={r.email} photoUrl={r.photoUrl} size={28} />
       ),
@@ -426,8 +426,8 @@ export default function ServiceOpsView({ lang, activeEventId, gotoView, embedded
             loading={loading}
             pageSize={20}
             emptyText={isAr
-              ? 'لا يوجد ضيوف لهذه الخدمة بعد'
-              : 'No guests have this service yet'}
+              ? 'لا يوجد مندوبين لهذه الخدمة بعد'
+              : 'No delegates have this service yet'}
             searchPlaceholder={isAr ? 'بحث…' : 'Search…'}
           />
         )}

@@ -141,7 +141,7 @@ export function GuestDetailPanel({ guest }) {
         <SectionTitle icon="guests">Personal</SectionTitle>
         <div style={grid}>
           <Field label="Full name" value={`${guest.firstName} ${guest.lastName}`} />
-          <Field label="Guest type" value={guest.guestType} />
+          <Field label="Delegate type" value={guest.guestType} />
           <Field label="Nationality" value={guest.nationality ? `${guest.nationality.flag} ${guest.nationality.name}` : null} />
           <Field label="Date of birth" value={guest.dateOfBirth} />
           <Field label="Gender" value={guest.gender} />

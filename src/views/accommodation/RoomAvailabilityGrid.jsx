@@ -87,7 +87,7 @@ const inMonth = (nights, month) =>
 
 const editInput = {
   width: '100%', boxSizing: 'border-box', textAlign: 'center', direction: 'ltr',
-  background: 'var(--surface-soft-3)', border: '1px solid var(--brand, #8d0134)',
+  background: 'var(--surface-soft-3)', border: '1px solid var(--brand, var(--accent))',
   borderRadius: 5, padding: '2px 3px', color: 'var(--ink)', fontSize: 13, fontWeight: 700,
   // A number spinner inside a 62px cell is all spinner and no number.
   MozAppearance: 'textfield',

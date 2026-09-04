@@ -1,24 +1,16 @@
-// The physical-badge-style accreditation card — flips between a front (QOC +
-// event branding, guest photo/name) and a back (QR + badge number). Purely
-// presentational; AccreditationCardModal owns the open/close chrome.
-//
-// Styled like an actual entry pass: light card stock, a curved maroon header
-// band, a punch-hole + lanyard slot at the top, and a perforated tear-line
-// above the status strip — rather than a plain dark rectangle.
-//
-// Deliberately shows no tier/guest-type label ("Delegate" etc.) — just the
-// guest's own identity (name, organisation, nationality). Tier still tints
-// the accent bar, the same way it does everywhere else in the app.
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Icon } from '../../components/Icons';
 import FlagIcon from '../../components/FlagIcon';
 import { fmtDate } from '../../lib/date';
+import { brandColor } from '../../lib/brandColor';
 
-const TIER_COLOR = {
-  vvip: '#e0b864', vip: '#a78bda', speaker: '#8d0134',
+// Tier palette. The brand slot is read from styles/brand.css at call time;
+// the rest are their own hues and stay put.
+const tierColor = (tier) => ({
+  vvip: '#e0b864', vip: '#a78bda', speaker: brandColor(),
   delegate: '#5abf6e', press: '#c0392b', observer: '#9aa0a6',
-};
+}[tier] || brandColor());
 
 const CARD_W = 300;
 const CARD_H = 490;
@@ -31,7 +23,7 @@ const faceStyle = {
   overflow: 'hidden',
   backfaceVisibility: 'hidden',
   WebkitBackfaceVisibility: 'hidden',
-  boxShadow: '0 22px 46px -14px rgba(20,0,10,0.32), 0 4px 14px -4px rgba(20,0,10,0.16)',
+  boxShadow: '0 22px 46px -14px rgba(10, 0, 20,0.32), 0 4px 14px -4px rgba(10, 0, 20,0.16)',
   display: 'flex',
   flexDirection: 'column',
   background: '#fffdfb',
@@ -72,7 +64,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
   const [flipped, setFlipped] = useState(false);
   if (!guest) return null;
 
-  const accent = TIER_COLOR[guest.tier] || '#8d0134';
+  const accent = tierColor(guest.tier);
   const initials = ((guest.firstName?.[0] || '') + (guest.lastName?.[0] || '')).toUpperCase();
   const badgeNo = (guest.id || '').replace(/-/g, '').slice(0, 10).toUpperCase();
   const eventName = event?.title || (isAr ? 'فعالية' : 'Event');
@@ -98,13 +90,11 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
         >
           {/* ── Front ── */}
           <div style={faceStyle}>
-            {/* Curved maroon header band — the event's own identity lives here,
-                front and centre, instead of a small inline logo+name row. */}
             <div style={{
               position: 'relative', height: HEADER_H, flexShrink: 0,
               background: `
-                radial-gradient(120% 130% at 20% -20%, rgba(255,150,185,0.22), transparent 60%),
-                linear-gradient(160deg, #a3194f 0%, #8d0134 45%, #650226 100%)`,
+                radial-gradient(120% 130% at 20% -20%, hsl(var(--brand-h) 63% 79% / 0.22), transparent 60%),
+                linear-gradient(160deg, hsl(var(--brand-2-hsl)) 0%, hsl(var(--brand-hsl)) 45%, hsl(var(--brand-deep-hsl)) 100%)`,
               borderRadius: '28px 28px 46% 46% / 28px 28px 30px 30px',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               padding: '16px 20px 22px', color: '#fff',
@@ -148,14 +138,14 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: -38, position: 'relative', zIndex: 1 }}>
               <div style={{
                 width: 84, height: 84, borderRadius: '50%', flexShrink: 0,
-                border: '4px solid #fffdfb', boxShadow: '0 8px 18px -4px rgba(20,0,10,0.28)',
+                border: '4px solid #fffdfb', boxShadow: '0 8px 18px -4px rgba(10, 0, 20,0.28)',
                 overflow: 'hidden', background: '#fff',
                 display: 'grid', placeItems: 'center',
               }}>
                 {guest.photoUrl ? (
                   <img src={guest.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                 ) : (
-                  <span style={{ fontSize: 26, fontWeight: 700, color: '#8d0134' }}>{initials}</span>
+                  <span style={{ fontSize: 26, fontWeight: 700, color: 'var(--accent)' }}>{initials}</span>
                 )}
               </div>
             </div>
@@ -180,7 +170,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                 {issued ? (
                   <div style={{ background: '#fff', padding: 6, borderRadius: 10, border: '1px solid rgba(20,10,20,0.08)' }}>
-                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={72} bgColor="#ffffff" fgColor="#5e0022" level="M"/>
+                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={72} bgColor="#ffffff" fgColor={brandColor("--brand-deep")} level="M"/>
                   </div>
                 ) : (
                   <div style={{
@@ -213,7 +203,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
           <div style={{ ...faceStyle, transform: 'rotateY(180deg)' }}>
             <div style={{
               position: 'relative', height: 56, flexShrink: 0,
-              background: 'linear-gradient(160deg, #a3194f 0%, #8d0134 45%, #650226 100%)',
+              background: 'linear-gradient(160deg, hsl(var(--brand-2-hsl)) 0%, hsl(var(--brand-hsl)) 45%, hsl(var(--brand-deep-hsl)) 100%)',
               borderRadius: '28px 28px 0 0',
             }}>
               <LanyardSlot/>
@@ -223,13 +213,13 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                 <>
                   <div style={{
                     background: '#fff', padding: 12, borderRadius: 16,
-                    border: '1px solid rgba(20,10,20,0.08)', boxShadow: '0 4px 14px -4px rgba(20,0,10,0.16)',
+                    border: '1px solid rgba(20,10,20,0.08)', boxShadow: '0 4px 14px -4px rgba(10, 0, 20,0.16)',
                   }}>
                     <QRCodeSVG
                       value={`gms://accreditation/${guest.id}`}
                       size={140}
                       bgColor="#ffffff"
-                      fgColor="#5e0022"
+                      fgColor={brandColor("--brand-deep")}
                       level="M"
                     />
                   </div>
@@ -268,8 +258,8 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                     </div>
                     <div style={{ fontSize: 11, color: 'rgba(26,20,32,0.5)', marginTop: 3, maxWidth: 210 }}>
                       {isAr
-                        ? 'سيظهر رمز QR هنا بعد إصدار الاعتماد لهذا الضيف.'
-                        : "This guest's QR code will appear here once their badge is issued."}
+                        ? 'سيظهر رمز QR هنا بعد إصدار الاعتماد لهذا المندوب.'
+                        : "This delegate's QR code will appear here once their badge is issued."}
                     </div>
                   </div>
                 </>

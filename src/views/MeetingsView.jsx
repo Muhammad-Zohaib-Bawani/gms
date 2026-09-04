@@ -12,6 +12,7 @@ import { createMeeting, getMeetings, editMeeting } from '../api/services/meeting
 import { listGuests } from '../api/services/guestService.js';
 import DateField from '../components/ui/DateField.jsx';
 import { fmtDate } from '../lib/date.js';
+import { brandHex } from '../lib/brandColor';
 
 const ANCHOR = new Date();
 
@@ -35,7 +36,7 @@ function mapMeeting(m) {
     endTime: (m.endTime || '').slice(0, 5),
     location: m.location || '',
     notes: m.meetingAgenda || '',
-    color: '#8d0134',
+    color: brandHex(),
     // g.id is the attendee's eventGuestId (their participation in this
     // meeting's event); g.personId is the master person, kept for person-level
     // links (support chat) rather than anything meeting-scoped.
@@ -59,7 +60,7 @@ export default function MeetingsView({ lang, activeEventId }) {
     meetingTitle: 'عنوان الاجتماع',
     date: 'التاريخ', startTime: 'وقت البدء', endTime: 'وقت الانتهاء',
     location: 'الموقع',
-    searchGuest: 'بحث عن ضيف…',
+    searchGuest: 'بحث عن مندوب…',
     cancel: 'إلغاء', back: 'السابق', next: 'التالي', save: 'حفظ الاجتماع', saving: 'جارٍ الحفظ…',
     days: ['أح','اث','ث','أر','خ','ج','س'],
     newTitle: 'اجتماع جديد',
@@ -83,7 +84,7 @@ export default function MeetingsView({ lang, activeEventId }) {
     meetingTitle: 'Meeting title',
     date: 'Date', startTime: 'Start time', endTime: 'End time',
     location: 'Location',
-    searchGuest: 'Search guest…',
+    searchGuest: 'Search delegate…',
     cancel: 'Cancel', back: 'Back', next: 'Next', save: 'Save Meeting', saving: 'Saving…',
     days: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     newTitle: 'New Meeting',
@@ -431,7 +432,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                   {newAttendees.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {newAttendees.map(g => (
-                        <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(141, 1, 52,0.15)', border: '1px solid rgba(141, 1, 52,0.3)', fontSize: 11.5 }}>
+                        <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'hsl(var(--brand-hsl) / 0.15)', border: '1px solid hsl(var(--brand-hsl) / 0.3)', fontSize: 11.5 }}>
                           <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18} src={g.photoUrl}/>
                           {g.firstName} {g.lastName}
                           <button onClick={() => setNewAttendees(a => a.filter(x => x.id !== g.id))}
@@ -456,7 +457,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                     ))}
                     {guestList.length === 0 && (
                       <div style={{ padding: '12px', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 12 }}>
-                        {isAr ? 'لا يوجد ضيوف لهذه الفعالية' : 'No guests found for this event'}
+                        {isAr ? 'لا يوجد مندوبين لهذه الفعالية' : 'No delegates found for this event'}
                       </div>
                     )}
                   </div>

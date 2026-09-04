@@ -89,7 +89,7 @@ export default function BookingModal({
       .catch((err) => {
         if (cancelled) return;
         setPlan(null);
-        setPlanError(err?.message || (isAr ? 'تعذّر تحميل خدمات الضيف' : "Could not load this guest's services"));
+        setPlanError(err?.message || (isAr ? 'تعذّر تحميل خدمات المندوب' : "Could not load this delegate's services"));
       })
       .finally(() => { if (!cancelled) setPlanLoading(false); });
     return () => { cancelled = true; };
@@ -154,7 +154,7 @@ export default function BookingModal({
 
   async function save() {
     if (!eventGuestId) {
-      setError(isAr ? 'اختر ضيفاً' : 'Pick a guest first');
+      setError(isAr ? 'اختر مندوباً' : 'Pick a delegate first');
       return;
     }
     if (toSave.length === 0 && !hasExtras) {
@@ -255,7 +255,7 @@ export default function BookingModal({
           display: 'block', fontSize: 10.5, color: 'var(--ink-mute)',
           textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6,
         }}>
-          {isAr ? 'الضيف' : 'Guest'} *
+          {isAr ? 'المندوب' : 'Delegate'} *
         </label>
         {isEdit ? (
           <div style={{ fontSize: 13, fontWeight: 550 }}>{entry.guestName}</div>
@@ -264,8 +264,8 @@ export default function BookingModal({
             <Icon name="alert" size={14} />
             <div>
               {isAr
-                ? 'لا يوجد ضيوف على مستوى خدمة يشمل هذه الخدمة.'
-                : 'No guests are on a service level that includes this service yet.'}
+                ? 'لا يوجد مندوبين على مستوى خدمة يشمل هذه الخدمة.'
+                : 'No delegates are on a service level that includes this service yet.'}
             </div>
           </div>
         ) : (
@@ -273,7 +273,7 @@ export default function BookingModal({
             value={eventGuestId}
             onChange={(v) => setEventGuestId(v || '')}
             options={guestOptions}
-            placeholder={isAr ? '— اختر ضيفاً —' : '— Select a guest —'}
+            placeholder={isAr ? '— اختر مندوباً —' : '— Select a delegate —'}
           />
         )}
       </div>
@@ -299,8 +299,8 @@ export default function BookingModal({
                   ? `مستوى "${plan.serviceLevelName}" لا يحتوي على أي خدمة — أضِف الخدمات إليه من صفحة مستويات الخدمة.`
                   : `"${plan.serviceLevelName}" has no services assigned to it — add them on the Service Levels page.`)
                 : (isAr
-                  ? 'هذا الضيف بلا مستوى خدمة، لذا لا توجد خدمات لعرضها.'
-                  : 'This guest has no service level, so there are no services to show.')}
+                  ? 'هذا المندوب بلا مستوى خدمة، لذا لا توجد خدمات لعرضها.'
+                  : 'This delegate has no service level, so there are no services to show.')}
             </div>
           </div>
         ) : (

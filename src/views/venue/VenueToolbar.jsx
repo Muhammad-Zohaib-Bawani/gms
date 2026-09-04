@@ -56,7 +56,7 @@ export default function VenueToolbar({
           </div>
         )}
         {activeVenue?.venueType && activeVenue.venueType !== 'general' && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', borderRadius: 20, padding: '3px 10px', flexShrink: 0, textTransform: 'capitalize' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'hsl(var(--brand-hsl) / 0.1)', border: '1px solid hsl(var(--brand-hsl) / 0.25)', borderRadius: 20, padding: '3px 10px', flexShrink: 0, textTransform: 'capitalize' }}>
             {activeVenue.venueType}
           </span>
         )}

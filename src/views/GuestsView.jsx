@@ -337,7 +337,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     () => [
       {
         id: "guest",
-        header: isAr ? "الضيف" : "Guest",
+        header: isAr ? "المندوب" : "Delegate",
         accessorKey: "fullName",
         cell: ({ row: { original: g } }) => (
           <GuestCell
@@ -488,8 +488,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     } catch {
       toast.error(
         isAr
-          ? "تعذّر تحميل كل الضيوف — سيتم تصدير الصفحة الحالية فقط"
-          : "Could not load all guests — exporting the current page only",
+          ? "تعذّر تحميل كل المندوبين — سيتم تصدير الصفحة الحالية فقط"
+          : "Could not load all delegates — exporting the current page only",
       );
     }
 
@@ -509,7 +509,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
     const csv = [cols.join(","), ...rows].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "guests.csv";
+    a.download = "delegates.csv";
     a.click();
   }
 
@@ -520,7 +520,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            {t.guests?.title?.[0] || "Guest"}{" "}
+            {t.guests?.title?.[0] || "Delegate"}{" "}
             <em>{t.guests?.title?.[1]}</em>
           </h1>
           <div className="page-sub">
@@ -571,26 +571,26 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
                 aria-haspopup="menu"
                 aria-expanded={open}
               >
-                <Icon name="plus" size={14} /> {isAr ? "ضيف جديد" : "Add Guest"}
+                <Icon name="plus" size={14} /> {isAr ? "مندوب جديد" : "Add Delegate"}
                 <Icon name="chevronDown" size={13} style={{ marginInlineStart: 2 }} />
               </button>
             )}
             items={[
               {
-                label: isAr ? "ضيف جديد" : "New Guest",
-                hint: isAr ? "إدخال ضيف واحد خطوة بخطوة" : "Enter one guest step by step",
+                label: isAr ? "مندوب جديد" : "New Delegate",
+                hint: isAr ? "إدخال مندوب واحد خطوة بخطوة" : "Enter one delegate step by step",
                 icon: "plus",
                 onClick: () => { ensureGuestFormData(); setAddGuestMode("new"); setShowAddGuest(true); },
               },
               {
-                label: isAr ? "ضيف حالي" : "Existing Guest",
-                hint: isAr ? "انسخ ضيوفاً من فعالية أخرى" : "Copy guests from another event",
+                label: isAr ? "مندوب حالي" : "Existing Delegate",
+                hint: isAr ? "انسخ مندوبين من فعالية أخرى" : "Copy delegates from another event",
                 icon: "guests",
                 onClick: () => { ensureGuestFormData(); setAddGuestMode("existing"); setShowAddGuest(true); },
               },
               {
                 label: isAr ? "استيراد من CSV" : "Import from CSV",
-                hint: isAr ? "أضف عدة ضيوف من ملف" : "Add many guests from a file",
+                hint: isAr ? "أضف عدة مندوبين من ملف" : "Add many delegates from a file",
                 icon: "upload",
                 onClick: () => { ensureGuestFormData(); setAddGuestMode("import"); setShowAddGuest(true); },
               },
@@ -614,8 +614,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         >
           <Icon name="info" size={14} />{" "}
           {isAr
-            ? "يرجى اختيار فعالية أولاً لعرض الضيوف."
-            : "Select an active event to view and manage guests."}
+            ? "يرجى اختيار فعالية أولاً لعرض المندوبين."
+            : "Select an active event to view and manage delegates."}
         </div>
       )}
 
@@ -624,7 +624,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
         <div className="search" style={{ flex: 1, maxWidth: 320 }}>
           <Icon name="search" size={14} />
           <input
-            placeholder={isAr ? "بحث عن ضيف…" : "Search guests…"}
+            placeholder={isAr ? "بحث عن مندوب…" : "Search delegates…"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -661,7 +661,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>
-                  {isAr ? "تصفية الضيوف" : "Filter Guests"}
+                  {isAr ? "تصفية المندوبين" : "Filter Delegates"}
                 </span>
                 {activeFilterCount > 0 && (
                   <button
@@ -788,8 +788,8 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
             emptyText={
               activeEventId
                 ? isAr
-                  ? "لا يوجد ضيوف بعد"
-                  : "No guests yet"
+                  ? "لا يوجد مندوبين بعد"
+                  : "No delegates yet"
                 : isAr
                   ? "اختر فعالية أولاً"
                   : "Select an event first"
@@ -824,7 +824,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               ) : splitGuests.length === 0 ? (
                 <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
                   {activeEventId
-                    ? (isAr ? "لا يوجد ضيوف بعد" : "No guests yet")
+                    ? (isAr ? "لا يوجد مندوبين بعد" : "No delegates yet")
                     : (isAr ? "اختر فعالية أولاً" : "Select an event first")}
                 </div>
               ) : (
@@ -969,7 +969,7 @@ export default function GuestsView({ onOpenGuest, lang, activeEventId }) {
               <GuestDetailView key={`${selectedEventGuestId}-${detailRefreshKey}`} eventGuestId={selectedEventGuestId} lang={lang} embedded />
             ) : (
               <div style={{ padding: 20, textAlign: "center", color: "var(--ink-mute)", fontSize: 12.5 }}>
-                {isAr ? "اختر ضيفاً لعرض تفاصيله" : "Select a guest to view their details"}
+                {isAr ? "اختر مندوباً لعرض تفاصيله" : "Select a delegate to view their details"}
               </div>
             )}
           </div>

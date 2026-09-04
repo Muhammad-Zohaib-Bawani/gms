@@ -167,23 +167,23 @@ function csvSection(title, headers, rows) {
   return `${title}\r\n${toCsv(headers, rows)}\r\n`;
 }
 
-const FLIGHT_EXPORT_HEADERS = ["Guest", "Email", "Flight Type", "Flight No.", "Class", "Seat", "From", "To", "Departure", "Arrival", "Status"];
+const FLIGHT_EXPORT_HEADERS = ["Delegate", "Email", "Flight Type", "Flight No.", "Class", "Seat", "From", "To", "Departure", "Arrival", "Status"];
 const flightExportRows = (rows, isAr) => rows.map((f) => [
   f.name, f.email, flightTypeLabel(f.flightType, isAr), f.flight,
   f.flightClass, f.seat, f.from, f.to, f.departureTime, f.arrivalTime, f.flightStatus,
 ]);
 
-const HOTEL_EXPORT_HEADERS = ["Guest", "Email", "Hotel", "Room Type", "Check-in", "Check-out"];
+const HOTEL_EXPORT_HEADERS = ["Delegate", "Email", "Hotel", "Room Type", "Check-in", "Check-out"];
 const hotelExportRows = (rows) => rows.map((h) => [h.name, h.email, h.hotel, h.roomType, h.checkIn, h.checkOut]);
 
-const TRANSFER_EXPORT_HEADERS = ["Guest", "Vehicle", "Driver", "Driver Type", "Pickup", "Dropoff", "Date", "Time", "Status"];
+const TRANSFER_EXPORT_HEADERS = ["Delegate", "Vehicle", "Driver", "Driver Type", "Pickup", "Dropoff", "Date", "Time", "Status"];
 const transferExportRows = (rows) => rows.map((t) => [
   t.name, t.vehicle, t.driver,
   t.driverType === 1 ? "Fixed" : t.driverType === 2 ? "On call" : "",
   t.pickup, t.dropoff, t.date, t.time, t.transferStatus,
 ]);
 
-const MOVEMENT_EXPORT_BASE_HEADERS = ["Guest", "Email", "Inbound Flight", "Inbound From", "Inbound To", "Inbound Time", "Outbound Flight", "Outbound From", "Outbound To", "Outbound Time"];
+const MOVEMENT_EXPORT_BASE_HEADERS = ["Delegate", "Email", "Inbound Flight", "Inbound From", "Inbound To", "Inbound Time", "Outbound Flight", "Outbound From", "Outbound To", "Outbound Time"];
 // The board's own dynamic columns (arrival lounge, meet & greet, ...) live on
 // a SEPARATE service (adService) keyed by eventGuestId, not on the movement rows
 // themselves — same join the on-screen table (adColumns) already does.
@@ -210,7 +210,7 @@ function movementExportRows(rows, adFields, adEntriesByGuest) {
 // A dynamic service's own field schema decides its columns — the entry values
 // are a raw {key: value} map, same as the on-screen table reads them.
 const serviceEntryExportHeaders = (fields, isAr) => [
-  "Guest", "Email", "Organization", "Service Level", "Status",
+  "Delegate", "Email", "Organization", "Service Level", "Status",
   ...fields.map((f) => (isAr ? f.labelAr : null) || f.label || f.key),
 ];
 const serviceEntryExportRows = (entries, fields) => entries.map((e) => [
@@ -491,7 +491,7 @@ export default function TravelView({ lang, activeEventId }) {
           transfers: "نقل بري",
           transfersH: "",
           movements: "وصول ومغادرة",
-          movementsH: "ضيوف مسافرون",
+          movementsH: "مندوبين مسافرون",
           visas: "تأشيرات موافق عليها",
           visasH: "٨٨٫٦٪ موافقة · مزامنة الداخلية",
         },
@@ -506,7 +506,7 @@ export default function TravelView({ lang, activeEventId }) {
         itinerary: "جدول الرحلة",
         viewPermit: "عرض التصريح →",
         cols: {
-          guest: "الضيف",
+          guest: "المندوب",
           flight: "الرحلة",
           flightType: "نوع الرحلة",
           flightClass: "الدرجة",
@@ -563,9 +563,9 @@ export default function TravelView({ lang, activeEventId }) {
         editTransfer: "تعديل بيانات النقل",
         cancel2: "إلغاء",
         newBookingTitle: "حجز جديد",
-        selectGuest: "اختر الضيف",
+        selectGuest: "اختر المندوب",
         bookingDetails: "تفاصيل الحجز",
-        guestSearch: "بحث عن ضيف…",
+        guestSearch: "بحث عن مندوب…",
         back: "السابق",
         next: "التالي",
       }
@@ -593,7 +593,7 @@ export default function TravelView({ lang, activeEventId }) {
           transfers: "Ground transfers",
           transfersH: "",
           movements: "Arrivals & departures",
-          movementsH: "Guests travelling",
+          movementsH: "Delegates travelling",
           visas: "Visas approved",
           visasH: "88.6% approved · MOI Qatar live sync",
         },
@@ -611,7 +611,7 @@ export default function TravelView({ lang, activeEventId }) {
         itinerary: "Itinerary",
         viewPermit: "View permit →",
         cols: {
-          guest: "Guest",
+          guest: "Delegate",
           flight: "Flight",
           flightType: "Flight Type",
           flightClass: "Class",
@@ -668,9 +668,9 @@ export default function TravelView({ lang, activeEventId }) {
         editTransfer: "Edit ground transfer",
         cancel2: "Cancel",
         newBookingTitle: "New Booking",
-        selectGuest: "Select Guest",
+        selectGuest: "Select Delegate",
         bookingDetails: "Booking Details",
-        guestSearch: "Search guest…",
+        guestSearch: "Search delegate…",
         back: "Back",
         next: "Next",
       };
@@ -1894,8 +1894,8 @@ export default function TravelView({ lang, activeEventId }) {
             marginBottom: 14,
             padding: "10px 16px",
             borderRadius: 10,
-            background: "rgba(141, 1, 52,0.1)",
-            border: "1px solid rgba(141, 1, 52,0.3)",
+            background: "hsl(var(--brand-hsl) / 0.1)",
+            border: "1px solid hsl(var(--brand-hsl) / 0.3)",
             fontSize: 13,
             display: "flex",
             gap: 10,
@@ -2276,8 +2276,8 @@ export default function TravelView({ lang, activeEventId }) {
             >
               <Icon name="alert" size={13} />
               {isAr
-                ? `${ad(adOrphanEntries)} إدخال في "${adService?.name}" لضيوف بلا رحلات — لن تظهر حتى تُضاف رحلة لهم`
-                : `${adOrphanEntries} "${adService?.name}" entr${adOrphanEntries === 1 ? "y" : "ies"} belong to guests with no flights — they appear here once a flight is added`}
+                ? `${ad(adOrphanEntries)} إدخال في "${adService?.name}" لمندوبين بلا رحلات — لن تظهر حتى تُضاف رحلة لهم`
+                : `${adOrphanEntries} "${adService?.name}" entr${adOrphanEntries === 1 ? "y" : "ies"} belong to delegates with no flights — they appear here once a flight is added`}
             </div>
           )}
         </div>
@@ -2716,7 +2716,7 @@ export default function TravelView({ lang, activeEventId }) {
             >
               {bookStep === 1 && (
                 <div>
-                  <label style={lSt}>{isAr ? "الضيف" : "Guest"}</label>
+                  <label style={lSt}>{isAr ? "المندوب" : "Delegate"}</label>
                   <input
                     placeholder={STR.guestSearch}
                     value={guestSearch}
@@ -2753,7 +2753,7 @@ export default function TravelView({ lang, activeEventId }) {
                             gap: 10,
                             border: `1px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
                             background: selected
-                              ? "rgba(141, 1, 52,0.12)"
+                              ? "hsl(var(--brand-hsl) / 0.12)"
                               : "var(--surface-soft-2)",
                           }}
                         >
@@ -2799,8 +2799,8 @@ export default function TravelView({ lang, activeEventId }) {
                         }}
                       >
                         {isAr
-                          ? "لا يوجد ضيوف لهذه الفعالية"
-                          : "No guests found for this event"}
+                          ? "لا يوجد مندوبين لهذه الفعالية"
+                          : "No delegates found for this event"}
                       </div>
                     )}
                   </div>
@@ -2824,8 +2824,8 @@ export default function TravelView({ lang, activeEventId }) {
                     <Icon name="alert" size={14} />
                     <div>
                       {isAr
-                        ? `${bookGuest} ليس لديه مستوى خدمة — عيّن مستوى أولاً من صفحة الضيوف.`
-                        : `${bookGuest} has no service level yet — assign one on the Guests page first.`}
+                        ? `${bookGuest} ليس لديه مستوى خدمة — عيّن مستوى أولاً من صفحة المندوبين.`
+                        : `${bookGuest} has no service level yet — assign one on the Delegates page first.`}
                     </div>
                   </div>
                 ) : bookSlots.length === 0 ? (

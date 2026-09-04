@@ -1,6 +1,8 @@
 // Pure helpers + constants shared across the venue-config components.
 // No React here — this module is UI-framework-agnostic on purpose.
 
+import { brandHex } from '../../lib/brandColor';
+
 export const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isGuid = (v) => typeof v === 'string' && GUID_RE.test(v);
 
@@ -49,7 +51,7 @@ export const DISABLED_SEAT_COLOR = '#e05555';
 
 // Tint used to mark a seat as assigned to a guest (Seating view only — this
 // is a derived/display-only color, never persisted back into the layout).
-export const ASSIGNED_SEAT_COLOR = '#8d0134';
+export const ASSIGNED_SEAT_COLOR = brandHex();
 
 // A seat's effective color: a manually-set override always wins; otherwise a
 // muted "disabled" tone kicks in once marked unavailable; otherwise null (use

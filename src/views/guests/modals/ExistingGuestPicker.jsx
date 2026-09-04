@@ -4,6 +4,7 @@ import { Avatar, StatusChip } from '../../../components/UI';
 import Select from '../../../components/ui/Select';
 import { getGuestsFromOtherEvents } from '../../../api/services/guestService';
 import { getServiceLevels } from '../../../api/services/serviceCatalogService';
+import { brandTint } from '../../../lib/brandColor';
 
 // Selection key. `row.id` is the source event's eventGuestId — already unique
 // per participation — so this is really just a readable composite; the eventId
@@ -192,8 +193,8 @@ export default function ExistingGuestPicker({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
         <div style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>
           {isAr
-            ? `اختر قالب دعوة واحد لجميع الضيوف المضافين (${selected.size})`
-            : `Choose one invitation template for all ${selected.size} guest${selected.size === 1 ? '' : 's'} being added`}
+            ? `اختر قالب دعوة واحد لجميع المندوبين المضافين (${selected.size})`
+            : `Choose one invitation template for all ${selected.size} delegate${selected.size === 1 ? '' : 's'} being added`}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
           <div
@@ -218,7 +219,7 @@ export default function ExistingGuestPicker({
                 {isAr ? 'بدون دعوة' : 'No invitation'}
               </div>
               <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
-                {isAr ? 'إضافة الضيوف فقط' : 'No email sent (automatically accepted)'}
+                {isAr ? 'إضافة المندوبين فقط' : 'No email sent (automatically accepted)'}
               </div>
             </div>
           </div>
@@ -229,7 +230,7 @@ export default function ExistingGuestPicker({
               style={{
                 padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${invitationTemplateId === tmpl.id ? (tmpl.color || 'var(--accent)') : 'var(--glass-border)'}`,
-                background: invitationTemplateId === tmpl.id ? `${tmpl.color || 'var(--accent)'}18` : 'var(--surface-soft-2)',
+                background: invitationTemplateId === tmpl.id ? (tmpl.color ? `${tmpl.color}18` : brandTint(0.09)) : 'var(--surface-soft-2)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -281,7 +282,7 @@ export default function ExistingGuestPicker({
               <th style={{ ...thStyle, width: 34, textAlign: 'center' }}>
                 <input type="checkbox" style={checkboxStyle} checked={allVisibleSelected} onChange={toggleAllVisible}/>
               </th>
-              <th style={thStyle}>{isAr ? 'الضيف' : 'Guest'}</th>
+              <th style={thStyle}>{isAr ? 'المندوب' : 'Delegate'}</th>
               <th style={{ ...thStyle, width: 170 }}>{isAr ? 'مستوى الخدمة' : 'Service Level'}</th>
               {/* <th style={thStyle}>{isAr ? 'الجنسية' : 'Nationality'}</th>
               <th style={thStyle}>{isAr ? 'الدعوة' : 'Invite'}</th> */}
@@ -376,7 +377,7 @@ export default function ExistingGuestPicker({
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={6 + (sessions?.length || 0)} style={{ padding: 28, textAlign: 'center', color: 'var(--ink-mute)' }}>
-                  {isAr ? 'لا يوجد ضيوف مطابقون في فعاليات أخرى' : 'No matching guests in other events'}
+                  {isAr ? 'لا يوجد مندوبين مطابقون في فعاليات أخرى' : 'No matching delegates in other events'}
                 </td>
               </tr>
             )}
@@ -402,8 +403,8 @@ export default function ExistingGuestPicker({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, paddingTop: 8, borderTop: '1px solid var(--glass-border)' }}>
         <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
           {selected.size > 0
-            ? (isAr ? `${selected.size} ضيف محدد` : `${selected.size} guest${selected.size === 1 ? '' : 's'} selected`)
-            : (isAr ? 'حدد الضيوف بالمربعات على اليسار' : 'Check guests on the left to select them')}
+            ? (isAr ? `${selected.size} مندوب محدد` : `${selected.size} delegate${selected.size === 1 ? '' : 's'} selected`)
+            : (isAr ? 'حدد المندوبين بالمربعات على اليسار' : 'Check delegates on the left to select them')}
         </span>
         <button className="btn primary" disabled={selected.size === 0} onClick={() => setPhase('invitation')}>
           {isAr ? `مراجعة وإضافة (${selected.size})` : `Review & Add (${selected.size})`} <Icon name="arrow" size={13}/>

@@ -165,7 +165,7 @@ function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
       <div className="card glass modal-solid" style={{ width: 420, maxWidth: '92vw', padding: 0, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: 15 }}>{isAr ? 'جلسات الضيف' : 'Guest Sessions'}</h3>
+          <h3 style={{ margin: 0, fontSize: 15 }}>{isAr ? 'جلسات المندوب' : 'Delegate Sessions'}</h3>
           <button className="icon-btn" onClick={onClose}><Icon name="close" size={14} /></button>
         </div>
         <div style={{ padding: '14px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -175,7 +175,7 @@ function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
             <label key={s.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
               border: `1px solid ${selected.has(s.id) ? 'var(--accent)' : 'var(--glass-border)'}`,
-              background: selected.has(s.id) ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+              background: selected.has(s.id) ? 'hsl(var(--brand-hsl) / 0.08)' : 'var(--surface-soft-2)',
             }}>
               <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -271,7 +271,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
 
   async function handleIssue() {
     if (!canIssue) {
-      toast.error(isAr ? 'لا يمكن إصدار الاعتماد قبل قبول الضيف للدعوة' : 'Cannot issue accreditation until the guest has accepted their invitation');
+      toast.error(isAr ? 'لا يمكن إصدار الاعتماد قبل قبول المندوب للدعوة' : 'Cannot issue accreditation until the delegate has accepted their invitation');
       return;
     }
     setBusy(true);
@@ -306,10 +306,10 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
         <div style={{ fontSize: 13, color: 'var(--ink-mute)', marginBottom: 14 }}>
-          {isAr ? 'تعذر العثور على الضيف' : 'Guest not found'}
+          {isAr ? 'تعذر العثور على المندوب' : 'Delegate not found'}
         </div>
         <button className="btn" onClick={() => navigate('/guests')}>
-          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
+          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى المندوبين' : 'Back to Delegates'}
         </button>
       </div>
     );
@@ -338,7 +338,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
           style={{ marginBottom: 14, fontSize: 12.5 }}
           onClick={() => navigate('/guests')}
         >
-          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى الضيوف' : 'Back to Guests'}
+          <Icon name="arrowLeft" size={13} /> {isAr ? 'العودة إلى المندوبين' : 'Back to Delegates'}
         </button>
       )}
 
@@ -386,7 +386,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
                     className="icon-btn" disabled={busy || !canIssue}
                     title={canIssue
                       ? (isAr ? 'إصدار الاعتماد' : 'Issue Accreditation')
-                      : (isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first')}
+                      : (isAr ? 'يجب قبول الدعوة أولاً' : 'Delegate must accept the invitation first')}
                     aria-label={isAr ? 'إصدار الاعتماد' : 'Issue Accreditation'}
                     onClick={handleIssue}
                   >
@@ -422,7 +422,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
           )}>
           <div style={fieldGrid}>
             <Field label={isAr ? 'البريد الإلكتروني' : 'Email'} value={guest.email} />
-            <Field label={isAr ? 'نوع الضيف' : 'Guest Type'} value={guest.guestType} />
+            <Field label={isAr ? 'نوع المندوب' : 'Delegate Type'} value={guest.guestType} />
             <Field
               label={isAr ? 'مستوى الخدمة' : 'Service Level'}
               value={guest.serviceLevelName
@@ -470,7 +470,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
             <CardHeader icon="calendar" title={isAr ? 'الجلسات' : 'Sessions'}>
               {sessionsEditBtn}
             </CardHeader>
-            <Empty>{isAr ? 'لم يسجل الضيف في أي جلسة' : 'Not registered for any session'}</Empty>
+            <Empty>{isAr ? 'لم يسجل المندوب في أي جلسة' : 'Not registered for any session'}</Empty>
           </GuestCard>
         ) : (
           <CardSlider items={sessions}>
@@ -596,7 +596,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
         onRevoke={handleRevoke}
         canIssue={canIssue}
         busy={busy}
-        notAcceptedTitle={isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first'}
+        notAcceptedTitle={isAr ? 'يجب قبول الدعوة أولاً' : 'Delegate must accept the invitation first'}
       />
     </div>
   );

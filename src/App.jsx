@@ -32,6 +32,7 @@ import {
 } from "./api/services/notificationService";
 import { fmtDate } from "./lib/date";
 import FlagIcon from "./components/FlagIcon";
+import { brandColor, brandHex } from "./lib/brandColor";
 
 // Vehicle types live under the Vehicles module (its own tab); Room Types and
 // Hotels live under Accommodation, next to Inventory — all three left out of
@@ -56,7 +57,7 @@ const NAV = [
   {
     key: "guests",
     icon: "guests",
-    label: { en: "Guests", ar: "الضيوف" },
+    label: { en: "Delegates", ar: "المندوبين" },
     section: "EVENT",
     permission: "Guests.View",
   },
@@ -149,7 +150,7 @@ const NAV = [
   {
     key: "guestOverview",
     icon: "reports",
-    label: { en: "Guest Overview", ar: "نظرة عامة على الضيوف" },
+    label: { en: "Delegate Overview", ar: "نظرة عامة على المندوبين" },
     section: "ADMIN",
     permission: "Guests.View",
   },
@@ -245,26 +246,26 @@ const SECTION_LABELS = {
 const SHELL_I18N = {
   en: {
     gms: "GMS",
-    guestMgmt: "Guest Management",
+    guestMgmt: "Delegate Management",
     switchEvent: "Switch event",
     inSession: "In session",
     eventName: "23rd Doha Forum",
     eventMeta: "7–9 December · Sheraton Grand",
     daysOut: "D-2",
-    searchPlaceholder: "Search guests, sessions, bookings…",
+    searchPlaceholder: "Search delegates, sessions, bookings…",
     userName: "Amira Hassan",
     userRole: "Protocol Lead · MOFA",
     switchTo: (m) => `Switch to ${m} mode`,
   },
   ar: {
     gms: "GMS",
-    guestMgmt: "إدارة الضيوف",
+    guestMgmt: "إدارة المندوبين",
     switchEvent: "تبديل الحدث",
     inSession: "قيد الانعقاد",
     eventName: "منتدى الدوحة الـ ٢٣",
     eventMeta: "٧–٩ ديسمبر · شيراتون الكبرى",
     daysOut: "−٢ يوم",
-    searchPlaceholder: "بحث في الضيوف والجلسات والحجوزات…",
+    searchPlaceholder: "بحث في المندوبين والجلسات والحجوزات…",
     userName: "أميرة حسن",
     userRole: "رئيسة البروتوكول · وزارة الخارجية",
     switchTo: (m) => `التبديل إلى الوضع ${m === "dark" ? "الداكن" : "الفاتح"}`,
@@ -323,11 +324,6 @@ function blendHex(base, accent, amt) {
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b_.toString(16).padStart(2, "0")}`;
 }
 function applyBgVars(root, accent, isDark) {
-  // Light mode is deliberately NOT accent-tinted. The old behaviour blended the
-  // accent into every background at 5–16%, which turned the QOC maroon into a
-  // pink cast across all surfaces; the revamp wants neutral white/grey pages
-  // with the maroon reserved for the shell and accents. Dark mode keeps the
-  // original tinting, where it reads as depth rather than as a colour wash.
   if (!isDark) {
     root.style.removeProperty("--bg-0");
     root.style.removeProperty("--bg-1");
@@ -343,18 +339,16 @@ function applyBgVars(root, accent, isDark) {
   root.style.setProperty("--bg", blendHex(base, accent, amounts[1]));
 }
 
-// ── Brand theme (Qatar Olympic — maroon #8d0134 + white) ────────────────────
+// ── Brand theme (Qatar Olympic — the hue in styles/brand.css + white) ────
 // One switch: set enabled=false to restore per-event theming from the backend.
 // The event accent/secondary fields and applyEventTheme code are left intact,
 // so reverting is a single boolean flip (no data or logic is removed).
-const BRAND_THEME = { enabled: true, accent: "#8d0134", secondary: "#c21857" };
+const BRAND_THEME = { enabled: true };
 
 const TWEAK_DEFAULTS = {
   // Light is the QOC-revamp default (the brief calls for 80–90% light); dark
   // stays available via the topbar toggle.
   theme: "light",
-  accent: BRAND_THEME.accent,
-  secondary: BRAND_THEME.secondary,
   blur: 22,
   density: "comfortable",
   orbIntensity: 0.1,
@@ -369,8 +363,8 @@ const EVENTS = [
     subtitle: "22nd Edition · 7–9 Dec",
     logoColor: "assets/doha-forum-logo.png",
     logoWhite: "assets/doha-forum-logo-white.png",
-    accent: "#8d0134",
-    secondary: "#c21857",
+    accent: null,   // null -> falls back to the brand hue in styles/brand.css
+    secondary: null,
   },
   {
     key: "qef",
@@ -457,8 +451,8 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
           className="event-logo-mark"
           data-event={ev.key}
           style={{
-            background: `${ev.accent}22`,
-            borderColor: `${ev.accent}50`,
+            background: `${ev.accent || brandHex()}22`,
+            borderColor: `${ev.accent || brandHex()}50`,
           }}
         >
           {markOf(ev) ? (
@@ -503,7 +497,7 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
                 style={{
                   borderLeft: `3px solid ${e.accent}`,
                   background: isActive
-                    ? "rgba(141, 1, 52, 0.10)"
+                    ? "hsl(var(--brand-hsl) / 0.10)"
                     : "transparent",
                 }}
                 onClick={() => {
@@ -515,8 +509,8 @@ function EventSwitcher({ events = [], value, onChange, lang, theme }) {
                   className="event-logo-mark"
                   data-event={e.key}
                   style={{
-                    background: `${e.accent}22`,
-                    borderColor: `${e.accent}50`,
+                    background: `${e.accent || brandHex()}22`,
+                    borderColor: `${e.accent || brandHex()}50`,
                     overflow: "hidden",
                   }}
                 >
@@ -574,20 +568,22 @@ const HOTELS = [
   "InterContinental",
   "W Doha",
 ];
-const TIER_COLOR = {
+// Tier chip colours. The brand slot is read from styles/brand.css on call
+// (these strings get `${color}55` appended, so they must be real hex).
+const tierColorFor = (tier) => ({
   VVIP: "#e0b864",
   VIP: "#a78bda",
-  Speaker: "var(--accent)",
+  Speaker: brandHex(),
   Delegate: "#5abf6e",
   Press: "#e08a7e",
   Observer: "var(--ink-mute)",
   vvip: "#e0b864",
   vip: "#a78bda",
-  speaker: "var(--accent)",
+  speaker: brandHex(),
   delegate: "#5abf6e",
   press: "#e08a7e",
   observer: "var(--ink-mute)",
-};
+}[tier] || brandHex());
 const GUEST_TYPES = [
   "dignitary",
   "delegate",
@@ -662,7 +658,7 @@ function GuestDrawer({
     }
     if (!personId) {
       toast.error(
-        isAr ? "تعذّر تحديد هوية الضيف" : "Could not resolve this guest's identity",
+        isAr ? "تعذّر تحديد هوية المندوب" : "Could not resolve this delegate's identity",
       );
       return;
     }
@@ -795,8 +791,8 @@ function GuestDrawer({
       setShowMeetingPicker(false);
       drawerMsg(
         isAr
-          ? "الضيف مُضاف بالفعل إلى هذا الاجتماع"
-          : "Guest is already in this meeting",
+          ? "المندوب مُضاف بالفعل إلى هذا الاجتماع"
+          : "Delegate is already in this meeting",
       );
       return;
     }
@@ -812,7 +808,7 @@ function GuestDrawer({
     } catch (err) {
       toast.fromError(
         err,
-        isAr ? "تعذّرت الإضافة إلى الاجتماع" : "Failed to add guest to meeting",
+        isAr ? "تعذّرت الإضافة إلى الاجتماع" : "Failed to add delegate to meeting",
       );
     } finally {
       setAddingMeetingId(null);
@@ -875,7 +871,7 @@ function GuestDrawer({
     } catch (err) {
       toast.fromError(
         err,
-        isAr ? "تعذّر إزالة الضيف" : "Failed to remove guest",
+        isAr ? "تعذّر إزالة المندوب" : "Failed to remove delegate",
       );
       setRemoving(false);
     }
@@ -883,10 +879,10 @@ function GuestDrawer({
 
   const D = isAr
     ? {
-        profile: "ملف الضيف",
+        profile: "ملف المندوب",
         message: "رسالة",
         badge: "شارة",
-        guestId: "معرّف الضيف",
+        guestId: "معرّف المندوب",
         invited: "تاريخ الدعوة",
         arrival: "الوصول",
         hotel: "الفندق",
@@ -914,8 +910,8 @@ function GuestDrawer({
         editPro: "تعديل الملف الشخصي",
         addMeet: "إضافة إلى اجتماع",
         expPdf: "تصدير PDF",
-        removeG: "إزالة الضيف",
-        confirmRemoveMsg: "هل تريد إزالة هذا الضيف من النظام؟",
+        removeG: "إزالة المندوب",
+        confirmRemoveMsg: "هل تريد إزالة هذا المندوب من النظام؟",
         removeConfirmBtn: "إزالة",
         badgeNo: "رقم الشارة",
         meetingAdded: "تمت الإضافة إلى قائمة الاجتماعات ✓",
@@ -926,7 +922,7 @@ function GuestDrawer({
         deselectAll: "إلغاء الكل",
         badgeNotIssuedTitle: "لم يصدر الاعتماد بعد",
         badgeNotIssuedMsg: 'أصدر الاعتماد من وحدة "الاعتماد" لعرض الشارة.',
-        guestType: "نوع الضيف",
+        guestType: "نوع المندوب",
         organization: "المؤسسة",
         nationality: "الجنسية",
         tier: "الفئة",
@@ -938,16 +934,16 @@ function GuestDrawer({
         photoOptional: "صورة الوجه (اختياري)",
         removePhoto: "إزالة الصورة",
         uploading: "جارٍ التحميل…",
-        pickMeeting: "اختر اجتماعًا لإضافة هذا الضيف إليه",
+        pickMeeting: "اختر اجتماعًا لإضافة هذا المندوب إليه",
         noMeetings: "لا توجد اجتماعات لهذه الفعالية",
         add: "إضافة",
         added: "مُضاف",
       }
     : {
-        profile: "Guest profile",
+        profile: "Delegate profile",
         message: "Message",
         badge: "Badge",
-        guestId: "Guest ID",
+        guestId: "Delegate ID",
         invited: "Invited",
         arrival: "Arrival date",
         hotel: "Hotel",
@@ -975,8 +971,8 @@ function GuestDrawer({
         editPro: "Edit profile",
         addMeet: "Add to meeting",
         expPdf: "Export PDF",
-        removeG: "Remove guest",
-        confirmRemoveMsg: "Remove this guest from the system?",
+        removeG: "Remove delegate",
+        confirmRemoveMsg: "Remove this delegate from the system?",
         removeConfirmBtn: "Remove",
         badgeNo: "Badge No.",
         meetingAdded: "Added to meeting list ✓",
@@ -986,10 +982,10 @@ function GuestDrawer({
         selectAll: "Select all",
         deselectAll: "Deselect all",
         badgeNotIssuedTitle:
-          "Accreditation not issued yet or may not require for this guest",
+          "Accreditation not issued yet or may not require for this delegate",
         badgeNotIssuedMsg:
           "Issue accreditation from the Accreditation module to view the badge.",
-        guestType: "Guest Type",
+        guestType: "Delegate Type",
         organization: "Organization",
         nationality: "Nationality",
         tier: "Tier",
@@ -1001,7 +997,7 @@ function GuestDrawer({
         photoOptional: " ",
         removePhoto: "Remove photo",
         uploading: "Uploading…",
-        pickMeeting: "Pick a meeting to add this guest to",
+        pickMeeting: "Pick a meeting to add this delegate to",
         noMeetings: "No meetings for this event",
         add: "Add",
         added: "Added",
@@ -1017,7 +1013,7 @@ function GuestDrawer({
     fontSize: 13,
     boxSizing: "border-box",
   };
-  const tierColor = TIER_COLOR[guest.tier] || "var(--accent)";
+  const tierColor = tierColorFor(guest.tier);
 
   // Real GuestResponse fields (fullName/invitationStatus/accreditationStatus)
   // — the rest of this drawer predates the API and still reads some mock names.
@@ -1267,8 +1263,8 @@ function GuestDrawer({
               marginTop: 10,
               padding: "8px 12px",
               borderRadius: 8,
-              background: "rgba(141, 1, 52,0.1)",
-              border: "1px solid rgba(141, 1, 52,0.25)",
+              background: "hsl(var(--brand-hsl) / 0.1)",
+              border: "1px solid hsl(var(--brand-hsl) / 0.25)",
               fontSize: 12.5,
               color: "var(--accent)",
               display: "flex",
@@ -1438,7 +1434,7 @@ function GuestDrawer({
                     gap: 10,
                     border: `1px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`,
                     background: checked
-                      ? "rgba(141, 1, 52,0.08)"
+                      ? "hsl(var(--brand-hsl) / 0.08)"
                       : "var(--surface-soft-2)",
                   }}
                 >
@@ -1828,7 +1824,7 @@ function GuestDrawer({
                             value={qrPayload}
                             size={72}
                             bgColor="#ffffff"
-                            fgColor="#5e0022"
+                            fgColor={brandColor("--brand-deep")}
                             level="M"
                           />
                         </div>
@@ -2252,7 +2248,7 @@ function GuestDrawer({
                         border: `1px solid ${profileForm.accreditationRequired === opt.value ? "var(--accent)" : "var(--glass-border)"}`,
                         background:
                           profileForm.accreditationRequired === opt.value
-                            ? "rgba(141, 1, 52,0.12)"
+                            ? "hsl(var(--brand-hsl) / 0.12)"
                             : "var(--surface-soft-2)",
                       }}
                     >
@@ -2531,7 +2527,13 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const profileRef = React.useRef(null);
-  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  // accent/secondary are read from styles/brand.css here rather than in
+  // TWEAK_DEFAULTS: a module-level read would run before the stylesheet is live.
+  const [tweaks, setTweak] = useTweaks({
+    ...TWEAK_DEFAULTS,
+    accent: brandHex(),
+    secondary: brandHex("--brand-2-hsl"),
+  });
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -2671,11 +2673,9 @@ export default function App() {
     // (top of this file) to restore event-based accent/secondary from the backend.
     if (!ev && !BRAND_THEME.enabled) return;
     const root = document.documentElement;
-    const accent = BRAND_THEME.enabled
-      ? BRAND_THEME.accent
-      : ev?.accent || "#8d0134";
+    const accent = BRAND_THEME.enabled ? brandHex() : ev?.accent || brandHex();
     const secondary = BRAND_THEME.enabled
-      ? BRAND_THEME.secondary
+      ? brandHex("--brand-2-hsl")
       : ev?.secondary || "#e0c47e";
 
     setTweak("accent", accent);
@@ -2712,7 +2712,7 @@ export default function App() {
     root.style.setProperty("--orb-opacity", String(tweaks.orbIntensity));
     applyBgVars(
       root,
-      tweaks.accent || "#8d0134",
+      tweaks.accent || brandHex(),
       (tweaks.theme || "dark") === "dark",
     );
   }, [tweaks]);
@@ -2815,7 +2815,7 @@ export default function App() {
                 {lang === "ar" ? "اللجنة الأولمبية القطرية" : "Qatar Olympic"}
               </div>
               <div className="side-brand-sub">
-                {lang === "ar" ? "إدارة الضيوف" : "Guest Management"}
+                {lang === "ar" ? "إدارة المندوبين" : "Delegate Management"}
               </div>
             </div>
           </div>

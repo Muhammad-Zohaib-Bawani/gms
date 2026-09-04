@@ -2,6 +2,7 @@
 // EventsView already renders (venue/image/uiTheme/sessions[].venue).
 
 import { stripSasToken } from '../services/uploadService';
+import { brandHex } from '../../lib/brandColor';
 
 export function toViewSession(s) {
   return {
@@ -37,7 +38,7 @@ export function toViewEvent(dto) {
     guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
     uiTheme: {
       preset: isCustom ? 'custom' : 'default',
-      accent: dto.themeAccent || '#8d0134',
+      accent: dto.themeAccent || brandHex(),
       secondary: dto.themeSecondary || '#e0c47e',
       logoDark: dto.logoDarkUrl || '',
       logoLight: dto.logoLightUrl || '',

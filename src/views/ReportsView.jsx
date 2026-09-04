@@ -5,14 +5,14 @@ import { Donut } from '../components/UI';
 
 const REPORTS_EN = [
   {
-    id: "RPT-001", title: "Guest Confirmation Summary", category: "Guest",
+    id: "RPT-001", title: "Delegate Confirmation Summary", category: "Delegate",
     desc: "Confirmation rates by tier, country, and organisation. Includes funnel metrics.",
     updated: "Dec 5, 09:14", size: "142 KB", format: "PDF",
-    stats: [{ label: "Guests", val: "1,284" }, { label: "Confirmed", val: "77.8%" }, { label: "Pending", val: "221" }],
+    stats: [{ label: "Delegates", val: "1,284" }, { label: "Confirmed", val: "77.8%" }, { label: "Pending", val: "221" }],
   },
   {
-    id: "RPT-002", title: "Accreditation Status Report", category: "Guest",
-    desc: "Badge issuance status for all confirmed guests. Highlights outstanding accreditations.",
+    id: "RPT-002", title: "Accreditation Status Report", category: "Delegate",
+    desc: "Badge issuance status for all confirmed delegates. Highlights outstanding accreditations.",
     updated: "Dec 5, 08:30", size: "98 KB", format: "PDF",
     stats: [{ label: "Issued", val: "1,106" }, { label: "Pending", val: "178" }, { label: "Rate", val: "86%" }],
   },
@@ -24,19 +24,19 @@ const REPORTS_EN = [
   },
   {
     id: "RPT-004", title: "Travel & Logistics Overview", category: "Event",
-    desc: "Flight arrivals, hotel blocks, and ground transport assignments by guest tier.",
+    desc: "Flight arrivals, hotel blocks, and ground transport assignments by delegate tier.",
     updated: "Dec 4, 14:22", size: "178 KB", format: "PDF",
     stats: [{ label: "Bookings", val: "948" }, { label: "Hotels", val: "5" }, { label: "Flights", val: "612" }],
   },
   {
     id: "RPT-005", title: "Seating Plan Export", category: "Event",
-    desc: "Full table assignments for all confirmed guests with tier and country breakdowns.",
+    desc: "Full table assignments for all confirmed delegates with tier and country breakdowns.",
     updated: "Dec 3, 11:45", size: "86 KB", format: "PDF",
     stats: [{ label: "Tables", val: "20" }, { label: "Seats", val: "1,284" }, { label: "VIP", val: "48" }],
   },
   {
     id: "RPT-006", title: "Protocol Precedence Sheet", category: "Protocol",
-    desc: "Official order of precedence for state guests and delegations. Classified.",
+    desc: "Official order of precedence for state delegates and delegations. Classified.",
     updated: "Dec 2, 09:00", size: "54 KB", format: "PDF",
     stats: [{ label: "Delegations", val: "38" }, { label: "VVIP", val: "12" }, { label: "Classified", val: "Yes" }],
   },
@@ -50,14 +50,14 @@ const REPORTS_EN = [
 
 const REPORTS_AR = [
   {
-    id: "RPT-001", title: "ملخص تأكيد الضيوف", category: "Guest",
+    id: "RPT-001", title: "ملخص تأكيد المندوبين", category: "Delegate",
     desc: "معدلات التأكيد حسب الفئة والدولة والمنظمة. يشمل مقاييس القمع.",
     updated: "٥ ديس، ٠٩:١٤", size: "١٤٢ KB", format: "PDF",
-    stats: [{ label: "الضيوف", val: "١٬٢٨٤" }, { label: "مؤكد", val: "٧٧٫٨٪" }, { label: "معلق", val: "٢٢١" }],
+    stats: [{ label: "المندوبين", val: "١٬٢٨٤" }, { label: "مؤكد", val: "٧٧٫٨٪" }, { label: "معلق", val: "٢٢١" }],
   },
   {
-    id: "RPT-002", title: "تقرير حالة الاعتماد", category: "Guest",
-    desc: "حالة إصدار الشارات لجميع الضيوف المؤكدين. يُبرز الاعتمادات المعلقة.",
+    id: "RPT-002", title: "تقرير حالة الاعتماد", category: "Delegate",
+    desc: "حالة إصدار الشارات لجميع المندوبين المؤكدين. يُبرز الاعتمادات المعلقة.",
     updated: "٥ ديس، ٠٨:٣٠", size: "٩٨ KB", format: "PDF",
     stats: [{ label: "صادر", val: "١٬١٠٦" }, { label: "معلق", val: "١٧٨" }, { label: "النسبة", val: "٨٦٪" }],
   },
@@ -69,19 +69,19 @@ const REPORTS_AR = [
   },
   {
     id: "RPT-004", title: "نظرة عامة على السفر واللوجستيات", category: "Event",
-    desc: "وصول الرحلات الجوية وكتل الفنادق وتخصيصات النقل البري حسب فئة الضيف.",
+    desc: "وصول الرحلات الجوية وكتل الفنادق وتخصيصات النقل البري حسب فئة المندوب.",
     updated: "٤ ديس، ١٤:٢٢", size: "١٧٨ KB", format: "PDF",
     stats: [{ label: "الحجوزات", val: "٩٤٨" }, { label: "الفنادق", val: "٥" }, { label: "الرحلات", val: "٦١٢" }],
   },
   {
     id: "RPT-005", title: "تصدير خطة الجلوس", category: "Event",
-    desc: "تخصيصات الطاولة الكاملة لجميع الضيوف المؤكدين مع تصنيفات الفئة والدولة.",
+    desc: "تخصيصات الطاولة الكاملة لجميع المندوبين المؤكدين مع تصنيفات الفئة والدولة.",
     updated: "٣ ديس، ١١:٤٥", size: "٨٦ KB", format: "PDF",
     stats: [{ label: "الطاولات", val: "٢٠" }, { label: "المقاعد", val: "١٬٢٨٤" }, { label: "VIP", val: "٤٨" }],
   },
   {
     id: "RPT-006", title: "ورقة أسبقية البروتوكول", category: "Protocol",
-    desc: "ترتيب الأسبقية الرسمي للضيوف الرسميين والوفود. سري.",
+    desc: "ترتيب الأسبقية الرسمي للمندوبين الرسميين والوفود. سري.",
     updated: "٢ ديس، ٠٩:٠٠", size: "٥٤ KB", format: "PDF",
     stats: [{ label: "الوفود", val: "٣٨" }, { label: "VVIP", val: "١٢" }, { label: "سري", val: "نعم" }],
   },
@@ -102,10 +102,10 @@ export default function ReportsView({ lang }) {
 
   const STR = isAr ? {
     title: "التقارير",
-    sub: "تقارير الحدث القابلة للتصدير · الماليات والضيوف والعمليات",
+    sub: "تقارير الحدث القابلة للتصدير · الماليات والمندوبين والعمليات",
     generate: "إنشاء تقرير",
-    filters: ["الكل", "Guest", "Financial", "Event", "Protocol"],
-    filterKeys: { "الكل": "All", Guest: "Guest", Financial: "Financial", Event: "Event", Protocol: "Protocol" },
+    filters: ["الكل", "Delegate", "Financial", "Event", "Protocol"],
+    filterKeys: { "الكل": "All", Delegate: "Delegate", Financial: "Financial", Event: "Event", Protocol: "Protocol" },
     updated: "آخر تحديث",
     download: "تنزيل",
     preview: "معاينة",
@@ -116,9 +116,9 @@ export default function ReportsView({ lang }) {
     catLabel: "التصنيف",
   } : {
     title: "Reports",
-    sub: "Exportable event reports · financials, guests, and operations",
+    sub: "Exportable event reports · financials, delegates, and operations",
     generate: "Generate Report",
-    filters: ["All", "Guest", "Financial", "Event", "Protocol"],
+    filters: ["All", "Delegate", "Financial", "Event", "Protocol"],
     filterKeys: {},
     updated: "Last updated",
     download: "Download",
@@ -168,7 +168,7 @@ export default function ReportsView({ lang }) {
             {STR.filters.map(f => (
               <button key={f}
                 className={"btn ghost" + (activeFilter === f ? " active" : "")}
-                style={{ padding: "4px 14px", fontSize: 12, background: activeFilter === f ? "rgba(141, 1, 52,0.15)" : undefined, borderColor: activeFilter === f ? "rgba(141, 1, 52,0.4)" : undefined }}
+                style={{ padding: "4px 14px", fontSize: 12, background: activeFilter === f ? "hsl(var(--brand-hsl) / 0.15)" : undefined, borderColor: activeFilter === f ? "hsl(var(--brand-hsl) / 0.4)" : undefined }}
                 onClick={() => setActiveFilter(f)}>
                 {f}
               </button>
@@ -182,7 +182,7 @@ export default function ReportsView({ lang }) {
                   <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, display: "grid", placeItems: "center",
                     background: (CAT_COLORS[r.category] || "var(--accent)") + "18",
                     border: `1px solid ${(CAT_COLORS[r.category] || "var(--accent)") + "40"}` }}>
-                    <Icon name={r.category === "Financial" ? "finance" : r.category === "Protocol" ? "protocol" : r.category === "Guest" ? "guests" : "doc"} size={18}
+                    <Icon name={r.category === "Financial" ? "finance" : r.category === "Protocol" ? "protocol" : r.category === "Delegate" ? "guests" : "doc"} size={18}
                       style={{ color: CAT_COLORS[r.category] || "var(--accent)" }}/>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>

@@ -192,12 +192,12 @@ export default function SupportChatView({ lang, activeEventId }) {
   const navigate = useNavigate();
 
   const STR = {
-    title: isAr ? 'الدعم الفني' : 'Guests Chat',
+    title: isAr ? 'الدعم الفني' : 'Delegates Chat',
     sub: "",
     tabChats: isAr ? 'المحادثات' : 'Chats',
     tabNew: isAr ? 'محادثة جديدة' : 'New Chat',
     searchPh: isAr ? 'ابحث بالاسم أو البريد الإلكتروني…' : 'Search by name or email…',
-    searchGuestsPh: isAr ? 'ابحث عن ضيف…' : 'Search guests…',
+    searchGuestsPh: isAr ? 'ابحث عن مندوب…' : 'Search delegates…',
     onlyUnread: isAr ? 'غير مقروءة فقط' : 'Unread only',
     filter: isAr ? 'تصفية' : 'Filter',
     filterChats: isAr ? 'تصفية المحادثات' : 'Filter Chats',
@@ -207,8 +207,8 @@ export default function SupportChatView({ lang, activeEventId }) {
     organization: isAr ? 'المؤسسة' : 'Organization',
     nationality: isAr ? 'الجنسية' : 'Nationality',
     noConversations: isAr ? 'لا توجد محادثات' : 'No conversations',
-    noGuests: isAr ? 'لا يوجد ضيوف' : 'No guests found',
-    needEvent: isAr ? 'اختر فعالية أولاً لعرض ضيوفها' : 'Select an active event to see its guests',
+    noGuests: isAr ? 'لا يوجد مندوبين' : 'No delegates found',
+    needEvent: isAr ? 'اختر فعالية أولاً لعرض مندوبيها' : 'Select an active event to see its delegates',
     pickConversation: isAr ? 'اختر محادثة لعرض الرسائل' : 'Select a conversation, or start a new one',
     noMessages: isAr ? 'لا توجد رسائل بعد' : 'No messages yet',
     sayHello: isAr ? 'ابدأ المحادثة بإرسال أول رسالة' : 'Say hello to start the conversation',
@@ -343,7 +343,7 @@ export default function SupportChatView({ lang, activeEventId }) {
     // Without a person id there is nothing to address — better a clear message
     // than a request to /conversations/by-guest/null/messages.
     if (!personId) {
-      toast.error(isAr ? "تعذّر تحديد هوية الضيف" : "Could not resolve this guest's identity");
+      toast.error(isAr ? "تعذّر تحديد هوية المندوب" : "Could not resolve this delegate's identity");
       return;
     }
     // If this person already has a thread (possibly outside the loaded window),
@@ -689,7 +689,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                       onClick={() => openConversation(c)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 9, padding: '10px 14px', cursor: 'pointer',
-                        background: activeConversation?.id === c.id ? 'rgba(141, 1, 52,0.1)' : 'transparent',
+                        background: activeConversation?.id === c.id ? 'hsl(var(--brand-hsl) / 0.1)' : 'transparent',
                         boxShadow: activeConversation?.id === c.id ? 'inset 3px 0 0 var(--accent)' : 'none',
                         borderBottom: '1px solid var(--glass-border)',
                       }}
@@ -751,7 +751,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                         onClick={() => startNewChat(g)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 9, padding: '10px 14px', cursor: 'pointer',
-                          background: isActive ? 'rgba(141, 1, 52,0.1)' : 'transparent',
+                          background: isActive ? 'hsl(var(--brand-hsl) / 0.1)' : 'transparent',
                           boxShadow: isActive ? 'inset 3px 0 0 var(--accent)' : 'none',
                           borderBottom: '1px solid var(--glass-border)',
                         }}

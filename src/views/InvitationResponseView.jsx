@@ -3,6 +3,7 @@ import { Icon } from '../components/Icons';
 import toast from '../lib/toast';
 import { fmtDate } from '../lib/date';
 import { getInvitation, respondToInvitation } from '../api/services/invitationService';
+import { brandTint } from '../lib/brandColor';
 
 // Standalone, no-login page shown to a guest who clicks the "View invitation"
 // link in their email (?screen=invitation&token=...). Renders outside the auth
@@ -23,7 +24,7 @@ export default function InvitationResponseView({ token, lang }) {
     arrival: 'الوصول',
     departure: 'المغادرة',
     servicesTitle: 'سيتم تزويدك بالخدمات التالية',
-    servicesHint: 'سيتولى فريقنا الترتيبات؛ التفاصيل الكاملة متاحة بعد قبول الدعوة عبر تطبيق كبار الضيوف.',
+    servicesHint: 'سيتولى فريقنا الترتيبات؛ التفاصيل الكاملة متاحة بعد قبول الدعوة عبر تطبيق كبار المندوبين.',
     accept: 'قبول الدعوة',
     reject: 'رفض الدعوة',
     accepted: 'رائع! تم تأكيد حضورك.',
@@ -32,8 +33,8 @@ export default function InvitationResponseView({ token, lang }) {
     respondedAccepted: 'لقد قبلت هذه الدعوة بالفعل.',
     respondedDeclined: 'لقد رفضت هذه الدعوة بالفعل.',
     errGeneric: 'حدث خطأ. حاول مرة أخرى.',
-    appTitle:'نزّل تطبيق كبار الضيوف',
-    appBody: 'تفاصيل رحلتك، الفندق، ووسيلة التنقل ستكون جاهزة في تطبيق كبار الضيوف قبل الفعالية. نزّله الآن ليكون كل شيء في متناول يدك فور وصولك.',
+    appTitle:'نزّل تطبيق كبار المندوبين',
+    appBody: 'تفاصيل رحلتك، الفندق، ووسيلة التنقل ستكون جاهزة في تطبيق كبار المندوبين قبل الفعالية. نزّله الآن ليكون كل شيء في متناول يدك فور وصولك.',
     appStore: 'App Store',
     playStore: 'Google Play',
   } : {
@@ -45,7 +46,7 @@ export default function InvitationResponseView({ token, lang }) {
     arrival: 'Arrival',
     departure: 'Departure',
     servicesTitle: "You'll be facilitated with the following services",
-    servicesHint: 'Our team takes care of the arrangements — full details appear in the VIP Guest App once you accept.',
+    servicesHint: 'Our team takes care of the arrangements — full details appear in the VIP Delegate App once you accept.',
     accept: 'Accept Invitation',
     reject: 'Decline Invitation',
     accepted: 'your attendance is confirmed.',
@@ -54,8 +55,8 @@ export default function InvitationResponseView({ token, lang }) {
     respondedAccepted: 'You have already accepted this invitation.',
     respondedDeclined: 'You have already declined this invitation.',
     errGeneric: 'Something went wrong. Please try again.',
-    appTitle: "Get the VIP Guest App",
-    appBody: "Your flight, hotel and transport details will be ready in the VIP Guest App ahead of the event. Download it now so everything is one tap away the moment you land.",
+    appTitle: "Get the VIP Delegate App",
+    appBody: "Your flight, hotel and transport details will be ready in the VIP Delegate App ahead of the event. Download it now so everything is one tap away the moment you land.",
     appStore: 'App Store',
     playStore: 'Google Play',
   };
@@ -110,7 +111,7 @@ export default function InvitationResponseView({ token, lang }) {
       {/* Branded hero band */}
       <div style={{
         width: '100%', maxWidth: 560, marginTop: 0,
-        background: 'linear-gradient(135deg, #8d0134 0%, #5c0121 100%)',
+        background: 'var(--brand-gradient)',
         borderRadius: '0 0 24px 24px', padding: '38px 30px 46px',
         textAlign: 'center', color: '#fff', position: 'relative', overflow: 'hidden',
       }}>
@@ -152,7 +153,7 @@ export default function InvitationResponseView({ token, lang }) {
             ) : (
               <div style={{
                 width: 56, height: 56, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center',
-                background: 'linear-gradient(135deg, #8d0134, #c21857)', color: '#fff', fontSize: 20, fontWeight: 600,
+                background: 'var(--brand-gradient)', color: '#fff', fontSize: 20, fontWeight: 600,
               }}>
                 {initials}
               </div>
@@ -175,9 +176,9 @@ export default function InvitationResponseView({ token, lang }) {
             {(invite.serviceLevelName || invite.tier) && (
               <span style={{
                 fontSize: 11, fontWeight: 600, padding: '4px 11px', borderRadius: 20, flexShrink: 0,
-                color: invite.serviceLevelColor || '#8d0134',
-                background: `${invite.serviceLevelColor || '#8d0134'}1f`,
-                border: `1px solid ${invite.serviceLevelColor || '#8d0134'}55`,
+                color: invite.serviceLevelColor || 'var(--accent)',
+                background: (invite.serviceLevelColor ? `${invite.serviceLevelColor}1f` : brandTint(0.12)),
+                border: `1px solid ${invite.serviceLevelColor ? `${invite.serviceLevelColor}55` : brandTint(0.33)}`,
                 textTransform: 'capitalize',
               }}>
                 {(isAr ? invite.serviceLevelNameAr : null) || invite.serviceLevelName || invite.tier}
@@ -214,8 +215,8 @@ export default function InvitationResponseView({ token, lang }) {
                 {invite.services.map((s, i) => (
                   <span key={i} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
-                    padding: '6px 12px', borderRadius: 20, background: 'rgba(141, 1, 52,0.08)',
-                    border: '1px solid rgba(141, 1, 52,0.18)', color: '#6b0227',
+                    padding: '6px 12px', borderRadius: 20, background: 'hsl(var(--brand-hsl) / 0.08)',
+                    border: '1px solid hsl(var(--brand-hsl) / 0.18)', color: 'hsl(var(--brand-h) 60% 21%)',
                   }}>
                     {s.icon && <Icon name={s.icon} size={12} />}
                     {(isAr ? s.nameAr : null) || s.name}
@@ -257,8 +258,8 @@ export default function InvitationResponseView({ token, lang }) {
                 disabled={!!submitting}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: '#8d0134', color: '#fff', fontSize: 15, fontWeight: 650,
-                  opacity: submitting ? 0.6 : 1, boxShadow: '0 8px 20px rgba(141,1,52,0.25)',
+                  background: 'var(--accent)', color: '#fff', fontSize: 15, fontWeight: 650,
+                  opacity: submitting ? 0.6 : 1, boxShadow: '0 8px 20px hsl(var(--brand-hsl) / 0.25)',
                 }}>
                 {submitting === 'accept' ? '…' : T.accept}
               </button>
@@ -287,7 +288,7 @@ export default function InvitationResponseView({ token, lang }) {
 function AppDownloadCard({ isAr, T }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #23161a, #3a0f1e)', color: '#fff',
+      background: 'linear-gradient(135deg, #23161a, hsl(var(--brand-h) 38% 14%))', color: '#fff',
       borderRadius: 16, padding: '22px 20px', textAlign: 'center',
     }}>
       <div style={{ fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>{T.appTitle}</div>

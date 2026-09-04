@@ -694,8 +694,8 @@ export default function AccommodationInventoryView({ lang, activeEventId }) {
                 slept the 7th, so a block through the 7th covers them. */}
             <div style={hintStyle}>
               {isAr
-                ? 'ليالٍ شاملة الطرفين — ضيف يسجّل خروجه صباح اليوم التالي لآخر ليلة'
-                : 'Inclusive nights — a guest checks out the morning after the last night'}
+                ? 'ليالٍ شاملة الطرفين — مندوب يسجّل خروجه صباح اليوم التالي لآخر ليلة'
+                : 'Inclusive nights — a delegate checks out the morning after the last night'}
             </div>
 
             <div>

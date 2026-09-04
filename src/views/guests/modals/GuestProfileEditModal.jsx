@@ -175,7 +175,7 @@ export default function GuestProfileEditModal({ open, guest, lang, onClose, onSa
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={labelStyle}>{isAr ? 'نوع الضيف' : 'Guest Type'}</label>
+              <label style={labelStyle}>{isAr ? 'نوع المندوب' : 'Delegate Type'}</label>
               <Select value={form.guestType} onChange={(v) => setField('guestType', v)} options={guestTypeOpts}
                 placeholder={isAr ? '— اختر —' : '— Select —'} />
             </div>
@@ -204,7 +204,7 @@ export default function GuestProfileEditModal({ open, guest, lang, onClose, onSa
                     flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'center', fontSize: 13,
                     fontWeight: form.accreditationRequired === opt.value ? 600 : 400,
                     border: `1px solid ${form.accreditationRequired === opt.value ? 'var(--accent)' : 'var(--glass-border)'}`,
-                    background: form.accreditationRequired === opt.value ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-2)',
+                    background: form.accreditationRequired === opt.value ? 'hsl(var(--brand-hsl) / 0.12)' : 'var(--surface-soft-2)',
                   }}>
                   {opt.label}
                 </div>

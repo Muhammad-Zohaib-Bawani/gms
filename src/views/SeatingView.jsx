@@ -23,31 +23,31 @@ export default function SeatingView({ lang, activeEventId }) {
 
   const STR = isAr ? {
     title: 'الجلوس', sub: 'خطة الطابق · تعيين وإلغاء تعيين المقاعد',
-    tabFloor: 'خطة الطابق', tabGuests: 'قائمة الضيوف',
+    tabFloor: 'خطة الطابق', tabGuests: 'قائمة المندوبين',
     assignSeat: 'تعيين مقعد', seatAssigned: 'المقعد معيّن',
-    unassign: 'إلغاء التعيين', searchGuest: 'بحث عن ضيف…',
-    cancel: 'إلغاء', assign: 'تعيين', table: 'الطاولة', seat: 'المقعد', guest: 'الضيف',
+    unassign: 'إلغاء التعيين', searchGuest: 'بحث عن مندوب…',
+    cancel: 'إلغاء', assign: 'تعيين', table: 'الطاولة', seat: 'المقعد', guest: 'المندوب',
     noSeat: '—', assigned: 'معيّن', unassigned: 'غير معيّن',
     totalAssigned: 'مقعد معيّن', totalSeats: 'إجمالي المقاعد',
     venue: 'المكان', session: 'الجلسة',
     noVenues: '— لا مكان —', noVenueAssigned: 'لم يتم تسجيل مكان لهذه الفعالية/الجلسة',
     noSessions: '— لا جلسات —',
     viewFullscreen: 'عرض ملء الشاشة', loadingFloor: 'جارٍ تحميل المخطط…',
-    noFloor: 'لا يوجد مخطط لهذا الاختيار', selectEventFirst: 'يرجى اختيار فعالية من الأعلى لتعيين الضيوف',
+    noFloor: 'لا يوجد مخطط لهذا الاختيار', selectEventFirst: 'يرجى اختيار فعالية من الأعلى لتعيين المندوبين',
     noResults: 'لا نتائج', seatDisabled: 'هذا المقعد معطّل ولا يمكن تعيينه',
   } : {
     title: 'Seating', sub: 'Floor plan · assign and unassign seats',
-    tabFloor: 'Floor plan', tabGuests: 'Guest list',
+    tabFloor: 'Floor plan', tabGuests: 'Delegate list',
     assignSeat: 'Assign seat', seatAssigned: 'Seat assigned',
-    unassign: 'Unassign', searchGuest: 'Search guest…',
-    cancel: 'Cancel', assign: 'Assign', table: 'Table/Block', seat: 'Seat', guest: 'Guest',
+    unassign: 'Unassign', searchGuest: 'Search delegate…',
+    cancel: 'Cancel', assign: 'Assign', table: 'Table/Block', seat: 'Seat', guest: 'Delegate',
     noSeat: '—', assigned: 'Assigned', unassigned: 'Unassigned',
     totalAssigned: 'seats assigned', totalSeats: 'total seats',
     venue: 'Venue', session: 'Session',
     noVenues: '— No venue —', noVenueAssigned: 'No venue registered for this event/session',
     noSessions: '— No sessions —',
     viewFullscreen: 'View fullscreen', loadingFloor: 'Loading layout…',
-    noFloor: 'No layout for this selection', selectEventFirst: 'Select an event from the top bar to assign guests',
+    noFloor: 'No layout for this selection', selectEventFirst: 'Select an event from the top bar to assign delegates',
     noResults: 'No results', seatDisabled: 'This seat is disabled and cannot be assigned',
   };
 
@@ -450,8 +450,8 @@ export default function SeatingView({ lang, activeEventId }) {
                             fontSize:11, fontFamily:'var(--mono)', fontWeight:500,
                             padding:'2px 9px', borderRadius:20,
                             color: cc || 'var(--accent)',
-                            background: cc ? `${cc}1a` : 'rgba(141, 1, 52,0.08)',
-                            border:`1px solid ${cc ? `${cc}4d` : 'rgba(141, 1, 52,0.2)'}`,
+                            background: cc ? `${cc}1a` : 'hsl(var(--brand-hsl) / 0.08)',
+                            border:`1px solid ${cc ? `${cc}4d` : 'hsl(var(--brand-hsl) / 0.2)'}`,
                           }}>
                             {cc && <span style={{ width:6, height:6, borderRadius:'50%', background:cc, flexShrink:0 }}/>}
                             {isAr ? `مقعد ${ad(seatDisplayCode(info.table, info.seatIdx))}` : `Seat ${seatDisplayCode(info.table, info.seatIdx)}`}

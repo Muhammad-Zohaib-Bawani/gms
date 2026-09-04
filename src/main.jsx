@@ -1,5 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+
+// Stylesheets before every component import: modules that read the brand
+// tokens (lib/brandColor.js) need them defined, and in dev Vite injects CSS
+// in module-evaluation order.
+// First: the brand hue every other stylesheet derives its accents from.
+import './styles/brand.css';
+import './style.css';
+// After style.css on purpose: the revamp layer overrides the older component
+// styles on equal specificity, so import order is what makes it win.
+import './styles/qoc-revamp.css';
+
 import { RouterProvider } from 'react-router-dom';
 import AppToaster from './components/ui/AppToaster.jsx';
 import { AuthProvider } from './auth/AuthContext';
@@ -12,10 +23,6 @@ import UserInviteAcceptView from './views/UserInviteAcceptView.jsx';
 // control that opened them. Imported here rather than in ui/Modal so the
 // hand-rolled overlays in views that never import <Modal> get it too.
 import './lib/clickOrigin';
-import './style.css';
-// After style.css on purpose: the revamp layer overrides the older component
-// styles on equal specificity, so import order is what makes it win.
-import './styles/qoc-revamp.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
