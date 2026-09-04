@@ -3,10 +3,10 @@
    --------------------------------------------------------------------------
    Every brand-coloured pixel in the portal derives from --brand-h below.
    One hue, one dial — change that number and the app re-skins.
-   226 is a deep indigo blue (11.6:1 on white).
+   278 is the brand purple (10.6:1 on white).
 
-     226 = indigo (current)   212 = azure   250 = violet-blue
-     160 = teal               25 = orange   338 = the original QOC maroon
+     278 = purple (current)   226 = indigo   212 = azure
+     160 = teal               25 = orange    338 = the original QOC maroon
 
    The saturation/lightness pairs below are the flavour. Move those only on
    purpose — they hold the contrast ratios.
@@ -31,13 +31,13 @@
 
 :root {
   /* ── The dial ─────────────────────────────────────────────────────────── */
-  --brand-h: 226;
+  --brand-h: 278;
 
   /* ── The ramp ─────────────────────────────────────────────────────────── */
-  --brand-hsl:      var(--brand-h) 62% 30%;   /* primary — 11.6:1 on white  */
-  --brand-2-hsl:    var(--brand-h) 51% 46%;   /* lighter, for dark bgs      */
-  --brand-deep-hsl: var(--brand-h) 71% 21%;   /* pressed / gradient end     */
-  --brand-tint-hsl: var(--brand-h) 60% 96%;   /* near-white wash            */
+  --brand-hsl:      var(--brand-h) 99% 28%;   /* primary — 10.6:1 on white  */
+  --brand-2-hsl:    var(--brand-h) 78% 43%;   /* lighter, for dark bgs      */
+  --brand-deep-hsl: var(--brand-h) 100% 18%;  /* pressed / gradient end     */
+  --brand-tint-hsl: var(--brand-h) 73% 97%;   /* near-white wash            */
 
   --brand:      hsl(var(--brand-hsl));
   --brand-2:    hsl(var(--brand-2-hsl));

@@ -95,19 +95,19 @@
 
 /* ── Dark (opt-in via the topbar theme toggle) ───────────────────────────── */
 html[data-theme="dark"] {
-  --bg-0: hsl(var(--brand-h) 63% 4%);
+  --bg-0: hsl(var(--brand-h) 100% 3.9%);
 
   /* White here, not accent — brand text on the dark brand page background
      loses contrast; see the light-theme definition above. */
   --hayya-sub-color: #ffffff;
 
   --page-bg:
-    radial-gradient(1100px 620px at 10% -12%, hsl(var(--brand-h) 63% 11%) 0%, hsl(var(--brand-h) 63% 11% / 0) 62%),
-    radial-gradient(900px 720px at 102% 104%, hsl(var(--brand-h) 63% 14%) 0%, hsl(var(--brand-h) 63% 14% / 0) 66%),
-    linear-gradient(140deg,hsl(var(--brand-h) 63% 5%) 0%,hsl(var(--brand-h) 63% 7%) 42%,hsl(var(--brand-h) 63% 9%) 100%);
-  --bg-1: hsl(var(--brand-h) 63% 6%);
-  --bg-2: hsl(var(--brand-h) 63% 9%);
-  --bg: hsl(var(--brand-h) 63% 6%);
+    radial-gradient(1100px 620px at 10% -12%, hsl(var(--brand-h) 100% 10.6%) 0%, hsl(var(--brand-h) 100% 10.6% / 0) 62%),
+    radial-gradient(900px 720px at 102% 104%, hsl(var(--brand-h) 100% 14.1%) 0%, hsl(var(--brand-h) 100% 14.1% / 0) 66%),
+    linear-gradient(140deg,hsl(var(--brand-h) 100% 5.3%) 0%,hsl(var(--brand-h) 100% 7.1%) 42%,hsl(var(--brand-h) 100% 9%) 100%);
+  --bg-1: hsl(var(--brand-h) 100% 5.3%);
+  --bg-2: hsl(var(--brand-h) 100% 9%);
+  --bg: hsl(var(--brand-h) 100% 5.3%);
 
   --ink: #eaf6f9;
   --ink-dim: rgba(234, 246, 249, 0.74);
@@ -124,12 +124,12 @@ html[data-theme="dark"] {
   --card-bg: rgba(255, 255, 255, 0.05);
 
   --surface-glass: rgba(255, 255, 255, 0.055);
-  --surface-glass-strong: hsl(var(--brand-h) 63% 7% / 0.9);
+  --surface-glass-strong: hsl(var(--brand-h) 100% 7.1% / 0.9);
   --surface-glass-border: rgba(255, 255, 255, 0.12);
   --surface-blur: saturate(140%) blur(14px);
   --topbar-bg: transparent;
 
-  --canvas-bg: hsl(var(--brand-h) 63% 5%);
+  --canvas-bg: hsl(var(--brand-h) 100% 5.3%);
   --canvas-grid: rgba(255, 255, 255, 0.07);
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
@@ -160,8 +160,8 @@ html[data-theme="dark"] {
 
   /* Opaque surfaces that float over the page (modals, calendar poppers,
      menus). They can't be translucent or the content behind bleeds through. */
-  --modal-bg: hsl(var(--brand-h) 47% 9% / 0.86);
-  --popover-bg: hsl(var(--brand-h) 44% 12% / 0.92);
+  --modal-bg: hsl(var(--brand-h) 79% 9.2% / 0.86);
+  --popover-bg: hsl(var(--brand-h) 70% 11.8% / 0.92);
   /* "Active" status: the brand accent is unreadable on the brand surfaces,
      so dark mode uses plain white. */
   --status-active: #ffffff;
@@ -171,7 +171,7 @@ html[data-theme="dark"] {
   /* ── Brand chrome (sidebar + topbar) — identical in both themes ─────────
      The QOC brand colour lives here permanently so the shell reads as "Qatar
      Olympic Committee" regardless of the page theme. */
-  --side-bg: linear-gradient(168deg, hsl(var(--brand-deep-hsl)) 0%, hsl(var(--brand-hsl)) 72%, hsl(var(--brand-h) 38% 34%) 100%);
+  --side-bg: linear-gradient(168deg, hsl(var(--brand-h) 100% 14.5%) 0%, hsl(var(--brand-h) 98% 21.6%) 75%, var(--accent) 100%);
   --side-ink: #ffffff;
   --side-ink-dim: rgba(255, 255, 255, 0.78);
   --side-ink-mute: rgba(255, 255, 255, 0.55);
@@ -976,7 +976,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
      strip of sea in frame while cropping the large empty sky. */
   background:
     url("/assets/qatar-skyline.jpg") center 62% / auto 140% no-repeat,
-    linear-gradient(168deg, hsl(var(--brand-h) 48% 35%) 0%, hsl(var(--brand-h) 53% 29%) 42%, hsl(var(--brand-h) 51% 20%) 100%);
+    linear-gradient(168deg, hsl(var(--brand-h) 76% 35.3%) 0%, hsl(var(--brand-h) 84% 29%) 42%, hsl(var(--brand-h) 81% 20.4%) 100%);
   /* Duotone, not a veil. A translucent brand wash layered over a bright daytime
      photo just lifts the pale sky to magenta; multiplying the photo into the
      brand gradient maps white sky onto the full accent and the towers onto the
@@ -986,7 +986,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
      cover exactly fills the height, which makes background-position-y a no-op
      and leaves the top third as empty sky. */
   background-blend-mode: multiply, normal;
-  background-color: hsl(var(--brand-h) 62% 22%);
+  background-color: hsl(var(--brand-h) 98% 21.6%);
 }
 
 /* QOC pattern, barely there — it ties the panel to the sidebar's texture. */
@@ -1008,9 +1008,9 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   background:
     /* A light lift over the whole panel — multiply can only darken, so this is
        what keeps the photo from going heavy and over-saturated red. */
-    linear-gradient(to bottom, hsl(var(--brand-h) 63% 95% / 0.16), hsl(var(--brand-h) 63% 95% / 0.07)),
-    radial-gradient(58% 44% at 14% 2%, hsl(var(--brand-h) 63% 79% / 0.12), transparent 64%),
-    linear-gradient(to top, hsl(var(--brand-h) 56% 7% / 0.30) 0%, transparent 24%);
+    linear-gradient(to bottom, hsl(var(--brand-h) 100% 95% / 0.16), hsl(var(--brand-h) 100% 95% / 0.07)),
+    radial-gradient(58% 44% at 14% 2%, hsl(var(--brand-h) 100% 79% / 0.12), transparent 64%),
+    linear-gradient(to top, hsl(var(--brand-h) 100% 7.1% / 0.30) 0%, transparent 24%);
   pointer-events: none;
 }
 
@@ -1018,7 +1018,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
 .login-art-logo { display: flex; align-items: center; gap: 13px; }
 .login-art-logo img { width: 52px; height: auto; }
 .login-art-title {
-  text-shadow: 0 1px 18px hsl(var(--brand-h) 63% 8% / 0.45);
+  text-shadow: 0 1px 18px hsl(var(--brand-h) 100% 8.2% / 0.45);
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1033,7 +1033,7 @@ html[dir="rtl"] .float-field > label { transform-origin: right top; }
   margin-top: 12px;
 }
 .login-art-tag {
-  text-shadow: 0 1px 14px hsl(var(--brand-h) 63% 8% / 0.5);
+  text-shadow: 0 1px 14px hsl(var(--brand-h) 100% 8.2% / 0.5);
   font-size: 14px;
   color: rgba(255, 255, 255, 0.82);
   max-width: 34ch;

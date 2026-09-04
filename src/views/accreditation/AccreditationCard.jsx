@@ -93,8 +93,8 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
             <div style={{
               position: 'relative', height: HEADER_H, flexShrink: 0,
               background: `
-                radial-gradient(120% 130% at 20% -20%, hsl(var(--brand-h) 63% 79% / 0.22), transparent 60%),
-                linear-gradient(160deg, hsl(var(--brand-2-hsl)) 0%, hsl(var(--brand-hsl)) 45%, hsl(var(--brand-deep-hsl)) 100%)`,
+                radial-gradient(120% 130% at 20% -20%, hsl(var(--brand-h) 100% 79% / 0.22), transparent 60%),
+                linear-gradient(160deg, hsl(var(--brand-h) 73% 36.9%) 0%, var(--accent) 45%, hsl(var(--brand-h) 96% 21.4%) 100%)`,
               borderRadius: '28px 28px 46% 46% / 28px 28px 30px 30px',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               padding: '16px 20px 22px', color: '#fff',
@@ -203,7 +203,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
           <div style={{ ...faceStyle, transform: 'rotateY(180deg)' }}>
             <div style={{
               position: 'relative', height: 56, flexShrink: 0,
-              background: 'linear-gradient(160deg, hsl(var(--brand-2-hsl)) 0%, hsl(var(--brand-hsl)) 45%, hsl(var(--brand-deep-hsl)) 100%)',
+              background: 'linear-gradient(160deg, hsl(var(--brand-h) 73% 36.9%) 0%, var(--accent) 45%, hsl(var(--brand-h) 96% 21.4%) 100%)',
               borderRadius: '28px 28px 0 0',
             }}>
               <LanyardSlot/>

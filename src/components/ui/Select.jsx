@@ -28,7 +28,7 @@ const styles = {
   placeholder: (base) => ({ ...base, color: 'var(--ink-mute)' }),
   menu: (base) => ({
     ...base,
-    background: 'var(--popover-bg, hsl(var(--brand-h) 44% 12%))',
+    background: 'var(--popover-bg, hsl(var(--brand-h) 70% 11.8%))',
     border: '1px solid var(--glass-border)',
     borderRadius: 8,
     overflow: 'hidden',

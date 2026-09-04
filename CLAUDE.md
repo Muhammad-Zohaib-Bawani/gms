@@ -29,7 +29,7 @@ This workspace at `\GMS` contains **two independent git repositories**:
 # Project Overview
 
 - **Project name:** GMS — Guest Management System (API OpenAPI title: **"GMS API"**).
-- **Business purpose:** Manage guests, invitations, travel & logistics, accreditation, seating, meetings and notifications for **high-profile Gulf / Qatar events** (seed data references Doha Forum, Qatar Economic Forum, Doha hotels/airports, "Hayya" travel sync). Branded to the **Qatar Olympic Committee** look (deep indigo `hsl(226 62% 30%)` ≈ `#1d337c` + white, `Loew Next Arabic` font). Fully **bilingual English/Arabic with RTL**.
+- **Business purpose:** Manage guests, invitations, travel & logistics, accreditation, seating, meetings and notifications for **high-profile Gulf / Qatar events** (seed data references Doha Forum, Qatar Economic Forum, Doha hotels/airports, "Hayya" travel sync). Branded to the **Qatar Olympic Committee** look (purple `hsl(278 99% 28%)` ≈ `#5a018d` + white, `Loew Next Arabic` font). Fully **bilingual English/Arabic with RTL**.
 - **Overall architecture:** Decoupled SPA + REST API.
   - **Frontend:** React 18 SPA (Vite), react-router v6, axios, talks to the API over `/api` (dev proxy) or a full backend URL (prod).
   - **Backend:** .NET 9 Web API in **clean/onion architecture** (API → Core ← Infrastructure ← DomainPersistence), EF Core + **SQL Server**, JWT auth, **permission-based** authorization, **SignalR** realtime, **Hangfire** background jobs, push notifications (Firebase + manual), Azure Blob storage, Azure Communication Services email.
@@ -231,7 +231,7 @@ flowchart LR
 **Common mistakes to avoid**
 - Don't hardcode API URLs in components — add to `src/api/endpoints.js` and a service.
 - Don't change view prop signatures — they come from the router **outlet context**.
-- Don't hardcode a brand colour literal anywhere — the hue is defined once in `src/styles/brand.css` (`--brand-h: 226`, indigo — one hue; branded surfaces use `var(--brand-gradient)`, which is just the accent shading into its own darker end). Use `var(--accent)` / `var(--accent-2)` / `var(--accent-deep)` for solids, `hsl(var(--brand-hsl) / 0.12)` for tints, and `brandColor()` / `brandTint()` / `brandHex()` from `src/lib/brandColor.js` where CSS can't reach (SVG `fill=`/`stroke=`, chart props, email HTML). Re-skinning the app = changing that one number.
+- Don't hardcode a brand colour literal anywhere — the hue is defined once in `src/styles/brand.css` (`--brand-h: 278`, purple — one hue; branded surfaces use `var(--brand-gradient)`, which is just the accent shading into its own darker end). Use `var(--accent)` / `var(--accent-2)` / `var(--accent-deep)` for solids, `hsl(var(--brand-hsl) / 0.12)` for tints, and `brandColor()` / `brandTint()` / `brandHex()` from `src/lib/brandColor.js` where CSS can't reach (SVG `fill=`/`stroke=`, chart props, email HTML). Re-skinning the app = changing that one number.
 - Don't reintroduce a Vite `?screen=` regression — public email/venue links depend on it.
 - Backend: don't return entities directly — map to `<X>Response`. Don't forget the `PublicId` on new entities is DB-defaulted.
 - Remember two repos + two remotes; the frontend `origin` belongs to a **different GitHub account** (push there fails 403 for the backend owner's creds).

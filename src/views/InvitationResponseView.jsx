@@ -216,7 +216,7 @@ export default function InvitationResponseView({ token, lang }) {
                   <span key={i} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
                     padding: '6px 12px', borderRadius: 20, background: 'hsl(var(--brand-hsl) / 0.08)',
-                    border: '1px solid hsl(var(--brand-hsl) / 0.18)', color: 'hsl(var(--brand-h) 60% 21%)',
+                    border: '1px solid hsl(var(--brand-hsl) / 0.18)', color: 'hsl(var(--brand-h) 96% 20.2%)',
                   }}>
                     {s.icon && <Icon name={s.icon} size={12} />}
                     {(isAr ? s.nameAr : null) || s.name}
@@ -288,7 +288,7 @@ export default function InvitationResponseView({ token, lang }) {
 function AppDownloadCard({ isAr, T }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #23161a, hsl(var(--brand-h) 38% 14%))', color: '#fff',
+      background: 'linear-gradient(135deg, #23161a, hsl(var(--brand-h) 59% 14.3%))', color: '#fff',
       borderRadius: 16, padding: '22px 20px', textAlign: 'center',
     }}>
       <div style={{ fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>{T.appTitle}</div>
