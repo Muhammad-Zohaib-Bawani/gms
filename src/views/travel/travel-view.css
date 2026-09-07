@@ -1,0 +1,45 @@
+/* TravelView — static, non-runtime-dependent styles pulled out of inline
+   `style={}` objects during the file-split refactor. Colors/spacing reuse the
+   same CSS variables the inline styles already referenced. */
+
+/* Full-screen dim backdrop shared by the Edit and New Booking modals. */
+.travel-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+/* Form field label, e.g. above a Select/DateField/input in the Edit and New
+   Booking modals. */
+.travel-field-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+/* Plain text input matching the Select/DateField look used alongside it. */
+.travel-field-input {
+  width: 100%;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--ink);
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+/* Two-up field layout used throughout the hotel/transfer Edit forms. */
+.travel-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}

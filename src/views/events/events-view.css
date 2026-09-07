@@ -1,0 +1,57 @@
+/* Events view — extracted static styles.
+   Runtime/data-dependent styles (event-type colors, status colors, active/
+   selected states, etc.) are intentionally left as inline styles in the
+   components; only styles that were previously repeated, static inline
+   `style={{}}` objects were converted here. */
+
+.ev-field-input {
+  width: 100%;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--ink);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.ev-field-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.ev-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ev-modal-card {
+  padding: 0;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ev-modal-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ev-modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+}

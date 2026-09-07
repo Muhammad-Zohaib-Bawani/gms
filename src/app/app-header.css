@@ -1,0 +1,38 @@
+/* AppHeader / NotificationMenu / ProfileMenu — static styles extracted from
+   inline `style={{}}` objects. Colors/spacing tokens match the existing
+   .topbar/.notif-menu/.profile-menu-item rules in src/style.css. */
+
+.app-header-profile-trigger {
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.app-header-profile-chevron {
+  color: var(--ink-mute);
+  margin-inline-start: 2px;
+}
+
+.app-header-profile-menu {
+  width: 232px;
+}
+
+.app-header-profile-menu-head {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.app-header-profile-menu-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.app-header-profile-menu-email {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+.app-header-profile-menu-body {
+  padding: 5px;
+}

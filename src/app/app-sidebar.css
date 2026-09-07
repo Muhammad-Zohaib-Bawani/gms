@@ -1,0 +1,56 @@
+/* AppSidebar — static styles extracted from the old inline `style={{}}`
+   objects in App.jsx's sidebar JSX. Everything else (colors, active states,
+   etc.) still comes from the shared .sidebar/.nav-item/.nav-section rules in
+   src/style.css — this file only adds the handful of one-off tweaks that
+   used to be inline. */
+
+.app-sidebar-section-toggle {
+  background: transparent;
+}
+
+.app-sidebar-chevron-end {
+  margin-inline-start: auto;
+}
+
+.app-sidebar-nav-item-child {
+  padding-inline-start: 40px;
+  font-size: 12.5px;
+}
+
+/* Loading / no-access placeholder in place of the nav list. Menus come from the
+   database, so an empty tree is a real state, not a bug. */
+.app-sidebar-empty {
+  padding: 16px 14px;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+/* Nav skeleton — shown while GET /role-access/me is in flight. Same vertical
+   rhythm as the real .nav-section / .nav-item so the rail does not jump when the
+   tree lands. `.skeleton` itself (the sheen) comes from qoc-revamp.css. */
+.app-sidebar-skeleton { padding: 6px 10px; }
+
+.nav-skel-section {
+  height: 9px;
+  width: 42%;
+  margin: 14px 4px 8px;
+  border-radius: 3px;
+}
+
+.nav-skel-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+}
+.nav-skel-icon {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.nav-skel-label { height: 10px; border-radius: 3px; }
+
+/* Collapsed rail shows only the icon column, so the label would just be noise. */
+.app[data-side="collapsed"] .nav-skel-label,
+.app[data-side="collapsed"] .nav-skel-section { display: none; }

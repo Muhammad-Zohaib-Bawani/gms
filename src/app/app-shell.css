@@ -1,0 +1,6 @@
+/* AppShell — overall shell layout (the `.app` wrapper around
+   sidebar/topbar/main). All of this layout already lives in the shared
+   `.app`, `.main`, `.sidebar-overlay` rules in src/style.css; App.jsx's own
+   JSX for this outer wrapper had no repeated/static inline styles to pull
+   out, so this file is intentionally minimal. Kept as an import point for
+   any future shell-only overrides so they don't end up back in style.css. */

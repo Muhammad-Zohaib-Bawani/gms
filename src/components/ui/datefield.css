@@ -1,0 +1,556 @@
+.gms-datefield-wrap { width: 100%; display: block; }
+.gms-datefield-input {
+  width: 100%;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--ink);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.gms-datefield-input:focus { outline: none; border-color: var(--accent); }
+/* .gms-datepicker-popper { z-index: 3000 !important; } */
+
+/* Calendar popper — follows the app theme. Uses --popover-bg (opaque) rather
+   than --bg-1 so it stays legible both over the page and inside a modal. */
+.react-datepicker {
+  background: var(--popover-bg, #33091e);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+  color: var(--ink);
+  font-family: inherit;
+  overflow: hidden;
+}
+
+/* ── Keeping the time input reachable on a short viewport ───────────────────
+   A calendar with a time input becomes a flex column: the DAYS scroll and the
+   time row is a footer that can't scroll away. Anything else and it ends up
+   below the fold — and because the popper is `position: fixed`, scrolling the
+   page can't bring it back, so the field is simply unreachable.
+   Earlier attempts failed for two reasons worth recording: a percentage
+   max-height can't resolve against an auto-height parent (so `min(92vh, 100%)`
+   did nothing), and `position: sticky` needs a scrolling ancestor — inside a
+   clipped, non-scrolling box it has no range to stick over.
+   `:has()` scopes this to time-bearing calendars only, so the date-only
+   pickers — which may show two months side by side — keep their layout. */
+.react-datepicker:has(.react-datepicker__input-time-container) {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+}
+.react-datepicker:has(.react-datepicker__input-time-container)
+  > .react-datepicker__month-container {
+  /* float fights the flex column; min-height lets it actually shrink. */
+  float: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+.react-datepicker__header {
+  background: var(--surface-soft-3);
+  border-bottom: 1px solid var(--glass-border);
+}
+.react-datepicker__month-container { background: transparent; }
+.react-datepicker__current-month,
+.react-datepicker__day-name,
+.react-datepicker__day,
+.react-datepicker-time__header,
+.react-datepicker__time-name { color: var(--ink); }
+.react-datepicker__day:hover { background: var(--surface-soft-3); border-radius: 6px; }
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected { background: var(--accent); color: #fff; border-radius: 6px; }
+.react-datepicker__day--disabled { color: var(--ink-faint); opacity: .4; cursor: not-allowed; }
+/* Dark theme: plain white day numbers — var(--ink) is dimmed inside modals.
+   (App.jsx always sets data-theme, so no bare :root fallback needed.) */
+html[data-theme="dark"] .react-datepicker__day,
+html[data-theme="dark"] .react-datepicker__day-name,
+html[data-theme="dark"] .react-datepicker__current-month,
+html[data-theme="dark"] .react-datepicker__day--outside-month,
+html[data-theme="dark"] .react-datepicker-time__header { color: #fff; }
+html[data-theme="dark"] .react-datepicker__day--outside-month { opacity: .45; }
+html[data-theme="dark"] .react-datepicker__day--disabled { color: rgba(255,255,255,0.45); }
+html[data-theme="dark"] .react-datepicker__day:hover { background: rgba(255,255,255,0.16); }
+.react-datepicker__triangle { display: none; }
+.react-datepicker__navigation-icon::before { border-color: var(--ink-mute); }
+
+/* Light theme: solid white rather than --popover-bg's translucent tint — the
+   calendar floats over all sorts of busy content (tables, other fields), and
+   a flat white reads cleaner there than a frosted one. Dark theme keeps the
+   shared --popover-bg as-is. */
+html[data-theme="light"] .react-datepicker,
+html[data-theme="light"] .react-datepicker select.react-datepicker__month-select,
+html[data-theme="light"] .react-datepicker select.react-datepicker__year-select {
+  background: #ffffff;
+  background-color: #ffffff;
+}
+html[data-theme="light"] .gms-daterange .react-datepicker { background: #ffffff; }
+
+/* Keep the popper above modals (Radix dialogs sit at z-index 1001). */
+.gms-datepicker-popper { z-index: 99999; }
+
+/* Header month/year dropdowns */
+.react-datepicker__header__dropdown {
+  display: flex; justify-content: center; gap: 6px; padding: 6px 0 2px;
+}
+/* Specificity + !important: style.css has a global `select { background-color:
+   var(--bg) !important }` that would otherwise win here. */
+.react-datepicker select.react-datepicker__month-select,
+.react-datepicker select.react-datepicker__year-select {
+  background-color: var(--popover-bg, #33091e) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+/* Native time input under the calendar — the flex-column footer set up above,
+   so it stays put while the days scroll. */
+.react-datepicker__input-time-container {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 12px 10px;
+  background: var(--popover-bg, #33091e);
+  border-top: 1px solid var(--glass-border);
+  display: flex; align-items: center; gap: 8px;
+  color: var(--ink-mute);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+html[data-theme="light"] .react-datepicker__input-time-container { background: #ffffff; }
+.react-datepicker__input-time-container .react-datepicker-time__caption { margin: 0; }
+.react-datepicker__input-time-container .react-datepicker-time__input-container,
+.react-datepicker__input-time-container .react-datepicker-time__input { margin: 0; }
+.react-datepicker__input-time-container input[type='time'] {
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-family: var(--mono, inherit);
+}
+.react-datepicker__input-time-container input[type='time']:focus {
+  outline: none; border-color: var(--accent);
+}
+
+/* Inline range calendar (DateRangePicker's modal). Same skin as the popper — it just
+   sits in the form instead of over it, so it loses the float and fills its
+   column.
+
+   Every rule below is scoped to .gms-daterange AND repeats react-datepicker's
+   own `:not([aria-disabled=true])` where it has one: the stock stylesheet ships
+   a full blue palette at that specificity, and a plainer selector loses to it on
+   hover no matter how late this file is imported. */
+.gms-daterange .react-datepicker {
+  width: 100%;
+  box-shadow: none;
+  background: var(--surface-soft-2);
+}
+.gms-daterange .react-datepicker__month-container { width: 100%; float: none; }
+
+/* Fill the width instead of leaving a gutter: the stock day is a fixed-width
+   inline-block, so the row is laid out as flex and each day takes an equal
+   share. */
+.gms-daterange .react-datepicker__month { margin: 6px 10px 12px; }
+.gms-daterange .react-datepicker__day-names { margin-bottom: 0; }
+.gms-daterange .react-datepicker__week,
+.gms-daterange .react-datepicker__day-names {
+  display: flex;
+  justify-content: space-between;
+}
+.gms-daterange .react-datepicker__day,
+.gms-daterange .react-datepicker__day-name {
+  flex: 1 1 0;
+  width: auto;
+  margin: 1px;
+  line-height: 2.2rem;
+  border-radius: 6px;
+}
+
+/* The nav arrows sit at top:2px by default, which puts them on the header's own
+   border. Drop the header a little and centre them in the new space. */
+.gms-daterange .react-datepicker__header { padding-top: 12px; }
+.gms-daterange .react-datepicker__navigation { top: 10px; }
+
+/* Preselection is keyboard-navigation feedback, not a choice the user made —
+   here it lands on whatever day the calendar opened to, so it must not look
+   picked. Stock paints it light blue at rest, dark blue on hover.
+
+   ORDER MATTERS below: the plain-day hover and this one tie on specificity with
+   the range rules that follow, so they have to come FIRST or they would repaint
+   a selected day grey on hover. */
+.gms-daterange .react-datepicker__day--keyboard-selected {
+  background: transparent;
+  color: inherit;
+}
+.gms-daterange .react-datepicker__day--keyboard-selected:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day:not([aria-disabled=true]):hover {
+  background: var(--surface-soft-3);
+}
+/* No html[data-theme="dark"] variant of the hover above: that prefix would
+   outweigh the range rules below and repaint a selected day grey on hover in
+   dark mode. --surface-soft-3 already reads as a light tint there. */
+
+/* The stay: ends solid, the nights between them tinted. --selected covers the
+   check-in day while the check-out is still unpicked (see DateRangePicker). */
+.gms-daterange .react-datepicker__day--in-range,
+.gms-daterange .react-datepicker__day--in-selecting-range,
+.gms-daterange .react-datepicker__day--in-range:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--in-selecting-range:not([aria-disabled=true]):hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--ink);
+}
+.gms-daterange .react-datepicker__day--selected,
+.gms-daterange .react-datepicker__day--range-start,
+.gms-daterange .react-datepicker__day--range-end,
+.gms-daterange .react-datepicker__day--selecting-range-start,
+.gms-daterange .react-datepicker__day--selecting-range-end,
+.gms-daterange .react-datepicker__day--selected:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--range-start:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--range-end:not([aria-disabled=true]):hover,
+.gms-daterange .react-datepicker__day--selecting-range-end:not([aria-disabled=true]):hover {
+  background: var(--accent);
+  color: #fff;
+}
+html[data-theme="dark"] .gms-daterange .react-datepicker__day--in-range,
+html[data-theme="dark"] .gms-daterange .react-datepicker__day--in-selecting-range { color: #fff; }
+
+/* A sold-out night has to read as struck out, not merely dim — dim is what an
+   out-of-month day already looks like. */
+.gms-daterange .react-datepicker__day--excluded,
+.gms-daterange .react-datepicker__day--excluded:hover {
+  background: transparent;
+  text-decoration: line-through;
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+/* Opt-in clear, for genuinely optional dates. A quiet text link under the field
+   rather than react-datepicker's unthemed blue × pinned inside it. */
+.gms-datefield-clear {
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ink-mute);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gms-datefield-clear:hover { color: var(--ink); }
+
+/* ══ DateRangePicker ══════════════════════════════════════════════════════
+   A summary CARD in the form, and a small modal to pick in. The calendar never
+   appears in the form itself — see DateRangePicker.jsx for why. */
+
+/* ── The form-side card ─────────────────────────────────────────────────── */
+.gms-drp-card,
+.gms-drp-empty {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  color: var(--ink);
+}
+.gms-drp-card:disabled,
+.gms-drp-empty:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Nothing picked yet: a dashed invitation rather than a filled field, so an
+   empty required range reads as "to do" instead of "already answered". */
+.gms-drp-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: var(--surface-soft-2);
+  border: 1px dashed var(--glass-border);
+  border-radius: 10px;
+  padding: 14px 12px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.gms-drp-empty:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.gms-drp-card {
+  background: var(--surface-soft-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+.gms-drp-card:hover:not(:disabled) { border-color: var(--accent); }
+.gms-drp-card:focus-visible { outline: none; border-color: var(--accent); }
+
+/* The two ends sit side by side with the arrow between, so the card reads as a
+   span rather than as two unrelated dates. */
+.gms-drp-card-body {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 11px 13px 12px;
+}
+.gms-drp-card-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+.gms-drp-end { flex: 1 1 0; min-width: 0; }
+.gms-drp-end-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
+.gms-drp-end-head span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gms-drp-end-date {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.gms-drp-end-date.is-muted { color: var(--ink-faint); font-weight: 400; }
+.gms-drp-end-time {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gms-drp-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 13px;
+  border-top: 1px solid var(--glass-border);
+  background: var(--surface-soft-3);
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+.gms-drp-card-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 600;
+}
+html[data-theme="dark"] .gms-drp-card-edit { color: #fff; }
+
+/* ── The picker modal ───────────────────────────────────────────────────────
+   Above BOTH dialog layers it can open on top of: Radix <Modal> content at
+   1001, and the hand-rolled travel/guest overlays at 1000/1101. */
+.gms-drp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  /* Radix sets `pointer-events: none` on <body> for as long as a dialog is
+     open, and this overlay is portaled to <body> (see DateRangePicker) — so it
+     inherits that and the calendar renders but can't be clicked, with the
+     clicks falling through to the dialog underneath instead. z-index alone
+     doesn't help: the layer is on top, it just can't receive a pointer.
+     Re-enable it explicitly for this layer and everything inside it. */
+  pointer-events: auto;
+  background: rgba(24, 8, 14, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.gms-drp-modal {
+  width: 372px;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.gms-drp-modal-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 0px !important;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.gms-drp-modal-title { font-size: 13.5px; font-weight: 600; }
+.gms-drp-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+/* The body is a COLUMN FLEX BOX, so by default its children shrink to fit the
+   capped height instead of overflowing it: the calendar got squeezed and then
+   clipped by its own `overflow: hidden`, and the time row below was squashed to
+   a sliver. Nothing overflowed, so `overflow-y: auto` above had nothing to
+   scroll and the time fields simply couldn't be reached on a short viewport.
+   Held at their natural height, the body scrolls and they can. */
+.gms-drp-modal-body > * { flex-shrink: 0; }
+.gms-drp-modal-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border-top: 1px solid var(--glass-border);
+}
+
+/* Draft read-out above the calendar: keeps the two ends NAMED while days are
+   being clicked, which a bare calendar cannot do. */
+.gms-drp-draft {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  padding: 8px 10px;
+}
+.gms-drp-draft-end { flex: 1 1 0; min-width: 0; }
+.gms-drp-draft-end.is-empty { color: var(--ink-faint); }
+/* Which end the next click fills. */
+.gms-drp-draft-end.is-next .gms-drp-draft-label { color: var(--accent); }
+html[data-theme="dark"] .gms-drp-draft-end.is-next .gms-drp-draft-label { color: #fff; }
+.gms-drp-draft-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+  margin-bottom: 3px;
+}
+.gms-drp-draft-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gms-drp-draft-val {
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.gms-drp-draft-val em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.gms-drp-draft-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+/* The calendar fills the modal rather than floating in it. */
+.gms-drp-cal .react-datepicker { border: 0; }
+.gms-drp-hint { font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+.gms-drp-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  color: var(--danger, #ef4444);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* ── Merged time control ───────────────────────────────────────────────────
+   ONE field holding both times: a single bordered box split down the middle,
+   rather than two separate labelled inputs. */
+.gms-range-times {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.gms-range-times-half {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px 7px;
+}
+.gms-range-times-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gms-range-times-sep {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  color: var(--ink-faint);
+  font-size: 12px;
+  border-inline: 1px solid var(--glass-border);
+}
+/* Borderless: the wrapper above is the field, these are just its two halves. */
+.gms-range-times input[type='time'] {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  color-scheme: dark;
+}
+.gms-range-times input[type='time']:focus { outline: none; }
+.gms-range-times input[type='time']:disabled { opacity: .4; }
+html[data-theme="light"] .gms-range-times input[type='time'] { color-scheme: light; }
+
+.gms-range-link {
+  flex: 0 0 auto;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ink-mute);
+  font: inherit;
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gms-range-link:hover { color: var(--ink); }

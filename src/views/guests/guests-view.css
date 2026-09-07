@@ -1,0 +1,195 @@
+/* Guests list view — extracted static styles.
+   Runtime/data-dependent styles (selected/active row states, colors derived
+   from data, etc.) are intentionally left as inline styles in the
+   components; only styles that were previously repeated, static inline
+   `style={{}}` objects were converted here. */
+
+.guests-no-event-banner {
+  margin-bottom: 14px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(224, 196, 126, 0.1);
+  border: 1px solid rgba(224, 196, 126, 0.3);
+  font-size: 13px;
+  color: #e0c47e;
+}
+
+.guests-card-flush {
+  padding: 0;
+}
+
+.guests-filter-badge {
+  position: absolute;
+  top: -6px;
+  inset-inline-end: -6px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  padding: 0 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.guests-filter-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-start: 0;
+  width: 320px;
+  z-index: 200;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--popover-bg);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.7), 0 6px 16px -6px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guests-filter-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.guests-filter-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.guests-filter-clear-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.guests-filter-field-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+
+.guests-count-text {
+  font-size: 12px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+
+.guests-selected-text {
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.guests-view-toggle {
+  margin-inline-start: auto;
+}
+
+.guests-view-toggle-btn {
+  display: grid;
+  place-items: center;
+  padding: 7px 10px;
+}
+
+.guests-split-shell {
+  padding: 0;
+  display: flex;
+  min-height: 480px;
+  overflow: clip;
+}
+
+.guests-split-list {
+  width: 280px;
+  flex-shrink: 0;
+  border-inline-end: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.guests-split-empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-size: 12.5px;
+}
+
+.guests-split-row {
+  border-bottom: 1px solid var(--glass-border);
+  transition: padding 0.2s ease, background 0.2s ease;
+}
+
+.guests-split-row-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+.guests-split-row-chevron {
+  flex-shrink: 0;
+}
+[dir="rtl"] .guests-split-row-chevron {
+  transform: scaleX(-1);
+}
+
+.guests-split-row-expand {
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--glass-border);
+  /* Lines up with the name/email text above, not the avatar — 46px avatar +
+     8px gap from GuestCell. */
+  padding-inline-start: 54px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.guests-split-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guests-split-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.guests-split-page-btn {
+  width: 28px;
+  height: 28px;
+}
+.guests-split-page-btn--prev {
+  transform: scaleX(-1);
+}
+
+.guests-split-page-text {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+
+.guests-split-detail-pane {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+}

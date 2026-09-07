@@ -1,0 +1,278 @@
+/* Role Access screen. Pulled out of the view because the tile grid and the
+   accordion nesting need real selectors — inline styles cannot express
+   `auto-fill` children, hover, or "the nested group spans the whole row". */
+
+.ra-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Left column ─────────────────────────────────────────────────────────── */
+
+.ra-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.ra-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  text-align: start;
+  transition: background 0.15s;
+}
+.ra-role:hover { background: var(--surface-soft-2, var(--surface-soft)); }
+.ra-role.selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.ra-role-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ra-role-code { font-size: 11px; color: var(--ink-mute); margin-top: 1px; }
+.ra-role-count { font-size: 11px; color: var(--ink-mute); flex-shrink: 0; }
+
+.ra-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+
+/* ── Right column header ─────────────────────────────────────────────────── */
+
+.ra-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.ra-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ra-btn-sm { padding: 6px 12px; font-size: 12px; }
+
+.ra-note {
+  margin-bottom: 14px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  font-size: 12px;
+  color: var(--ink-mute);
+  line-height: 1.5;
+}
+
+/* Deliberately a div, not a disabled <fieldset>: `disabled` on a fieldset also
+   disables the accordion header buttons inside it, so a read-only admin could
+   not expand a section to look at it. The checkboxes carry their own `disabled`
+   instead. */
+.ra-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Accordion ───────────────────────────────────────────────────────────── */
+
+.ra-group {
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+.ra-group.level-1 { background: transparent; }
+
+.ra-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface-soft-2, var(--surface-soft));
+  border: 0;
+  border-radius: 0;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: start;
+}
+.ra-group-head:hover { background: var(--surface-soft-3); }
+.ra-group.level-1 .ra-group-head { background: transparent; }
+.ra-group.level-1 .ra-group-head:hover { background: var(--surface-soft-2, var(--surface-soft)); }
+
+.ra-group-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.ra-group.level-1 .ra-group-name { font-weight: 500; }
+
+/* Sits at the trailing edge, RTL included — nothing follows it on the header now
+   that headings carry no Read/Write pair. */
+.ra-group-count {
+  margin-inline-start: auto;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+}
+
+/* ── Tile grid ───────────────────────────────────────────────────────────── */
+
+/* auto-fill + a 230px floor is what produces 2–3 tiles per row as the pane
+   widens, with no breakpoints to keep in sync with the sidebar's own. */
+.ra-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+/* A nested accordion gets the whole row — half a grid cell has no room for its
+   own grid. */
+.ra-span { grid-column: 1 / -1; }
+
+.ra-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-soft-2, var(--surface-soft));
+  border: 1px solid var(--glass-border);
+  min-width: 0;
+}
+.ra-tile.on {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.ra-tile-head { min-width: 0; }
+.ra-tile-name {
+  font-size: 12.5px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ra-tile-sub {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  margin-top: 1px;
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Read / Write pair ───────────────────────────────────────────────────── */
+
+.ra-rw { display: flex; gap: 12px; flex-shrink: 0; }
+.ra-rw.compact { gap: 10px; }
+
+.ra-rw-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  user-select: none;
+}
+.ra-rw-item input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.ra-rw.locked .ra-rw-item,
+.ra-rw.locked .ra-rw-item input { cursor: not-allowed; opacity: 0.55; }
+
+/* A heading row with nothing under it — a data mistake, not a grantable row. */
+.ra-tile-none { font-size: 11px; color: var(--ink-faint); font-style: italic; }
+
+/* The skeleton reuses .ra-group-head for its silhouette, but it is a div with no
+   click behaviour, so drop the affordances. */
+.ra-skel-head { cursor: default; pointer-events: none; }
+.ra-skel-head:hover { background: var(--surface-soft-2, var(--surface-soft)); }
+
+/* ── New role ────────────────────────────────────────────────────────────── */
+
+.ra-new-role {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  padding: 7px 12px;
+}
+
+.ra-form { display: flex; flex-direction: column; gap: 14px; }
+
+.ra-field { display: flex; flex-direction: column; gap: 5px; }
+.ra-field > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.ra-field > span em { color: var(--accent); font-style: normal; margin-inline-start: 2px; }
+.ra-field input,
+.ra-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-soft-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+.ra-field input:focus,
+.ra-field textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.ra-field small { font-size: 10.5px; color: var(--ink-faint); line-height: 1.45; }
+
+.ra-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.ra-check input { width: 15px; height: 15px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.ra-check small { display: block; font-size: 10.5px; color: var(--ink-faint); margin-top: 2px; line-height: 1.45; }
+
+/* ── Narrow screens ──────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .ra-layout { grid-template-columns: 1fr; }
+  /* One tile per row below this width — two would clip the Read/Write labels. */
+  .ra-grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,66 @@
+// Client-side JWT decoding. This does NOT verify the signature (the server does
+// that on every request) — it only reads the payload so the UI can show the
+// user and gate buttons without storing a separate user object.
+
+export function decodeJwt(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '==='.slice((b64.length + 3) % 4);
+    const json = decodeURIComponent(
+      atob(padded)
+        .split('')
+        .map((c) => '%' + ('00' + c?.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// Normalize the JWT claims into the user object the app consumes.
+export function userFromToken(token) {
+  const c = decodeJwt(token);
+  if (!c) return null;
+
+  // Role access, straight off the token: "read" = permission codes this role may
+  // READ, "write" = codes it may WRITE. Each is a single string when there's one
+  // claim and an array when there are many. These are the same claims the
+  // backend's [HasPermission] policy reads, so the UI and the API can never
+  // disagree about what is allowed — the nav TREE still comes from
+  // GET /role-access/me.
+  const asList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+
+  return {
+    id: c.uid || c.sub || null,
+    email: c.email || '',
+    userName: c.userName || '',
+    firstName: c.firstName || '',
+    lastName: c.lastName || '',
+    fullName: c.fullName || c.name || '',
+    role: c.role || '',
+    roleCode: c.roleCode || '',
+    roleId: c.roleId || null,
+    read: asList(c.read),
+    write: asList(c.write),
+    exp: c.exp || null,
+  };
+}
+
+export function isTokenExpired(token, skewSeconds = 30) {
+  const c = decodeJwt(token);
+  if (!c?.exp) return false; // no exp claim → treat as non-expiring here
+  return Date.now() >= (c.exp - skewSeconds) * 1000;
+}
+
+// True when a stored session can't be used as-is but is still recoverable: we
+// hold a refresh token and the access token is missing or expired. The app must
+// refresh before it decides the user is signed out — the access token's lifetime
+// is much shorter than the refresh token's, so this is the normal return visit.
+export function needsBootRefresh(session) {
+  if (!session?.refreshToken) return false;
+  return !session.accessToken || isTokenExpired(session.accessToken);
+}
