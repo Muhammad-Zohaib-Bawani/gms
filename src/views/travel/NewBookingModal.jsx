@@ -169,7 +169,7 @@ export default function NewBookingModal({
                         gap: 10,
                         border: `1px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
                         background: selected
-                          ? "rgba(141, 1, 52,0.12)"
+                          ? "rgba(0, 98, 123,0.12)"
                           : "var(--surface-soft-2)",
                       }}
                     >

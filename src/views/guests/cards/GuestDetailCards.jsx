@@ -8,7 +8,7 @@
 // inventing a sixth card style.
 //
 // Colours come from the app's own tokens — --gc-accent / --gc-border (see the
-// guest-detail block in styles/qoc-revamp.css), --ink*, --bg-1, --glass-border
+// guest-detail block in styles/sc-revamp.css), --ink*, --bg-1, --glass-border
 // and the existing .chip status classes. Nothing here hardcodes a colour, so
 // the cards follow the light/dark toggle like the rest of the portal.
 //

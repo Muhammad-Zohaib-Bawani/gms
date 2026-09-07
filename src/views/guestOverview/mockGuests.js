@@ -33,7 +33,7 @@ export const SYSTEM_SERVICE = { flight: 'sv-1', accommodation: 'sv-2', transport
 export const SYSTEM_SERVICE_IDS = Object.values(SYSTEM_SERVICE);
 
 export const ORGANISATIONS = [
-  'Ministry of Foreign Affairs', 'Qatar Olympic Committee', 'MicrosysX',
+  'Ministry of Foreign Affairs', 'Supreme Committee', 'MicrosysX',
   'Al Jazeera', 'FIVB', 'Ministry of Interior',
 ];
 
@@ -173,10 +173,10 @@ export const MOCK_GUESTS = [
   {
     id: 'g-4',
     firstName: 'Aisha', lastName: 'Rahman',
-    email: 'aisha.rahman@qoc.qa', phone: '+974 3344 1090',
+    email: 'aisha.rahman@sc.qa', phone: '+974 3344 1090',
     photoUrl: null,
     guestType: 'Staff',
-    organisation: 'Qatar Olympic Committee',
+    organisation: 'Supreme Committee',
     jobTitle: 'Venue Operations Lead',
     nationality: { code: 'QA', name: 'Qatar', flag: '🇶🇦' },
     passportNo: 'QA5590147', passportExpiry: '2031-06-02',
@@ -290,7 +290,7 @@ export const MOCK_GUESTS = [
     email: 'maria.costa@example.br', phone: '+55 11 98123 5566',
     photoUrl: null,
     guestType: 'Speaker',
-    organisation: 'Qatar Olympic Committee',
+    organisation: 'Supreme Committee',
     jobTitle: 'Sports Scientist',
     nationality: { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
     passportNo: 'BR7742019', passportExpiry: '2030-10-05',

@@ -48,7 +48,7 @@ export const DEFAULT_DESIGN = {
   fontSize: 15,
   textColor: '#1a1a1a',
   buttonLabel: 'View Invitation & Respond',
-  buttonColor: '#8d0134',
+  buttonColor: '#00627b',
   buttonTextColor: '#ffffff',
   align: 'left',
 };
@@ -115,7 +115,7 @@ export function previewHtml(body) {
   return withInertLink.replace(
     /(<[^>]*>)|(\{\{\s*[A-Za-z0-9_]+\s*\}\})/g,
     (match, tag, token) => (tag ? tag : (
-      `<span style="background:rgba(141,1,52,0.08);color:#8d0134;border:1px dashed rgba(141,1,52,0.35);` +
+      `<span style="background:rgba(0, 98, 123,0.08);color:#00627b;border:1px dashed rgba(0, 98, 123,0.35);` +
       `border-radius:4px;padding:0 4px;font-size:0.92em;">${token}</span>`
     )),
   );
@@ -804,7 +804,7 @@ export function EmailPreviewModal({ open, onClose, subject, body, isAr }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 18 }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%', background: '#8d0134', color: '#fff',
+                width: 40, height: 40, borderRadius: '50%', background: '#00627b', color: '#fff',
                 display: 'grid', placeItems: 'center', fontSize: 17, fontWeight: 600, flexShrink: 0,
               }}>
                 G
@@ -841,7 +841,7 @@ export function EmailPreviewModal({ open, onClose, subject, body, isAr }) {
             type="button" onClick={onClose}
             style={{
               padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              border: 'none', background: '#8d0134', color: '#fff',
+              border: 'none', background: '#00627b', color: '#fff',
             }}
           >
             {isAr ? 'إغلاق' : 'Close'}

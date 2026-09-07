@@ -1,8 +1,8 @@
-// The physical-badge-style accreditation card — flips between a front (QOC +
+// The physical-badge-style accreditation card — flips between a front (SC +
 // event branding, guest photo/name) and a back (QR + badge number). Purely
 // presentational; AccreditationCardModal owns the open/close chrome.
 //
-// Styled like an actual entry pass: light card stock, a curved maroon header
+// Styled like an actual entry pass: light card stock, a curved teal header
 // band, a punch-hole + lanyard slot at the top, and a perforated tear-line
 // above the status strip — rather than a plain dark rectangle.
 //
@@ -16,7 +16,7 @@ import FlagIcon from '../../components/FlagIcon';
 import { fmtDate } from '../../lib/date';
 
 const TIER_COLOR = {
-  vvip: '#e0b864', vip: '#a78bda', speaker: '#8d0134',
+  vvip: '#e0b864', vip: '#a78bda', speaker: '#00627b',
   delegate: '#5abf6e', press: '#c0392b', observer: '#9aa0a6',
 };
 
@@ -72,7 +72,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
   const [flipped, setFlipped] = useState(false);
   if (!guest) return null;
 
-  const accent = TIER_COLOR[guest.tier] || '#8d0134';
+  const accent = TIER_COLOR[guest.tier] || '#00627b';
   const initials = ((guest.firstName?.[0] || '') + (guest.lastName?.[0] || '')).toUpperCase();
   const badgeNo = (guest.id || '').replace(/-/g, '').slice(0, 10).toUpperCase();
   const eventName = event?.title || (isAr ? 'فعالية' : 'Event');
@@ -98,29 +98,29 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
         >
           {/* ── Front ── */}
           <div style={faceStyle}>
-            {/* Curved maroon header band — the event's own identity lives here,
+            {/* Curved teal header band — the event's own identity lives here,
                 front and centre, instead of a small inline logo+name row. */}
             <div style={{
               position: 'relative', height: HEADER_H, flexShrink: 0,
               background: `
-                radial-gradient(120% 130% at 20% -20%, rgba(255,150,185,0.22), transparent 60%),
-                linear-gradient(160deg, #a3194f 0%, #8d0134 45%, #650226 100%)`,
+                radial-gradient(120% 130% at 20% -20%, rgba(150, 234, 255,0.22), transparent 60%),
+                linear-gradient(160deg, #16758d 0%, #00627b 45%, #024658 100%)`,
               borderRadius: '28px 28px 46% 46% / 28px 28px 30px 30px',
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               padding: '16px 20px 22px', color: '#fff',
             }}>
               <div style={{
                 position: 'absolute', inset: 0, borderRadius: 'inherit',
-                backgroundImage: 'url(/assets/qoc-bg-pattern.png)',
+                backgroundImage: 'url(/assets/sc-bg-pattern.png)',
                 backgroundSize: '220px', backgroundRepeat: 'repeat',
                 opacity: 0.08, pointerEvents: 'none',
               }}/>
               <LanyardSlot/>
 
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 7, marginTop: 8 }}>
-                <img src="/assets/logo.svg" alt="QOC" style={{ width: 20, height: 'auto' }}/>
+                <img src="/assets/sc-logo.png" alt="SC" style={{ width: 20, height: 'auto' }}/>
                 <span style={{ fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
-                  {isAr ? 'اللجنة الأولمبية القطرية' : 'Qatar Olympic Committee'}
+                  {isAr ? 'اللجنة العليا للمشاريع والإرث' : 'Supreme Committee'}
                 </span>
               </div>
 
@@ -155,7 +155,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                 {guest.photoUrl ? (
                   <img src={guest.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                 ) : (
-                  <span style={{ fontSize: 26, fontWeight: 700, color: '#8d0134' }}>{initials}</span>
+                  <span style={{ fontSize: 26, fontWeight: 700, color: '#00627b' }}>{initials}</span>
                 )}
               </div>
             </div>
@@ -180,7 +180,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
                 {issued ? (
                   <div style={{ background: '#fff', padding: 6, borderRadius: 10, border: '1px solid rgba(20,10,20,0.08)' }}>
-                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={72} bgColor="#ffffff" fgColor="#5e0022" level="M"/>
+                    <QRCodeSVG value={`gms://accreditation/${guest.id}`} size={72} bgColor="#ffffff" fgColor="#004151" level="M"/>
                   </div>
                 ) : (
                   <div style={{
@@ -213,7 +213,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
           <div style={{ ...faceStyle, transform: 'rotateY(180deg)' }}>
             <div style={{
               position: 'relative', height: 56, flexShrink: 0,
-              background: 'linear-gradient(160deg, #a3194f 0%, #8d0134 45%, #650226 100%)',
+              background: 'linear-gradient(160deg, #16758d 0%, #00627b 45%, #024658 100%)',
               borderRadius: '28px 28px 0 0',
             }}>
               <LanyardSlot/>
@@ -229,7 +229,7 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                       value={`gms://accreditation/${guest.id}`}
                       size={140}
                       bgColor="#ffffff"
-                      fgColor="#5e0022"
+                      fgColor="#004151"
                       level="M"
                     />
                   </div>
@@ -247,8 +247,8 @@ export default function AccreditationCard({ guest, event, lang, issued }) {
                     borderTop: '1px solid rgba(20,10,20,0.1)', paddingTop: 12, maxWidth: 210,
                   }}>
                     {isAr
-                      ? 'هذه البطاقة ملك اللجنة الأولمبية القطرية. عند العثور عليها يرجى إعادتها إلى مكتب التسجيل.'
-                      : 'Property of Qatar Olympic Committee. If found, please return to registration.'}
+                      ? 'هذه البطاقة ملك اللجنة العليا للمشاريع والإرث. عند العثور عليها يرجى إعادتها إلى مكتب التسجيل.'
+                      : 'Property of Supreme Committee. If found, please return to registration.'}
                   </div>
                 </>
               ) : (

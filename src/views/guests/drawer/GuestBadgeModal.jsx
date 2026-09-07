@@ -195,7 +195,7 @@ export default function GuestBadgeModal({
                     value={qrPayload}
                     size={72}
                     bgColor="#ffffff"
-                    fgColor="#5e0022"
+                    fgColor="#004151"
                     level="M"
                   />
                 </div>

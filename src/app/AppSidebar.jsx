@@ -127,16 +127,31 @@ export default function AppSidebar({
         onClick={() => setSidebarOpen(false)}
       />
       <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
+        {/* Brand block: logo + wordmark stacked, with the collapse control
+            parked alongside them. The rail has no foot any more. */}
         <div className="side-brand">
-          <img src="/assets/side-logo.png" alt="Qatar Olympic Committee" />
-          <div className="side-brand-text">
-            <div className="side-brand-title">
-              {lang === "ar" ? "اللجنة الأولمبية القطرية" : "Qatar Olympic"}
-            </div>
-            <div className="side-brand-sub">
-              {lang === "ar" ? "إدارة الضيوف" : "Guest Management"}
+          <div className="side-brand-lockup">
+            <img src="/assets/sc-logo.png" alt="Supreme Committee" />
+            <div className="side-brand-wordmark">
+              {lang === "ar" ? "نظام إدارة الضيوف" : "GUEST MANAGEMENT SYSTEM"}
             </div>
           </div>
+          <button
+            type="button"
+            className="side-collapse-btn"
+            onClick={() => setSideCollapsed((v) => !v)}
+            title={
+              sideCollapsed
+                ? lang === "ar"
+                  ? "توسيع"
+                  : "Expand"
+                : lang === "ar"
+                  ? "تصغير"
+                  : "Collapse"
+            }
+          >
+            <Icon name={sideCollapsed ? "panelExpand" : "panelCollapse"} size={16} />
+          </button>
         </div>
 
         <div className="sidebar-nav-scroll">
@@ -197,29 +212,6 @@ export default function AppSidebar({
           )}
         </div>
 
-        {/* Desktop-only collapse control; on mobile the sidebar is an overlay
-          driven by the topbar hamburger instead. */}
-        <div className="side-foot">
-          <button
-            type="button"
-            className="side-collapse-btn"
-            onClick={() => setSideCollapsed((v) => !v)}
-            title={
-              sideCollapsed
-                ? lang === "ar"
-                  ? "توسيع"
-                  : "Expand"
-                : lang === "ar"
-                  ? "تصغير"
-                  : "Collapse"
-            }
-          >
-            <Icon name={sideCollapsed ? "chevronRight" : "arrowLeft"} size={14} />
-            <span className="side-foot-text">
-              {lang === "ar" ? "تصغير القائمة" : "Collapse menu"}
-            </span>
-          </button>
-        </div>
       </aside>
     </>
   );

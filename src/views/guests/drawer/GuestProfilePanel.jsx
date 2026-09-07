@@ -248,7 +248,7 @@ export default function GuestProfilePanel({
                         border: `1px solid ${profileForm.accreditationRequired === opt.value ? "var(--accent)" : "var(--glass-border)"}`,
                         background:
                           profileForm.accreditationRequired === opt.value
-                            ? "rgba(141, 1, 52,0.12)"
+                            ? "rgba(0, 98, 123,0.12)"
                             : "var(--surface-soft-2)",
                       }}
                     >

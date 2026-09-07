@@ -16,7 +16,7 @@ import './lib/clickOrigin';
 import './style.css';
 // After style.css on purpose: the revamp layer overrides the older component
 // styles on equal specificity, so import order is what makes it win.
-import './styles/qoc-revamp.css';
+import './styles/sc-revamp.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 

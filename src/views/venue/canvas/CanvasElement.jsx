@@ -43,7 +43,7 @@ export default function CanvasElement({
       style={{
         position: 'absolute', left: table.x, top: table.y, cursor: 'move', userSelect: 'none',
         transformOrigin: 'center center',
-        filter: selected ? 'drop-shadow(0 0 6px rgba(141, 1, 52,0.5))' : undefined,
+        filter: selected ? 'drop-shadow(0 0 6px rgba(0, 98, 123,0.5))' : undefined,
       }}
       onMouseDown={onMouseDown}>
       {svgEl}

@@ -111,7 +111,7 @@ export default function EventSwitcher({ events = [], value, onChange, lang, them
                 style={{
                   borderLeft: `3px solid ${e.accent}`,
                   background: isActive
-                    ? "rgba(141, 1, 52, 0.10)"
+                    ? "rgba(0, 98, 123, 0.10)"
                     : "transparent",
                 }}
                 onClick={() => {

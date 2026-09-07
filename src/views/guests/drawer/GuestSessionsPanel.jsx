@@ -113,7 +113,7 @@ export default function GuestSessionsPanel({
                 style={{
                   border: `1px solid ${checked ? "var(--accent)" : "var(--glass-border)"}`,
                   background: checked
-                    ? "rgba(141, 1, 52,0.08)"
+                    ? "rgba(0, 98, 123,0.08)"
                     : "var(--surface-soft-2)",
                 }}
               >

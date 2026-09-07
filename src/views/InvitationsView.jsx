@@ -8,7 +8,7 @@ import toast from '../lib/toast';
 import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '../api/services/invitationTemplateService';
 import EmailTemplateBuilder, { EmailPreviewModal } from './invitations/EmailTemplateBuilder';
 
-const TEMPLATE_COLORS = ['#8d0134', '#e0b864', '#a78bda', '#5abf6e', 'var(--danger)', '#5e0022'];
+const TEMPLATE_COLORS = ['#00627b', '#e0b864', '#a78bda', '#5abf6e', 'var(--danger)', '#004151'];
 const TIERS = ['VVIP', 'VIP', 'Speaker', 'Delegate', 'Press', 'Observer'];
 const TIER_OPTIONS = TIERS.map(t => ({ value: t, label: t }));
 

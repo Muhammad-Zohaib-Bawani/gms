@@ -27,7 +27,7 @@ const REQUIRABLE_FIELDS = [
   { key: 'departureDate', en: 'Departure date', ar: 'تاريخ المغادرة' },
 ];
 
-const PRESET_COLORS = ['#e0b864', '#a78bda', '#8d0134', '#5abf6e', 'var(--danger)', '#4a9edd', '#9CA3AF'];
+const PRESET_COLORS = ['#e0b864', '#a78bda', '#00627b', '#5abf6e', 'var(--danger)', '#4a9edd', '#9CA3AF'];
 
 const EMPTY_FORM = {
   name: '', nameAr: '', code: '', description: '', color: PRESET_COLORS[0],
@@ -455,8 +455,8 @@ export default function ServiceLevelsView({ lang, activeEventId }) {
                   style={{
                     cursor: 'pointer', fontSize: 11.5,
                     color: on ? 'var(--accent)' : 'var(--ink-mute)',
-                    background: on ? 'rgba(141,1,52,0.12)' : 'var(--surface-soft-3)',
-                    borderColor: on ? 'rgba(141,1,52,0.45)' : 'var(--glass-border)',
+                    background: on ? 'rgba(0, 98, 123,0.12)' : 'var(--surface-soft-3)',
+                    borderColor: on ? 'rgba(0, 98, 123,0.45)' : 'var(--glass-border)',
                   }}>
                   {on && <Icon name="check" size={10} />}
                   {isAr ? f.ar : f.en}

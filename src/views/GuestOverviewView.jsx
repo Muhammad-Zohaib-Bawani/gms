@@ -525,7 +525,7 @@ export default function GuestOverviewView({ lang }) {
       />
 
       {/* <Grid min={200} style={{ marginBottom: 16 }}>
-        <StatCard label="Guests" value={totalCount} icon="guests" tint="#8d0134" />
+        <StatCard label="Guests" value={totalCount} icon="guests" tint="#00627b" />
       </Grid> */}
 
       <div className="filter-bar" style={{ marginBottom: 12 }}>
@@ -576,7 +576,7 @@ export default function GuestOverviewView({ lang }) {
                   style={{
                     cursor: 'pointer', fontSize: 11,
                     background: on ? 'var(--accent-soft)' : 'var(--bg-1)',
-                    // Not --accent: maroon-on-maroon is unreadable in dark mode.
+                    // Not --accent: teal-on-teal is unreadable in dark mode.
                     color: on ? 'var(--accent-ink)' : 'var(--ink-mute)',
                     borderColor: on ? 'var(--gc-accent)' : 'var(--glass-border)',
                   }}

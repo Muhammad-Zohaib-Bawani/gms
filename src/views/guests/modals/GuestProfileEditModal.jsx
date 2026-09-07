@@ -204,7 +204,7 @@ export default function GuestProfileEditModal({ open, guest, lang, onClose, onSa
                     flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'center', fontSize: 13,
                     fontWeight: form.accreditationRequired === opt.value ? 600 : 400,
                     border: `1px solid ${form.accreditationRequired === opt.value ? 'var(--accent)' : 'var(--glass-border)'}`,
-                    background: form.accreditationRequired === opt.value ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-2)',
+                    background: form.accreditationRequired === opt.value ? 'rgba(0, 98, 123,0.12)' : 'var(--surface-soft-2)',
                   }}>
                   {opt.label}
                 </div>

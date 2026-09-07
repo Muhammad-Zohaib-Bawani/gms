@@ -27,7 +27,7 @@
 
 /* Nav skeleton — shown while GET /role-access/me is in flight. Same vertical
    rhythm as the real .nav-section / .nav-item so the rail does not jump when the
-   tree lands. `.skeleton` itself (the sheen) comes from qoc-revamp.css. */
+   tree lands. `.skeleton` itself (the sheen) comes from sc-revamp.css. */
 .app-sidebar-skeleton { padding: 6px 10px; }
 
 .nav-skel-section {

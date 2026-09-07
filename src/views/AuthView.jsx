@@ -1,7 +1,7 @@
-// Sign-in. Split layout: a QOC-branded art panel and the form.
+// Sign-in. Split layout: a SC-branded art panel and the form.
 //
 // The art panel's imagery is CSS-only for now (see .login-art in
-// styles/qoc-revamp.css — maroon gradient + the QOC pattern + a skyline
+// styles/sc-revamp.css — teal gradient + the SC pattern + a skyline
 // silhouette). Dropping in a real Doha skyline photo is a one-line change:
 // add `backgroundImage` to the .login-art rule.
 import React, { useState } from "react";
@@ -107,7 +107,7 @@ export default function AuthView() {
       {/* ── Branded art panel ── */}
       <div className="login-art">
         <div className="login-art-logo">
-          <img src="/assets/logo.svg" alt="Qatar Olympic Committee" />
+          <img src="/assets/sc-logo.png" alt="Supreme Committee" />
         </div>
 
         <motion.div
@@ -115,7 +115,7 @@ export default function AuthView() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
         >
-          <h1 className="login-art-title">Qatar Olympic Committee</h1>
+          <h1 className="login-art-title">Supreme Committee</h1>
           <div className="login-art-sub">Event Guest Management System</div>
         </motion.div>
 
@@ -316,7 +316,7 @@ export default function AuthView() {
               marginTop: 20,
             }}
           >
-            © {new Date().getFullYear()} Qatar Olympic Committee
+            © {new Date().getFullYear()} Supreme Committee
           </div>
         </motion.div>
       </div>

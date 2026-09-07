@@ -92,7 +92,7 @@ export default function RoutePicker({
       <div style={{
         display: 'grid', placeItems: 'center', width: 22, height: 22, borderRadius: '50%',
         color: 'var(--accent)', fontSize: 15, fontWeight: 600, flexShrink: 0,
-        background: 'rgba(141, 1, 52, 0.10)',
+        background: 'rgba(0, 98, 123, 0.10)',
       }}>
         {isAr ? '←' : '→'}
       </div>

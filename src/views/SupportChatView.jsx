@@ -565,7 +565,7 @@ export default function SupportChatView({ lang, activeEventId }) {
           a scrolling document. */}
       {/* `has-thread` drives the mobile layout: below 768px only one pane is on
           screen at a time — the list until a conversation is picked, then the
-          thread (with a back button in its header). See styles/qoc-revamp.css. */}
+          thread (with a back button in its header). See styles/sc-revamp.css. */}
       <div
         className={`card chat-shell${threadGuest ? ' has-thread' : ''}`}
         style={{ padding: 0, display: 'flex', height: 'calc(100vh - 220px)', minHeight: 480, overflow: 'hidden' }}
@@ -689,7 +689,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                       onClick={() => openConversation(c)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 9, padding: '10px 14px', cursor: 'pointer',
-                        background: activeConversation?.id === c.id ? 'rgba(141, 1, 52,0.1)' : 'transparent',
+                        background: activeConversation?.id === c.id ? 'rgba(0, 98, 123,0.1)' : 'transparent',
                         boxShadow: activeConversation?.id === c.id ? 'inset 3px 0 0 var(--accent)' : 'none',
                         borderBottom: '1px solid var(--glass-border)',
                       }}
@@ -751,7 +751,7 @@ export default function SupportChatView({ lang, activeEventId }) {
                         onClick={() => startNewChat(g)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 9, padding: '10px 14px', cursor: 'pointer',
-                          background: isActive ? 'rgba(141, 1, 52,0.1)' : 'transparent',
+                          background: isActive ? 'rgba(0, 98, 123,0.1)' : 'transparent',
                           boxShadow: isActive ? 'inset 3px 0 0 var(--accent)' : 'none',
                           borderBottom: '1px solid var(--glass-border)',
                         }}

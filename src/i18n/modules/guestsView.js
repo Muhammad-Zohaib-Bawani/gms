@@ -9,7 +9,7 @@
 // here rather than silently merged.
 export const guestsView = {
   en: {
-    hayyaCompliant: "Registry Compliant with Hayya",
+    hayyaCompliant: "",
     noEventWarning: "Select an active event to view and manage guests.",
     exportBtn: "Export",
     addGuestBtn: "Add Guest",

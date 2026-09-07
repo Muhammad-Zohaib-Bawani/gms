@@ -105,12 +105,12 @@ export default function InvitationResponseView({ token, lang }) {
     <div dir={isAr ? 'rtl' : 'ltr'} style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
       padding: '0 16px 40px', background: 'var(--bg-0, #f3eceb)',
-      fontFamily: 'var(--sans, system-ui, sans-serif)', color: 'var(--ink, #23161a)',
+      fontFamily: 'var(--sans, system-ui, sans-serif)', color: 'var(--ink, #131c1e)',
     }}>
       {/* Branded hero band */}
       <div style={{
         width: '100%', maxWidth: 560, marginTop: 0,
-        background: 'linear-gradient(135deg, #8d0134 0%, #5c0121 100%)',
+        background: 'linear-gradient(135deg, #00627b 0%, #014050 100%)',
         borderRadius: '0 0 24px 24px', padding: '38px 30px 46px',
         textAlign: 'center', color: '#fff', position: 'relative', overflow: 'hidden',
       }}>
@@ -152,7 +152,7 @@ export default function InvitationResponseView({ token, lang }) {
             ) : (
               <div style={{
                 width: 56, height: 56, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center',
-                background: 'linear-gradient(135deg, #8d0134, #c21857)', color: '#fff', fontSize: 20, fontWeight: 600,
+                background: 'linear-gradient(135deg, #00627b, #158ba8)', color: '#fff', fontSize: 20, fontWeight: 600,
               }}>
                 {initials}
               </div>
@@ -162,12 +162,12 @@ export default function InvitationResponseView({ token, lang }) {
                 {invite.guestName}
               </div>
               {invite.guestEmail && (
-                <div style={{ fontSize: 12.5, color: 'var(--ink-mute, #8a7377)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-mute, #647478)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {invite.guestEmail}
                 </div>
               )}
               {invite.organization && (
-                <div style={{ fontSize: 12, color: 'var(--ink-faint, #a99699)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-faint, #96a5a9)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {invite.organization}
                 </div>
               )}
@@ -175,9 +175,9 @@ export default function InvitationResponseView({ token, lang }) {
             {(invite.serviceLevelName || invite.tier) && (
               <span style={{
                 fontSize: 11, fontWeight: 600, padding: '4px 11px', borderRadius: 20, flexShrink: 0,
-                color: invite.serviceLevelColor || '#8d0134',
-                background: `${invite.serviceLevelColor || '#8d0134'}1f`,
-                border: `1px solid ${invite.serviceLevelColor || '#8d0134'}55`,
+                color: invite.serviceLevelColor || '#00627b',
+                background: `${invite.serviceLevelColor || '#00627b'}1f`,
+                border: `1px solid ${invite.serviceLevelColor || '#00627b'}55`,
                 textTransform: 'capitalize',
               }}>
                 {(isAr ? invite.serviceLevelNameAr : null) || invite.serviceLevelName || invite.tier}
@@ -196,7 +196,7 @@ export default function InvitationResponseView({ token, lang }) {
                   display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 16px',
                   background: 'var(--surface-1, #fff)',
                 }}>
-                  <span style={{ fontSize: 12, color: 'var(--ink-mute, #8a7377)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+                  <span style={{ fontSize: 12, color: 'var(--ink-mute, #647478)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
                   <span style={{ fontSize: 13, fontWeight: 500, textAlign: isAr ? 'left' : 'right' }}>{val}</span>
                 </div>
               ))}
@@ -209,13 +209,13 @@ export default function InvitationResponseView({ token, lang }) {
               background: 'var(--surface-1, #fff)', borderRadius: 14, padding: '16px 18px', marginBottom: 20,
             }}>
               <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>{T.servicesTitle}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-mute, #8a7377)', marginBottom: 12 }}>{T.servicesHint}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--ink-mute, #647478)', marginBottom: 12 }}>{T.servicesHint}</div>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {invite.services.map((s, i) => (
                   <span key={i} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
-                    padding: '6px 12px', borderRadius: 20, background: 'rgba(141, 1, 52,0.08)',
-                    border: '1px solid rgba(141, 1, 52,0.18)', color: '#6b0227',
+                    padding: '6px 12px', borderRadius: 20, background: 'rgba(0, 98, 123,0.08)',
+                    border: '1px solid rgba(0, 98, 123,0.18)', color: '#024b5d',
                   }}>
                     {s.icon && <Icon name={s.icon} size={12} />}
                     {(isAr ? s.nameAr : null) || s.name}
@@ -244,7 +244,7 @@ export default function InvitationResponseView({ token, lang }) {
                   {status === 'accepted' ? T.accepted : T.declined}
                 </div>
                 {status === 'accepted' && (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-mute, #8a7377)' }}>{T.acceptedSub}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-mute, #647478)' }}>{T.acceptedSub}</div>
                 )}
               </div>
 
@@ -257,8 +257,8 @@ export default function InvitationResponseView({ token, lang }) {
                 disabled={!!submitting}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: '#8d0134', color: '#fff', fontSize: 15, fontWeight: 650,
-                  opacity: submitting ? 0.6 : 1, boxShadow: '0 8px 20px rgba(141,1,52,0.25)',
+                  background: '#00627b', color: '#fff', fontSize: 15, fontWeight: 650,
+                  opacity: submitting ? 0.6 : 1, boxShadow: '0 8px 20px rgba(0, 98, 123,0.25)',
                 }}>
                 {submitting === 'accept' ? '…' : T.accept}
               </button>
@@ -267,7 +267,7 @@ export default function InvitationResponseView({ token, lang }) {
                 disabled={!!submitting}
                 style={{
                   width: '100%', padding: '14px', borderRadius: 12, cursor: 'pointer',
-                  background: '#dedede', color: 'var(--ink-dim, #55444a)', fontSize: 14.5, fontWeight: 500,
+                  background: '#dedede', color: 'var(--ink-dim, #3b474a)', fontSize: 14.5, fontWeight: 500,
                   border: '1px solid var(--glass-border, #ddd)', opacity: submitting ? 0.6 : 1,
                 }}>
                 {submitting === 'decline' ? '…' : T.reject}
@@ -287,7 +287,7 @@ export default function InvitationResponseView({ token, lang }) {
 function AppDownloadCard({ isAr, T }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #23161a, #3a0f1e)', color: '#fff',
+      background: 'linear-gradient(135deg, #131c1e, #0d2b32)', color: '#fff',
       borderRadius: 16, padding: '22px 20px', textAlign: 'center',
     }}>
       <div style={{ fontSize: 14.5, fontWeight: 650, marginBottom: 6 }}>{T.appTitle}</div>

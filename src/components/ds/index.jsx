@@ -1,6 +1,6 @@
-// QOC design-system primitives.
+// SC design-system primitives.
 //
-// Thin, styling-only wrappers over the classes in styles/qoc-revamp.css. They
+// Thin, styling-only wrappers over the classes in styles/sc-revamp.css. They
 // exist so screens stop carrying inline style objects (the previous pattern),
 // which is what made the old UI drift — every view had its own idea of a card,
 // a badge and a button. Import from '../components/ds'.

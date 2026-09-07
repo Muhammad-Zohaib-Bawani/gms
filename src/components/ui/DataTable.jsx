@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-table';
 import { Icon } from '../Icons';
 
-// Presentation lives in styles/qoc-revamp.css under the `.dt-*` namespace.
+// Presentation lives in styles/sc-revamp.css under the `.dt-*` namespace.
 // It used to be an inline-style object here, but those values were tuned for
 // the dark shell (white-alpha borders and hover tints that vanish on a light
 // page) and inline styles can't respond to the theme at all. Only genuinely

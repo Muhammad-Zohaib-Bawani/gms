@@ -112,7 +112,7 @@ export default function GuestModalStep2ServiceLevel({
                     style={{
                       border: `1px solid ${selected ? lvl.color || "var(--accent)" : "var(--glass-border)"}`,
                       background: selected
-                        ? `${lvl.color || "#8d0134"}1f`
+                        ? `${lvl.color || "#00627b"}1f`
                         : "var(--surface-soft-2)",
                       fontWeight: selected ? 600 : 400,
                     }}

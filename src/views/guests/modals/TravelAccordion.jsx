@@ -361,7 +361,7 @@ export function FlightFields({ flight, setFlight, lookups = {}, isAr = false, ev
                 display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
                 padding: '7px 12px', borderRadius: 8, fontSize: 12.5,
                 border: `1px solid ${active ? 'var(--accent)' : 'var(--glass-border)'}`,
-                background: active ? 'rgba(141, 1, 52, 0.12)' : 'var(--surface-soft-3)',
+                background: active ? 'rgba(0, 98, 123, 0.12)' : 'var(--surface-soft-3)',
                 color: active ? 'var(--accent)' : 'var(--ink-mute)',
               }}>
                 <input type="radio" name="flightType" value={t.code} checked={active}
@@ -457,7 +457,7 @@ function CheckRow({ checked, onChange, label, hint }) {
       display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
       padding: '11px 12px', borderRadius: 8,
       border: `1px solid ${checked ? 'var(--accent)' : 'var(--glass-border)'}`,
-      background: checked ? 'rgba(141, 1, 52, 0.10)' : 'var(--surface-soft-3)',
+      background: checked ? 'rgba(0, 98, 123, 0.10)' : 'var(--surface-soft-3)',
       transition: 'border-color 0.15s ease, background 0.15s ease',
     }}>
       <input

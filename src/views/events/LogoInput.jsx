@@ -33,7 +33,7 @@ export default function LogoInput({ label, value, onChange, isAr }) {
       <div style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
         {['upload', 'url'].map(m => (
           <button key={m} type="button" onClick={() => setMode(m)}
-            style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--glass-border)'}`, background: mode === m ? 'rgba(141, 1, 52,0.12)' : 'var(--surface-soft-3)', color: mode === m ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer' }}>
+            style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, border: `1px solid ${mode === m ? 'var(--accent)' : 'var(--glass-border)'}`, background: mode === m ? 'rgba(0, 98, 123,0.12)' : 'var(--surface-soft-3)', color: mode === m ? 'var(--accent)' : 'var(--ink-mute)', cursor: 'pointer' }}>
             {m === 'upload' ? (isAr ? 'رفع ملف' : 'Upload') : 'URL'}
           </button>
         ))}

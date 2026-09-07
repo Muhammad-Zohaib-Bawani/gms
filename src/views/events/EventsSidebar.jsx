@@ -61,7 +61,7 @@ export default function EventsSidebar({
           return (
           <div key={ev.id} onClick={() => onSelectEvent(ev)}
             className="card dsd"
-            style={{ padding: 0, cursor: "pointer", border: `1px solid ${selectedId === ev.id ? "var(--accent)" : "var(--glass-border)"}`, background: selectedId === ev.id ? "rgba(141, 1, 52,0.06)" : undefined, overflow: "hidden" }}>
+            style={{ padding: 0, cursor: "pointer", border: `1px solid ${selectedId === ev.id ? "var(--accent)" : "var(--glass-border)"}`, background: selectedId === ev.id ? "rgba(0, 98, 123,0.06)" : undefined, overflow: "hidden" }}>
             <div style={{ height: 3, background: evColor, opacity: selectedId === ev.id ? 1 : 0.55 }}/>
             <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
               <EventCover type={ev.type} image={ev.image} width={44} height={44} radius={8}/>

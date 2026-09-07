@@ -9,7 +9,7 @@ src/
 ├── router.jsx          # createBrowserRouter: /login + protected module routes
 ├── nav.js              # KEY_PATH map + pathForKey() (sidebar/routes single source)
 ├── App.jsx             # authenticated LAYOUT shell (sidebar+topbar+theme+guest drawer+<Outlet/>)
-├── style.css           # global CSS (maroon theme, embedded base64 fonts, brand overrides)
+├── style.css           # global CSS (teal theme, embedded base64 fonts, brand overrides)
 ├── config/env.js       # VITE_API_URL, API_TIMEOUT, AUTH_STORAGE_KEY
 ├── api/
 │   ├── apiClient.js    # axios instance: token inject, envelope unwrap, 401 refresh
@@ -39,7 +39,7 @@ src/
 - Views receive `{ lang, activeEventId, onOpenGuest, gotoView }` via **`useOutletContext()`** (adapters in `router.jsx`); their prop signatures stay unchanged.
 
 ## Layout system (`App.jsx`)
-Persistent shell for authenticated routes: maroon **sidebar** (built entirely from `GET /role-access/me` — labels, icons, order and nesting all come from the database, nothing is hardcoded), maroon **topbar** (event switcher, search, EN/عربي toggle, theme toggle, notifications bell, avatar, sign-out), mobile bottom nav, **guest drawer** (`onOpenGuest`), and the **TweaksPanel**. Applies theme via CSS variables + `data-theme`/`data-density`/`lang`/`dir` on `<html>`. `BRAND_THEME` (maroon) forces the QOC palette; event-based theming is disabled but preserved.
+Persistent shell for authenticated routes: teal **sidebar** (built entirely from `GET /role-access/me` — labels, icons, order and nesting all come from the database, nothing is hardcoded), teal **topbar** (event switcher, search, EN/عربي toggle, theme toggle, notifications bell, avatar, sign-out), mobile bottom nav, **guest drawer** (`onOpenGuest`), and the **TweaksPanel**. Applies theme via CSS variables + `data-theme`/`data-density`/`lang`/`dir` on `<html>`. `BRAND_THEME` (teal) forces the SC palette; event-based theming is disabled but preserved.
 
 ## Public (no-login) screens — `main.jsx`
 Selected by `?screen=` query param **before** the router mounts (so email/venue links keep working):
@@ -90,7 +90,7 @@ Otherwise: `AuthProvider` → `EventsProvider` → `RouterProvider`.
 - `lib/date.js` (formatting), `lib/toast.js` (sonner wrapper — `toast.success/error/…`), `lib/realtimeHub.js` (`@microsoft/signalr` client for `/realtimehub`), `lib/useImportBatchPoll.js` (polls a background import job's status until terminal — shared by Events/Guests import), `api/adapters/eventAdapters.js` (event DTO ↔ UI shape), `views/venue/venueHelpers.js`, `views/lookups/lookupConfig.js`, `enums/locationType.js`.
 
 ## Styling
-Single `src/style.css` (large — embedded base64 fonts + theme). CSS variables (`--accent #8d0134`, `--bg-*`, `--ink*`, fonts `--serif/--sans/--mono` leading with `Loew Next Arabic`). Light theme default (white), maroon sidebar/topbar. Brand overrides appended at the end of the file. Bilingual RTL via `dir="rtl"` when `lang==='ar'`.
+Single `src/style.css` (large — embedded base64 fonts + theme). CSS variables (`--accent #00627b`, `--bg-*`, `--ink*`, fonts `--serif/--sans/--mono` leading with `Loew Next Arabic`). Light theme default (white), teal sidebar/topbar. Brand overrides appended at the end of the file. Bilingual RTL via `dir="rtl"` when `lang==='ar'`.
 
 ## Forms / validation / error handling / i18n
 - **Forms:** controlled inputs + local state; multi-selects via `Select`; validation is per-view (e.g. `InvitationsView.validate()` checks required name/subject). No form library.
@@ -118,7 +118,7 @@ Single `src/style.css` (large — embedded base64 fonts + theme). CSS variables 
 | `VehiclesView` | `/vehicles` | Fleet vehicles | `vehicleService`, `lookupService` | **backend ⚠ NC** |
 | `SupportChatView` | `/support-chat` | Guest↔admin chat | `supportChatService`, `realtimeHub` | RichComposer |
 | `LookupsView` | `/lookups/:lookupKey` | Manage reference lookups | `lookupService` | config in `lookupConfig.js` |
-| `AuthView` | `/login` | Login/forgot | `authService` | password eye toggle, maroon focus |
+| `AuthView` | `/login` | Login/forgot | `authService` | password eye toggle, teal focus |
 | `InvitationResponseView` | `?screen=invitation` | Public guest RSVP | `invitationService` | no login |
 | `UserInviteAcceptView` | `?screen=userInvite` | Public set-password | `userInviteService` | no login |
 | `FinancialsView`, `ReportsView`, `ProtocolView` | — | Present but **commented out of nav** | — | placeholder/disabled |

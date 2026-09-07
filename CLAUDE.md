@@ -29,7 +29,7 @@ This workspace at `\GMS` contains **two independent git repositories**:
 # Project Overview
 
 - **Project name:** GMS — Guest Management System (API OpenAPI title: **"GMS API"**).
-- **Business purpose:** Manage guests, invitations, travel & logistics, accreditation, seating, meetings and notifications for **high-profile Gulf / Qatar events** (seed data references Doha Forum, Qatar Economic Forum, Doha hotels/airports, "Hayya" travel sync). Branded to the **Qatar Olympic Committee** look (maroon `#8d0134` + white, `Loew Next Arabic` font). Fully **bilingual English/Arabic with RTL**.
+- **Business purpose:** Manage guests, invitations, travel & logistics, accreditation, seating, meetings and notifications for **high-profile Gulf / Qatar events** (seed data references Doha Forum, Qatar Economic Forum, Doha hotels/airports, "Hayya" travel sync). Branded to the **Supreme Committee (SC)** look (teal `#00627b` + white, `Loew Next Arabic` font). Fully **bilingual English/Arabic with RTL**.
 - **Overall architecture:** Decoupled SPA + REST API.
   - **Frontend:** React 18 SPA (Vite), react-router v6, axios, talks to the API over `/api` (dev proxy) or a full backend URL (prod).
   - **Backend:** .NET 9 Web API in **clean/onion architecture** (API → Core ← Infrastructure ← DomainPersistence), EF Core + **SQL Server**, JWT auth, **permission-based** authorization, **SignalR** realtime, **Hangfire** background jobs, push notifications (Firebase + manual), Azure Blob storage, Azure Communication Services email.
@@ -163,7 +163,7 @@ flowchart LR
 - **Permission-based authz:** `[HasPermission(PermissionCodes.X)]` on actions; policies auto-registered by reflecting over `Core.Common.PermissionCodes`. Add a `const` there → policy exists. See [docs/business-flows.md](docs/business-flows.md#authentication).
 - **Layering / DI:** Controllers depend on `Core` interfaces only; implementations live in `Infrastructure`, registered in `API/Configurations/ServiceExtensions.cs` (`AddScoped<IXService, XService>`). Data access via `IUnitOfWork` + `GenericRepository<T>` (`.Query()`, `GetByPublicIdAsync`, `AddAsync`, `Update`, `SaveChangesAsync`).
 - **DTO conventions:** `Create<X>Request`, `Update<X>Request`, `<X>Response`, in `Core/ViewModel/<Module>/`. AutoMapper `MappingProfile` maps entity→response (mapping `PublicId → Id`, joining `Event.PublicId` etc.). Comma-joined strings (e.g. `TargetTiers`) ↔ `List<string>` via custom member maps.
-- **Frontend conventions:** one **service file per domain** in `src/api/services/*` referencing path constants in `src/api/endpoints.js`; **views** in `src/views/*` receive `{ lang, activeEventId, onOpenGuest, gotoView }` from the router **outlet context**; bilingual strings via a per-view `STR = isAr ? {…} : {…}` object; styling via CSS variables in `src/style.css` (maroon theme, `BRAND_THEME` switch in `App.jsx`).
+- **Frontend conventions:** one **service file per domain** in `src/api/services/*` referencing path constants in `src/api/endpoints.js`; **views** in `src/views/*` receive `{ lang, activeEventId, onOpenGuest, gotoView }` from the router **outlet context**; bilingual strings via a per-view `STR = isAr ? {…} : {…}` object; styling via CSS variables in `src/style.css` (teal theme, `BRAND_THEME` switch in `App.jsx`).
 
 ---
 
@@ -175,7 +175,7 @@ flowchart LR
 4. **Self-contained email HTML** — the invitation email body (background, fonts, button) is stored as HTML in `InvitationTemplate.Body`; the backend only interpolates variables (`{{GuestName}}`, `{{EventName}}`, `{{EventDate}}`, `{{Venue}}`, `{{InviteLink}}`) at send time. Design settings JSON round-trip in `InvitationTemplate.DesignConfig`.
 5. **Public no-login surfaces via `?screen=` query param** in `main.jsx` (`invitation`, `userInvite`, `venueView`) — backend emails hardcode these links, so keep them working.
 6. **Auto-migrate + seed on startup** (`DataSeeder.SeedAsync` → `MigrateAsync`), so deploys apply pending migrations automatically (DB user needs DDL rights).
-7. **QOC brand theme** applied over an event-theming engine that is disabled but preserved (`BRAND_THEME.enabled` in `App.jsx`).
+7. **SC brand theme** applied over an event-theming engine that is disabled but preserved (`BRAND_THEME.enabled` in `App.jsx`).
 8. **Guest grade = per-event `ServiceLevel` entity, not a hardcoded tier string.** The old fixed 6-value `Guest.Tier` (`vvip/vip/speaker/delegate/press/observer`) is replaced by three per-event tables:
    - **`Service`** — one offerable thing in an event's catalog ("Lounge Access"), with **dynamic fields** defined as a JSON schema in `Service.FieldsSchema` (`[{key,label,labelAr,type,required,options[]}]`, parsed via `Core/Constants/ServiceFieldSchema.cs`). Types: `text|textarea|number|date|select|checkbox`.
    - **`ServiceLevel`** — a guest grade ("Gold"), which **bundles** services and carries the rules.
@@ -230,7 +230,7 @@ flowchart LR
 **Common mistakes to avoid**
 - Don't hardcode API URLs in components — add to `src/api/endpoints.js` and a service.
 - Don't change view prop signatures — they come from the router **outlet context**.
-- Don't add teal `#1aaec4` — the brand is maroon `#8d0134` (see `style.css`, `BRAND_THEME`).
+- The brand is teal `#00627b` (secondary `#158ba8`) — see `styles/sc-revamp.css` tokens and `BRAND_THEME` in `App.jsx`. Do **not** reintroduce the old QOC maroon `#8d0134`.
 - Don't reintroduce a Vite `?screen=` regression — public email/venue links depend on it.
 - Backend: don't return entities directly — map to `<X>Response`. Don't forget the `PublicId` on new entities is DB-defaulted.
 - Remember two repos + two remotes; the frontend `origin` belongs to a **different GitHub account** (push there fails 403 for the backend owner's creds).
@@ -256,7 +256,7 @@ flowchart LR
 1. **Always read this `CLAUDE.md` first**, then the relevant `docs/*.md`, before changing code.
 2. **Preserve the existing architecture** (two repos, clean-architecture layering, PublicId pattern, `ApiResponse<T>` envelope, permission-based authz).
 3. **Reuse existing services/components/endpoints** before creating new ones (check `src/api/services`, `src/components`, `Infrastructure/Services`, `Core/Interfaces`).
-4. **Follow current conventions** (naming, folders, DTO/service/repository patterns, per-view `STR` i18n, maroon theme tokens).
+4. **Follow current conventions** (naming, folders, DTO/service/repository patterns, per-view `STR` i18n, teal theme tokens).
 5. **Keep frontend ↔ backend naming consistent** (endpoint paths in `endpoints.js` must match controller routes; permission strings must match `PermissionCodes`).
 6. **Avoid unnecessary refactoring**; make minimal, targeted changes and verify with `npm run build` / `dotnet build`.
 7. **Verify before claiming done** — build both sides; note that the running deployed process must be restarted for backend code changes to take effect.

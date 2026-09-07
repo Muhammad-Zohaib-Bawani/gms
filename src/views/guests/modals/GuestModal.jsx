@@ -719,7 +719,7 @@ export default function GuestModal({
         <Dialog.Overlay className="guest-modal-overlay" />
         <Dialog.Content
           // `guest-modal-content` is the hook the ≤768px rule uses to turn this
-          // fixed 640×700 box into a full-height sheet (styles/qoc-revamp.css).
+          // fixed 640×700 box into a full-height sheet (styles/sc-revamp.css).
           className="modal-solid guest-modal-content guest-modal-dialog"
           style={mode === "existing" ? { width: 1040 } : undefined}
           onInteractOutside={(e) => e.preventDefault()}

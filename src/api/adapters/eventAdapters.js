@@ -37,7 +37,7 @@ export function toViewEvent(dto) {
     guestModel: dto.guestModel === 'fixed' ? 'fixed' : 'flexible',
     uiTheme: {
       preset: isCustom ? 'custom' : 'default',
-      accent: dto.themeAccent || '#8d0134',
+      accent: dto.themeAccent || '#00627b',
       secondary: dto.themeSecondary || '#e0c47e',
       logoDark: dto.logoDarkUrl || '',
       logoLight: dto.logoLightUrl || '',

@@ -170,6 +170,8 @@ Reads (Auth): `GET enums/guest`, `flight-types`, `flight-classes`, `room-types`,
 | POST | `/types` | Perm:`Venue.Manage` | `CreateVenueTypeRequest` | `AddVenueModal` |
 | GET | `/element-types` | Auth | — | `useVenueEditor` element palette |
 | POST | `/element-types` | Perm:`Venue.Manage` | `CreateElementTypeRequest` | element palette |
+| PUT | `/element-types/{id}` | Perm:`lookup-element-types` (Write) | `UpdateElementTypeRequest` | Lookups › Element Types (Edit) |
+| DELETE | `/element-types/{id}` | Perm:`lookup-element-types` (Write) | — | Lookups › Element Types (Delete) — soft delete |
 
 **Events/Guests bulk import run as Hangfire background jobs, not inline in the request.** `POST /events/import` and `POST /guest/import` only upload the file to blob storage, insert an `ImportBatch` row (`Status="queued"`), enqueue `IEventService.ProcessEventsImportBatchAsync`/`IGuestService.ProcessGuestsImportBatchAsync` via `IBackgroundJobClient.Enqueue<T>(...)`, and return `StartImportResponse{BatchId,Status}` immediately — the caller never waits on the parse/insert work and can navigate away. The job re-downloads the file (`IBlobService.DownloadAsync`), does the same validation as before, writes one `ImportBatchRow` per source row, and on completion pushes a notification via the shared `IImportBatchService.NotifyFinishedAsync` (`NotificationManagerService.SendToUserAsync`, `RedirectUrl` = `/events?importBatch={id}` or `/guests?importBatch={id}`) — clicking it deep-links back to the exact modal with results already loaded. Poll via `GET /{controller}/import/{batchId}` → shared `IImportBatchService.GetStatusAsync`.
 

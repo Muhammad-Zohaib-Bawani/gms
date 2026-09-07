@@ -6,8 +6,8 @@ export const EVENT_TYPE_ICONS = {
   Workshop: "edit", Exhibition: "image", Bilateral: "guests", Ceremony: "badge", default: "meetings",
 };
 export const EVENT_TYPE_COLORS = {
-  Conference: "#8d0134", Forum: "#3aa3b5", Summit: "#9d80c3", Gala: "#e0c47e",
-  Workshop: "#c21857", Exhibition: "#e07e7e", Bilateral: "#a3b53a", Ceremony: "#e0a47e", default: "#8d0134",
+  Conference: "#00627b", Forum: "#3aa3b5", Summit: "#9d80c3", Gala: "#e0c47e",
+  Workshop: "#158ba8", Exhibition: "#e07e7e", Bilateral: "#a3b53a", Ceremony: "#e0a47e", default: "#00627b",
 };
 
 export const INITIAL_EVENTS = [
@@ -41,7 +41,7 @@ export const INITIAL_EVENTS = [
   },
 ];
 
-export const DEFAULT_UI_THEME = { preset: 'default', accent: '#8d0134', secondary: '#e0c47e', logoDark: '', logoLight: '' };
+export const DEFAULT_UI_THEME = { preset: 'default', accent: '#00627b', secondary: '#e0c47e', logoDark: '', logoLight: '' };
 
 export function getStoredThemes() {
   try { return JSON.parse(localStorage.getItem('gms-event-themes') || '{}'); } catch(e) { return {}; }

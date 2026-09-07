@@ -465,8 +465,8 @@ export default function ConfigPanel({
                   <div
                     style={{
                       padding: "10px",
-                      background: "rgba(141, 1, 52,0.07)",
-                      border: "1px solid rgba(141, 1, 52,0.2)",
+                      background: "rgba(0, 98, 123,0.07)",
+                      border: "1px solid rgba(0, 98, 123,0.2)",
                       borderRadius: 8,
                     }}
                   >

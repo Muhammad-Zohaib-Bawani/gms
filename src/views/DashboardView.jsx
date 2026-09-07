@@ -551,7 +551,7 @@ export default function DashboardView({
                 label={STR.totalGuests}
                 value={fmtN(total)}
                 icon="guests"
-                tint="#8d0134"
+                tint="#00627b"
                 lines={[
                   {
                     label: STR.rsvp.accepted,

@@ -68,7 +68,7 @@ export function prefersReducedMotion() {
 // Most dialogs in this app are hand-rolled overlay divs rather than the shared
 // <Modal>, so the same effect is published as CSS custom properties: any
 // element carrying `.modal-solid` picks up the origin-aware entry animation
-// from styles/qoc-revamp.css without its own component needing to know.
+// from styles/sc-revamp.css without its own component needing to know.
 function publishVars() {
   if (!last || typeof document === 'undefined') return;
   const { x, y } = originOffset();

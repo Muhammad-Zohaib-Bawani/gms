@@ -42,3 +42,9 @@ export const createVenueType  = (name, nameAr) => apiClient.post(ENDPOINTS.venue
 export const getElementTypes  = () => apiClient.get(ENDPOINTS.venues.elementTypes);
 export const createElementType = (code, name, nameAr) =>
   apiClient.post(ENDPOINTS.venues.elementTypes, { code, name, nameAr });
+export const updateElementType = (id, code, name, nameAr) =>
+  apiClient.put(ENDPOINTS.venues.elementTypeById(id), { code, name, nameAr });
+// Soft delete. Layouts store the shape as a plain string, so this only removes
+// the entry from the editor palette — drawings already on a canvas are untouched.
+export const deleteElementType = (id) =>
+  apiClient.delete(ENDPOINTS.venues.elementTypeById(id));

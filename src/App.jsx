@@ -86,7 +86,7 @@ function applyBgVars(root, accent, isDark) {
   root.style.setProperty("--bg", blendHex(base, accent, amounts[1]));
 }
 
-const BRAND_THEME = { enabled: true, accent: "#8d0134", secondary: "#c21857" };
+const BRAND_THEME = { enabled: true, accent: "#00627b", secondary: "#158ba8" };
 
 const TWEAK_DEFAULTS = {
 
@@ -107,8 +107,8 @@ const EVENTS = [
     subtitle: "22nd Edition · 7–9 Dec",
     logoColor: "assets/doha-forum-logo.png",
     logoWhite: "assets/doha-forum-logo-white.png",
-    accent: "#8d0134",
-    secondary: "#c21857",
+    accent: "#00627b",
+    secondary: "#158ba8",
   },
   {
     key: "qef",
@@ -124,8 +124,8 @@ const EVENTS = [
     key: "qabf",
     name: "Qatar–Africa Business Forum",
     subtitle: "Doha · October",
-    logoColor: "/assets/logo.svg",
-    logoWhite: "/assets/logo.svg",
+    logoColor: "/assets/sc-logo.png",
+    logoWhite: "/assets/sc-logo.png",
     accent: "#3d7ab5",
     secondary: "#6aabdf",
     invertInLight: true,
@@ -231,7 +231,7 @@ export default function App() {
     const root = document.documentElement;
     const accent = BRAND_THEME.enabled
       ? BRAND_THEME.accent
-      : ev?.accent || "#8d0134";
+      : ev?.accent || "#00627b";
     const secondary = BRAND_THEME.enabled
       ? BRAND_THEME.secondary
       : ev?.secondary || "#e0c47e";
@@ -270,7 +270,7 @@ export default function App() {
     root.style.setProperty("--orb-opacity", String(tweaks.orbIntensity));
     applyBgVars(
       root,
-      tweaks.accent || "#8d0134",
+      tweaks.accent || "#00627b",
       (tweaks.theme || "dark") === "dark",
     );
   }, [tweaks]);
@@ -288,7 +288,7 @@ export default function App() {
 
   const activeEv = activeEvent;
   const logoColorSrc =
-    activeLogo.light || activeEv?.logoLight || "/assets/logo.svg";
+    activeLogo.light || activeEv?.logoLight || "/assets/sc-logo.png";
   const logoWhiteSrc = activeLogo.dark || activeEv?.logoDark || "";
   const triggerLogo =
     (tweaks.theme || "dark") === "dark"

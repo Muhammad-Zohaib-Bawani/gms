@@ -210,6 +210,7 @@ export const ENDPOINTS = {
     // Venue reference data (GET list / POST create share the path).
     types: '/v1/venue/types',
     elementTypes: '/v1/venue/element-types',
+    elementTypeById: (id) => `/v1/venue/element-types/${id}`,
   },
 
   seating: {

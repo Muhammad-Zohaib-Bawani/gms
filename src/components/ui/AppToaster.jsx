@@ -4,7 +4,7 @@ import { Toaster } from 'sonner';
 
 // Toasts have to sit above every dialog, and a z-index alone can't get them there.
 //
-// `#root` is `position: relative; z-index: 1` (styles/qoc-revamp.css) so the
+// `#root` is `position: relative; z-index: 1` (styles/sc-revamp.css) so the
 // fixed `.bg-scene` at z-index -1 stays behind the app. That makes #root a
 // stacking CONTEXT: anything inside it is confined to z-index 1 relative to the
 // page, however large its own z-index is. Radix (ui/Modal, GuestModal) portals its

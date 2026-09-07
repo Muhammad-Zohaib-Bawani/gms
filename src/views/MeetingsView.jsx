@@ -36,7 +36,7 @@ function mapMeeting(m) {
     endTime: (m.endTime || '').slice(0, 5),
     location: m.location || '',
     notes: m.meetingAgenda || '',
-    color: '#8d0134',
+    color: '#00627b',
     // g.id is the attendee's eventGuestId (their participation in this
     // meeting's event); g.personId is the master person, kept for person-level
     // links (support chat) rather than anything meeting-scoped.
@@ -438,7 +438,7 @@ export default function MeetingsView({ lang, activeEventId }) {
                   {newAttendees.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                       {newAttendees.map(g => (
-                        <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(141, 1, 52,0.15)', border: '1px solid rgba(141, 1, 52,0.3)', fontSize: 11.5 }}>
+                        <span key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 20, background: 'rgba(0, 98, 123,0.15)', border: '1px solid rgba(0, 98, 123,0.3)', fontSize: 11.5 }}>
                           <Avatar initials={initialsFromName(`${g.firstName} ${g.lastName}`)} size={18} src={g.photoUrl}/>
                           {g.firstName} {g.lastName}
                           <button onClick={() => setNewAttendees(a => a.filter(x => x.id !== g.id))}

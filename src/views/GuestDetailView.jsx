@@ -175,7 +175,7 @@ function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
             <label key={s.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
               border: `1px solid ${selected.has(s.id) ? 'var(--accent)' : 'var(--glass-border)'}`,
-              background: selected.has(s.id) ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
+              background: selected.has(s.id) ? 'rgba(0, 98, 123,0.08)' : 'var(--surface-soft-2)',
             }}>
               <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
               <div style={{ minWidth: 0, flex: 1 }}>

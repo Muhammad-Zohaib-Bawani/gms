@@ -71,7 +71,7 @@ function PanelTabs({ tabs, active, onChange }) {
   );
 }
 
-export const CHART_COLORS = ['#8d0134', '#a78bda', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
+export const CHART_COLORS = ['#00627b', '#a78bda', '#5ABF6E', '#a78bda', '#5abf6e', '#e0b864', '#8fa3b8'];
 
 /** Themed recharts tooltip — the library default is a white box that breaks in dark mode. */
 export function ChartTooltip({ active, payload, label }) {
@@ -284,8 +284,8 @@ function MovementsChart({ data, labels, height = 148 }) {
         <AreaChart data={data} margin={{ left: -18, right: 8, top: 4, bottom: 0 }}>
           <defs>
             <linearGradient id="arrFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8d0134" stopOpacity={0.30} />
-              <stop offset="100%" stopColor="#8d0134" stopOpacity={0.02} />
+              <stop offset="0%" stopColor="#00627b" stopOpacity={0.30} />
+              <stop offset="100%" stopColor="#00627b" stopOpacity={0.02} />
             </linearGradient>
             <linearGradient id="depFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#4a9edd" stopOpacity={0.26} />
@@ -298,7 +298,7 @@ function MovementsChart({ data, labels, height = 148 }) {
           <Tooltip content={<ChartTooltip />} />
           <Legend wrapperStyle={{ fontSize: 11, color: 'var(--ink-mute)' }} iconType="circle" iconSize={7} />
           <Area type="monotone" dataKey="arrivals" name={labels.arrivals}
-            stroke="#8d0134" strokeWidth={2} fill="url(#arrFill)" />
+            stroke="#00627b" strokeWidth={2} fill="url(#arrFill)" />
           <Area type="monotone" dataKey="departures" name={labels.departures}
             stroke="#4a9edd" strokeWidth={2} fill="url(#depFill)" />
         </AreaChart>
