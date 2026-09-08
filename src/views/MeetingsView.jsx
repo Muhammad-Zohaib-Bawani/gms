@@ -11,8 +11,17 @@ import toast from '../lib/toast.js';
 import { createMeeting, getMeetings, editMeeting } from '../api/services/meetingService.js';
 import { listGuests } from '../api/services/guestService.js';
 import DateField from '../components/ui/DateField.jsx';
+import Select from '../components/ui/Select.jsx';
+import LocationPickerModal from '../components/ui/LocationPickerModal.jsx';
+import { getLocations } from '../api/services/travelService.js';
+import { LOCATION_TYPE } from '../enums/locationType.js';
 import { fmtDate } from '../lib/date.js';
 import { useAccess } from '../auth/AccessContext.jsx';
+
+// Sentinel for the "Other" entry appended to the Locations dropdown — picking it
+// opens the map instead of storing a value. Same shape as the Airports lookup's
+// Pickup Location field (views/lookups/LookupsView.jsx).
+const OTHER_LOCATION = '__Other_Location__';
 
 const ANCHOR = new Date();
 
@@ -55,6 +64,8 @@ export default function MeetingsView({ lang, activeEventId }) {
     sub: 'الجدول الأسبوعي · إدارة الاجتماعات الثنائية ومجموعات العمل',
     newMeeting: 'اجتماع جديد',
     today: 'اليوم',
+    viewWeek: 'أسبوع', viewDay: 'يوم', viewMonth: 'شهر',
+    prevPeriod: 'السابق', nextPeriod: 'التالي',
     upcomingTitle: 'الاجتماعات القادمة',
     attendees: 'المشاركون',
     notes: 'ملاحظات',
@@ -79,6 +90,8 @@ export default function MeetingsView({ lang, activeEventId }) {
     sub: 'Weekly schedule · bilateral and working group management',
     newMeeting: 'New meeting',
     today: 'Today',
+    viewWeek: 'Week', viewDay: 'Day', viewMonth: 'Month',
+    prevPeriod: 'Previous', nextPeriod: 'Next',
     upcomingTitle: 'Upcoming meetings',
     attendees: 'Attendees',
     notes: 'Notes',
@@ -111,7 +124,25 @@ export default function MeetingsView({ lang, activeEventId }) {
   const [attendeeSearch, setAttendeeSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingMeetingId, setEditingMeetingId] = useState(null);
+  // Toolbar state. FullCalendar's own headerToolbar is off (see below), so the
+  // title and the active view have to be mirrored here to render them.
+  const [calTitle, setCalTitle] = useState('');
+  const [calView, setCalView] = useState('timeGridWeek');
+  // Locations dropdown for the meeting form. Meeting.Location is a plain string
+  // on the backend (no FK), so the option VALUE is the address text itself.
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const calendarRef = useRef(null);
+
+  useEffect(() => {
+    getLocations()
+      .then(rows => setLocationOptions(
+        (rows || [])
+          .filter(r => r?.address)
+          .map(r => ({ value: r.address, label: r.address })),
+      ))
+      .catch(() => setLocationOptions([]));
+  }, []);
 
   useEffect(() => {
     if (!activeEventId) { setMeetings([]); return; }
@@ -254,12 +285,40 @@ export default function MeetingsView({ lang, activeEventId }) {
       <div className="meetings-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         {/* Calendar card */}
         <div className="card meetings-calendar gms-fullcalendar" style={{ flex: 1, padding: 12, overflow: 'hidden', minWidth: 0 }}>
+          {/* Own toolbar instead of FullCalendar's headerToolbar. Its prev/next
+              glyphs come from a bundled `fcicons` webfont that does not resolve
+              reliably, so the arrows rendered as empty boxes; this uses the same
+              Icon set as the rest of the app and stays visually consistent. */}
+          <div className="fc-toolbar-custom">
+            <div className="fc-toolbar-custom-nav">
+              <button className="icon-btn" title={STR.prevPeriod} aria-label={STR.prevPeriod}
+                onClick={() => calendarRef.current?.getApi().prev()}>
+                <Icon name={isAr ? 'chevronRight' : 'chevronLeft'} size={15}/>
+              </button>
+              <button className="icon-btn" title={STR.nextPeriod} aria-label={STR.nextPeriod}
+                onClick={() => calendarRef.current?.getApi().next()}>
+                <Icon name={isAr ? 'chevronLeft' : 'chevronRight'} size={15}/>
+              </button>
+              <button className="btn" onClick={() => calendarRef.current?.getApi().today()}>{STR.today}</button>
+            </div>
+            <div className="fc-toolbar-custom-title">{calTitle}</div>
+            <div className="fc-toolbar-custom-views">
+              {[['timeGridWeek', STR.viewWeek], ['timeGridDay', STR.viewDay], ['dayGridMonth', STR.viewMonth]].map(([v, label]) => (
+                <button key={v}
+                  className={`btn${calView === v ? ' primary' : ''}`}
+                  onClick={() => calendarRef.current?.getApi().changeView(v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <FullCalendar
             ref={calendarRef}
             plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
             initialDate={ANCHOR}
-            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay,dayGridMonth' }}
+            headerToolbar={false}
+            datesSet={(arg) => { setCalTitle(arg.view.title); setCalView(arg.view.type); }}
             allDaySlot={false}
             nowIndicator
             height="auto"
@@ -422,9 +481,25 @@ export default function MeetingsView({ lang, activeEventId }) {
                   </div>
                   <div>
                     <label style={labelStyle}>{STR.location}</label>
-                    <input style={inputStyle} value={newForm.location}
-                      onChange={e => setNewForm(f => ({...f, location: e.target.value}))}
-                      placeholder={isAr ? 'مثل: جناح تنفيذي أ' : 'e.g. Executive Suite A'}/>
+                    <Select
+                      value={newForm.location || ''}
+                      onChange={v => (v === OTHER_LOCATION
+                        ? setShowLocationPicker(true)
+                        : setNewForm(f => ({ ...f, location: v || '' })))}
+                      options={[
+                        // A meeting saved before this was a dropdown (or against a
+                        // Location since renamed) holds text that matches no option.
+                        // Surface it as its own entry so editing shows the current
+                        // value instead of an empty box.
+                        ...(newForm.location && !locationOptions.some(o => o.value === newForm.location)
+                          ? [{ value: newForm.location, label: newForm.location }]
+                          : []),
+                        ...locationOptions,
+                        { value: OTHER_LOCATION, label: isAr ? 'أخرى — تحديد على الخريطة…' : 'Other — pick on map…' },
+                      ]}
+                      placeholder={isAr ? '— اختر الموقع —' : '— Select location —'}
+                      isClearable
+                    />
                   </div>
                 </>
               )}
@@ -497,6 +572,28 @@ export default function MeetingsView({ lang, activeEventId }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* "Other" on the Locations dropdown. Not pickOnly — confirming here writes
+          a real Location row (type venue, since that is what a meeting sits in),
+          so the next meeting finds it already in the list. The form stores the
+          address text, because Meeting.Location is a string, not an FK. */}
+      {showLocationPicker && (
+        <LocationPickerModal
+          open
+          lang={lang}
+          defaultType={LOCATION_TYPE.VENUE}
+          onClose={() => setShowLocationPicker(false)}
+          onSelect={({ label }) => {
+            if (label) {
+              setLocationOptions(prev => (prev.some(o => o.value === label)
+                ? prev
+                : [...prev, { value: label, label }]));
+              setNewForm(f => ({ ...f, location: label }));
+            }
+            setShowLocationPicker(false);
+          }}
+        />
       )}
     </div>
   );
