@@ -88,6 +88,9 @@ function applyBgVars(root, accent, isDark) {
 
 const BRAND_THEME = { enabled: true, accent: "#00627b", secondary: "#158ba8" };
 
+const THEME_STORAGE_KEY = "gms-tweaks";
+const PERSISTED_TWEAKS = ["theme", "density", "blur", "orbIntensity"];
+
 const TWEAK_DEFAULTS = {
 
   theme: "light",
@@ -188,7 +191,10 @@ export default function App() {
     () => localStorage.getItem("gms-side-collapsed") === "1",
   );
   const [showSettings, setShowSettings] = useState(false);
-  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS, {
+    storageKey: THEME_STORAGE_KEY,
+    persistKeys: PERSISTED_TWEAKS,
+  });
 
   // New screen starts at the top. Desktop scrolls the window; on mobile .main is
   // its own scroller, so both need resetting.
