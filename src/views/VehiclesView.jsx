@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Icon } from '../components/Icons';
 import Modal from '../components/ui/Modal';
 import Select from '../components/ui/Select';
@@ -48,6 +48,13 @@ export default function VehiclesView({ lang, activeEventId }) {
   const isAr = lang === 'ar';
   const { canWrite } = useAccess();
   const canManage = canWrite('vehicles');
+  // Vehicles write is enough for the types list too — POST /lookups/vehicle-types
+  // carries the same any-of gate, since a vehicle can't be saved without a type.
+  const canManageTypes = canManage || canWrite('lookup-vehicle-types');
+
+  // The types tab hides its own header, so its Add button lives in this page's
+  // actions row and reaches into it through the ref.
+  const typesRef = useRef(null);
 
   const [tab, setTab] = useState('vehicles');
   const [rows, setRows] = useState([]);
@@ -246,18 +253,24 @@ export default function VehiclesView({ lang, activeEventId }) {
           <h1 className="page-title">{isAr ? 'المركبات' : 'Vehicles'}</h1>
           <div className="page-sub">{isAr ? 'أسطول النقل وأنواع المركبات' : 'Transport fleet and vehicle types'}</div>
         </div>
-        {tab === 'vehicles' && (
-          <div className="page-actions">
-            <button className="btn" onClick={handleExport}>
-              <Icon name="download" size={14} /> {isAr ? 'تصدير' : 'Export'}
-            </button>
-            {canManage && (
-              <button className="btn primary" onClick={openAdd}>
-                <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+        <div className="page-actions">
+          {tab === 'vehicles' ? (
+            <>
+              <button className="btn" onClick={handleExport}>
+                <Icon name="download" size={14} /> {isAr ? 'تصدير' : 'Export'}
               </button>
-            )}
-          </div>
-        )}
+              {canManage && (
+                <button className="btn primary" onClick={openAdd}>
+                  <Icon name="plus" size={14} /> {isAr ? 'إضافة مركبة' : 'Add Vehicle'}
+                </button>
+              )}
+            </>
+          ) : canManageTypes && (
+            <button className="btn primary" onClick={() => typesRef.current?.openAdd()}>
+              <Icon name="plus" size={14} /> {isAr ? 'إضافة نوع' : 'Add Vehicle Type'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="tabs" style={{ marginBottom: 16 }}>
@@ -270,7 +283,14 @@ export default function VehiclesView({ lang, activeEventId }) {
       </div>
 
       {tab === 'types' ? (
-        <LookupsView lookupKey="vehicle-types" lang={lang} />
+        // Header hidden: this page already has one, and its Add button is up there.
+        <LookupsView
+          ref={typesRef}
+          lookupKey="vehicle-types"
+          lang={lang}
+          hostWriteCode="vehicles"
+          hideHeader
+        />
       ) : (
         <div className="card" style={{ padding: 0 }}>
           <DataTable

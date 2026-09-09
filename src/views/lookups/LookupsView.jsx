@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Icon } from '../../components/Icons';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
@@ -97,9 +97,21 @@ function ImageCell({ src, isAr }) {
 }
 
 // Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
-export default function LookupsView({ lookupKey, lang }) {
+//
+// Two props exist for the lookups embedded as a tab in another screen rather than
+// opened at /lookups/<key>:
+//   * `hostWriteCode` — write on the HOST menu admits as well, matching the any-of
+//     gate its endpoints carry (Vehicles ⊃ Vehicle Types).
+//   * `hideHeader` — drops this screen's own page-header, which would otherwise be
+//     a second title under the host's. The host then owns the Add button and
+//     triggers it through the ref (`openAdd`), so it can sit in the host's own
+//     page-actions row with everything else.
+// Neither is passed on the standalone route.
+const LookupsView = forwardRef(function LookupsView(
+  { lookupKey, lang, hostWriteCode, hideHeader }, ref,
+) {
   const { canWrite } = useAccess();
-  const mayWrite = canWrite(`lookup-${lookupKey}`);
+  const mayWrite = canWrite(`lookup-${lookupKey}`) || (!!hostWriteCode && canWrite(hostWriteCode));
   const isAr = lang === 'ar';
   const def = getLookupDef(lookupKey);
 
@@ -172,6 +184,14 @@ export default function LookupsView({ lookupKey, lang }) {
     });
   }, [def]);
 
+  const openAdd = useCallback(() => {
+    setEditing(null); setForm({}); setErrors({}); setOtherMode({}); setShowAdd(true);
+  }, []);
+
+  // Above the `!def` bail-out on purpose: hooks have to run unconditionally, and
+  // this is how an embedding host opens the form from its own toolbar.
+  useImperativeHandle(ref, () => ({ openAdd }), [openAdd]);
+
   if (!def) return null;
 
   const label = isAr ? def.label.ar : def.label.en;
@@ -186,7 +206,6 @@ export default function LookupsView({ lookupKey, lang }) {
   // Delete needs its own backend verb, so it is opt-in per lookup the same way
   // Edit is. Locations are excluded — they edit through the map picker.
   const canDelete = mayWrite && !editsOnMap && !!def.remove;
-  const openAdd = () => { setEditing(null); setForm({}); setErrors({}); setOtherMode({}); setShowAdd(true); };
   const openEdit = (row) => {
     // Prefill straight off the row: field keys match the list's DTO keys, which
     // is the same mapping `columns` relies on.
@@ -276,19 +295,21 @@ export default function LookupsView({ lookupKey, lang }) {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{label}</h1>
-          <div className="page-sub">{rows.length} {isAr ? 'عنصر' : `item${rows.length !== 1 ? 's' : ''}`}</div>
+      {!hideHeader && (
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">{label}</h1>
+            <div className="page-sub">{rows.length} {isAr ? 'عنصر' : `item${rows.length !== 1 ? 's' : ''}`}</div>
+          </div>
+          <div className="page-actions">
+            {mayWrite && (
+              <button className="btn primary" onClick={openAdd}>
+                <Icon name="plus" size={14} /> {isAr ? 'إضافة' : 'Add'}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="page-actions">
-          {mayWrite && (
-            <button className="btn primary" onClick={openAdd}>
-              <Icon name="plus" size={14} /> {isAr ? 'إضافة' : 'Add'}
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="card" style={{ padding: 0 }}>
         <DataTable
@@ -456,4 +477,6 @@ export default function LookupsView({ lookupKey, lang }) {
       )}
     </div>
   );
-}
+});
+
+export default LookupsView;
