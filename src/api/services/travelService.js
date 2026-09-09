@@ -68,14 +68,27 @@ export const getDrivers = ({ from, to, excludeTransportId } = {}) =>
 // list comes from the vehicles module.
 export { getVehicles };
 
+// VehicleUsageType.Open — the shared pool Fixed drivers draw a car from per trip,
+// and the only kind a booking form may hand out. Serialised as its int value.
+const VEHICLE_USAGE_OPEN = 2;
+
 // Fills every wizard dropdown by calling the lookup endpoints in parallel. Pass
 // eventId to scope the two event-specific lists: vehicles to this event's fleet
 // (its providers' cars plus in-house ones), hotels to the ones it holds a
 // contract with. `roomTypes` stays the global list — the accommodation form
 // narrows it per hotel once one is picked (useHotelRoomTypes).
+//
+// Two vehicle lists on purpose. `openVehicles` is what the transport form may
+// BOOK — the shared pool, the same Open-only rule GET /vehicles/available
+// applies, so the dropdown matches it before any times are picked. `vehicles` is
+// the whole fleet and is only read to LABEL a saved ride: an Open driver's
+// dedicated Fixed car lands on a transport when they accept the job, and that
+// ride still has to show which car is coming.
 export const getTravelLookups = async (eventId) => {
-  const [flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers] = await Promise.all([
-    getFlightTypes(), getFlightClasses(), getRoomTypes(), getVehicles(eventId),
+  const [flightTypes, flightClasses, roomTypes, vehicles, openVehicles, hotels, locations, airports, drivers] = await Promise.all([
+    getFlightTypes(), getFlightClasses(), getRoomTypes(),
+    getVehicles(eventId),
+    getVehicles(eventId, { usageType: VEHICLE_USAGE_OPEN }),
     // An event with no contracts yet would leave the hotel dropdown empty, which
     // is correct — add the contract on Accommodation › Inventory first.
     eventId ? getContractedHotels(eventId) : getHotels(),
@@ -84,7 +97,7 @@ export const getTravelLookups = async (eventId) => {
     getAirports().catch(() => []),
     getDrivers().catch(() => []),
   ]);
-  return { flightTypes, flightClasses, roomTypes, vehicles, hotels, locations, airports, drivers };
+  return { flightTypes, flightClasses, roomTypes, vehicles, openVehicles, hotels, locations, airports, drivers };
 };
 
 // Prefill for edit — { flight?, accommodation?, transport? }. Takes the
