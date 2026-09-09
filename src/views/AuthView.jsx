@@ -12,6 +12,7 @@ import { toast } from "../lib/toast";
 import { Icon } from "../components/Icons";
 import { Button, FloatingField } from "../components/ds";
 import { ENTRA_ENABLED } from "../config/env";
+import { clearMsalCache } from "../auth/msal";
 
 const EyeIcon = ({ off }) => (
   <svg
@@ -72,7 +73,11 @@ export default function AuthView() {
 
   async function handleMicrosoftSignIn() {
     setBusy(true);
-    localStorage.clear(); // MSAL v3+ uses localStorage for its cache, so clear it to avoid stale state
+    // MSAL v3+ caches in localStorage, so stale entries have to go before a
+    // fresh redirect. Scoped to MSAL's own keys rather than localStorage.clear()
+    // — a blanket wipe also took out the saved theme, sidebar state and active
+    // event, so those silently reset every time someone used Microsoft sign-in.
+    clearMsalCache();
     setErrors({});
     try {
 

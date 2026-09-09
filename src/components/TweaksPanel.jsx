@@ -97,8 +97,36 @@ const __TWEAKS_STYLE = `
 `;
 
 // ── useTweaks ───────────────────────────────────────────────────────────────
-export function useTweaks(defaults) {
-  const [values, setValues] = React.useState(defaults);
+// `persistKeys` names the tweaks that survive a reload, stored under
+// `storageKey`. Only display preferences the user actually chose belong there —
+// notably NOT accent/secondary, which App.jsx recomputes from BRAND_THEME on
+// every mount, so persisting them would pin a stale brand colour.
+//
+// Reads and writes are wrapped: localStorage throws outright in some privacy
+// modes, and a corrupt value must not take the whole app down with it.
+function readPersisted(storageKey, persistKeys, defaults) {
+  if (!storageKey || !persistKeys?.length) return defaults;
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+    if (!saved || typeof saved !== 'object') return defaults;
+    const picked = {};
+    persistKeys.forEach((k) => { if (saved[k] !== undefined) picked[k] = saved[k]; });
+    return { ...defaults, ...picked };
+  } catch { return defaults; }
+}
+
+export function useTweaks(defaults, { storageKey, persistKeys } = {}) {
+  const [values, setValues] = React.useState(
+    () => readPersisted(storageKey, persistKeys, defaults),
+  );
+
+  React.useEffect(() => {
+    if (!storageKey || !persistKeys?.length) return;
+    const toSave = {};
+    persistKeys.forEach((k) => { if (values[k] !== undefined) toSave[k] = values[k]; });
+    try { localStorage.setItem(storageKey, JSON.stringify(toSave)); } catch { /* storage unavailable */ }
+  }, [values, storageKey, persistKeys]);
+
   const setTweak = React.useCallback((keyOrEdits, val) => {
     const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
       ? keyOrEdits : { [keyOrEdits]: val };

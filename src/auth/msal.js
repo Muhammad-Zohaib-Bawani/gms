@@ -177,6 +177,17 @@ export async function acquireEntraToken() {
  * same account, so the user could never switch accounts or actually leave.
  * Navigates away — the caller must have cleared the local session first.
  */
+export function clearMsalCache() {
+  try {
+    // Guarded: with no client id configured the second prefix would collapse to
+    // a bare "." and match unrelated keys.
+    const prefixes = ['msal.', ...(ENTRA.clientId ? [`${ENTRA.clientId}.`] : [])];
+    Object.keys(localStorage)
+      .filter((k) => prefixes.some((p) => k.startsWith(p)))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch { /* storage unavailable — nothing cached to clear either */ }
+}
+
 export async function entraSignOut() {
   if (!ENTRA_ENABLED || !instance) return;
   try {

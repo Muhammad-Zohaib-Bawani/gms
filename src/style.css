@@ -1945,6 +1945,12 @@ html[dir="rtl"] .avatar { direction: ltr; }
   --fc-list-event-hover-bg-color: var(--surface-soft-3);
   --fc-today-bg-color: rgba(0, 98, 123,0.08);
   --fc-now-indicator-color: var(--accent);
+  /* Must be set. FullCalendar's own runtime-injected stylesheet defaults
+     --fc-button-text-color to #fff, and the button background above is a
+     translucent white — so the toolbar's "today" label and the prev/next
+     chevron glyphs (.fc-icon inherits this colour) rendered white-on-white
+     and were invisible in the light theme. */
+  --fc-button-text-color: var(--ink);
   --fc-button-bg-color: var(--surface-soft-3);
   --fc-button-border-color: var(--glass-border);
   --fc-button-hover-bg-color: var(--surface-soft-4);
@@ -1959,6 +1965,46 @@ html[dir="rtl"] .avatar { direction: ltr; }
 .gms-fullcalendar .fc .fc-button { text-transform: capitalize; box-shadow: none !important; padding: 5px 11px; font-size: 12px; }
 .gms-fullcalendar .fc .fc-button-primary:not(:disabled).fc-button-active,
 .gms-fullcalendar .fc .fc-button-primary:not(:disabled):active { color: #fff; }
+/* Replacement for FullCalendar's headerToolbar (MeetingsView renders its own,
+   with the app's Icon set — FullCalendar's `fcicons` webfont left the prev/next
+   buttons as empty boxes). Laid out the same way: nav left, title centred,
+   view switcher right. */
+.fc-toolbar-custom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.fc-toolbar-custom-nav,
+.fc-toolbar-custom-views { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.fc-toolbar-custom-title {
+  flex: 1;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-toolbar-custom .btn { padding: 5px 11px; font-size: 12px; }
+/* Defensive: any FullCalendar chevron still rendered elsewhere (its popovers)
+   would otherwise hit the same missing-font problem. Border-drawn, no webfont. */
+.gms-fullcalendar .fc .fc-icon-chevron-left::before,
+.gms-fullcalendar .fc .fc-icon-chevron-right::before {
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  border-top: 0.11em solid currentColor;
+  border-right: 0.11em solid currentColor;
+  vertical-align: middle;
+}
+.gms-fullcalendar .fc .fc-icon-chevron-left::before { transform: translateX(15%) rotate(-135deg); }
+.gms-fullcalendar .fc .fc-icon-chevron-right::before { transform: translateX(-15%) rotate(45deg); }
 .gms-fullcalendar .fc .fc-col-header-cell-cushion,
 .gms-fullcalendar .fc .fc-daygrid-day-number { color: var(--ink); text-decoration: none; }
 .gms-fullcalendar .fc .fc-timegrid-slot-label-cushion { color: var(--ink-faint); font-family: var(--mono); font-size: 10px; }

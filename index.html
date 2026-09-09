@@ -6,6 +6,22 @@
     <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" />
     <link rel="apple-touch-icon" href="/assets/sc-logo.png" />
     <title>SC GMS · Guest Management System</title>
+    <!--
+      Applies the saved theme before first paint. Without this the document
+      renders with the light default baked into <html> above and then snaps to
+      dark once App.jsx mounts and reads the same key.
+
+      ⚠️ "gms-tweaks" must match THEME_STORAGE_KEY in src/App.jsx.
+    -->
+    <script>
+      (function () {
+        try {
+          var t = JSON.parse(localStorage.getItem('gms-tweaks') || 'null');
+          if (t && t.theme) document.documentElement.setAttribute('data-theme', t.theme);
+          if (t && t.density) document.documentElement.setAttribute('data-density', t.density);
+        } catch (e) { /* private mode / corrupt value — keep the markup default */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
