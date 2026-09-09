@@ -1,4 +1,4 @@
-import { fmtDate } from "../../lib/date.js";
+import { fmtDate, fmtDateTime } from "../../lib/date.js";
 import { flightTypeLabel } from "../guests/modals/TravelAccordion.jsx";
 
 // A dynamic service with this code covers the same ground as the built-in
@@ -107,7 +107,9 @@ export const flightExportRows = (rows, isAr) => rows.map((f) => [
 ]);
 
 export const HOTEL_EXPORT_HEADERS = ["Guest", "Email", "Hotel", "Room Type", "Check-in", "Check-out"];
-export const hotelExportRows = (rows) => rows.map((h) => [h.name, h.email, h.hotel, h.roomType, h.checkIn, h.checkOut]);
+export const hotelExportRows = (rows) => rows.map((h) => [
+  h.name, h.email, h.hotel, h.roomType, fmtDateTime(h.checkIn, ""), fmtDateTime(h.checkOut, ""),
+]);
 
 export const TRANSFER_EXPORT_HEADERS = ["Guest", "Vehicle", "Driver", "Driver Type", "Pickup", "Dropoff", "Date", "Time", "Status"];
 export const transferExportRows = (rows) => rows.map((t) => [

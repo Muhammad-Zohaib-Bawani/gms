@@ -394,7 +394,7 @@ export default function GuestOverviewView({ lang }) {
         });
 
         (d.accommodations || []).forEach((a) => stays.push([
-          ...who, a.eventTitle, a.hotel, a.roomType, a.checkIn, a.checkOut,
+          ...who, a.eventTitle, a.hotel, a.roomType, dt(a.checkIn), dt(a.checkOut),
         ]));
 
         (d.transport || []).forEach((t) => rides.push([

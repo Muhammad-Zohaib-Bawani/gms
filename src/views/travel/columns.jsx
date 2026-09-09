@@ -3,7 +3,7 @@ import SharedGuestCell from "../../components/GuestCell.jsx";
 import { ServiceLevelChip } from "../../components/UI.jsx";
 import { Icon } from "../../components/Icons.jsx";
 import ActionMenu from "../../components/ui/ActionMenu.jsx";
-import { fmtDate } from "../../lib/date.js";
+import { fmtDate, fmtDateTime } from "../../lib/date.js";
 import { flightTypeLabel } from "../guests/modals/TravelAccordion.jsx";
 import { allFormFields } from "../../components/ui/DynamicFields.jsx";
 import FlightLegCell from "./FlightLegCell.jsx";
@@ -235,11 +235,11 @@ export function buildBookingColumns({ STR, isAr, ad, navigate, removingId, openE
         <span style={text}>{b.roomType}</span>
       )),
       col("checkIn", STR.cols.checkIn, (b) => (
-        <span style={mono}>{fmtDate(b.checkIn)}</span>
-      ), 120),
+        <span style={mono}>{fmtDateTime(b.checkIn)}</span>
+      ), 150),
       col("checkOut", STR.cols.checkOut, (b) => (
-        <span style={mono}>{fmtDate(b.checkOut)}</span>
-      ), 120),
+        <span style={mono}>{fmtDateTime(b.checkOut)}</span>
+      ), 150),
       col("nights", STR.cols.nights, (b) => (
         <span style={{ ...mono, color: "var(--ink-mute)" }}>{nights(b)}</span>
       )),

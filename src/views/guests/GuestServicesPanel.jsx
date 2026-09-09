@@ -27,7 +27,7 @@ import {
   getTravelLookups, getGuestTravel, saveGuestTravel,
   deleteFlight, deleteAccommodation, deleteTransport,
 } from '../../api/services/travelService';
-import { addDaysIso, fmtDate } from '../../lib/date';
+import { addDaysIso, fmtDate, fmtDateTime } from '../../lib/date';
 import { isConfirmed, isLocked } from '../../lib/serviceStatus';
 import {
   GuestCard, CardHeader, CardFooter, CardSlider,
@@ -189,7 +189,7 @@ function hotelProps(row, v) {
   if (row) {
     return {
       hotel: row.hotel, roomType: row.roomType,
-      checkIn: fmtDate(row.checkIn, '') || '', checkOut: fmtDate(row.checkOut, '') || '',
+      checkIn: fmtDateTime(row.checkIn, '') || '', checkOut: fmtDateTime(row.checkOut, '') || '',
       nights: nightsBetween(row.checkIn, row.checkOut),
     };
   }

@@ -120,6 +120,7 @@ function RecordCard({ icon, title, status, eventTitle, onEdit, children }) {
 // Portal-wide DD-MM-YYYY (lib/date) — was raw ISO yyyy-mm-dd[Thh:mm]. Null
 // (not a dash) when empty: Facts already drops a null/empty entry entirely.
 const fmtDate = (v) => (v ? isoDate(v, null) : null);
+const fmtDateTime = (v) => (v ? isoDateTime(v, null) : null);
 const dt = (v) => (v ? isoDateTime(v, null) : null);
 
 // The cross-event detail for ONE PERSON. `personId` is Guest.PublicId; every
@@ -270,7 +271,7 @@ export default function GuestDetail({ personId, guest }) {
         <div style={stack}>
           {accommodations.map((a) => (
             <RecordCard key={a.id} icon="hotel" title={a.hotel || 'Accommodation'} eventTitle={a.eventTitle}>
-              <Facts data={{ 'Room type': a.roomType, 'Check-in': fmtDate(a.checkIn), 'Check-out': fmtDate(a.checkOut) }} />
+              <Facts data={{ 'Room type': a.roomType, 'Check-in': fmtDateTime(a.checkIn), 'Check-out': fmtDateTime(a.checkOut) }} />
             </RecordCard>
           ))}
         </div>
