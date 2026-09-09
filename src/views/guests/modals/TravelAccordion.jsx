@@ -588,13 +588,18 @@ export default function TravelAccordion({
   });
 
   // Once both transport times are set, only cars actually free in that window are
-  // offered — before that (or if the lookup fails) the full fleet is.
+  // offered — before that (or if the lookup fails) the whole open pool is.
+  //
+  // The fallback is `openVehicles`, not the full fleet: GET /vehicles/available
+  // serves Open cars only, and the untimed case has to match it. A Fixed car is
+  // the dedicated ride of one Open driver, filled in automatically when that
+  // driver accepts a job, so offering one here would hand somebody else's car out.
   const freeVehicles = useAvailableVehicles({
     pickupTime: travel.transport.enabled ? travel.transport.pickupTime : '',
     dropoffTime: travel.transport.enabled ? travel.transport.dropoffTime : '',
     eventId,
     excludeTransportId: travel.transport.id,
-    fallback: lookups.vehicles,
+    fallback: lookups.openVehicles,
   });
   const vehicleOpts = mapOpts(freeVehicles, vehicleLabel);
 

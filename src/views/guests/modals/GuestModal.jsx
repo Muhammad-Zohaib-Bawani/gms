@@ -288,7 +288,7 @@ export default function GuestModal({
 
   // Guarded on `open` — this component gets mounted once and toggled via the
   // `open` prop by some callers, so a bare `[]` dep would fire these (and the
-  // 8 parallel requests inside getTravelLookups) on every mount regardless of
+  // 9 parallel requests inside getTravelLookups) on every mount regardless of
   // whether the dialog is actually visible yet.
   useEffect(() => {
     if (!open) return;

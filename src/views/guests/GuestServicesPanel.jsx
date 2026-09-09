@@ -319,8 +319,7 @@ export default function GuestServicesPanel({
 
   useEffect(() => { load(); }, [load]);
 
-  // Only fetched once a built-in slot is actually opened — the dynamic path needs
-  // none of it, and this is eight parallel lookup requests.
+
   useEffect(() => {
     if (!isSystemEdit || Object.keys(travelLookups).length > 0) return;
     getTravelLookups(eventId).then(setTravelLookups).catch(() => setTravelLookups({}));
