@@ -24,7 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageHeader, Card, Grid, StatCard, EmptyState } from '../components/ds';
 import { Icon } from '../components/Icons';
 import Select from '../components/ui/Select';
-import { nationalityOptionLabel } from '../components/FlagIcon';
+import FlagIcon, { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
@@ -490,7 +490,16 @@ export default function GuestOverviewView({ lang }) {
           </span>
         ) : <span style={{ color: 'var(--ink-faint)' }}>—</span>;
       case 'nationality':
-        return g.nationalityName ? `${g.nationalityFlag || ''} ${g.nationalityName}` : '—';
+        // Real flag image from the ISO code, not the Nationality row's emoji
+        // `flag` field — Segoe UI Emoji has no flag glyphs, so on Windows the
+        // emoji degrades to boxes/letters. Same treatment as every other
+        // nationality cell in the app (GuestsTable, AccreditationView, …).
+        return g.nationalityName ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <FlagIcon code={g.nationalityCode} size={14} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.nationalityName}</span>
+          </span>
+        ) : '—';
       case 'organisation': return g.organization || '—';
       case 'guestType': return g.guestType || '—';
       case 'seats': return g.seatsCount > 0 ? g.seatsCount : '—';

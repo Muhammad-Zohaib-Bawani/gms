@@ -1,9 +1,13 @@
 import React from "react";
 import { Icon } from "../../components/Icons.jsx";
 
-// Four clickable KPI cards above the tab strip — Flights confirmed / Hotel
+// Four clickable KPI cards above the tab strip — Flight bookings / Hotel
 // rooms blocked / Ground transfers / Arrivals & departures. Clicking one
 // switches to its tab, same as clicking the tab button itself.
+//
+// Each card counts every row on its tab, whatever the booking's status. Flights
+// used to count only `confirmed`, which made the card disagree with both its own
+// tab's "N of M" line and the other two cards.
 export default function TravelKpiGrid({
   flightRows,
   hotelRows,
@@ -18,7 +22,7 @@ export default function TravelKpiGrid({
   const all = [
     {
       icon: "flight",
-      val: flightRows.filter((f) => f.flightStatus === "confirmed").length,
+      val: flightRows.length,
       label: STR.kpi.flights,
       help: STR.kpi.flightsH,
       tab: 0,

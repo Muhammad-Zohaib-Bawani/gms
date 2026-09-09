@@ -14,7 +14,7 @@ export const AUTH_STORAGE_KEY = 'gms-auth';
 
 // ── How portal users sign in ────────────────────────────────────────────────
 // 'entra'  -> Microsoft Entra ID (SSO). Must match the backend's Auth:Mode, which 
-.
+
 //             rejects portal password logins outright when it is EntraId.
 // 'local'  -> email + password (the pre-Entra behaviour).
 // Guests and drivers are unaffected either way: they are managed locally and sign
