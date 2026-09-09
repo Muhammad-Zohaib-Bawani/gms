@@ -17,7 +17,7 @@ export const guestsView = {
     newGuestHint: "Enter one guest step by step",
     existingGuestLabel: "Existing Guest",
     existingGuestHint: "Copy guests from another event",
-    importCsvLabel: "Import from CSV",
+    importCsvLabel: "Import from Excel",
     importCsvHint: "Add many guests from a file",
     deleteCount: (n) => `Delete (${n})`,
 
@@ -82,7 +82,7 @@ export const guestsView = {
     newGuestHint: "إدخال ضيف واحد خطوة بخطوة",
     existingGuestLabel: "ضيف حالي",
     existingGuestHint: "انسخ ضيوفاً من فعالية أخرى",
-    importCsvLabel: "استيراد من CSV",
+    importCsvLabel: "استيراد من Excel",
     importCsvHint: "أضف عدة ضيوف من ملف",
     deleteCount: (n) => `حذف (${n})`,
 
