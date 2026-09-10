@@ -17,6 +17,7 @@ import FlagIcon from '../components/FlagIcon';
 import toast from '../lib/toast';
 import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../lib/date';
 import { useAccess } from '../auth/AccessContext';
+import { PERM, svcPerm } from '../auth/permissions';
 import { getGuest, issueAccreditation, revokeAccreditation, updateGuest } from '../api/services/guestService';
 import { getNationalities } from '../api/services/nationalityService';
 import { getOrganizations } from '../api/services/organizationService';
@@ -175,7 +176,7 @@ function SessionsEditModal({ open, guest, event, lang, onClose, onSaved }) {
             <label key={s.id} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer',
               border: `1px solid ${selected.has(s.id) ? 'var(--accent)' : 'var(--glass-border)'}`,
-              background: selected.has(s.id) ? 'rgba(0, 98, 123,0.08)' : 'var(--surface-soft-2)',
+              background: selected.has(s.id) ? 'rgba(141, 1, 52,0.08)' : 'var(--surface-soft-2)',
             }}>
               <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} />
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -202,8 +203,13 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
   const isAr = lang === 'ar';
   const navigate = useNavigate();
   const { canRead, canWrite } = useAccess();
-  const canEditGuest = canWrite('guests');
-  const canSeeSeating = canRead('seating');
+  const canEditGuest = canWrite(PERM.GUESTS);
+  const canSeeSeating = canRead(PERM.SEATING);
+  // Issue/Revoke post to /guest/{id}/accreditation/*, which gate on
+  // Accreditation/Write — not on Guests. A guest editor without the
+  // accreditation module must not be offered a badge action.
+  const canAccredit = canWrite(PERM.ACCREDITATION);
+  const canMessage = canWrite(PERM.SUPPORT_CHAT);
 
   const [guest, setGuest] = useState(null);
   const [event, setEvent] = useState(null);
@@ -363,17 +369,19 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
             </div>
 
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-              <button
-                className="icon-btn" title={isAr ? 'رسالة' : 'Message'} aria-label={isAr ? 'رسالة' : 'Message'}
-                /* Support chat is one thread per PERSON, so it takes
-                   guest.personId — the participation id would 404 there. */
-                onClick={() => navigate('/support-chat', {
-                  state: { personId: guest.personId, guestName, guestOrganization: guest.organization || '' },
-                })}
-              >
-                <Icon name="message" size={14} />
-              </button>
-              {guest.accreditationRequired && (
+              {canMessage && (
+                <button
+                  className="icon-btn" title={isAr ? 'رسالة' : 'Message'} aria-label={isAr ? 'رسالة' : 'Message'}
+                  /* Support chat is one thread per PERSON, so it takes
+                     guest.personId — the participation id would 404 there. */
+                  onClick={() => navigate('/support-chat', {
+                    state: { personId: guest.personId, guestName, guestOrganization: guest.organization || '' },
+                  })}
+                >
+                  <Icon name="message" size={14} />
+                </button>
+              )}
+              {guest.accreditationRequired && canAccredit && (
                 guest.accreditationStatus === 'issued' ? (
                   <button
                     className="icon-btn" style={{ color: 'var(--danger)' }} disabled={busy}
@@ -396,19 +404,26 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
                   </button>
                 )
               )}
-              <button
-                className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} aria-label={isAr ? 'تعديل' : 'Edit'}
-                onClick={() => setShowEdit(true)}
-              >
-                <Icon name="edit" size={14} />
-              </button>
-              <button
-                className="icon-btn" style={{ color: 'var(--danger)' }}
-                title={isAr ? 'حذف' : 'Delete'} aria-label={isAr ? 'حذف' : 'Delete'}
-                onClick={() => setShowDelete(true)}
-              >
-                <Icon name="trash" size={14} />
-              </button>
+              {/* Guests/Write, the same code GuestController's Update and
+                  Delete gate on — and the same canEditGuest the Personal Info
+                  and Sessions cards below already use. */}
+              {canEditGuest && (
+                <>
+                  <button
+                    className="icon-btn" title={isAr ? 'تعديل' : 'Edit'} aria-label={isAr ? 'تعديل' : 'Edit'}
+                    onClick={() => setShowEdit(true)}
+                  >
+                    <Icon name="edit" size={14} />
+                  </button>
+                  <button
+                    className="icon-btn" style={{ color: 'var(--danger)' }}
+                    title={isAr ? 'حذف' : 'Delete'} aria-label={isAr ? 'حذف' : 'Delete'}
+                    onClick={() => setShowDelete(true)}
+                  >
+                    <Icon name="trash" size={14} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -594,8 +609,12 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
         event={event}
         lang={lang}
         onClose={() => setShowAccredCard(false)}
-        onIssue={handleIssue}
-        onRevoke={handleRevoke}
+        /* The modal renders each action only when it is given a handler, so
+           withholding them is how a role without Accreditation/Write gets a
+           read-only pass. canIssue is a different question — whether the guest
+           has accepted yet. */
+        onIssue={canAccredit ? handleIssue : null}
+        onRevoke={canAccredit ? handleRevoke : null}
         canIssue={canIssue}
         busy={busy}
         notAcceptedTitle={isAr ? 'يجب قبول الدعوة أولاً' : 'Guest must accept the invitation first'}

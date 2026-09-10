@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { getMyAccess } from '../api/services/roleAccessService';
+import { createAccessEvaluator } from './permissions';
 
 // Role access for the signed-in user: the navigation tree (database-owned) plus
 // the Read/Write flags every screen gates on. A node is one row of the
@@ -17,9 +18,8 @@ import { getMyAccess } from '../api/services/roleAccessService';
 const AccessContext = createContext(null);
 
 // Demo mode has no backend and no token; every check passes so the static UI
-// still renders. Mirrors DEMO_USER in AuthContext.
-const DEMO = { read: true, write: true };
-
+// still renders (createAccessEvaluator's `allowAll`). Mirrors DEMO_USER in
+// AuthContext.
 export function AccessProvider({ children }) {
   const { isAuthenticated, isBooting, isDemo, user, session } = useAuth();
   const [menus, setMenus] = useState([]);
@@ -51,26 +51,39 @@ export function AccessProvider({ children }) {
     return () => { alive = false; };
   }, [isDemo, isBooting, isAuthenticated, accessToken]);
 
-  // Sets, not arrays: canRead/canWrite are called once per nav item per render.
-  const { readable, writable } = useMemo(() => ({
-    readable: new Set(user?.read || []),
-    writable: new Set(user?.write || []),
-  }), [user]);
+  // The rules themselves live in permissions.js — React-free, so they can be
+  // asserted directly and no component reimplements them. This is only the
+  // binding of those rules to the current user.
+  const evaluator = useMemo(
+    () => createAccessEvaluator({ read: user?.read, write: user?.write, allowAll: isDemo }),
+    [user, isDemo]
+  );
 
-  // Write is never implied by Read. Read IS implied by Write — a role that may
-  // edit a page may obviously open it. Same rule as AccessEvaluator.
-  const canRead = useCallback(
-    (code) => (isDemo ? DEMO.read : !!code && (readable.has(code) || writable.has(code))),
-    [isDemo, readable, writable]
+  const canRead = useCallback((code) => evaluator.canRead(code), [evaluator]);
+  const canWrite = useCallback((code) => evaluator.canWrite(code), [evaluator]);
+  const canReadAny = useCallback((codes) => evaluator.canReadAny(codes), [evaluator]);
+  const canWriteAny = useCallback((codes) => evaluator.canWriteAny(codes), [evaluator]);
+  const hasPermission = useCallback(
+    (code, level) => evaluator.hasPermission(code, level),
+    [evaluator]
   );
-  const canWrite = useCallback(
-    (code) => (isDemo ? DEMO.write : !!code && writable.has(code)),
-    [isDemo, writable]
-  );
+
+  // True once the answers are trustworthy. Claims ride in the JWT, so they are
+  // present the moment auth finishes booting — there is no separate permissions
+  // fetch to wait on, and therefore no window where a button renders and then
+  // vanishes. `menus` (the nav TREE) does load asynchronously, but nothing gates
+  // an action on it. Gate on `ready` only where rendering the denied state early
+  // would be wrong (an "access denied" flash during a token refresh); ordinary
+  // action buttons need nothing, because before ready every check already
+  // answers false.
+  const ready = !isBooting;
 
   const value = useMemo(
-    () => ({ menus, loading, error, canRead, canWrite }),
-    [menus, loading, error, canRead, canWrite]
+    () => ({
+      menus, loading, error, ready,
+      canRead, canWrite, canReadAny, canWriteAny, hasPermission,
+    }),
+    [menus, loading, error, ready, canRead, canWrite, canReadAny, canWriteAny, hasPermission]
   );
 
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;

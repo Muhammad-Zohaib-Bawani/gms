@@ -48,7 +48,7 @@ export const DEFAULT_DESIGN = {
   fontSize: 15,
   textColor: '#1a1a1a',
   buttonLabel: 'View Invitation & Respond',
-  buttonColor: '#00627b',
+  buttonColor: '#8d0134',
   buttonTextColor: '#ffffff',
   align: 'left',
 };
@@ -115,7 +115,7 @@ export function previewHtml(body) {
   return withInertLink.replace(
     /(<[^>]*>)|(\{\{\s*[A-Za-z0-9_]+\s*\}\})/g,
     (match, tag, token) => (tag ? tag : (
-      `<span style="background:rgba(0, 98, 123,0.08);color:#00627b;border:1px dashed rgba(0, 98, 123,0.35);` +
+      `<span style="background:rgba(141,1,52,0.08);color:#8d0134;border:1px dashed rgba(141,1,52,0.35);` +
       `border-radius:4px;padding:0 4px;font-size:0.92em;">${token}</span>`
     )),
   );
@@ -204,7 +204,7 @@ const SizedImage = Image.extend({
       width: {
         default: null,
         parseHTML: el => el.style.width || el.getAttribute('width') || null,
-        renderHTML: a => (a.width ? { style: `width:${a.width}` } : {}),
+        renderHTML: a => (a.width ? { style: `width:${a.width};max-width:100%` } : {}),
       },
       height: {
         default: null,
@@ -246,6 +246,181 @@ const SizedImage = Image.extend({
           return { 'data-align': a.align, style: `display:block;${margins}` };
         },
       },
+    };
+  },
+
+  /**
+   * Word-style drag handles on the selected image.
+   *
+   * A node view is editor-only — `renderHTML` above still produces the single
+   * plain <img> that goes into the email, so none of this wrapper or its handles
+   * reach a recipient.
+   *
+   * Written against the DOM rather than as a React node view: it's one element
+   * plus eight handles driven by pointer events, and a React tree re-rendering on
+   * every pointermove would fight the direct style writes that keep the drag
+   * smooth.
+   */
+  addNodeView() {
+    return ({ node, editor, getPos }) => {
+      let current = node;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'gms-img-wrap';
+      const img = document.createElement('img');
+      wrapper.appendChild(img);
+
+      // Corners keep the aspect ratio, edges stretch one axis — the same split
+      // Word uses, and the reason the handle carries its kind.
+      const HANDLES = [
+        ['nw', 'corner'], ['n', 'v'], ['ne', 'corner'], ['e', 'h'],
+        ['se', 'corner'], ['s', 'v'], ['sw', 'corner'], ['w', 'h'],
+      ];
+      const badge = document.createElement('span');
+      badge.className = 'gms-img-size';
+      wrapper.appendChild(badge);
+
+      /**
+       * Width lives on the WRAPPER and the image fills it. A percentage on the
+       * image inside a shrink-to-fit wrapper would resolve against a width the
+       * image itself determines, so it collapses; this keeps px and % alike
+       * predictable, and makes the handles line up with the visible box.
+       */
+      function apply(n) {
+        img.setAttribute('src', n.attrs.src || '');
+        if (n.attrs.alt) img.setAttribute('alt', n.attrs.alt); else img.removeAttribute('alt');
+        if (n.attrs.title) img.setAttribute('title', n.attrs.title); else img.removeAttribute('title');
+
+        wrapper.style.cssText = '';
+        wrapper.style.width = n.attrs.width || '';
+        img.style.width = n.attrs.width ? '100%' : '';
+        img.style.height = n.attrs.height || '';
+        img.style.objectFit = n.attrs.fit || '';
+
+        if (n.attrs.wrap) {
+          const side = n.attrs.wrap === 'right' ? 'right' : 'left';
+          wrapper.style.float = side;
+          wrapper.style.margin = side === 'left' ? '0 16px 10px 0' : '0 0 10px 16px';
+        } else if (n.attrs.align) {
+          wrapper.style.display = 'block';
+          wrapper.style.marginLeft = n.attrs.align === 'left' ? '0' : 'auto';
+          wrapper.style.marginRight = n.attrs.align === 'right' ? '0' : 'auto';
+        }
+      }
+      apply(current);
+
+      let drag = null;
+      const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+      function onMove(e) {
+        if (!drag) return;
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+        // Dragging a west/north handle moves the pointer opposite to growth.
+        const sx = drag.dir.includes('w') ? -1 : 1;
+        const sy = drag.dir.includes('n') ? -1 : 1;
+
+        let w = drag.w;
+        let h = drag.h;
+        if (drag.kind === 'corner') {
+          w = clamp(drag.w + dx * sx, MIN_IMAGE_PX, drag.maxW);
+          h = Math.round(w / drag.ratio);
+        } else if (drag.kind === 'h') {
+          w = clamp(drag.w + dx * sx, MIN_IMAGE_PX, drag.maxW);
+        } else {
+          h = Math.max(MIN_IMAGE_PX, drag.h + dy * sy);
+        }
+
+        drag.next = { w: Math.round(w), h: Math.round(h) };
+        wrapper.style.width = `${drag.next.w}px`;
+        img.style.width = '100%';
+        if (drag.kind !== 'h') img.style.height = `${drag.next.h}px`;
+        badge.textContent = `${drag.next.w} × ${drag.next.h}`;
+      }
+
+      function onUp() {
+        window.removeEventListener('pointermove', onMove);
+        wrapper.classList.remove('is-resizing');
+        const finished = drag;
+        drag = null;
+        if (!finished?.next) return;
+
+        const pos = typeof getPos === 'function' ? getPos() : null;
+        if (pos == null) return;
+
+        // One transaction at the end, not one per pointermove: the live feedback
+        // is the direct style write above, so the undo stack gets a single step
+        // for the whole gesture instead of a hundred.
+        //
+        // Dragged to (near) the container edge → store width:100% with no pinned
+        // height, not an absolute px. A percentage fills whatever box it lands in
+        // — the editor, the preview, a narrow mobile client — and keeps the
+        // natural aspect ratio, where a frozen px would overflow the moment the
+        // box is narrower than the editor it was sized in. A width-changing drag
+        // ('corner'/'h'), not a pure height drag ('v'), is what can reach full.
+        const full = finished.kind !== 'v' && finished.next.w >= drag.maxW - FULL_WIDTH_SNAP_PX;
+        const attrs = { ...current.attrs };
+        if (full) {
+          attrs.width = '100%';
+          attrs.height = null;
+        } else {
+          attrs.width = `${finished.next.w}px`;
+          if (finished.kind !== 'h') attrs.height = `${finished.next.h}px`;
+        }
+        editor.view.dispatch(editor.view.state.tr.setNodeMarkup(pos, undefined, attrs));
+      }
+
+      HANDLES.forEach(([dir, kind]) => {
+        const handle = document.createElement('span');
+        handle.className = `gms-img-handle gms-img-handle--${dir}`;
+        handle.dataset.dir = dir;
+        handle.draggable = false;
+        handle.addEventListener('pointerdown', (e) => {
+          // Without this the node's own draggable takes over and ProseMirror
+          // starts a drag-and-drop of the image instead of a resize.
+          e.preventDefault();
+          e.stopPropagation();
+          const rect = img.getBoundingClientRect();
+          const avail = wrapper.parentElement?.getBoundingClientRect().width;
+          drag = {
+            dir,
+            kind,
+            x: e.clientX,
+            y: e.clientY,
+            w: rect.width,
+            h: rect.height,
+            ratio: rect.width / Math.max(1, rect.height),
+            maxW: avail || rect.width * 4,
+          };
+          badge.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`;
+          wrapper.classList.add('is-resizing');
+          window.addEventListener('pointermove', onMove);
+          window.addEventListener('pointerup', onUp, { once: true });
+        });
+        wrapper.appendChild(handle);
+      });
+
+      return {
+        dom: wrapper,
+        update(updated) {
+          if (updated.type.name !== current.type.name) return false;
+          current = updated;
+          // A live drag owns the inline styles; re-applying mid-gesture would
+          // snap the image back to its last committed size on every keystroke
+          // elsewhere in the document.
+          if (!drag) apply(updated);
+          return true;
+        },
+        // Handle gestures are ours; everything else stays ProseMirror's.
+        stopEvent: (e) => e.target instanceof Element
+          && e.target.classList.contains('gms-img-handle'),
+        // The drag writes inline styles straight onto the DOM, which would
+        // otherwise look like external tampering and force a re-render.
+        ignoreMutation: () => true,
+        destroy() {
+          window.removeEventListener('pointermove', onMove);
+        },
+      };
     };
   },
 });
@@ -305,45 +480,20 @@ const selStyle = {
 };
 const sep = () => <span style={{ width: 1, height: 20, background: 'var(--glass-border)', margin: '0 2px' }} />;
 
-const WIDTH_PRESETS = [
-  { value: '100%', label: 'Full width' },
-  { value: '75%', label: '75%' },
-  { value: '50%', label: '50%' },
-  { value: '33%', label: '33%' },
-  { value: '200px', label: '200px' },
-  { value: '120px', label: '120px' },
-];
+/** Floor for a drag-resize, in px — below this the handles overlap each other. */
+const MIN_IMAGE_PX = 32;
 
-const stripPx = (v) => (v == null ? '' : String(v).replace(/px$/i, ''));
-/** Bare numbers mean px — nobody types the unit. "50%" and the like pass through. */
-const toCssLength = (raw) => {
-  const t = (raw || '').trim();
-  if (!t) return null;
-  return /^\d+(\.\d+)?$/.test(t) ? `${t}px` : t;
-};
+/**
+ * How close to the container edge (px) a resize must land to snap to width:100%.
+ * A small margin so a deliberate full-width drag records as a responsive 100%
+ * rather than an absolute px one pixel short of the box.
+ */
+const FULL_WIDTH_SNAP_PX = 8;
 
-/** Shown only while an image is selected — resize, crop behaviour, alignment. */
+/** Shown only while an image is selected — fit, text wrap, alignment. */
 function ImageBar({ editor, isAr }) {
   const attrs = editor.getAttributes('image');
   const set = (patch) => editor.chain().focus().updateAttributes('image', patch).run();
-  // Same, minus the .focus(): that call moves the caret into the DOCUMENT, which
-  // is right after clicking a button or select but ruinous while someone is
-  // typing in a text box — the second keystroke would land in the email body.
-  // The image stays selected in ProseMirror's state either way, so the attribute
-  // update still targets it.
-  const setQuiet = (patch) => editor.chain().updateAttributes('image', patch).run();
-
-  // Height is typed into, so it also can't be controlled straight off the
-  // committed attribute: committing "2" as "2px" puts "2px" back in the box
-  // mid-word, and the next keystroke reads "2px2". Show a draft, commit a
-  // normalised value beside it — the same split the date/time fields use.
-  const [heightDraft, setHeightDraft] = useState(() => stripPx(attrs.height));
-  useEffect(() => {
-    // Resync only when the attribute moved for a reason other than this box —
-    // the Fit control pinning a height, or Reset clearing one.
-    if (toCssLength(heightDraft) !== (attrs.height ?? null)) setHeightDraft(stripPx(attrs.height));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attrs.height]);
   const lbl = { fontSize: 10, color: 'var(--ink-mute)', textTransform: 'uppercase', letterSpacing: '0.08em' };
   const cell = { display: 'flex', flexDirection: 'column', gap: 3 };
 
@@ -358,26 +508,7 @@ function ImageBar({ editor, isAr }) {
           {isAr ? 'يؤثر على هذه الصورة فقط' : 'affects this image only'}
         </span>
       </div>
-      <div style={cell}>
-        <span style={lbl}>{isAr ? 'العرض' : 'Width'}</span>
-        <select style={selStyle} value={attrs.width || ''} onChange={e => set({ width: e.target.value || null })}>
-          <option value="">{isAr ? 'أصلي' : 'Original'}</option>
-          {WIDTH_PRESETS.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
-        </select>
-      </div>
-      <div style={cell}>
-        <span style={lbl}>{isAr ? 'الارتفاع (بكسل)' : 'Height (px)'}</span>
-        <input
-          style={{ ...selStyle, width: 92 }}
-          value={heightDraft}
-          placeholder={isAr ? 'تلقائي' : 'auto'}
-          onChange={(e) => {
-            const raw = e.target.value;
-            setHeightDraft(raw);
-            setQuiet({ height: toCssLength(raw) });
-          }}
-        />
-      </div>
+      {/* No numeric Width/Height boxes — the drag handles cover sizing. */}
       <div style={cell}>
         <span style={lbl}>{isAr ? 'الملاءمة' : 'Fit'}</span>
         <select
@@ -406,7 +537,7 @@ function ImageBar({ editor, isAr }) {
             const wrap = e.target.value || null;
             // A full-width floated image leaves no room for the text to sit in,
             // so it would look identical to no wrap at all. Narrow it on the way
-            // in, the same way choosing a Fit pins a height.
+            // in; the handles can take it back out afterwards.
             const needsRoom = wrap && (!attrs.width || attrs.width === '100%');
             set(needsRoom ? { wrap, width: '40%' } : { wrap });
           }}
@@ -549,8 +680,7 @@ function Toolbar({ editor, design, isAr }) {
           + {isAr ? 'زر الدعوة' : 'Invite button'}
         </button>
       </div>
-      {/* Keyed per image so selecting a different one reseeds the height draft
-          rather than carrying the previous image's number across. */}
+      {/* Keyed per image so switching selection doesn't carry state across. */}
       {editor.isActive('image') && (
         <ImageBar key={editor.getAttributes('image').src} editor={editor} isAr={isAr} />
       )}
@@ -804,7 +934,7 @@ export function EmailPreviewModal({ open, onClose, subject, body, isAr }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 18 }}>
               <div style={{
-                width: 40, height: 40, borderRadius: '50%', background: '#00627b', color: '#fff',
+                width: 40, height: 40, borderRadius: '50%', background: '#8d0134', color: '#fff',
                 display: 'grid', placeItems: 'center', fontSize: 17, fontWeight: 600, flexShrink: 0,
               }}>
                 G
@@ -824,7 +954,15 @@ export function EmailPreviewModal({ open, onClose, subject, body, isAr }) {
 
           <div style={{ padding: '20px 24px 28px', color: '#202124' }}>
             {body
-              ? <div dangerouslySetInnerHTML={{ __html: html }} />
+              ? (
+
+                <iframe
+                  title={isAr ? 'معاينة البريد' : 'Email preview'}
+                  srcDoc={html}
+                  sandbox=""
+                  style={{ width: '100%', minHeight: 420, border: 0, display: 'block', background: '#fff' }}
+                />
+              )
               : (
                 <div style={{ color: '#9aa0a6', fontSize: 13, padding: '48px 0', textAlign: 'center' }}>
                   {isAr ? 'لا يوجد محتوى بعد.' : 'Nothing to preview yet.'}
@@ -841,7 +979,7 @@ export function EmailPreviewModal({ open, onClose, subject, body, isAr }) {
             type="button" onClick={onClose}
             style={{
               padding: '8px 18px', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              border: 'none', background: '#00627b', color: '#fff',
+              border: 'none', background: '#8d0134', color: '#fff',
             }}
           >
             {isAr ? 'إغلاق' : 'Close'}
