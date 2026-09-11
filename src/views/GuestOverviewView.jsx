@@ -21,10 +21,10 @@
 // the Columns picker, and the full detail lives in the expanded row.
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Card, Grid, StatCard, EmptyState } from '../components/ds';
+import { PageHeader, Card, Grid, StatCard, EmptyState, Skeleton } from '../components/ds';
 import { Icon } from '../components/Icons';
 import Select from '../components/ui/Select';
-import FlagIcon, { nationalityOptionLabel } from '../components/FlagIcon';
+import { nationalityOptionLabel } from '../components/FlagIcon';
 import DateField from '../components/ui/DateField';
 import ActionMenu from '../components/ui/ActionMenu';
 import toast from '../lib/toast';
@@ -155,7 +155,10 @@ export default function GuestOverviewView({ lang }) {
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
-  const [expanded, setExpanded] = useState(() => new Set());
+  // Master/detail: the person whose card set fills the right pane. The screen
+  // used to expand a row inside the table, which put a wide detail panel inside
+  // a horizontally-scrolling <td> and made everything fight for the same width.
+  const [selectedId, setSelectedId] = useState(null);
   // "View profile" has to cross from person to participation: /guests/:id takes
   // an eventGuestId, which only the detail response carries. Resolved on click
   // (one request) rather than pre-fetched for every visible row.
@@ -197,22 +200,6 @@ export default function GuestOverviewView({ lang }) {
   const [organisations, setOrganisations] = useState([]);
   const [nationalities, setNationalities] = useState([]);
   const [sessions, setSessions] = useState([]);
-
-  // The detail panel lives in a <td> inside the horizontally-scrolling table, so
-  // without this it stretches to the full width of all columns and its content
-  // spreads far apart. Measuring the viewport lets it stay one screen wide and
-  // stick to the left edge as the columns scroll under it.
-  const scrollRef = useRef(null);
-  const [detailWidth, setDetailWidth] = useState(0);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return undefined;
-    const measure = () => setDetailWidth(el.clientWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const [visible, setVisible] = useState(
     () => new Set(COLUMNS.filter((c) => c.core).map((c) => c.key)),
@@ -299,11 +286,14 @@ export default function GuestOverviewView({ lang }) {
 
   const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
 
-  const toggleRow = (id) => setExpanded((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  // Keep a selection alive across paging/filtering where possible: if the chosen
+  // person is still in the result set, stay on them; otherwise fall to the first
+  // row so the right pane is never blank next to a populated list.
+  const selected = rows.find((r) => r.id === selectedId) || null;
+  useEffect(() => {
+    if (rows.length === 0) { setSelectedId(null); return; }
+    if (!rows.some((r) => r.id === selectedId)) setSelectedId(rows[0].id);
+  }, [rows, selectedId]);
 
   const toggleColumn = (key) => setVisible((prev) => {
     const next = new Set(prev);
@@ -394,7 +384,7 @@ export default function GuestOverviewView({ lang }) {
         });
 
         (d.accommodations || []).forEach((a) => stays.push([
-          ...who, a.eventTitle, a.hotel, a.roomType, dt(a.checkIn), dt(a.checkOut),
+          ...who, a.eventTitle, a.hotel, a.roomType, a.checkIn, a.checkOut,
         ]));
 
         (d.transport || []).forEach((t) => rides.push([
@@ -490,16 +480,7 @@ export default function GuestOverviewView({ lang }) {
           </span>
         ) : <span style={{ color: 'var(--ink-faint)' }}>—</span>;
       case 'nationality':
-        // Real flag image from the ISO code, not the Nationality row's emoji
-        // `flag` field — Segoe UI Emoji has no flag glyphs, so on Windows the
-        // emoji degrades to boxes/letters. Same treatment as every other
-        // nationality cell in the app (GuestsTable, AccreditationView, …).
-        return g.nationalityName ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <FlagIcon code={g.nationalityCode} size={14} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.nationalityName}</span>
-          </span>
-        ) : '—';
+        return g.nationalityName ? `${g.nationalityFlag || ''} ${g.nationalityName}` : '—';
       case 'organisation': return g.organization || '—';
       case 'guestType': return g.guestType || '—';
       case 'seats': return g.seatsCount > 0 ? g.seatsCount : '—';
@@ -585,7 +566,7 @@ export default function GuestOverviewView({ lang }) {
                   style={{
                     cursor: 'pointer', fontSize: 11,
                     background: on ? 'var(--accent-soft)' : 'var(--bg-1)',
-                    // Not --accent: teal-on-teal is unreadable in dark mode.
+                    // Not --accent: maroon-on-maroon is unreadable in dark mode.
                     color: on ? 'var(--accent-ink)' : 'var(--ink-mute)',
                     borderColor: on ? 'var(--gc-accent)' : 'var(--glass-border)',
                   }}
@@ -675,82 +656,88 @@ export default function GuestOverviewView({ lang }) {
         </Card>
       )}
 
-      <Card padded={false}>
-        {!loading && rows.length === 0 ? (
-          <EmptyState icon="search" title="No guests match">
-            Try clearing a filter or widening the search.
-          </EmptyState>
-        ) : (
-          <>
-            <div className="dt-scroll" ref={scrollRef}>
-              <table className="dt-table">
-                <thead>
-                  <tr>
-                    <th className="dt-th" style={{ width: 36 }} />
-                    {shown.map((c) => <th key={c.key} className="dt-th">{c.label}</th>)}
-                    <th className="dt-th" style={{ width: 44 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((g) => {
-                    const isOpen = expanded.has(g.id);
-                    return (
-                      <React.Fragment key={g.id}>
-                        <tr className="dt-row clickable" onClick={() => toggleRow(g.id)}>
-                          <td className="dt-td">
-                            <Icon
-                              name={isOpen ? 'chevronDown' : 'chevronRight'}
-                              size={13}
-                              style={{ color: 'var(--ink-mute)' }}
-                            />
-                          </td>
-                          {shown.map((c) => (
-                            <td key={c.key} className="dt-td" style={{ fontSize: 12 }}>
-                              {cellFor(c, g)}
-                            </td>
-                          ))}
-                          <td className="dt-td" onClick={(e) => e.stopPropagation()}>
-                            <ActionMenu
-                              items={[
-                                // /guests/:id is event-scoped, and a row here is
-                                // a person — so the participation to open has to
-                                // be looked up first (openParticipation).
-                                { label: 'View profile', icon: 'guests', onClick: () => openParticipation(g) },
-                                {
-                                  // Support chat is person-scoped, so the row id
-                                  // (personId) is exactly right here.
-                                  label: 'Message', icon: 'message',
-                                  onClick: () => navigate('/support-chat', {
-                                    state: {
-                                      personId: g.id,
-                                      guestName: `${g.firstName} ${g.lastName}`.trim(),
-                                      guestOrganization: g.organization || '',
-                                    },
-                                  }),
-                                },
-                              ]}
-                            />
-                          </td>
-                        </tr>
-                        {isOpen && (
-                          <tr>
-                            <td className="dt-td" colSpan={shown.length + 2} style={{ padding: 0, background: 'var(--surface-soft-2)' }}>
-                              <div style={{
-                                position: 'sticky', left: 0,
-                                width: detailWidth || '100%',
-                                boxSizing: 'border-box',
-                              }}>
-                                <GuestDetail personId={g.id} guest={g} />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* ── Master / detail ──────────────────────────────────────────────────
+          A person is a one-to-many in six directions, so the old wide table with
+          an expanding row had the detail fighting the columns for width. The
+          list narrows to who you are picking; the pane beside it gets the room
+          the detail actually needs. */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(260px, 340px) minmax(0, 1fr)',
+        gap: 14,
+        alignItems: 'start',
+      }}>
+        <Card padded={false}>
+          {!loading && rows.length === 0 ? (
+            <EmptyState icon="search" title="No guests match">
+              Try clearing a filter or widening the search.
+            </EmptyState>
+          ) : (
+            <>
+              <div style={{ maxHeight: '62vh', overflowY: 'auto' }}>
+                {loading && rows.length === 0 ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 15px', borderBottom: '1px solid var(--glass-border)',
+                      }}
+                    >
+                      <Skeleton w={32} h={32} r="50%" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Skeleton w="58%" h={11} />
+                        <Skeleton w="78%" h={9} style={{ marginTop: 6 }} />
+                      </div>
+                    </div>
+                  ))
+                ) : rows.map((g) => {
+                  const on = g.id === selectedId;
+                  const more = Math.max(0, (g.eventsCount || 1) - 1);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedId(g.id)}
+                      title={(g.eventTitles || []).join('\n')}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
+                        width: '100%', textAlign: 'start', font: 'inherit', cursor: 'pointer',
+                        padding: '9px 12px',
+                        border: 0,
+                        borderInlineStart: `3px solid ${on ? 'var(--accent)' : 'transparent'}`,
+                        borderBottom: '1px solid var(--glass-border)',
+                        background: on ? 'var(--surface-soft-3)' : 'transparent',
+                        color: 'inherit',
+                      }}
+                    >
+                      <GuestCell guest={g} />
+                      {/* Under the person rather than beside them: at this width
+                          a right-hand event block and a long name were competing
+                          for the same pixels. */}
+                      {g.eventTitle && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          minWidth: 0, paddingInlineStart: 41,
+                        }}>
+                          <Icon name="calendar" size={10} style={{ color: 'var(--ink-faint)', flexShrink: 0 }} />
+                          <span style={{
+                            fontSize: 10.5, color: 'var(--ink-mute)', minWidth: 0,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {g.eventTitle}
+                          </span>
+                          {more > 0 && (
+                            <span style={{ fontSize: 10, color: 'var(--ink-faint)', flexShrink: 0 }}>
+                              &amp; {more} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
 
             <div className="dt-footer">
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -781,9 +768,20 @@ export default function GuestOverviewView({ lang }) {
                 <button className="dt-page" disabled={page + 1 >= pageCount} onClick={() => setPage((p) => p + 1)}>Next ›</button>
               </div>
             </div>
-          </>
-        )}
-      </Card>
+            </>
+          )}
+        </Card>
+
+        <Card>
+          {selected
+            ? <GuestDetail key={selected.id} personId={selected.id} guest={selected} />
+            : (
+              <EmptyState icon="guests" title="No guest selected">
+                Pick someone from the list to see their events, sessions and services.
+              </EmptyState>
+            )}
+        </Card>
+      </div>
     </div>
   );
 }

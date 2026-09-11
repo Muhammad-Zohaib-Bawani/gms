@@ -38,6 +38,7 @@ export default function GuestDrawerHeader({
   openingChat,
   onShowBadge,
   onEditProfile,
+  canManage,
   onAddMeeting,
   onExportPdf,
   onRemove,
@@ -58,8 +59,11 @@ export default function GuestDrawerHeader({
     return () => document.removeEventListener("mousedown", h);
   }, [showMore]);
 
+  // Edit Profile writes; Add Meeting and Export PDF do not. Gated per item
+  // rather than by hiding the whole menu, so a read-only role keeps the two
+  // actions it is entitled to instead of losing the menu entirely.
   const menuItems = [
-    {
+    canManage && {
       icon: "edit",
       label: t.editPro,
       action: () => {
@@ -83,7 +87,7 @@ export default function GuestDrawerHeader({
         onExportPdf();
       },
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <>
@@ -175,16 +179,20 @@ export default function GuestDrawerHeader({
                   <Icon name={item.icon} size={13} /> {item.label}
                 </button>
               ))}
-              <div className="guest-drawer-menu-sep" />
-              <button
-                onClick={() => {
-                  setShowMore(false);
-                  onRemove();
-                }}
-                className="guest-drawer-menu-btn guest-drawer-menu-btn--danger"
-              >
-                <Icon name="trash" size={13} /> {t.removeG}
-              </button>
+              {canManage && (
+                <>
+                  <div className="guest-drawer-menu-sep" />
+                  <button
+                    onClick={() => {
+                      setShowMore(false);
+                      onRemove();
+                    }}
+                    className="guest-drawer-menu-btn guest-drawer-menu-btn--danger"
+                  >
+                    <Icon name="trash" size={13} /> {t.removeG}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

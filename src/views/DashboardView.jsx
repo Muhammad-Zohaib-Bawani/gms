@@ -514,13 +514,7 @@ export default function DashboardView({
             >
               {STR.export}
             </Button>
-            {/* <Button
-              variant="primary"
-              icon="invitation"
-              onClick={() => gotoView?.("invitations")}
-            >
-              {STR.newInvite}
-            </Button> */}
+          
           </>
         }
       />

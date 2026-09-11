@@ -15,7 +15,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Icon } from '../../components/Icons';
 import Modal from '../../components/ui/Modal';
 import { DynamicFormInputs, missingRequired, allFormFields } from '../../components/ui/DynamicFields';
-import { loadLookupOptions, lookupLabelFor } from '../../components/ui/lookupSources';
+import { loadLookupOptions } from '../../components/ui/lookupSources';
+import { makeFieldDisplay, serviceProps } from '../../lib/serviceValues';
+import { useAccess } from '../../auth/AccessContext';
+import { PERM, svcPerm } from '../../auth/permissions';
 import toast from '../../lib/toast';
 import {
   getGuestServicePlan, saveGuestServiceEntry, deleteGuestServiceEntry,
@@ -27,7 +30,7 @@ import {
   getTravelLookups, getGuestTravel, saveGuestTravel,
   deleteFlight, deleteAccommodation, deleteTransport,
 } from '../../api/services/travelService';
-import { addDaysIso, fmtDate, fmtDateTime } from '../../lib/date';
+import { addDaysIso, fmtDate } from '../../lib/date';
 import { isConfirmed, isLocked } from '../../lib/serviceStatus';
 import {
   GuestCard, CardHeader, CardFooter, CardSlider,
@@ -189,7 +192,7 @@ function hotelProps(row, v) {
   if (row) {
     return {
       hotel: row.hotel, roomType: row.roomType,
-      checkIn: fmtDateTime(row.checkIn, '') || '', checkOut: fmtDateTime(row.checkOut, '') || '',
+      checkIn: fmtDate(row.checkIn, '') || '', checkOut: fmtDate(row.checkOut, '') || '',
       nights: nightsBetween(row.checkIn, row.checkOut),
     };
   }
@@ -214,38 +217,6 @@ function transportProps(row, v) {
     pickup: v.Pickup, dropoff: v.Dropoff, pickupTime: v['Pickup time'],
     status: v.Status, statusLabel: statusLabel(v.Status),
   };
-}
-
-/**
- * A dynamic service has no fixed shape, so its card is driven by its own form:
- * walk the schema in render order and pair each field's LABEL with its
- * displayed value. The stored values are keyed by field key ("pickupPoint"),
- * which is not something to put in front of a reader — and the raw value is
- * often an id or an option code, so it goes through `display` too.
- *
- * The first filled field becomes the card's headline; the rest are its grid.
- */
-function serviceProps(form, v, display, isAr) {
-  const values = v || {};
-  const filled = (x) => x != null && String(x).trim() !== '';
-  const pairs = [];
-  const seen = new Set();
-
-  allFormFields(form).forEach((f) => {
-    seen.add(f.key);
-    if (!filled(values[f.key])) return;
-    pairs.push([(isAr ? f.labelAr : null) || f.label || f.key, display(f, values[f.key])]);
-  });
-
-  // Anything the form no longer declares — the schema changed after this entry
-  // was saved. Better a raw key than silently dropping the guest's data.
-  Object.entries(values).forEach(([k, raw]) => {
-    if (seen.has(k) || !filled(raw)) return;
-    pairs.push([k, String(raw)]);
-  });
-
-  const [first, ...rest] = pairs;
-  return { primaryLabel: first?.[0], primary: first?.[1], facts: rest };
 }
 
 // ── Small shared pieces ───────────────────────────────────────────────────
@@ -285,6 +256,18 @@ export default function GuestServicesPanel({
   arrivalDate, departureDate, embedded, travelRows,
 }) {
   const isAr = lang === 'ar';
+
+  // Every write on this panel goes to one of two endpoints, and both accept the
+  // same pair of codes: the service-entry endpoints are
+  // [HasPermission(Write, Guests, Services)] and the travel endpoints are
+  // [HasPermission(Services, Write)]. Checking Services-or-Guests therefore
+  // matches the looser of the two — a Guests-only role can still fill in a
+  // dynamic service, which is the case the panel exists to serve. The travel
+  // cards additionally need Services, hence canManageTravel below.
+  const { canRead, canWrite, canWriteAny } = useAccess();
+  const canManage = canWriteAny([PERM.SERVICES, PERM.GUESTS]);
+  const canManageTravel = canWrite(PERM.SERVICES);
+
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -319,7 +302,8 @@ export default function GuestServicesPanel({
 
   useEffect(() => { load(); }, [load]);
 
-
+  // Only fetched once a built-in slot is actually opened — the dynamic path needs
+  // none of it, and this is eight parallel lookup requests.
   useEffect(() => {
     if (!isSystemEdit || Object.keys(travelLookups).length > 0) return;
     getTravelLookups(eventId).then(setTravelLookups).catch(() => setTravelLookups({}));
@@ -343,21 +327,11 @@ export default function GuestServicesPanel({
   }, [plan, eventId]);
 
   // Stored values are raw: option codes, ids, ISO timestamps. Same resolution
-  // the Services board does for its own columns (see ServiceOpsView).
-  const display = useCallback((field, raw) => {
-    if (raw == null || raw === '') return '';
-    if (field.type === 'lookup') return lookupLabelFor(field.sourceKey, raw, lookups[field.sourceKey]);
-    if (field.type === 'select') {
-      const hit = (field.options || []).find((o) => o.value === String(raw));
-      return (isAr ? hit?.labelAr : null) || hit?.label || String(raw);
-    }
-    if (field.type === 'checkbox') {
-      return raw === true || raw === 'true' ? (isAr ? 'نعم' : 'Yes') : (isAr ? 'لا' : 'No');
-    }
-    if (field.type === 'datetime') return String(raw).replace('T', ' ').slice(0, 16);
-    if (field.type === 'date') return fmtDate(raw, String(raw));
-    return String(raw);
-  }, [lookups, isAr]);
+  // the Services board and Guest Overview use — see lib/serviceValues.
+  const display = useCallback(
+    (field, raw) => makeFieldDisplay(lookups, isAr)(field, raw),
+    [lookups, isAr],
+  );
 
   function openEntry(slot, entry) {
     setEditing({ slot, entry: entry || null });
@@ -467,7 +441,13 @@ export default function GuestServicesPanel({
     return <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', padding: 8 }}>…</div>;
   }
 
-  const slots = plan?.slots || [];
+  // Every service owns a Permissions row of its own (service-<code>), and READ
+  // is granted per service — the same rule the Travel board applies to its tabs
+  // (TravelView's BUILTIN_TAB_CODES / svcCode filter). Without this the plan's
+  // full slot list rendered here regardless, so a role holding one service saw
+  // cards for all of them. The endpoints behind each card enforce the same code,
+  // so an ungated card was offering a request the server would refuse.
+  const slots = (plan?.slots || []).filter((s) => canRead(svcPerm(s.code)));
   const systemSlots = SYSTEM_ORDER
     .map((code) => slots.find((s) => s.isSystem && s.code === code))
     .filter(Boolean);
@@ -495,9 +475,13 @@ export default function GuestServicesPanel({
     const title = override.title || (isAr ? slot.nameAr : null) || slot.name;
     const icon = override.icon || slot.icon || SYSTEM_ICON[slot.code] || 'star';
 
+    // Per slot, because the two kinds of card post to different endpoints with
+    // different gates — see the codes at the top of the component.
+    const mayEdit = slot.isSystem ? canManageTravel : canManage;
+
     // Always adds a NEW entry (never overwrites the one shown) — that's how a
     // guest ends up with a second flight or another night's stay.
-    const addBtn = !locked && (
+    const addBtn = !locked && mayEdit && (
       <button className="btn" style={{ width: '100%', fontSize: 12 }}
         onClick={() => openEntry(slot, null)}>
         <Icon name="plus" size={12} />
@@ -535,15 +519,19 @@ export default function GuestServicesPanel({
                   {isAr ? 'مسودة' : 'Draft'}
                 </span>
               )}
-              <button type="button" className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
-                title={isAr ? 'تعديل' : 'Edit'} onClick={() => openEntry(slot, entry)}>
-                <Icon name="edit" size={12} />
-              </button>
-              <button type="button" className="icon-btn"
-                style={{ width: 26, height: 26, flexShrink: 0, color: 'var(--danger)' }}
-                title={isAr ? 'حذف' : 'Remove'} onClick={() => setConfirmDelete({ slot, entry })}>
-                <Icon name="trash" size={12} />
-              </button>
+              {mayEdit && (
+                <>
+                  <button type="button" className="icon-btn" style={{ width: 26, height: 26, flexShrink: 0 }}
+                    title={isAr ? 'تعديل' : 'Edit'} onClick={() => openEntry(slot, entry)}>
+                    <Icon name="edit" size={12} />
+                  </button>
+                  <button type="button" className="icon-btn"
+                    style={{ width: 26, height: 26, flexShrink: 0, color: 'var(--danger)' }}
+                    title={isAr ? 'حذف' : 'Remove'} onClick={() => setConfirmDelete({ slot, entry })}>
+                    <Icon name="trash" size={12} />
+                  </button>
+                </>
+              )}
             </CardHeader>
           );
           const shell = {

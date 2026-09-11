@@ -2205,6 +2205,7 @@ html[data-theme="light"] .modal-solid {
 .event-menu .event-check { color: #00627b !important; }
 .event-menu .event-logo-mark { background: #eef3f4 !important; border-color: rgba(0, 98, 123,0.12) !important; }
 
+
 /* ── TipTap email builder editor surface ── */
 .tt-surface .ProseMirror { outline: none; min-height: 180px; }
 .tt-surface .ProseMirror:focus { outline: none; }
@@ -2215,7 +2216,59 @@ html[data-theme="light"] .modal-solid {
 /* A wrapped image floats (see SizedImage.wrap), and a float doesn't add to its
    parent's height — without this the editable area collapses behind the image. */
 .tt-surface .ProseMirror::after { content: ''; display: table; clear: both; }
-.tt-surface .ProseMirror a { color: #00627b; text-decoration: underline; }
+
+/* ── Image resize handles (SizedImage.addNodeView) ──
+   Editor-only chrome: the serialized email is still a bare <img>. */
+.tt-surface .ProseMirror .gms-img-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;              /* kills the inline-block descender gap */
+  vertical-align: top;
+}
+.tt-surface .ProseMirror .gms-img-wrap img { display: block; max-width: 100%; margin: 0; }
+.tt-surface .ProseMirror .gms-img-wrap.ProseMirror-selectednode { outline: 2px solid #018d8b; outline-offset: 1px; }
+
+.tt-surface .ProseMirror .gms-img-handle {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 1.5px solid #018b8d;
+  border-radius: 50%;
+  /* Only reachable once the node is selected — otherwise the handles would sit
+     over the text and swallow clicks meant for the paragraph. */
+  display: none;
+  z-index: 2;
+}
+.tt-surface .ProseMirror .gms-img-wrap.ProseMirror-selectednode .gms-img-handle { display: block; }
+
+/* Corners, then edge midpoints. */
+.tt-surface .ProseMirror .gms-img-handle--nw { top: -6px;  left: -6px;  cursor: nwse-resize; }
+.tt-surface .ProseMirror .gms-img-handle--ne { top: -6px;  right: -6px; cursor: nesw-resize; }
+.tt-surface .ProseMirror .gms-img-handle--se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.tt-surface .ProseMirror .gms-img-handle--sw { bottom: -6px; left: -6px;  cursor: nesw-resize; }
+.tt-surface .ProseMirror .gms-img-handle--n  { top: -6px;    left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.tt-surface .ProseMirror .gms-img-handle--s  { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.tt-surface .ProseMirror .gms-img-handle--w  { left: -6px;   top: 50%;  transform: translateY(-50%); cursor: ew-resize; }
+.tt-surface .ProseMirror .gms-img-handle--e  { right: -6px;  top: 50%;  transform: translateY(-50%); cursor: ew-resize; }
+
+/* Live dimensions, shown only while dragging. */
+.tt-surface .ProseMirror .gms-img-size {
+  position: absolute;
+  bottom: 6px; left: 50%; transform: translateX(-50%);
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72); color: #fff;
+  font: 600 11px/1.6 var(--mono, monospace);
+  white-space: nowrap;
+  opacity: 0; transition: opacity .12s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+.tt-surface .ProseMirror .gms-img-wrap.is-resizing .gms-img-size { opacity: 1; }
+/* A resize drag can leave the image; keep the cursor and kill text selection
+   for the whole gesture. */
+.tt-surface .ProseMirror .gms-img-wrap.is-resizing { user-select: none; }
+.tt-surface .ProseMirror a { color: #018d88; text-decoration: underline; }
 .tt-surface .ProseMirror a[data-invite-button] { text-decoration: none; }
 .tt-surface .ProseMirror a[data-invite-button].ProseMirror-selectednode { outline: 2px solid #00627b; outline-offset: 2px; }
 
@@ -2234,6 +2287,3 @@ html[data-theme="light"] .modal-solid {
   height: 0;
   pointer-events: none;
 }
-
-/* .chat-message-body removed with the rich-text chat body — message bubbles are
-   plain text now (white-space: pre-wrap inline in SupportChatView). */

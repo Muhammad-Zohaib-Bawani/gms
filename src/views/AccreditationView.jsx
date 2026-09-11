@@ -311,7 +311,7 @@ export default function AccreditationView({ lang, activeEventId }) {
 
           {/* Bulk action bar */}
           {someSelected && canManage && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(0, 98, 123,0.1)', border: '1px solid rgba(0, 98, 123,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 10, background: 'rgba(141, 1, 52,0.1)', border: '1px solid rgba(141, 1, 52,0.25)', marginBottom: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)' }}>
                 {ad(sel.size)} {STR.selected}
               </span>
@@ -355,7 +355,7 @@ export default function AccreditationView({ lang, activeEventId }) {
                     const isChecked = sel.has(g.id);
                     const busy = busyIds.has(g.id);
                     return (
-                      <tr key={g.id} style={{ background: isChecked ? 'rgba(0, 98, 123,0.05)' : undefined }}>
+                      <tr key={g.id} style={{ background: isChecked ? 'rgba(141, 1, 52,0.05)' : undefined }}>
                         <td style={{ paddingRight: 0 }}>
                           <input type="checkbox" checked={isChecked} onChange={() => toggleSel(g.id)}
                             style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}/>

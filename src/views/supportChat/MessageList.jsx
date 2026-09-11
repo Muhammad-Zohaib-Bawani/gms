@@ -44,12 +44,12 @@ function Bubble({ m, mine, tail, plainBody, isAr }) {
 
       {m.attachmentUrl && (
         m.attachmentType?.startsWith('image') ? (
-          <a href={m.attachmentUrl} target="_blank" rel="noreferrer"
+          <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer"
             style={{ display: 'block', marginTop: m.body ? 8 : 0 }}>
             <img src={m.attachmentUrl} alt="" style={{ maxWidth: '100%', borderRadius: 8, display: 'block' }} />
           </a>
         ) : (
-          <a href={m.attachmentUrl} target="_blank" rel="noreferrer"
+          <a href={m.attachmentUrl} target="_blank" rel="noopener noreferrer"
             style={{
               display: 'flex', alignItems: 'center', gap: 6, marginTop: m.body ? 8 : 0,
               color: 'inherit', textDecoration: 'underline', fontSize: 12,

@@ -8,6 +8,8 @@ import { uploadImageFile, stripSasToken } from "../../../api/services/uploadServ
 import { getMeetings, editMeeting } from "../../../api/services/meetingService";
 import { guestDrawer } from "../../../i18n/modules/guestDrawer";
 import { guestToProfileForm } from "./guestDrawer.helpers";
+import { useAccess } from "../../../auth/AccessContext";
+import { PERM } from "../../../auth/permissions";
 import GuestDrawerHeader from "./GuestDrawerHeader";
 import GuestProfilePanel from "./GuestProfilePanel";
 import GuestTravelPanel from "./GuestTravelPanel";
@@ -46,6 +48,11 @@ export default function GuestDrawer({
 }) {
   const isAr = lang === "ar";
   const t = guestDrawer[isAr ? "ar" : "en"];
+
+  // Every write this drawer offers (edit profile, remove guest, session
+  // changes) posts to the guest endpoints, which gate on Guests/Write.
+  const { canWrite } = useAccess();
+  const canManage = canWrite(PERM.GUESTS);
 
   const navigate = useNavigate();
   const [guestSessions, setGuestSessions] = React.useState(
@@ -306,6 +313,7 @@ export default function GuestDrawer({
           onMessage={openSupportChat}
           openingChat={openingChat}
           onShowBadge={() => setShowBadge(true)}
+          canManage={canManage}
           onEditProfile={openEditProfile}
           onAddMeeting={openMeetingPicker}
           onExportPdf={() => printSection("printing-profile")}
@@ -315,6 +323,9 @@ export default function GuestDrawer({
           accredBadge={accredBadge}
         />
 
+        {/* No gate here: the panel only renders its form when editProfile is
+            set, and the one thing that sets it is the header's Edit Profile
+            item, which is already gated. */}
         <GuestProfilePanel
           guest={guest}
           t={t}

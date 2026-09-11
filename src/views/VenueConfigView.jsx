@@ -215,6 +215,7 @@ export default function VenueConfigView({ lang, activeEventId }) {
         />
 
         <ConfigPanel
+          canManage={canManage}
           selectedTable={ed.selectedTable}
           selectedSeat={ed.selectedSeat}
           setSelectedSeat={ed.setSelectedSeat}

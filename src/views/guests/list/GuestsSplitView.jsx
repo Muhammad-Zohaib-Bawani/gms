@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "../../../components/Icons";
 import GuestCell from "../../../components/GuestCell";
 import GuestDetailView from "../../GuestDetailView";
+import { useAccess } from "../../../auth/AccessContext";
+import { PERM } from "../../../auth/permissions";
 
 // Master-detail split view — a compact all-matching-guests list on the left,
 // the full Guest Detail page (unchanged, same component the standalone
@@ -26,6 +28,9 @@ export default function GuestsSplitView({
   splitPageCount,
   detailRefreshKey,
 }) {
+  const { canWrite } = useAccess();
+  const canManage = canWrite(PERM.GUESTS);
+
   return (
     <div className="card guests-split-shell">
       <div className="guests-split-list">
@@ -101,19 +106,26 @@ export default function GuestsSplitView({
                                 the detail pane's Personal Info card, where
                                 "View Pass" opens the badge itself with
                                 Issue/Revoke on it. */}
-                            <button
-                              type="button" className="icon-btn" title={gt.actionEdit}
-                              onClick={() => openEditGuest(g)}
-                            >
-                              <Icon name="edit" size={14} />
-                            </button>
-                            <button
-                              type="button" className="icon-btn" style={{ color: "var(--danger)" }}
-                              title={gt.actionDelete}
-                              onClick={() => onDeleteRequest(g)}
-                            >
-                              <Icon name="trash" size={14} />
-                            </button>
+                            {/* Same gate as the table view's row menu
+                                (GuestsTable) — the two are the same actions in
+                                a different layout, so they must agree. */}
+                            {canManage && (
+                              <>
+                                <button
+                                  type="button" className="icon-btn" title={gt.actionEdit}
+                                  onClick={() => openEditGuest(g)}
+                                >
+                                  <Icon name="edit" size={14} />
+                                </button>
+                                <button
+                                  type="button" className="icon-btn" style={{ color: "var(--danger)" }}
+                                  title={gt.actionDelete}
+                                  onClick={() => onDeleteRequest(g)}
+                                >
+                                  <Icon name="trash" size={14} />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </motion.div>

@@ -1,142 +1,148 @@
-
-import React, { useEffect, useState } from 'react';
+// The right-hand pane of Guest Overview: everything known about ONE PERSON.
+//
+// `personId` is Guest.PublicId. A person spans events, so the pane is scoped by
+// ONE picker — the event — rather than being one flat run of sections that
+// repeated an "event" caption on every card and left the reader to reassemble
+// the relationship. There is deliberately no second picker for sessions: a
+// session is not a scope the reader has to choose before seeing anything, it is
+// just another card, and the seat card names the session it belongs to.
+//
+// The cards themselves are the guest-detail card family (views/guests/cards) —
+// the same shell, type scale, status pills and pager the event-scoped guest page
+// uses. Nothing is restyled here: a flight should look like a flight wherever
+// you found the guest. Where a person holds several of the same thing, CardSlider
+// shows one at a time with a pager in the card's header, so a card can't grow
+// into a scroll wall and the grid keeps its row heights.
+//
+// Read-only by design. The only action is Message, and only for a role that may
+// write in support chat: this screen exists to look a guest up, and every edit
+// path already lives on the event-scoped guest page.
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../../components/Icons';
 import { Avatar } from '../../components/UI';
+import Select from '../../components/ui/Select';
+import FlagIcon from '../../components/FlagIcon';
+import { useAccess } from '../../auth/AccessContext';
 import { getGuestOverviewDetail } from '../../api/services/guestOverviewService';
 import { fmtDate as isoDate, fmtDateTime as isoDateTime } from '../../lib/date';
 import { isConfirmed, isLocked, serviceStatusLabel } from '../../lib/serviceStatus';
+import { makeFieldDisplay, serviceProps, lookupSourceKeys } from '../../lib/serviceValues';
+import { loadLookupOptions } from '../../components/ui/lookupSources';
+import {
+  TYPE, GuestCard, CardHeader, CardDivider, FieldPair, StatusPill,
+  CardSlider, GuestDetailSkeleton, SessionCard, SeatCard, HotelCard,
+  TransportCard, FlightCard, ServiceCard,
+} from '../guests/cards/GuestDetailCards';
 
-function ActionBtn({ icon, label, onClick, danger }) {
-  return (
-    <button
-      type="button"
-      className="icon-btn"
-      title={label}
-      aria-label={label}
-      onClick={onClick}
-      style={danger ? { color: 'var(--danger)' } : undefined}
-    >
-      <Icon name={icon} size={14} />
-    </button>
-  );
-}
+// Portal-wide DD-MM-YYYY. Null (not a dash) when empty — the fact grid drops
+// empties rather than printing a row of dashes.
+const fmtDate = (v) => (v ? isoDate(v, null) : null);
+const dt = (v) => (v ? isoDateTime(v, null) : null);
 
 const initialsOf = (name) => {
   const p = (name || '').trim().split(/\s+/);
   return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
 };
 
-function Section({ icon, title, count, children, empty }) {
-  return (
-    <section>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        marginBottom: 10, paddingBottom: 6,
-        borderBottom: '1px solid var(--glass-border)',
-      }}>
-        <Icon name={icon} size={13} style={{ color: 'var(--accent)' }} />
-        <span style={{
-          fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em',
-          color: 'var(--ink-dim)', fontWeight: 700,
-        }}>
-          {title}
-        </span>
-        {count != null && (
-          <span className="chip draft" style={{ fontSize: 10 }}>{count}</span>
-        )}
-      </div>
-      {count === 0
-        ? <div style={{ fontSize: 12, color: 'var(--ink-faint)', fontStyle: 'italic' }}>{empty}</div>
-        : children}
-    </section>
-  );
-}
+const nightsBetween = (a, b) => {
+  if (!a || !b) return 0;
+  const ms = new Date(b) - new Date(a);
+  return ms > 0 ? Math.round(ms / 86400000) : 0;
+};
 
-/** label/value pairs, wrapping into as many columns as fit. */
-function Facts({ data }) {
-  const entries = Object.entries(data || {}).filter(([, v]) => v != null && v !== '');
-  if (entries.length === 0) return null;
+// A service entry's values arrive as an object, but tolerate the raw JSON
+// string a few callers still hand back.
+const valuesOf = (entry) => {
+  const v = entry?.values;
+  if (!v) return {};
+  if (typeof v === 'string') { try { return JSON.parse(v) || {}; } catch { return {}; } }
+  return v;
+};
+
+const factsOf = (data) => Object.entries(data || {})
+  .filter(([, v]) => v != null && String(v).trim() !== '');
+
+// ── Local pieces ──────────────────────────────────────────────────────────
+
+/** The 46px subject tile SessionCard uses, with a cover image over the icon. */
+function MediaTile({ src, icon }) {
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-      gap: '10px 16px',
+      width: 46, height: 46, flexShrink: 0, borderRadius: 14,
+      position: 'relative', overflow: 'hidden',
+      border: '1px solid var(--gc-border)', display: 'grid', placeItems: 'center',
     }}>
-      {entries.map(([k, v]) => (
-        <div key={k}>
-          <div style={{
-            fontSize: 9.5, color: 'var(--ink-faint)', textTransform: 'uppercase',
-            letterSpacing: '0.09em', marginBottom: 3,
-          }}>
-            {k}
-          </div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink)' }}>{v}</div>
-        </div>
-      ))}
+      <Icon name={icon} size={19} style={{ color: 'var(--gc-accent)' }} />
+      {src && (
+        <img
+          src={src}
+          alt=""
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      )}
     </div>
   );
 }
 
-/** A bordered record with an optional status chip and event tag in its header.
- *  `icon` gives each service kind its own glyph (plane / hotel / car / seat),
- *  the same at-a-glance cue the Travel & Logistics tabs use. */
-function RecordCard({ icon, title, status, eventTitle, onEdit, children }) {
+/** Labelled values in the same grid the other cards use. */
+function FactGrid({ data }) {
+  const facts = factsOf(data);
+  if (facts.length === 0) {
+    return (
+      <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', padding: '6px 0' }}>
+        Nothing recorded
+      </div>
+    );
+  }
   return (
     <div style={{
-      border: '1px solid var(--glass-border)',
-      borderRadius: 10,
-      padding: '11px 13px',
-      background: 'var(--bg-0)',
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))',
+      gap: '13px 12px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 9 }}>
-        {icon && <Icon name={icon} size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-        {title && <span style={{ fontSize: 12.5, fontWeight: 650 }}>{title}</span>}
-        {status && (
-          <span className={`chip ${status === 'completed' ? 'confirmed' : 'pending'}`} style={{ fontSize: 10 }}>
-            <span className="dot" />
-            {status === 'completed' ? 'Booked' : 'Pending'}
-          </span>
-        )}
-        {eventTitle && (
-          <span
-            className="chip draft"
-            style={{ fontSize: 10, marginInlineStart: 'auto', whiteSpace: 'nowrap' }}
-          >
-            {eventTitle}
-          </span>
-        )}
-        {onEdit && (
-          <span style={{ marginInlineStart: eventTitle ? 0 : 'auto' }}>
-            <ActionBtn icon="edit" label="Edit" onClick={onEdit} />
-          </span>
-        )}
-      </div>
-      {children}
+      {facts.map(([label, value], i) => <FieldPair key={`${label}-${i}`} label={label} value={value} />)}
     </div>
   );
 }
 
-// Portal-wide DD-MM-YYYY (lib/date) — was raw ISO yyyy-mm-dd[Thh:mm]. Null
-// (not a dash) when empty: Facts already drops a null/empty entry entirely.
-const fmtDate = (v) => (v ? isoDate(v, null) : null);
-const fmtDateTime = (v) => (v ? isoDateTime(v, null) : null);
-const dt = (v) => (v ? isoDateTime(v, null) : null);
+/**
+ * A card that may hold several records. One shows at a time; the pager lands in
+ * the card's header, so the nav sits top-right of the card it steps through.
+ * An empty list still renders the header — a missing card would make the grid
+ * reflow every time a guest happens to have no transport.
+ */
+function SliderCard({ items, icon, title, empty, render }) {
+  if (!items || items.length === 0) {
+    return (
+      <GuestCard embedded>
+        <CardHeader icon={icon} title={title} />
+        <div style={{ fontSize: 12.5, color: 'var(--ink-faint)', padding: '6px 0' }}>{empty}</div>
+      </GuestCard>
+    );
+  }
+  return (
+    <CardSlider items={items}>
+      {(item, pager) => render(item, pager)}
+    </CardSlider>
+  );
+}
 
-// The cross-event detail for ONE PERSON. `personId` is Guest.PublicId; every
-// event-scoped jump out of here (view/edit the guest, their travel, their seat)
-// has to go through a participation from `detail.events[]`, each of which
-// carries its own `eventGuestId`.
 export default function GuestDetail({ personId, guest }) {
   const navigate = useNavigate();
+  const { canWrite } = useAccess();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Which participation. The only scope the reader picks.
+  const [eventKey, setEventKey] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setDetail(null);
     getGuestOverviewDetail(personId)
       .then((d) => { if (!cancelled) setDetail(d); })
       .catch((err) => { if (!cancelled) setError(err?.message || 'Could not load this guest'); })
@@ -144,185 +150,298 @@ export default function GuestDetail({ personId, guest }) {
     return () => { cancelled = true; };
   }, [personId]);
 
-  if (loading) {
-    return <div style={{ padding: '18px 20px', fontSize: 12.5, color: 'var(--ink-mute)' }}>Loading…</div>;
-  }
-  if (error) {
-    return <div style={{ padding: '18px 20px', fontSize: 12.5, color: 'var(--danger)' }}>{error}</div>;
-  }
-  if (!detail) return null;
+  const events = useMemo(() => detail?.events || [], [detail]);
 
-  const {
-    events = [], sessions = [], flights = [], accommodations = [],
-    transport = [], seatings = [], otherServices = [],
-  } = detail;
+  // Default to the event the list row is describing (its most recent
+  // participation), else the last one loaded. Re-runs per person.
+  useEffect(() => {
+    if (events.length === 0) { setEventKey(''); return; }
+    const match = events.find((e) => e.eventId === guest?.eventId);
+    setEventKey(String((match || events[events.length - 1]).eventGuestId));
+  }, [events, guest?.eventId]);
 
-  const stack = { display: 'flex', flexDirection: 'column', gap: 8 };
+  const ev = events.find((e) => String(e.eventGuestId) === eventKey) || null;
+
+  // Child rows carry the event's TITLE and no id (see GuestOverviewModels — only
+  // the event blocks have EventId), so the title is the only available join. Two
+  // events named identically would pool their rows; that is a data-shape limit,
+  // and the fix would be an EventId on each child row.
+  const ofEvent = (rows) =>
+    (ev ? (rows || []).filter((r) => (r.eventTitle || '') === (ev.eventTitle || '')) : []);
+
+  const sessions = ofEvent(detail?.sessions);
+  const seatings = ofEvent(detail?.seatings);
+  const flights = ofEvent(detail?.flights);
+  const stays = ofEvent(detail?.accommodations);
+  const transport = ofEvent(detail?.transport);
+  const services = ofEvent(detail?.otherServices);
+
+  // One card steps through every service record the guest holds, whichever
+  // service it belongs to — the header names the current one.
+  const serviceItems = useMemo(() => services.flatMap((s) => (
+    s.entries?.length ? s.entries.map((e) => ({ svc: s, entry: e })) : [{ svc: s, entry: null }]
+  )), [services]);
+
+  // A `lookup` field stores a row's PublicId, so naming it means fetching that
+  // lookup's options. Only the sources this event's services actually use.
+  const [lookups, setLookups] = useState({});
+  const sourceKeys = useMemo(
+    () => lookupSourceKeys(services.map((s) => s.form)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [services.map((s) => s.serviceId).join(','), eventKey],
+  );
+
+  useEffect(() => {
+    if (sourceKeys.length === 0) return undefined;
+    let cancelled = false;
+    Promise.all(sourceKeys.map((k) => loadLookupOptions(k, { eventId: ev?.eventId }).then((o) => [k, o])))
+      .then((pairs) => { if (!cancelled) setLookups(Object.fromEntries(pairs)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [sourceKeys, ev?.eventId]);
+
+  const display = useMemo(() => makeFieldDisplay(lookups, false), [lookups]);
 
   const fullName = `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim();
-  // Support chat is person-scoped — personId is what it takes.
-  const goChat = () => navigate('/support-chat', {
-    state: { personId, guestName: fullName, guestOrganization: guest?.organization || '' },
-  });
-  // The participation to open for the event-scoped guest page: the one matching
-  // the row's current event, else the latest block loaded.
-  const primaryEventGuestId =
-    (events.find((e) => e.eventId === guest?.eventId) || events[events.length - 1])?.eventGuestId || null;
-  const goParticipation = () => {
-    if (!primaryEventGuestId) return;
-    navigate(`/guests/${primaryEventGuestId}`);
+
+  const grid = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+    gap: 16,
+    alignItems: 'stretch',
   };
 
+  if (loading) return <GuestDetailSkeleton embedded />;
+  if (error) {
+    return <div style={{ padding: 24, fontSize: 12.5, color: 'var(--danger)' }}>{error}</div>;
+  }
+
   return (
-    <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* Identity + actions for the guest whose row is expanded. The list row
-          above is a dense table cell, so who you're looking at (and what you
-          can do to them) is restated here where the detail actually lives —
-          that's what lets the separate top info card go away. */}
-      {guest && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-          paddingBottom: 14, borderBottom: '1px solid var(--glass-border)',
-        }}>
-          <Avatar initials={initialsOf(fullName)} size={44} src={guest.photoUrl} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Personal ─────────────────────────────────────────────────────── */}
+      <GuestCard>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', minWidth: 0 }}>
+          <Avatar initials={initialsOf(fullName)} size={52} src={guest?.photoUrl} />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>{fullName || '—'}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>{guest.email || '—'}</div>
-            {guest.organization && (
-              <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', marginTop: 1 }}>{guest.organization}</div>
+            <div style={{ ...TYPE.headline, overflowWrap: 'anywhere' }}>{fullName || '—'}</div>
+            <div style={{ ...TYPE.sub, overflowWrap: 'anywhere' }}>{guest?.email || '—'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
+              {guest?.nationalityName && (
+                <span style={{ ...TYPE.sub, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <FlagIcon code={guest.nationalityCode} size={13} />
+                  {guest.nationalityName}
+                </span>
+              )}
+              {guest?.organization && <span style={TYPE.sub}>{guest.organization}</span>}
+              {guest?.guestType && <span className="chip" style={{ fontSize: 10.5 }}>{guest.guestType}</span>}
+              <span style={{ ...TYPE.sub, color: 'var(--ink-faint)' }}>
+                {events.length} event{events.length === 1 ? '' : 's'}
+              </span>
+            </div>
+          </div>
+          {/* Scope + the one action, on the identity line. The event picker
+              belongs here rather than in a strip of its own: it says which
+              participation everything below is about, which is part of who you
+              are looking at. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {events.length > 0 && (
+              <div style={{ minWidth: 210 }}>
+                <Select
+                  value={eventKey}
+                  onChange={(v) => setEventKey(v || '')}
+                  options={events.map((e) => ({
+                    value: String(e.eventGuestId),
+                    label: e.eventTitle || 'Event',
+                  }))}
+                  isClearable={false}
+                />
+              </div>
+            )}
+            {canWrite('support-chat') && (
+              <button
+                className="btn"
+                onClick={() => navigate('/support-chat', {
+                  state: {
+                    personId,
+                    guestName: fullName,
+                    guestOrganization: guest?.organization || '',
+                  },
+                })}
+              >
+                <Icon name="message" size={13} /> Message
+              </button>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <ActionBtn icon="guests" label="View profile" onClick={goParticipation} />
-            <ActionBtn icon="message" label="Message" onClick={goChat} />
-            <ActionBtn icon="edit" label="Edit guest" onClick={goParticipation} />
-            <ActionBtn icon="badge" label="Accreditation" onClick={() => navigate('/accreditation')} />
-          </div>
         </div>
-      )}
+      </GuestCard>
 
-      <Section icon="calendar" title="Events" count={events.length} empty="Not linked to an event">
-        <div style={stack}>
-          {events.map((ev) => (
-            <RecordCard key={ev.eventGuestId} title={ev.eventTitle}>
-              <Facts data={{
-                Type: ev.eventType, Venue: ev.venueName,
-                'Start date': fmtDate(ev.startDate), 'End date': fmtDate(ev.endDate),
-                'Service level': ev.serviceLevelName,
-                Invitation: ev.invitationStatus, Accreditation: ev.accreditationStatus,
-                Arrival: fmtDate(ev.arrivalDate), Departure: fmtDate(ev.departureDate),
-              }} />
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
-
-      <Section icon="meetings" title="Sessions" count={sessions.length} empty="No sessions">
-        <div style={stack}>
-          {sessions.map((s, i) => (
-            <RecordCard key={s.id || i} icon="meetings" title={s.title} eventTitle={s.eventTitle}>
-              <Facts data={{ Date: fmtDate(s.date), Time: s.time, Room: s.room, Speaker: s.speaker, Status: s.status || 'selected' }} />
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
-
-      <Section icon="flight" title="Flights" count={flights.length} empty="No flights booked">
-        <div style={stack}>
-          {flights.map((f) => (
-            <RecordCard
-              key={f.id}
-              icon="flight"
-              title={f.legs?.[0]?.flightNumber || 'Flight'}
-              status={f.status === 'Confirmed' ? 'completed' : 'pending'}
-              eventTitle={f.eventTitle}
-            >
-              <Facts data={{
-                Type: f.flightType, Class: f.flightClass, Seat: f.seat,
-                Departure: dt(f.departureTime), Arrival: dt(f.arrivalTime),
-              }} />
-              {f.legs?.length > 0 && (
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {f.legs.map((leg, i) => (
-                    <div key={i} style={{ fontSize: 11.5, color: 'var(--ink-dim)' }}>
-                      {leg.flightNumber || 'Segment'} · {leg.departureCode || '—'}{leg.departureCity ? ` (${leg.departureCity})` : ''}
-                      {' → '}
-                      {leg.arrivalCode || '—'}{leg.arrivalCity ? ` (${leg.arrivalCity})` : ''}
+      {events.length === 0 ? (
+        <div style={{ ...TYPE.sub }}>This guest is not linked to an event.</div>
+      ) : (
+        <>
+          {ev && (
+            <div style={grid}>
+              {/* The event itself. */}
+              <GuestCard embedded>
+                <CardHeader icon="calendar" title="Event">
+                  <StatusPill status={ev.invitationStatus} label={ev.invitationStatus} />
+                </CardHeader>
+                <div style={{ display: 'flex', gap: 13, alignItems: 'flex-start', minWidth: 0 }}>
+                  <MediaTile src={ev.imageUrl} icon="calendar" />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ ...TYPE.title, overflowWrap: 'anywhere' }}>{ev.eventTitle || 'Event'}</div>
+                    <div style={{ ...TYPE.sub, overflowWrap: 'anywhere' }}>
+                      {[ev.eventType, ev.venueName].filter(Boolean).join(' · ')}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
+                <CardDivider />
+                <FactGrid data={{
+                  'Start date': fmtDate(ev.startDate),
+                  'End date': fmtDate(ev.endDate),
+                  'Service level': ev.serviceLevelName,
+                  Accreditation: ev.accreditationStatus,
+                  Arrival: fmtDate(ev.arrivalDate),
+                  Departure: fmtDate(ev.departureDate),
+                }} />
+              </GuestCard>
 
-      <Section icon="seating" title="Seatings" count={seatings.length} empty="No seat assigned">
-        <div style={stack}>
-          {seatings.map((s, i) => (
-            <RecordCard key={i} icon="seating" title={s.seatCode} eventTitle={s.eventTitle}>
-              <Facts data={{ Session: s.sessionTitle || 'Event-wide' }} />
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
+              {/* Sessions are a card, not a scope — the pager steps through
+                  them with each one's own image, time and room. */}
+              <SliderCard
+                items={sessions}
+                icon="meetings"
+                title="Session"
+                empty="No sessions."
+                render={(s, pager) => (
+                  <SessionCard
+                    embedded
+                    header={<CardHeader icon="meetings" title="Session">
+                      <StatusPill status={s.status || 'selected'} label={s.status || 'Selected'} />
+                      {pager}
+                    </CardHeader>}
+                    title={s.title || 'Session'}
+                    category={s.speaker}
+                    dateLabel={fmtDate(s.date)}
+                    timeLabel={s.time}
+                    venue={s.room}
+                    imageUrl={s.imageUrl}
+                  />
+                )}
+              />
 
-      <Section icon="hotel" title="Accommodations" count={accommodations.length} empty="No stay booked">
-        <div style={stack}>
-          {accommodations.map((a) => (
-            <RecordCard key={a.id} icon="hotel" title={a.hotel || 'Accommodation'} eventTitle={a.eventTitle}>
-              <Facts data={{ 'Room type': a.roomType, 'Check-in': fmtDateTime(a.checkIn), 'Check-out': fmtDateTime(a.checkOut) }} />
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
+              {/* One seats card for every seat the guest holds on this event.
+                  Which session a seat is for is stated inside the card, which
+                  is what removed the need to pick a session first — a seat with
+                  no session is event-wide and says so. */}
+              <SliderCard
+                items={seatings}
+                icon="seating"
+                title="Seat"
+                empty="No seat assigned."
+                render={(s, pager) => (
+                  <SeatCard
+                    embedded
+                    header={<CardHeader icon="seating" title="Seat">{pager}</CardHeader>}
+                    seatCode={s.seatCode}
+                    eventTitle={s.eventTitle}
+                    sessionTitle={s.sessionTitle || 'Event-wide'}
+                  />
+                )}
+              />
 
-      <Section icon="car" title="Transport" count={transport.length} empty="No transport arranged">
-        <div style={stack}>
-          {transport.map((t) => (
-            <RecordCard
-              key={t.id}
-              icon="car"
-              title={t.vehicle || 'Transport'}
-              status={t.tripStatus === 'On Time' ? 'completed' : 'pending'}
-              eventTitle={t.eventTitle}
-            >
-              <Facts data={{
-                Driver: t.driverName, Pickup: t.pickup, Dropoff: t.dropoff,
-                'Pickup time': dt(t.pickupTime), Status: t.tripStatus,
-              }} />
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
+              <SliderCard
+                    items={flights}
+                    icon="flight"
+                    title="Flight"
+                    empty="No flight booked."
+                    render={(f, pager) => (
+                      <FlightCard
+                        embedded
+                        header={<CardHeader icon="flight" title={f.flightType || 'Flight'}>{pager}</CardHeader>}
+                        status={f.status}
+                        statusLabel={f.status}
+                        legs={(f.legs?.length ? f.legs : [{}]).map((l, i) => ({
+                          key: i,
+                          fromCode: l.departureCode,
+                          fromCity: l.departureCity,
+                          toCode: l.arrivalCode,
+                          toCity: l.arrivalCity,
+                          dateTime: dt(l.startTime) || dt(f.departureTime),
+                          flightNumber: l.flightNumber,
+                          flightClass: l.flightClass || f.flightClass,
+                        }))}
+                      />
+                    )}
+                  />
 
-      {/* Whatever the admin has configured beyond Flight/Accommodation/Transport
-          — this section grows on its own as new services are created. */}
-      <Section icon="star" title="Other services" count={otherServices.length} empty="None configured">
-        <div style={stack}>
-          {otherServices.map((s, i) => (
-            <RecordCard
-              key={`${s.serviceId}-${i}`}
-              icon={s.icon || 'star'}
-              title={s.name}
-              status={isConfirmed(s.status) ? 'completed' : 'pending'}
-              eventTitle={s.eventTitle}
-            >
-              {s.entries?.length > 0 ? (
-                <div style={stack}>
-                  {s.entries.map((e) => <Facts key={e.id} data={e.values} />)}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-                  {isLocked(s.status) || !s.isUnlocked
-                    ? (s.lockedReason || 'Locked')
-                    : 'Not yet arranged'}
-                </div>
-              )}
-            </RecordCard>
-          ))}
-        </div>
-      </Section>
+                  <SliderCard
+                    items={stays}
+                    icon="hotel"
+                    title="Accommodation"
+                    empty="No stay booked."
+                    render={(a, pager) => (
+                      <HotelCard
+                        embedded
+                        header={<CardHeader icon="hotel" title="Accommodation">{pager}</CardHeader>}
+                        hotel={a.hotel}
+                        roomType={a.roomType}
+                        checkIn={fmtDate(a.checkIn)}
+                        checkOut={fmtDate(a.checkOut)}
+                        nights={nightsBetween(a.checkIn, a.checkOut)}
+                      />
+                    )}
+                  />
+
+                  <SliderCard
+                    items={transport}
+                    icon="car"
+                    title="Transport"
+                    empty="No transport arranged."
+                    render={(t, pager) => (
+                      <TransportCard
+                        embedded
+                        header={<CardHeader icon="car" title="Transport">{pager}</CardHeader>}
+                        pickup={t.pickup}
+                        dropoff={t.dropoff}
+                        pickupTime={dt(t.pickupTime)}
+                        dropoffTime={dt(t.dropoffTime)}
+                        vehicle={t.vehicle}
+                        driver={t.driverName}
+                        status={t.tripStatus}
+                        statusLabel={t.tripStatus}
+                      />
+                    )}
+                  />
+
+                  {/* Grows on its own as new services are configured. */}
+                  <SliderCard
+                    items={serviceItems}
+                    icon="star"
+                    title="Other services"
+                    empty="None configured."
+                    render={({ svc, entry }, pager) => (
+                      <ServiceCard
+                        embedded
+                        icon={svc.icon || 'star'}
+                        header={<CardHeader icon={svc.icon || 'star'} title={svc.name || 'Service'}>
+                          <StatusPill
+                            status={isConfirmed(svc.status) ? 'confirmed' : (isLocked(svc.status) ? 'locked' : 'pending')}
+                            label={serviceStatusLabel(svc.status)}
+                          />
+                          {pager}
+                        </CardHeader>}
+                        {...serviceProps(svc.form, valuesOf(entry), display, false)}
+                        emptyText={isLocked(svc.status) || !svc.isUnlocked
+                          ? (svc.lockedReason || 'Locked')
+                          : 'Nothing recorded yet'}
+                      />
+                    )}
+                  />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

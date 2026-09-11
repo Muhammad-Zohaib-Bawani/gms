@@ -27,6 +27,7 @@ const labelStyle = {
 };
 
 export default function ConfigPanel({
+  canManage,
   selectedTable,
   selectedSeat,
   setSelectedSeat,
@@ -465,8 +466,8 @@ export default function ConfigPanel({
                   <div
                     style={{
                       padding: "10px",
-                      background: "rgba(0, 98, 123,0.07)",
-                      border: "1px solid rgba(0, 98, 123,0.2)",
+                      background: "rgba(141, 1, 52,0.07)",
+                      border: "1px solid rgba(141, 1, 52,0.2)",
                       borderRadius: 8,
                     }}
                   >
@@ -606,7 +607,7 @@ export default function ConfigPanel({
                 );
               })()}
 
-            {hasSeats && (
+            {hasSeats && canManage && (
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 <div style={{ height: 1, background: "var(--glass-border)" }} />
                 <button
@@ -657,18 +658,24 @@ export default function ConfigPanel({
               </div>
             )}
 
-            <button
-              className="btn"
-              style={{
-                width: "100%",
-                justifyContent: "center",
-                color: "var(--danger)",
-                borderColor: "var(--danger-border)",
-              }}
-              onClick={() => removeTable(selectedTable.id)}
-            >
-              <Icon name="trash" size={13} /> {t.deleteTable}
-            </button>
+            {/* Destructive and unsaveable without venue-config Write — the
+                layout Save button on the page header is gated on the same
+                code, so offering Delete to a reader promised something the
+                page could never persist. */}
+            {canManage && (
+              <button
+                className="btn"
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  color: "var(--danger)",
+                  borderColor: "var(--danger-border)",
+                }}
+                onClick={() => removeTable(selectedTable.id)}
+              >
+                <Icon name="trash" size={13} /> {t.deleteTable}
+              </button>
+            )}
           </div>
         )}
       </div>

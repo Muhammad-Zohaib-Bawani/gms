@@ -158,6 +158,10 @@ export default function InvitationsView({ lang, activeEventId }) {
   const canManage = canWrite('template-builder');
   const isAr = lang === 'ar';
 
+  // Tab key -> icon. The labels themselves are translated, so the icon
+  // cannot be derived from them.
+  const TAB_ICONS = { templates: 'doc', queue: 'clock', builder: 'edit' };
+
   const STR = isAr ? {
     pageTitle: ['دورة حياة', 'الدعوة'],
     pageSub: 'تصميم · أتمتة · متابعة الإرسال عبر القنوات',
@@ -435,7 +439,9 @@ export default function InvitationsView({ lang, activeEventId }) {
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         {Object.entries(STR.tabs).map(([k, v]) => (
-          <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{v}</button>
+          <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>
+            {TAB_ICONS[k] && <Icon name={TAB_ICONS[k]} size={13} />}{v}
+          </button>
         ))}
       </div>
 

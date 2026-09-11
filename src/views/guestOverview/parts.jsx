@@ -78,20 +78,24 @@ export function ChipList({ items, max = 2, render, emptyText = '—', size = 10.
   );
 }
 
+const cut = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
 export function GuestCell({ guest }) {
   const org = guest.organization ?? guest.organisation;
   const name = `${guest.firstName} ${guest.lastName}`.trim();
   const initials = `${guest.firstName?.[0] || ''}${guest.lastName?.[0] || ''}`.toUpperCase();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, flex: 1 }}>
       <Avatar initials={initials} size={32} src={guest.photoUrl} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{name}</div>
-        <div style={{ fontSize: 11, color: 'var(--ink-mute)', whiteSpace: 'nowrap' }}>
+      {/* Every line ellipsises. Without it a long name simply ran past the cell
+          and collided with whatever sat to its right (the list's event block). */}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 600, ...cut }}>{name}</div>
+        <div style={{ fontSize: 11, color: 'var(--ink-mute)', ...cut }}>
           {guest.email}
         </div>
         {org && (
-          <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 10.5, color: 'var(--ink-faint)', ...cut }}>
             {guest.jobTitle ? `${guest.jobTitle} · ` : ''}{org}
           </div>
         )}

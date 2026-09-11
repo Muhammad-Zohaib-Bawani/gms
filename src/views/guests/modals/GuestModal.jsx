@@ -288,7 +288,7 @@ export default function GuestModal({
 
   // Guarded on `open` — this component gets mounted once and toggled via the
   // `open` prop by some callers, so a bare `[]` dep would fire these (and the
-  // 9 parallel requests inside getTravelLookups) on every mount regardless of
+  // 8 parallel requests inside getTravelLookups) on every mount regardless of
   // whether the dialog is actually visible yet.
   useEffect(() => {
     if (!open) return;
@@ -719,7 +719,7 @@ export default function GuestModal({
         <Dialog.Overlay className="guest-modal-overlay" />
         <Dialog.Content
           // `guest-modal-content` is the hook the ≤768px rule uses to turn this
-          // fixed 640×700 box into a full-height sheet (styles/sc-revamp.css).
+          // fixed 640×700 box into a full-height sheet (styles/qoc-revamp.css).
           className="modal-solid guest-modal-content guest-modal-dialog"
           style={mode === "existing" ? { width: 1040 } : undefined}
           onInteractOutside={(e) => e.preventDefault()}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Icon } from '../../components/Icons';
 import Modal from '../../components/ui/Modal';
 import Select from '../../components/ui/Select';
@@ -11,13 +11,7 @@ import { getLookupDef } from './lookupConfig';
 import { useAccess } from '../../auth/AccessContext';
 
 const OTHER_LOCATION = '__Other_Location__';
-// Sentinel for an `allowOther` field's escape hatch: picking it swaps the
-// dropdown for a free-text input instead of storing a value of its own.
-const OTHER_VALUE = '__Other_Value__';
 const PAGE_SIZE = 15; // server page size for paged lookups (e.g. airports)
-
-// An option label may be a plain string or a { en, ar } pair.
-const optionText = (label, isAr) => (typeof label === 'string' ? label : (isAr ? label.ar : label.en));
 
 const inputStyle = {
   width: '100%', background: 'var(--surface-soft-3)', border: '1px solid var(--glass-border)',
@@ -97,21 +91,9 @@ function ImageCell({ src, isAr }) {
 }
 
 // Generic list + Add screen, driven by lookupConfig. One instance per lookup key.
-//
-// Two props exist for the lookups embedded as a tab in another screen rather than
-// opened at /lookups/<key>:
-//   * `hostWriteCode` — write on the HOST menu admits as well, matching the any-of
-//     gate its endpoints carry (Vehicles ⊃ Vehicle Types).
-//   * `hideHeader` — drops this screen's own page-header, which would otherwise be
-//     a second title under the host's. The host then owns the Add button and
-//     triggers it through the ref (`openAdd`), so it can sit in the host's own
-//     page-actions row with everything else.
-// Neither is passed on the standalone route.
-const LookupsView = forwardRef(function LookupsView(
-  { lookupKey, lang, hostWriteCode, hideHeader }, ref,
-) {
+export default function LookupsView({ lookupKey, lang }) {
   const { canWrite } = useAccess();
-  const mayWrite = canWrite(`lookup-${lookupKey}`) || (!!hostWriteCode && canWrite(hostWriteCode));
+  const mayWrite = canWrite(`lookup-${lookupKey}`);
   const isAr = lang === 'ar';
   const def = getLookupDef(lookupKey);
 
@@ -133,12 +115,6 @@ const LookupsView = forwardRef(function LookupsView(
   // Which `locationPicker`-enabled field (if any) has its map picker open —
   // at most one at a time, since it's one form.
   const [mapPickerField, setMapPickerField] = useState(null);
-  // Per-field flag for `allowOther` dropdowns: true once the user picks
-  // "Other", which reveals the free-text input under the select.
-  const [otherMode, setOtherMode] = useState({});
-  // Row queued for deletion, held until the confirm modal is answered.
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!def) return;
@@ -184,14 +160,6 @@ const LookupsView = forwardRef(function LookupsView(
     });
   }, [def]);
 
-  const openAdd = useCallback(() => {
-    setEditing(null); setForm({}); setErrors({}); setOtherMode({}); setShowAdd(true);
-  }, []);
-
-  // Above the `!def` bail-out on purpose: hooks have to run unconditionally, and
-  // this is how an embedding host opens the form from its own toolbar.
-  useImperativeHandle(ref, () => ({ openAdd }), [openAdd]);
-
   if (!def) return null;
 
   const label = isAr ? def.label.ar : def.label.en;
@@ -203,26 +171,15 @@ const LookupsView = forwardRef(function LookupsView(
   // own, so read access to the screen never implies editing it. The API enforces
   // the same key, so hiding the buttons only avoids offering a guaranteed 403.
   const canEdit = mayWrite && (editsOnMap || !!def.update);
-  // Delete needs its own backend verb, so it is opt-in per lookup the same way
-  // Edit is. Locations are excluded — they edit through the map picker.
-  const canDelete = mayWrite && !editsOnMap && !!def.remove;
+  const openAdd = () => { setEditing(null); setForm({}); setErrors({}); setShowAdd(true); };
   const openEdit = (row) => {
     // Prefill straight off the row: field keys match the list's DTO keys, which
     // is the same mapping `columns` relies on.
     const next = {};
-    const other = {};
-    def.fields.forEach(f => {
-      const v = row[f.key] ?? '';
-      next[f.key] = v;
-      // A stored value that isn't in the list (legacy row, or a code added to
-      // the renderer later) opens in "Other" mode so editing never silently
-      // rewrites it to something from the dropdown.
-      if (f.options && f.allowOther && v && !f.options.some(o => o.value === v)) other[f.key] = true;
-    });
+    def.fields.forEach(f => { next[f.key] = row[f.key] ?? ''; });
     setEditing(row);
     setForm(next);
     setErrors({});
-    setOtherMode(other);
     setShowAdd(true);
   };
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -236,25 +193,21 @@ const LookupsView = forwardRef(function LookupsView(
         ? <ImageCell src={getValue()} isAr={isAr} />
         : <span style={{ fontSize: 13 }}>{getValue() || '—'}</span>),
     }));
-    if (canEdit || canDelete) {
+    if (canEdit) {
       cols.push({
         id: 'actions', header: '', size: 50, enableSorting: false, enableGlobalFilter: false,
         cell: ({ row }) => (
           <ActionMenu items={[
-            canEdit && {
+            {
               label: isAr ? 'تعديل' : 'Edit', icon: 'edit',
               onClick: () => (editsOnMap ? setEditRow(row.original) : openEdit(row.original)),
-            },
-            canDelete && {
-              label: isAr ? 'حذف' : 'Delete', icon: 'trash', danger: true,
-              onClick: () => setConfirmDelete(row.original),
             },
           ]} />
         ),
       });
     }
     return cols;
-  }, [def, isAr, canEdit, canDelete, editsOnMap]);
+  }, [def, isAr, canEdit, editsOnMap]);
 
   async function handleSave() {
     const errs = {};
@@ -276,40 +229,23 @@ const LookupsView = forwardRef(function LookupsView(
     }
   }
 
-  async function handleDelete() {
-    if (!confirmDelete) return;
-    setDeleting(true);
-    try {
-      await def.remove(confirmDelete.id);
-      setConfirmDelete(null);
-      load();
-      toast.success(isAr ? 'تم الحذف' : 'Deleted');
-    } catch (err) {
-      toast.fromError(err, isAr ? 'خطأ أثناء الحذف' : 'Error deleting');
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  const closeForm = () => { setShowAdd(false); setEditing(null); setOtherMode({}); };
+  const closeForm = () => { setShowAdd(false); setEditing(null); };
 
   return (
     <div>
-      {!hideHeader && (
-        <div className="page-header">
-          <div>
-            <h1 className="page-title">{label}</h1>
-            <div className="page-sub">{rows.length} {isAr ? 'عنصر' : `item${rows.length !== 1 ? 's' : ''}`}</div>
-          </div>
-          <div className="page-actions">
-            {mayWrite && (
-              <button className="btn primary" onClick={openAdd}>
-                <Icon name="plus" size={14} /> {isAr ? 'إضافة' : 'Add'}
-              </button>
-            )}
-          </div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">{label}</h1>
+          <div className="page-sub">{rows.length} {isAr ? 'عنصر' : `item${rows.length !== 1 ? 's' : ''}`}</div>
         </div>
-      )}
+        <div className="page-actions">
+          {mayWrite && (
+            <button className="btn primary" onClick={openAdd}>
+              <Icon name="plus" size={14} /> {isAr ? 'إضافة' : 'Add'}
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="card" style={{ padding: 0 }}>
         <DataTable
@@ -369,42 +305,6 @@ const LookupsView = forwardRef(function LookupsView(
             <label style={labelStyle}>{isAr ? f.label.ar : f.label.en}{f.required ? ' *' : ''}</label>
             {f.type === 'image' ? (
               <ImageField value={form[f.key] || ''} onChange={v => setF(f.key, v)} isAr={isAr}/>
-            ) : f.options ? (
-              // Static option list (e.g. the venue shape codes the canvas
-              // renderer understands). With `allowOther`, the last entry drops
-              // back to a free-text input rather than storing a value.
-              <>
-                <Select
-                  value={otherMode[f.key] ? OTHER_VALUE : (form[f.key] || '')}
-                  onChange={v => {
-                    if (v === OTHER_VALUE) {
-                      setOtherMode(p => ({ ...p, [f.key]: true }));
-                      setF(f.key, '');
-                    } else {
-                      setOtherMode(p => ({ ...p, [f.key]: false }));
-                      setF(f.key, v || '');
-                    }
-                    if (errors[f.key]) setErrors(p => ({ ...p, [f.key]: false }));
-                  }}
-                  options={[
-                    ...f.options.map(o => ({ value: o.value, label: optionText(o.label, isAr) })),
-                    ...(f.allowOther
-                      ? [{ value: OTHER_VALUE, label: optionText(f.otherLabel || { en: 'Other…', ar: 'أخرى…' }, isAr) }]
-                      : []),
-                  ]}
-                  placeholder={isAr ? '— اختر —' : '— Select —'}
-                  isClearable={!f.required}
-                />
-                {otherMode[f.key] && (
-                  <input
-                    autoFocus
-                    style={{ ...(errors[f.key] ? errorStyle : inputStyle), marginTop: 8 }}
-                    placeholder={isAr ? 'أدخل الرمز' : 'Enter code'}
-                    value={form[f.key] || ''}
-                    onChange={e => { setF(f.key, e.target.value); if (errors[f.key]) setErrors(p => ({ ...p, [f.key]: false })); }}
-                  />
-                )}
-              </>
             ) : f.optionsFrom ? (
               <Select
                 value={form[f.key] || ''}
@@ -428,33 +328,6 @@ const LookupsView = forwardRef(function LookupsView(
       </Modal>
       )}
 
-      <Modal
-        open={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        title={isAr ? 'تأكيد الحذف' : 'Confirm delete'}
-        width={380}
-        footer={
-          <>
-            <button className="btn" onClick={() => setConfirmDelete(null)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
-            <button
-              className="btn"
-              style={{ color: 'var(--danger)', borderColor: 'var(--danger-border)', background: 'var(--danger-bg)' }}
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              <Icon name="trash" size={13} /> {deleting ? (isAr ? 'جارٍ الحذف…' : 'Deleting…') : (isAr ? 'حذف' : 'Delete')}
-            </button>
-          </>
-        }
-      >
-        <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 6 }}>
-          {confirmDelete?.name || confirmDelete?.code || ''}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
-          {isAr ? 'لا يمكن التراجع عن هذا الإجراء.' : 'This action cannot be undone.'}
-        </div>
-      </Modal>
-
       {/* Map picker for any `locationPicker`-enabled field's "Other" option —
           not pickOnly, so confirming here writes a real Location row (Type =
           field.locationPicker.defaultType) and the field just adopts its id,
@@ -477,6 +350,4 @@ const LookupsView = forwardRef(function LookupsView(
       )}
     </div>
   );
-});
-
-export default LookupsView;
+}

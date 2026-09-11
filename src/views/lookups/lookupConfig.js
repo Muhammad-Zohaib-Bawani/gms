@@ -1,8 +1,6 @@
-// Admin-managed reference data. Each lookup is a dedicated table with at least
-// a GET (list) + POST (create) endpoint. `columns` drives the table, `fields`
-// drives the Add form. A lookup gets an Edit row action only once it declares
-// `update` (i.e. the backend has a PUT), and Delete only with `remove` — most
-// of the name-only lookups are still create-only server-side.
+// Admin-managed reference data. Each lookup is a dedicated table with a
+// GET (list) + POST (create) endpoint. `columns` drives the table, `fields`
+// drives the Add form. No edit/delete — the backend exposes create only.
 import {
   getFlightClasses, createFlightClass,
   getRoomTypes, createRoomType,
@@ -14,9 +12,8 @@ import {
 import { stripSasToken } from '../../api/services/uploadService';
 import {
   getVenueTypes, createVenueType,
-  getElementTypes, createElementType, updateElementType, deleteElementType,
+  getElementTypes, createElementType,
 } from '../../api/services/venueService';
-import { ELEMENT_TYPE_CODE_OPTIONS } from '../../enums/elementTypeCode';
 import { getEventTypes, createEventType } from '../../api/services/eventService';
 import { getNationalities } from '../../api/services/nationalityService';
 import { LOCATION_TYPE } from '../../enums/locationType';
@@ -124,26 +121,8 @@ export const LOOKUP_DEFS = [
   },
   {
     key: 'element-types', label: { en: 'Element Types', ar: 'أنواع العناصر' },
-    list: getElementTypes,
-    create: (f) => createElementType(f.code, f.name, f.nameAr),
-    update: (id, f) => updateElementType(id, f.code, f.name, f.nameAr),
-    // Safe to remove: nothing FKs to ElementType — a saved layout stores the
-    // shape as a plain string — so deleting a row only drops it from the venue
-    // editor's palette, leaving canvases already drawn with that code intact.
-    remove: (id) => deleteElementType(id),
-    columns: [CODE, NAME],
-    fields: [
-      // Not a free-text field: `code` selects which SVG the venue canvas draws,
-      // and an unrecognised value silently renders as a pitch. "Other" is kept
-      // as an escape hatch for a code added to the renderer after this list.
-      {
-        ...CODE, label: { en: 'Shape', ar: 'الشكل' }, required: true,
-        options: ELEMENT_TYPE_CODE_OPTIONS, allowOther: true,
-        otherLabel: { en: 'Other — type a code…', ar: 'أخرى — أدخل رمزًا…' },
-      },
-      { ...NAME, required: true },
-      NAME_AR,
-    ],
+    list: getElementTypes, create: (f) => createElementType(f.code, f.name, f.nameAr),
+    columns: [CODE, NAME], fields: [CODE, { ...NAME, required: true }, NAME_AR],
   },
 ];
 

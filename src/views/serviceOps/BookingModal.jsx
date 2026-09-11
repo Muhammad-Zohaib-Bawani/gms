@@ -100,7 +100,7 @@ export default function BookingModal({
   const slots = useMemo(() => (plan?.slots || []).map((s) => ({ ...s })), [plan]);
   const systemSlots = useMemo(() => slots.filter((s) => s.isSystem), [slots]);
 
-  // Only fetched once a built-in service is actually on offer — it's nine
+  // Only fetched once a built-in service is actually on offer — it's eight
   // parallel lookup requests, and a purely dynamic level needs none of them.
   useEffect(() => {
     if (!open || systemSlots.length === 0 || Object.keys(travelLookups).length > 0) return;
