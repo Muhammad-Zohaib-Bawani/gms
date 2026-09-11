@@ -594,7 +594,7 @@ export default function GuestDetailView({ eventGuestId, lang, embedded = false }
         onSaved={() => load()}
       />
 
-      <SessionsEditModal
+      <SessionsEditModal 
         open={showSessionsEdit}
         guest={guest}
         event={event}
